@@ -66,10 +66,8 @@
 
   hudBest.textContent = best;
 
-  let rimOutShown = false;
   function resetBall() {
     ball = { x: ANCHOR.x, y: ANCHOR.y, vx: 0, vy: 0, flying: false };
-    rimOutShown = false;
   }
   resetBall();
 
@@ -206,13 +204,7 @@
         if (d < cup.r * CUP_HIT_MULT) {
           const speed = Math.hypot(ball.vx, ball.vy);
           const isSoftLanding = ball.vy > 0 && speed <= MAX_LANDING_SPEED;
-          if (!isSoftLanding) {
-            if (!rimOutShown) {
-              toast('RIMMED OUT', 'legend-rekt');
-              rimOutShown = true;
-            }
-            continue;
-          }
+          if (!isSoftLanding) continue;
           cup.sunk = true;
           score += cup.points;
           hudScore.textContent = score;
