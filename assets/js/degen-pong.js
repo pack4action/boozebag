@@ -6,13 +6,14 @@
   const W = canvas.width;
   const H = canvas.height;
 
-  const GRAVITY = 0.3;
+  const GRAVITY = 0.34;
   const WALL_DAMP = 0.72;
   const MAX_PULL = 120;
   const POWER = 0.24;
   const CAN_R = 15;
   const ANCHOR = { x: W / 2, y: 610 };
-  const TOTAL_BALLS = 8;
+  const TOTAL_BALLS = 5;
+  const CUP_HIT_MULT = 0.4;
 
   // ---- Persistence (local for now; structured so a backend/wallet layer can
   // slot in later without touching game logic) ----
@@ -33,12 +34,12 @@
   // ---- Cups ----
   function makeCups() {
     return [
-      { x: 190, y: 130, r: 30, label: 'MOON', points: 100, fill: '#2ecc71', sunk: false },
-      { x: 250, y: 130, r: 30, label: '10X', points: 75, fill: '#ffb703', sunk: false },
-      { x: 310, y: 130, r: 30, label: 'DIAMOND\nHANDS', points: 60, fill: '#3ddcff', sunk: false },
-      { x: 220, y: 186, r: 30, label: 'PAPER\nHANDS', points: 20, fill: '#a89fb0', sunk: false },
-      { x: 280, y: 186, r: 30, label: 'REKT', points: 10, fill: '#ff3b3b', sunk: false },
-      { x: 250, y: 242, r: 30, label: 'RUG', points: 0, fill: '#3a1414', sunk: false },
+      { x: 190, y: 130, r: 22, label: 'MOON', points: 100, fill: '#2ecc71', sunk: false },
+      { x: 250, y: 130, r: 22, label: '10X', points: 75, fill: '#ffb703', sunk: false },
+      { x: 310, y: 130, r: 22, label: 'DIAMOND\nHANDS', points: 60, fill: '#3ddcff', sunk: false },
+      { x: 220, y: 186, r: 22, label: 'PAPER\nHANDS', points: 20, fill: '#a89fb0', sunk: false },
+      { x: 280, y: 186, r: 22, label: 'REKT', points: 10, fill: '#ff3b3b', sunk: false },
+      { x: 250, y: 242, r: 22, label: 'RUG', points: 0, fill: '#3a1414', sunk: false },
     ];
   }
 
@@ -199,7 +200,7 @@
       for (const cup of cups) {
         if (cup.sunk) continue;
         const d = Math.hypot(ball.x - cup.x, ball.y - cup.y);
-        if (d < cup.r * 0.75) {
+        if (d < cup.r * CUP_HIT_MULT) {
           cup.sunk = true;
           score += cup.points;
           hudScore.textContent = score;
@@ -467,12 +468,12 @@
 
     if (!cup.sunk) {
       ctx.fillStyle = cup.points >= 75 || cup.fill === '#3a1414' ? '#fff' : '#0a0a0d';
-      ctx.font = '700 10px Inter, sans-serif';
+      ctx.font = '700 8px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const lines = cup.label.split('\n');
       lines.forEach((line, i) => {
-        ctx.fillText(line, cup.x, cup.y + bodyH * 0.55 + (i - (lines.length - 1) / 2) * 11);
+        ctx.fillText(line, cup.x, cup.y + bodyH * 0.55 + (i - (lines.length - 1) / 2) * 9);
       });
     }
     ctx.restore();
