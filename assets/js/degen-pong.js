@@ -14,6 +14,7 @@
   const ANCHOR = { x: W / 2, y: 610 };
   const TOTAL_BALLS = 5;
   const CUP_HIT_MULT = 0.4;
+  const MAX_LANDING_SPEED = 8;
 
   // ---- Persistence (local for now; structured so a backend/wallet layer can
   // slot in later without touching game logic) ----
@@ -65,8 +66,10 @@
 
   hudBest.textContent = best;
 
+  let rimOutShown = false;
   function resetBall() {
     ball = { x: ANCHOR.x, y: ANCHOR.y, vx: 0, vy: 0, flying: false };
+    rimOutShown = false;
   }
   resetBall();
 
@@ -201,6 +204,15 @@
         if (cup.sunk) continue;
         const d = Math.hypot(ball.x - cup.x, ball.y - cup.y);
         if (d < cup.r * CUP_HIT_MULT) {
+          const speed = Math.hypot(ball.vx, ball.vy);
+          const isSoftLanding = ball.vy > 0 && speed <= MAX_LANDING_SPEED;
+          if (!isSoftLanding) {
+            if (!rimOutShown) {
+              toast('RIMMED OUT', 'legend-rekt');
+              rimOutShown = true;
+            }
+            continue;
+          }
           cup.sunk = true;
           score += cup.points;
           hudScore.textContent = score;
