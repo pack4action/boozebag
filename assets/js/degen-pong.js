@@ -13,7 +13,7 @@
   const CAN_R = 15;
   const ANCHOR = { x: W / 2, y: 610 };
   const TOTAL_BALLS = 5;
-  const CUP_HIT_MULT = 0.46;
+  const CUP_HIT_MULT = 0.52;
   const MAX_LANDING_SPEED = 8;
   const MISS_WORDS = ['DAMMIT', 'SHIT', 'FUCK', 'AW HELL', 'GODDAMMIT', 'BULLSHIT'];
 
