@@ -35,10 +35,10 @@ const statEls = document.querySelectorAll('.stat-num[data-target]');
 
 function animateCount(el) {
   const target = el.dataset.target;
-  const match = target.match(/^([\d.]+)(K)?$/);
+  const match = target.match(/^([\d.]+)([KM])?(\+)?$/);
   if (!match) { el.textContent = target; return; }
   const value = parseFloat(match[1]);
-  const suffix = match[2] || '';
+  const suffix = (match[2] || '') + (match[3] || '');
   const decimals = match[1].includes('.') ? 1 : 0;
   if (reduceMotion) { el.textContent = value.toFixed(decimals) + suffix; return; }
   const duration = 900;
