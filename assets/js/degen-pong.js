@@ -36,12 +36,12 @@
   // ---- Cups ----
   function makeCups() {
     return [
-      { x: 190, y: 130, r: 22, label: 'MOON', points: 100, fill: '#6fb98f', sunk: false },
-      { x: 250, y: 130, r: 22, label: '10X', points: 75, fill: '#f0a94e', sunk: false },
-      { x: 310, y: 130, r: 22, label: 'DIAMOND\nHANDS', points: 60, fill: '#5ec4c9', sunk: false },
-      { x: 220, y: 186, r: 22, label: 'PAPER\nHANDS', points: 20, fill: '#d9c3a3', sunk: false },
-      { x: 280, y: 186, r: 22, label: 'REKT', points: 10, fill: '#d9634f', sunk: false },
-      { x: 250, y: 242, r: 22, label: 'RUG', points: -50, fill: '#5c3427', sunk: false },
+      { x: 190, y: 130, r: 22, label: 'MOON', points: 100, bonusCans: 3, fill: '#6fb98f', sunk: false },
+      { x: 250, y: 130, r: 22, label: '10X', points: 75, bonusCans: 1, fill: '#f0a94e', sunk: false },
+      { x: 310, y: 130, r: 22, label: 'DIAMOND\nHANDS', points: 60, bonusCans: 1, fill: '#5ec4c9', sunk: false },
+      { x: 220, y: 186, r: 22, label: 'PAPER\nHANDS', points: 20, bonusCans: 1, fill: '#d9c3a3', sunk: false },
+      { x: 280, y: 186, r: 22, label: 'REKT', points: 10, bonusCans: 1, fill: '#d9634f', sunk: false },
+      { x: 250, y: 242, r: 22, label: 'RUG', points: -50, bonusCans: 0, fill: '#5c3427', sunk: false },
     ];
   }
 
@@ -221,10 +221,12 @@
           cup.sunk = true;
           score += cup.points;
           hudScore.textContent = score;
-          if (cup.label !== 'RUG') ballsLeft++;
+          if (cup.bonusCans > 0) ballsLeft += cup.bonusCans;
           const cls = cup.points >= 75 ? 'legend-moon' : cup.points >= 40 ? 'legend-10x' : cup.points > 0 ? 'legend-rekt' : 'legend-rug';
           const sign = cup.points > 0 ? '+' : cup.points < 0 ? '' : '';
-          toast((cup.points !== 0 ? sign + cup.points + ' ' : '') + cup.label.replace('\n', ' '), cls);
+          let msg = (cup.points !== 0 ? sign + cup.points + ' ' : '') + cup.label.replace('\n', ' ');
+          if (cup.bonusCans > 0) msg += ' +' + cup.bonusCans + (cup.bonusCans > 1 ? ' cans' : ' can');
+          toast(msg, cls);
           if (cup.points >= 60) spawnBurst(cup.x, cup.y, cup.fill);
           ball.flying = false;
           finishThrow();
