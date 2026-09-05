@@ -445,7 +445,7 @@ img { max-width: 100%; display: block; }
 }
 .sticker-legend {
   width: 120px;
-  top: -20px;
+  top: 10px;
   right: 4%;
   transform: rotate(9deg);
 }
@@ -646,13 +646,13 @@ img { max-width: 100%; display: block; }
 
 .sticker-shades {
   width: 190px;
-  top: -10px;
+  top: 10px;
   right: 4%;
   transform: rotate(-4deg);
 }
 .sticker-keg {
   width: 140px;
-  top: -18px;
+  top: 10px;
   left: 4%;
   transform: rotate(-7deg);
 }
