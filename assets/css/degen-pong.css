@@ -154,10 +154,10 @@
   color: var(--muted);
   letter-spacing: 0.3px;
 }
-.legend-moon { color: var(--green); border-color: var(--green); }
-.legend-10x { color: var(--amber); border-color: var(--amber); }
-.legend-diamond { color: var(--blue); border-color: var(--blue); }
-.legend-rekt { color: var(--red); border-color: var(--red); }
+.legend-moon { color: #6fb98f; border-color: #6fb98f; }
+.legend-10x { color: #f0a94e; border-color: #f0a94e; }
+.legend-diamond { color: #5ec4c9; border-color: #5ec4c9; }
+.legend-rekt { color: #d9634f; border-color: #d9634f; }
 
 .game-footnote {
   color: var(--muted);

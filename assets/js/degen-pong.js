@@ -36,12 +36,12 @@
   // ---- Cups ----
   function makeCups() {
     return [
-      { x: 190, y: 130, r: 22, label: 'MOON', points: 100, fill: '#2ecc71', sunk: false },
-      { x: 250, y: 130, r: 22, label: '10X', points: 75, fill: '#ffb703', sunk: false },
-      { x: 310, y: 130, r: 22, label: 'DIAMOND\nHANDS', points: 60, fill: '#3ddcff', sunk: false },
-      { x: 220, y: 186, r: 22, label: 'PAPER\nHANDS', points: 20, fill: '#a89fb0', sunk: false },
-      { x: 280, y: 186, r: 22, label: 'REKT', points: 10, fill: '#ff3b3b', sunk: false },
-      { x: 250, y: 242, r: 22, label: 'RUG', points: -50, fill: '#3a1414', sunk: false },
+      { x: 190, y: 130, r: 22, label: 'MOON', points: 100, fill: '#6fb98f', sunk: false },
+      { x: 250, y: 130, r: 22, label: '10X', points: 75, fill: '#f0a94e', sunk: false },
+      { x: 310, y: 130, r: 22, label: 'DIAMOND\nHANDS', points: 60, fill: '#5ec4c9', sunk: false },
+      { x: 220, y: 186, r: 22, label: 'PAPER\nHANDS', points: 20, fill: '#d9c3a3', sunk: false },
+      { x: 280, y: 186, r: 22, label: 'REKT', points: 10, fill: '#d9634f', sunk: false },
+      { x: 250, y: 242, r: 22, label: 'RUG', points: -50, fill: '#5c3427', sunk: false },
     ];
   }
 
@@ -246,25 +246,53 @@
   const TABLE_BACK_X0 = 168;
   const TABLE_BACK_X1 = 332;
 
-  function drawGarageScene(g) {
-    // back wall
+  function drawStringLights(g, x0, y0, x1, y1, sag, colors) {
+    // gentle catenary-ish sag using a quadratic curve
+    const midX = (x0 + x1) / 2;
+    const midY = Math.max(y0, y1) + sag;
+    g.strokeStyle = 'rgba(90, 62, 40, 0.9)';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.quadraticCurveTo(midX, midY, x1, y1);
+    g.stroke();
+
+    const bulbCount = 9;
+    for (let i = 0; i <= bulbCount; i++) {
+      const t = i / bulbCount;
+      const bx = (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * midX + t * t * x1;
+      const by = (1 - t) * (1 - t) * y0 + 2 * (1 - t) * t * midY + t * t * y1;
+      const color = colors[i % colors.length];
+      g.save();
+      g.shadowColor = color;
+      g.shadowBlur = 9;
+      g.fillStyle = color;
+      g.beginPath();
+      g.arc(bx, by + 3, 3.2, 0, Math.PI * 2);
+      g.fill();
+      g.restore();
+    }
+  }
+
+  function drawCozyScene(g) {
+    // warm back wall
     const wallGrad = g.createLinearGradient(0, 0, 0, 260);
-    wallGrad.addColorStop(0, '#1a2230');
-    wallGrad.addColorStop(1, '#222b3a');
+    wallGrad.addColorStop(0, '#2e2119');
+    wallGrad.addColorStop(1, '#463123');
     g.fillStyle = wallGrad;
     g.fillRect(0, 0, W, 260);
 
-    // side wall shading
-    g.fillStyle = 'rgba(0,0,0,0.28)';
+    // side wall shading (warm, not cold)
+    g.fillStyle = 'rgba(20,12,6,0.32)';
     g.fillRect(0, 0, 95, 260);
     g.fillRect(W - 95, 0, 95, 260);
 
-    // garage door panel
-    g.fillStyle = '#2a3446';
+    // wood-paneled back wall
+    g.fillStyle = '#523c2c';
     g.beginPath();
-    g.roundRect(95, 45, W - 190, 165, 10);
+    g.roundRect(95, 45, W - 190, 165, 12);
     g.fill();
-    g.strokeStyle = 'rgba(0,0,0,0.35)';
+    g.strokeStyle = 'rgba(0,0,0,0.25)';
     g.lineWidth = 3;
     for (let i = 1; i < 5; i++) {
       const y = 45 + (165 / 5) * i;
@@ -274,66 +302,72 @@
       g.stroke();
     }
 
-    // ceiling light
+    // warm pendant lamp
     g.save();
-    g.shadowColor = 'rgba(255, 221, 150, 0.9)';
-    g.shadowBlur = 26;
-    g.fillStyle = '#fff3d6';
+    g.shadowColor = 'rgba(255, 200, 130, 0.95)';
+    g.shadowBlur = 30;
+    g.fillStyle = '#ffe3b0';
     g.beginPath();
-    g.roundRect(W / 2 - 46, 12, 92, 13, 6);
+    g.ellipse(W / 2, 26, 26, 15, 0, 0, Math.PI * 2);
     g.fill();
     g.restore();
-    g.fillStyle = 'rgba(255,255,255,0.06)';
+    g.fillStyle = '#3a2b20';
+    g.fillRect(W / 2 - 2, 0, 4, 12);
+    g.fillStyle = 'rgba(255,214,158,0.10)';
     g.beginPath();
-    g.moveTo(W / 2 - 60, 25);
-    g.lineTo(W / 2 + 60, 25);
+    g.moveTo(W / 2 - 60, 35);
+    g.lineTo(W / 2 + 60, 35);
     g.lineTo(W / 2 + 130, 220);
     g.lineTo(W / 2 - 130, 220);
     g.closePath();
     g.fill();
 
-    // left prop: glowing mug sign + keg
+    // string lights strung across the back wall
+    drawStringLights(g, 18, 58, W / 2 - 60, 40, 26, ['#ffd28a', '#ffb877', '#ffe3a8']);
+    drawStringLights(g, W / 2 + 60, 40, W - 18, 58, 26, ['#ffe3a8', '#ffb877', '#ffd28a']);
+
+    // left prop: warm glowing mug sign
     g.save();
-    g.shadowColor = 'rgba(255, 183, 3, 0.85)';
-    g.shadowBlur = 16;
-    g.strokeStyle = '#ffb703';
+    g.shadowColor = 'rgba(255, 190, 110, 0.8)';
+    g.shadowBlur = 14;
+    g.strokeStyle = '#ffc978';
     g.lineWidth = 2.5;
     g.beginPath();
-    g.roundRect(14, 62, 62, 46, 6);
+    g.roundRect(14, 62, 62, 46, 10);
     g.stroke();
-    g.fillStyle = 'rgba(255,183,3,0.12)';
+    g.fillStyle = 'rgba(255,190,110,0.14)';
     g.fill();
-    // mug icon
-    g.fillStyle = '#ffb703';
+    g.fillStyle = '#ffc978';
     g.beginPath();
-    g.roundRect(30, 74, 22, 22, 3);
+    g.roundRect(30, 74, 22, 22, 4);
     g.fill();
     g.beginPath();
-    g.roundRect(52, 80, 8, 12, 2);
+    g.roundRect(52, 80, 8, 12, 3);
     g.stroke();
-    g.fillStyle = '#fff3d6';
+    g.fillStyle = '#fff3d9';
     g.beginPath();
-    g.roundRect(30, 71, 22, 6, 2);
+    g.roundRect(30, 71, 22, 6, 3);
     g.fill();
     g.restore();
 
-    // keg
+    // wooden keg barrel
     const kegGrad = g.createLinearGradient(14, 0, 66, 0);
-    kegGrad.addColorStop(0, '#5a6472');
-    kegGrad.addColorStop(0.5, '#8b95a3');
-    kegGrad.addColorStop(1, '#4a5462');
+    kegGrad.addColorStop(0, '#6b4a30');
+    kegGrad.addColorStop(0.5, '#8f6440');
+    kegGrad.addColorStop(1, '#5c3f28');
     g.fillStyle = kegGrad;
     g.beginPath();
-    g.roundRect(14, 150, 52, 78, 8);
+    g.roundRect(14, 150, 52, 78, 10);
     g.fill();
-    g.fillStyle = 'rgba(255,183,3,0.9)';
-    g.fillRect(14, 182, 52, 10);
-    g.strokeStyle = 'rgba(0,0,0,0.3)';
+    g.fillStyle = 'rgba(60,40,26,0.85)';
+    g.fillRect(14, 168, 52, 6);
+    g.fillRect(14, 204, 52, 6);
+    g.strokeStyle = 'rgba(0,0,0,0.25)';
     g.lineWidth = 1.5;
     g.strokeRect(14, 150, 52, 78);
 
-    // right prop: banner + fridge
-    g.fillStyle = '#0f141c';
+    // right prop: cozy pennant + drink shelf
+    g.fillStyle = '#c96f4a';
     g.beginPath();
     g.moveTo(W - 78, 40);
     g.lineTo(W - 16, 40);
@@ -342,32 +376,39 @@
     g.lineTo(W - 78, 88);
     g.closePath();
     g.fill();
-    g.fillStyle = '#e7e2da';
+    g.fillStyle = '#fff3d9';
     g.font = '700 9px Inter, sans-serif';
     g.textAlign = 'center';
     g.fillText('DEGEN', W - 47, 58);
     g.fillText('MODE ON', W - 47, 70);
 
-    const fridgeGrad = g.createLinearGradient(W - 82, 0, W - 14, 0);
-    fridgeGrad.addColorStop(0, '#3a4048');
-    fridgeGrad.addColorStop(0.5, '#565e68');
-    fridgeGrad.addColorStop(1, '#2e343c');
-    g.fillStyle = fridgeGrad;
+    const shelfGrad = g.createLinearGradient(W - 82, 0, W - 14, 0);
+    shelfGrad.addColorStop(0, '#5c4230');
+    shelfGrad.addColorStop(0.5, '#7a5a3e');
+    shelfGrad.addColorStop(1, '#4a3524');
+    g.fillStyle = shelfGrad;
     g.beginPath();
-    g.roundRect(W - 82, 150, 68, 96, 6);
+    g.roundRect(W - 82, 150, 68, 96, 8);
     g.fill();
     g.save();
-    g.shadowColor = 'rgba(120, 200, 255, 0.8)';
-    g.shadowBlur = 14;
-    g.fillStyle = 'rgba(140, 210, 255, 0.35)';
+    g.shadowColor = 'rgba(255, 200, 130, 0.55)';
+    g.shadowBlur = 10;
+    g.fillStyle = 'rgba(255, 210, 150, 0.16)';
     g.fillRect(W - 74, 158, 52, 80);
     g.restore();
-    g.strokeStyle = 'rgba(0,0,0,0.35)';
+    // bottle silhouettes on the shelf
+    g.fillStyle = 'rgba(40,60,45,0.85)';
+    [W - 66, W - 50, W - 34].forEach((bx) => {
+      g.beginPath();
+      g.roundRect(bx, 195, 10, 24, 3);
+      g.fill();
+    });
+    g.strokeStyle = 'rgba(0,0,0,0.3)';
     g.lineWidth = 1.5;
     g.strokeRect(W - 82, 150, 68, 96);
 
-    // floor (garage concrete) beneath side props
-    g.fillStyle = '#161b22';
+    // floor beneath side props (warm wood, not cold concrete)
+    g.fillStyle = '#241a13';
     g.fillRect(0, 260, W, H - 260);
 
     // table trapezoid
@@ -378,14 +419,14 @@
     g.lineTo(-40, H);
     g.closePath();
     const woodGrad = g.createLinearGradient(0, TABLE_BACK_Y, 0, H);
-    woodGrad.addColorStop(0, '#3d2a1c');
-    woodGrad.addColorStop(0.5, '#5a3f28');
-    woodGrad.addColorStop(1, '#7a5636');
+    woodGrad.addColorStop(0, '#4a3320');
+    woodGrad.addColorStop(0.5, '#75512f');
+    woodGrad.addColorStop(1, '#a4763f');
     g.fillStyle = woodGrad;
     g.fill();
 
     // plank seams (converge toward back edge)
-    g.strokeStyle = 'rgba(0,0,0,0.22)';
+    g.strokeStyle = 'rgba(40,24,10,0.28)';
     g.lineWidth = 2;
     for (let i = -2; i <= 2; i++) {
       g.beginPath();
@@ -393,29 +434,49 @@
       g.lineTo(250 + i * 130, H);
       g.stroke();
     }
-    // court boundary line
-    g.strokeStyle = 'rgba(255,255,255,0.55)';
+    // warm court boundary line
+    g.strokeStyle = 'rgba(255,240,220,0.5)';
     g.lineWidth = 3;
     g.beginPath();
     g.moveTo(TABLE_BACK_X0, TABLE_BACK_Y);
     g.lineTo(TABLE_BACK_X1, TABLE_BACK_Y);
     g.stroke();
-    g.strokeStyle = 'rgba(255,255,255,0.18)';
+    g.strokeStyle = 'rgba(255,240,220,0.16)';
     g.lineWidth = 2;
     g.beginPath();
     g.moveTo(40, 470);
     g.lineTo(W - 40, 470);
     g.stroke();
 
-    // spill stains
-    g.fillStyle = 'rgba(20,10,5,0.25)';
-    [[110, 520, 46, 20], [370, 560, 40, 16], [200, 630, 60, 22], [340, 660, 34, 14]].forEach(([sx, sy, rx, ry]) => {
+    // soft warm glow pooling under the pendant lamp, onto the table
+    const poolGrad = g.createRadialGradient(W / 2, 260, 20, W / 2, 260, 260);
+    poolGrad.addColorStop(0, 'rgba(255, 210, 150, 0.12)');
+    poolGrad.addColorStop(1, 'rgba(255, 210, 150, 0)');
+    g.fillStyle = poolGrad;
+    g.fillRect(0, TABLE_BACK_Y, W, 420);
+
+    // a cozy rug at the very front, near the player
+    g.save();
+    g.fillStyle = '#7a3b34';
+    g.beginPath();
+    g.roundRect(60, H - 90, W - 120, 70, 14);
+    g.fill();
+    g.strokeStyle = 'rgba(255, 235, 210, 0.35)';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.roundRect(74, H - 78, W - 148, 46, 10);
+    g.stroke();
+    g.restore();
+
+    // faint, cozy (not grimy) spill marks
+    g.fillStyle = 'rgba(70,45,20,0.18)';
+    [[110, 520, 40, 16], [370, 560, 34, 14], [200, 630, 50, 18]].forEach(([sx, sy, rx, ry]) => {
       g.beginPath();
       g.ellipse(sx, sy, rx, ry, 0.2, 0, Math.PI * 2);
       g.fill();
     });
   }
-  drawGarageScene(bgx);
+  drawCozyScene(bgx);
 
   function shade(hex, amt) {
     const c = hex.replace('#', '');
@@ -473,7 +534,7 @@
     ctx.stroke();
 
     if (!cup.sunk) {
-      ctx.fillStyle = cup.points >= 75 || cup.fill === '#3a1414' ? '#fff' : '#0a0a0d';
+      ctx.fillStyle = cup.points >= 75 || cup.fill === '#5c3427' ? '#fff' : '#0a0a0d';
       ctx.font = '700 8px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
