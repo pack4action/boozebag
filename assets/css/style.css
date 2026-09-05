@@ -196,6 +196,12 @@ img { max-width: 100%; display: block; }
   color: var(--muted);
 }
 
+.hero-art {
+  width: min(680px, 100%);
+  margin: 0 auto 8px;
+  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.55));
+}
+
 .hero-title {
   font-size: clamp(2.4rem, 7vw, 4.4rem);
   margin-bottom: 22px;
