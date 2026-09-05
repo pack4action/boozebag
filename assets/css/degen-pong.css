@@ -1,0 +1,168 @@
+.game-body { background: var(--bg); }
+
+.game-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 50px 6vw 90px;
+  text-align: center;
+}
+
+.game-title {
+  font-size: clamp(2.2rem, 8vw, 3.4rem);
+  margin-bottom: 14px;
+}
+.game-title .hl {
+  background: linear-gradient(90deg, var(--amber), var(--red));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.game-sub {
+  color: var(--muted);
+  font-size: 15px;
+  max-width: 440px;
+  margin: 0 auto 30px;
+  line-height: 1.6;
+}
+
+.game-hud {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.hud-stat {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 10px 22px;
+  min-width: 100px;
+}
+.hud-label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+.hud-value {
+  display: block;
+  font-family: 'Anton', sans-serif;
+  font-size: 26px;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+}
+
+.game-stage {
+  position: relative;
+  max-width: 500px;
+  margin: 0 auto;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 3px solid #000;
+  box-shadow: var(--shadow-hard);
+  touch-action: none;
+}
+
+#pong-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: linear-gradient(180deg, #0d1b12 0%, #142a1c 55%, #1c3a24 100%);
+  cursor: grab;
+}
+#pong-canvas:active { cursor: grabbing; }
+
+.game-toast {
+  position: absolute;
+  top: 14%;
+  left: 50%;
+  transform: translate(-50%, -10px);
+  font-family: 'Anton', sans-serif;
+  font-size: clamp(1.4rem, 6vw, 2.2rem);
+  color: #fff;
+  text-shadow: 0 3px 0 #000, 0 0 20px rgba(0,0,0,0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.3s ease;
+  white-space: nowrap;
+}
+.game-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.game-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 6, 8, 0.86);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.game-overlay[hidden] { display: none; }
+.overlay-card {
+  background: var(--panel);
+  border: 3px solid #000;
+  border-radius: 18px;
+  box-shadow: var(--shadow-hard);
+  padding: 32px 28px;
+  text-align: center;
+  max-width: 320px;
+}
+.overlay-card h2 {
+  font-family: 'Anton', sans-serif;
+  font-size: 1.8rem;
+  color: var(--amber);
+  margin: 0 0 12px;
+}
+.overlay-card p {
+  color: var(--text);
+  font-size: 15px;
+  margin: 6px 0;
+}
+#overlay-best { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+#btn-replay { margin-top: 8px; }
+
+.game-hint {
+  color: var(--muted);
+  font-size: 12.5px;
+  max-width: 420px;
+  margin: 22px auto 0;
+  line-height: 1.6;
+}
+
+.game-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 20px auto 0;
+  max-width: 480px;
+}
+.legend-chip {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--muted);
+  letter-spacing: 0.3px;
+}
+.legend-moon { color: var(--green); border-color: var(--green); }
+.legend-10x { color: var(--amber); border-color: var(--amber); }
+.legend-diamond { color: var(--blue); border-color: var(--blue); }
+.legend-rekt { color: var(--red); border-color: var(--red); }
+
+.game-footnote {
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 440px;
+  margin: 26px auto 0;
+  line-height: 1.6;
+}

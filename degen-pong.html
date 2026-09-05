@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+<title>Degen Pong: A $BOOZEBAG Minigame</title>
+<meta name="description" content="Drag back, let go, and sink the cup. MOON, RUG, or REKT: play Degen Pong, the $BOOZEBAG minigame." />
+<link rel="icon" type="image/png" href="assets/img/favicon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css" />
+<link rel="stylesheet" href="assets/css/degen-pong.css" />
+</head>
+<body class="game-body">
+
+<div class="grain"></div>
+
+<header class="nav">
+  <a href="index.html#top" class="brand">
+    <img src="assets/img/avatar.png" alt="Boozebag Fitness" class="brand-avatar" />
+    <span>$BOOZEBAG</span>
+  </a>
+  <nav class="nav-links" id="nav-links">
+    <a href="index.html#lore">Lore</a>
+    <a href="index.html#tokenomics">Tokenomics</a>
+    <a href="index.html#buy">How to Buy</a>
+    <a href="index.html#community">Community</a>
+  </nav>
+  <a class="btn btn-small btn-primary nav-cta" href="index.html#buy">Buy $BOOZEBAG</a>
+  <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</header>
+
+<main class="game-page">
+  <div class="game-head">
+    <h1 class="game-title">DEGEN <span class="hl">PONG</span></h1>
+    <p class="game-sub">Drag back on the can, aim for the cups, let go. Sink MOON and 10X for the bag, don't get REKT.</p>
+  </div>
+
+  <div class="game-hud">
+    <div class="hud-stat"><span class="hud-label">Score</span><span class="hud-value" id="hud-score">0</span></div>
+    <div class="hud-stat"><span class="hud-label">Cans Left</span><span class="hud-value" id="hud-balls">8</span></div>
+    <div class="hud-stat"><span class="hud-label">Best</span><span class="hud-value" id="hud-best">0</span></div>
+  </div>
+
+  <div class="game-stage">
+    <canvas id="pong-canvas" width="500" height="700" aria-label="Degen Pong game board"></canvas>
+    <div class="game-toast" id="game-toast"></div>
+    <div class="game-overlay" id="game-overlay" hidden>
+      <div class="overlay-card">
+        <h2 id="overlay-title">RACK CLEARED</h2>
+        <p id="overlay-score">Final bag: $0</p>
+        <p id="overlay-best">Best bag: $0</p>
+        <button class="btn btn-primary btn-lg" id="btn-replay" type="button">Rack 'Em Again</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="game-hint">Works with mouse or touch. Cans that miss the table bounce off the walls, so bad throws aren't always dead.</p>
+
+  <div class="game-legend">
+    <span class="legend-chip legend-moon">MOON = 100</span>
+    <span class="legend-chip legend-10x">10X = 75</span>
+    <span class="legend-chip legend-diamond">DIAMOND HANDS = 60</span>
+    <span class="legend-chip legend-paper">PAPER HANDS = 20</span>
+    <span class="legend-chip legend-rekt">REKT = 10</span>
+    <span class="legend-chip legend-rug">RUG = 0</span>
+  </div>
+
+  <p class="game-footnote">Local high scores for now. A wallet-connected leaderboard with real $BOOZEBAG giveaways for top players is coming.</p>
+</main>
+
+<script src="assets/js/main.js"></script>
+<script src="assets/js/degen-pong.js"></script>
+</body>
+</html>

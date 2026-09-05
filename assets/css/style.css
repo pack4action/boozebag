@@ -567,6 +567,29 @@ img { max-width: 100%; display: block; }
 .content-card h3 { font-size: 17px; margin-bottom: 10px; }
 .content-card p { color: var(--muted); font-size: 14px; line-height: 1.6; margin: 0; }
 
+/* Play banner */
+.play-banner-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  max-width: 1180px;
+  margin: 0 auto;
+  text-align: left;
+}
+.play-banner-text p {
+  color: var(--muted);
+  font-size: 14.5px;
+  max-width: 480px;
+  margin: 10px 0 0;
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .play-banner-inner { flex-direction: column; text-align: center; }
+  .play-banner-text p { margin: 10px auto 0; }
+}
+
 /* Tokenomics */
 .token-grid {
   display: grid;
