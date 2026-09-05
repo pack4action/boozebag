@@ -49,6 +49,7 @@
   let ball = null;
   let ballsLeft = TOTAL_BALLS;
   let score = 0;
+  let wave = 1;
   let best = getBestScore();
   let dragging = false;
   let dragPos = null;
@@ -57,6 +58,7 @@
 
   const hudScore = document.getElementById('hud-score');
   const hudBalls = document.getElementById('hud-balls');
+  const hudWave = document.getElementById('hud-wave');
   const hudBest = document.getElementById('hud-best');
   const toastEl = document.getElementById('game-toast');
   const overlay = document.getElementById('game-overlay');
@@ -156,23 +158,31 @@
     ballsLeft--;
     hudBalls.textContent = Math.max(ballsLeft, 0);
     resetBall();
-    const allSunk = cups.every((c) => c.sunk);
-    if (allSunk) {
+    const waveCleared = cups.filter((c) => c.label !== 'RUG').every((c) => c.sunk);
+    if (waveCleared) {
       const bonus = 50;
       score += bonus;
       hudScore.textContent = score;
-      toast('RACK CLEARED +' + bonus, 'legend-moon');
-      setTimeout(endGame, 900);
+      toast('WAVE CLEARED +' + bonus, 'legend-moon');
+      setTimeout(startNextWave, 900);
     } else if (ballsLeft <= 0) {
       setTimeout(endGame, 500);
     }
   }
 
+  function startNextWave() {
+    wave++;
+    hudWave.textContent = wave;
+    cups = makeCups();
+    ballsLeft = TOTAL_BALLS;
+    hudBalls.textContent = ballsLeft;
+  }
+
   function endGame() {
     gameOver = true;
     best = submitScore(score);
-    overlayTitle.textContent = cups.every((c) => c.sunk) ? 'RACK CLEARED' : 'OUT OF CANS';
-    overlayScore.textContent = 'Final bag: $' + score;
+    overlayTitle.textContent = 'OUT OF CANS';
+    overlayScore.textContent = 'Final bag: $' + score + ' — wave ' + wave;
     overlayBest.textContent = 'Best bag: $' + best;
     hudBest.textContent = best;
     overlay.hidden = false;
@@ -182,10 +192,12 @@
     cups = makeCups();
     ballsLeft = TOTAL_BALLS;
     score = 0;
+    wave = 1;
     gameOver = false;
     particles = [];
     hudScore.textContent = 0;
     hudBalls.textContent = ballsLeft;
+    hudWave.textContent = wave;
     resetBall();
     overlay.hidden = true;
   });
@@ -209,6 +221,7 @@
           cup.sunk = true;
           score += cup.points;
           hudScore.textContent = score;
+          if (cup.label !== 'RUG') ballsLeft++;
           const cls = cup.points >= 75 ? 'legend-moon' : cup.points >= 40 ? 'legend-10x' : cup.points > 0 ? 'legend-rekt' : 'legend-rug';
           const sign = cup.points > 0 ? '+' : cup.points < 0 ? '' : '';
           toast((cup.points !== 0 ? sign + cup.points + ' ' : '') + cup.label.replace('\n', ' '), cls);
