@@ -228,25 +228,251 @@
     }
   }
 
+  // ---- Static background scene (drawn once to an offscreen canvas; the
+  // only thing that animates frame-to-frame is the can itself) ----
+  const bg = document.createElement('canvas');
+  bg.width = W;
+  bg.height = H;
+  const bgx = bg.getContext('2d');
+
+  const TABLE_BACK_Y = 108;
+  const TABLE_BACK_X0 = 168;
+  const TABLE_BACK_X1 = 332;
+
+  function drawGarageScene(g) {
+    // back wall
+    const wallGrad = g.createLinearGradient(0, 0, 0, 260);
+    wallGrad.addColorStop(0, '#1a2230');
+    wallGrad.addColorStop(1, '#222b3a');
+    g.fillStyle = wallGrad;
+    g.fillRect(0, 0, W, 260);
+
+    // side wall shading
+    g.fillStyle = 'rgba(0,0,0,0.28)';
+    g.fillRect(0, 0, 95, 260);
+    g.fillRect(W - 95, 0, 95, 260);
+
+    // garage door panel
+    g.fillStyle = '#2a3446';
+    g.beginPath();
+    g.roundRect(95, 45, W - 190, 165, 10);
+    g.fill();
+    g.strokeStyle = 'rgba(0,0,0,0.35)';
+    g.lineWidth = 3;
+    for (let i = 1; i < 5; i++) {
+      const y = 45 + (165 / 5) * i;
+      g.beginPath();
+      g.moveTo(100, y);
+      g.lineTo(W - 100, y);
+      g.stroke();
+    }
+
+    // ceiling light
+    g.save();
+    g.shadowColor = 'rgba(255, 221, 150, 0.9)';
+    g.shadowBlur = 26;
+    g.fillStyle = '#fff3d6';
+    g.beginPath();
+    g.roundRect(W / 2 - 46, 12, 92, 13, 6);
+    g.fill();
+    g.restore();
+    g.fillStyle = 'rgba(255,255,255,0.06)';
+    g.beginPath();
+    g.moveTo(W / 2 - 60, 25);
+    g.lineTo(W / 2 + 60, 25);
+    g.lineTo(W / 2 + 130, 220);
+    g.lineTo(W / 2 - 130, 220);
+    g.closePath();
+    g.fill();
+
+    // left prop: glowing mug sign + keg
+    g.save();
+    g.shadowColor = 'rgba(255, 183, 3, 0.85)';
+    g.shadowBlur = 16;
+    g.strokeStyle = '#ffb703';
+    g.lineWidth = 2.5;
+    g.beginPath();
+    g.roundRect(14, 62, 62, 46, 6);
+    g.stroke();
+    g.fillStyle = 'rgba(255,183,3,0.12)';
+    g.fill();
+    // mug icon
+    g.fillStyle = '#ffb703';
+    g.beginPath();
+    g.roundRect(30, 74, 22, 22, 3);
+    g.fill();
+    g.beginPath();
+    g.roundRect(52, 80, 8, 12, 2);
+    g.stroke();
+    g.fillStyle = '#fff3d6';
+    g.beginPath();
+    g.roundRect(30, 71, 22, 6, 2);
+    g.fill();
+    g.restore();
+
+    // keg
+    const kegGrad = g.createLinearGradient(14, 0, 66, 0);
+    kegGrad.addColorStop(0, '#5a6472');
+    kegGrad.addColorStop(0.5, '#8b95a3');
+    kegGrad.addColorStop(1, '#4a5462');
+    g.fillStyle = kegGrad;
+    g.beginPath();
+    g.roundRect(14, 150, 52, 78, 8);
+    g.fill();
+    g.fillStyle = 'rgba(255,183,3,0.9)';
+    g.fillRect(14, 182, 52, 10);
+    g.strokeStyle = 'rgba(0,0,0,0.3)';
+    g.lineWidth = 1.5;
+    g.strokeRect(14, 150, 52, 78);
+
+    // right prop: banner + fridge
+    g.fillStyle = '#0f141c';
+    g.beginPath();
+    g.moveTo(W - 78, 40);
+    g.lineTo(W - 16, 40);
+    g.lineTo(W - 16, 88);
+    g.lineTo(W - 47, 78);
+    g.lineTo(W - 78, 88);
+    g.closePath();
+    g.fill();
+    g.fillStyle = '#e7e2da';
+    g.font = '700 9px Inter, sans-serif';
+    g.textAlign = 'center';
+    g.fillText('DEGEN', W - 47, 58);
+    g.fillText('MODE ON', W - 47, 70);
+
+    const fridgeGrad = g.createLinearGradient(W - 82, 0, W - 14, 0);
+    fridgeGrad.addColorStop(0, '#3a4048');
+    fridgeGrad.addColorStop(0.5, '#565e68');
+    fridgeGrad.addColorStop(1, '#2e343c');
+    g.fillStyle = fridgeGrad;
+    g.beginPath();
+    g.roundRect(W - 82, 150, 68, 96, 6);
+    g.fill();
+    g.save();
+    g.shadowColor = 'rgba(120, 200, 255, 0.8)';
+    g.shadowBlur = 14;
+    g.fillStyle = 'rgba(140, 210, 255, 0.35)';
+    g.fillRect(W - 74, 158, 52, 80);
+    g.restore();
+    g.strokeStyle = 'rgba(0,0,0,0.35)';
+    g.lineWidth = 1.5;
+    g.strokeRect(W - 82, 150, 68, 96);
+
+    // floor (garage concrete) beneath side props
+    g.fillStyle = '#161b22';
+    g.fillRect(0, 260, W, H - 260);
+
+    // table trapezoid
+    g.beginPath();
+    g.moveTo(TABLE_BACK_X0, TABLE_BACK_Y);
+    g.lineTo(TABLE_BACK_X1, TABLE_BACK_Y);
+    g.lineTo(W + 40, H);
+    g.lineTo(-40, H);
+    g.closePath();
+    const woodGrad = g.createLinearGradient(0, TABLE_BACK_Y, 0, H);
+    woodGrad.addColorStop(0, '#3d2a1c');
+    woodGrad.addColorStop(0.5, '#5a3f28');
+    woodGrad.addColorStop(1, '#7a5636');
+    g.fillStyle = woodGrad;
+    g.fill();
+
+    // plank seams (converge toward back edge)
+    g.strokeStyle = 'rgba(0,0,0,0.22)';
+    g.lineWidth = 2;
+    for (let i = -2; i <= 2; i++) {
+      g.beginPath();
+      g.moveTo(250 + (i * (TABLE_BACK_X1 - TABLE_BACK_X0)) / 6, TABLE_BACK_Y);
+      g.lineTo(250 + i * 130, H);
+      g.stroke();
+    }
+    // court boundary line
+    g.strokeStyle = 'rgba(255,255,255,0.55)';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(TABLE_BACK_X0, TABLE_BACK_Y);
+    g.lineTo(TABLE_BACK_X1, TABLE_BACK_Y);
+    g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.18)';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(40, 470);
+    g.lineTo(W - 40, 470);
+    g.stroke();
+
+    // spill stains
+    g.fillStyle = 'rgba(20,10,5,0.25)';
+    [[110, 520, 46, 20], [370, 560, 40, 16], [200, 630, 60, 22], [340, 660, 34, 14]].forEach(([sx, sy, rx, ry]) => {
+      g.beginPath();
+      g.ellipse(sx, sy, rx, ry, 0.2, 0, Math.PI * 2);
+      g.fill();
+    });
+  }
+  drawGarageScene(bgx);
+
+  function shade(hex, amt) {
+    const c = hex.replace('#', '');
+    const num = parseInt(c.length === 3 ? c.split('').map((x) => x + x).join('') : c, 16);
+    let r = (num >> 16) + amt;
+    let gr = ((num >> 8) & 0xff) + amt;
+    let b = (num & 0xff) + amt;
+    r = Math.max(0, Math.min(255, r));
+    gr = Math.max(0, Math.min(255, gr));
+    b = Math.max(0, Math.min(255, b));
+    return `rgb(${r},${gr},${b})`;
+  }
+
   function drawCup(cup) {
     ctx.save();
-    if (cup.sunk) ctx.globalAlpha = 0.15;
+    if (cup.sunk) ctx.globalAlpha = 0.18;
+
+    const topW = cup.r;
+    const botW = cup.r * 0.62;
+    const bodyH = cup.r * 1.5;
+
+    // cup body (trapezoid)
     ctx.beginPath();
-    ctx.ellipse(cup.x, cup.y, cup.r, cup.r * 0.72, 0, 0, Math.PI * 2);
-    ctx.fillStyle = cup.fill;
+    ctx.moveTo(cup.x - topW, cup.y);
+    ctx.lineTo(cup.x + topW, cup.y);
+    ctx.lineTo(cup.x + botW, cup.y + bodyH);
+    ctx.lineTo(cup.x - botW, cup.y + bodyH);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(cup.x - topW, cup.y, cup.x + topW, cup.y);
+    grad.addColorStop(0, shade(cup.fill, -18));
+    grad.addColorStop(0.5, cup.fill);
+    grad.addColorStop(1, shade(cup.fill, -18));
+    ctx.fillStyle = grad;
     ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.stroke();
+
+    // rim
+    ctx.beginPath();
+    ctx.ellipse(cup.x, cup.y, topW, topW * 0.32, 0, 0, Math.PI * 2);
+    ctx.fillStyle = shade(cup.fill, 22);
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.stroke();
+
+    // gloss streak
+    ctx.beginPath();
+    ctx.moveTo(cup.x - topW * 0.55, cup.y + 4);
+    ctx.lineTo(cup.x - botW * 0.5, cup.y + bodyH - 6);
+    ctx.lineWidth = topW * 0.22;
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineCap = 'round';
     ctx.stroke();
 
     if (!cup.sunk) {
       ctx.fillStyle = cup.points >= 75 || cup.fill === '#3a1414' ? '#fff' : '#0a0a0d';
-      ctx.font = '700 11px Inter, sans-serif';
+      ctx.font = '700 10px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const lines = cup.label.split('\n');
       lines.forEach((line, i) => {
-        ctx.fillText(line, cup.x, cup.y + (i - (lines.length - 1) / 2) * 12);
+        ctx.fillText(line, cup.x, cup.y + bodyH * 0.55 + (i - (lines.length - 1) / 2) * 11);
       });
     }
     ctx.restore();
@@ -256,29 +482,44 @@
     ctx.save();
     ctx.translate(x, y);
     if (angle) ctx.rotate(angle);
+    const grad = ctx.createLinearGradient(-CAN_R * 0.6, 0, CAN_R * 0.6, 0);
+    grad.addColorStop(0, '#b8b2a8');
+    grad.addColorStop(0.5, '#eee9e0');
+    grad.addColorStop(1, '#b8b2a8');
     ctx.beginPath();
     ctx.roundRect(-CAN_R * 0.6, -CAN_R, CAN_R * 1.2, CAN_R * 2, 4);
-    ctx.fillStyle = '#e7e2da';
+    ctx.fillStyle = grad;
     ctx.fill();
     ctx.lineWidth = 1.5;
-    ctx.strokeStyle = '#000';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
     ctx.stroke();
     ctx.fillStyle = '#ff3b3b';
     ctx.fillRect(-CAN_R * 0.6, -3, CAN_R * 1.2, 6);
     ctx.restore();
   }
 
+  function drawHand(x, y) {
+    ctx.save();
+    ctx.translate(x, y + CAN_R * 1.6);
+    ctx.fillStyle = '#d9a679';
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 10, 17, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.ellipse(i * 11, -6, 6, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function draw() {
     ctx.clearRect(0, 0, W, H);
-
-    // table floor
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.fillRect(0, 560, W, H - 560);
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.beginPath();
-    ctx.moveTo(0, 560);
-    ctx.lineTo(W, 560);
-    ctx.stroke();
+    ctx.drawImage(bg, 0, 0);
 
     for (const cup of cups) drawCup(cup);
 
@@ -291,7 +532,7 @@
       ctx.globalAlpha = 1;
     }
 
-    // aim line while dragging
+    // aim line + trajectory preview while dragging
     if (dragging && dragPos) {
       let dx = ANCHOR.x - dragPos.x;
       let dy = ANCHOR.y - dragPos.y;
@@ -303,7 +544,7 @@
       const vy = dy * POWER;
 
       ctx.setLineDash([6, 8]);
-      ctx.strokeStyle = 'rgba(255,183,3,0.8)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(ANCHOR.x - dx, ANCHOR.y - dy);
@@ -311,9 +552,11 @@
       ctx.stroke();
       ctx.setLineDash([]);
 
-      ctx.fillStyle = 'rgba(255,183,3,0.55)';
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
       let sx = ANCHOR.x, sy = ANCHOR.y, svx = vx, svy = vy;
-      for (let i = 0; i < 16; i++) {
+      let lastX = sx, lastY = sy;
+      const steps = 22;
+      for (let i = 0; i < steps; i++) {
         svy += GRAVITY;
         sx += svx;
         sy += svy;
@@ -322,9 +565,20 @@
           ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
           ctx.fill();
         }
+        lastX = sx; lastY = sy;
       }
+      // crosshair at end of preview
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(lastX - 7, lastY); ctx.lineTo(lastX + 7, lastY);
+      ctx.moveTo(lastX, lastY - 7); ctx.lineTo(lastX, lastY + 7);
+      ctx.stroke();
+
+      drawHand(ANCHOR.x - dx, ANCHOR.y - dy);
       drawCan(ANCHOR.x - dx, ANCHOR.y - dy, 0);
     } else if (!ball.flying) {
+      drawHand(ball.x, ball.y);
       drawCan(ball.x, ball.y, 0);
     }
 
