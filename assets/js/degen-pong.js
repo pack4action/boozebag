@@ -15,6 +15,7 @@
   const TOTAL_BALLS = 5;
   const CUP_HIT_MULT = 0.4;
   const MAX_LANDING_SPEED = 8;
+  const MISS_WORDS = ['DAMMIT', 'SHIT', 'FUCK', 'AW HELL', 'GODDAMMIT', 'BULLSHIT'];
 
   // ---- Persistence (local for now; structured so a backend/wallet layer can
   // slot in later without touching game logic) ----
@@ -219,7 +220,7 @@
       }
 
       if (ball.flying && ball.y - CAN_R > H) {
-        toast('MISSED', 'legend-rekt');
+        toast(MISS_WORDS[Math.floor(Math.random() * MISS_WORDS.length)], 'legend-rekt');
         ball.flying = false;
         finishThrow();
       }
