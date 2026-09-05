@@ -40,7 +40,7 @@
       { x: 310, y: 130, r: 22, label: 'DIAMOND\nHANDS', points: 60, fill: '#3ddcff', sunk: false },
       { x: 220, y: 186, r: 22, label: 'PAPER\nHANDS', points: 20, fill: '#a89fb0', sunk: false },
       { x: 280, y: 186, r: 22, label: 'REKT', points: 10, fill: '#ff3b3b', sunk: false },
-      { x: 250, y: 242, r: 22, label: 'RUG', points: 0, fill: '#3a1414', sunk: false },
+      { x: 250, y: 242, r: 22, label: 'RUG', points: -50, fill: '#3a1414', sunk: false },
     ];
   }
 
@@ -217,7 +217,8 @@
           score += cup.points;
           hudScore.textContent = score;
           const cls = cup.points >= 75 ? 'legend-moon' : cup.points >= 40 ? 'legend-10x' : cup.points > 0 ? 'legend-rekt' : 'legend-rug';
-          toast((cup.points > 0 ? '+' + cup.points + ' ' : '') + cup.label.replace('\n', ' '), cls);
+          const sign = cup.points > 0 ? '+' : cup.points < 0 ? '' : '';
+          toast((cup.points !== 0 ? sign + cup.points + ' ' : '') + cup.label.replace('\n', ' '), cls);
           if (cup.points >= 60) spawnBurst(cup.x, cup.y, cup.fill);
           ball.flying = false;
           finishThrow();
