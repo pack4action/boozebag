@@ -34,15 +34,38 @@
   }
 
   // ---- Cups ----
+  // Slot positions are fixed (physics/reachability was tuned around these
+  // exact spots); which cup type lands in which slot is shuffled instead,
+  // so the board layout changes each wave without breaking the tuning.
+  const CUP_SLOTS = [
+    { x: 190, y: 130, r: 22 },
+    { x: 250, y: 130, r: 22 },
+    { x: 310, y: 130, r: 22 },
+    { x: 220, y: 186, r: 22 },
+    { x: 280, y: 186, r: 22 },
+    { x: 250, y: 242, r: 22 },
+  ];
+  const CUP_TYPES = [
+    { label: 'MOON', points: 100, bonusCans: 3, fill: '#6fb98f' },
+    { label: '10X', points: 75, bonusCans: 1, fill: '#f0a94e' },
+    { label: 'DIAMOND\nHANDS', points: 60, bonusCans: 1, fill: '#5ec4c9' },
+    { label: 'PAPER\nHANDS', points: 20, bonusCans: 1, fill: '#d9c3a3' },
+    { label: 'REKT', points: 10, bonusCans: 1, fill: '#d9634f' },
+    { label: 'RUG', points: -50, bonusCans: 0, fill: '#5c3427' },
+  ];
+
+  function shuffled(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
   function makeCups() {
-    return [
-      { x: 190, y: 130, r: 22, label: 'MOON', points: 100, bonusCans: 3, fill: '#6fb98f', sunk: false },
-      { x: 250, y: 130, r: 22, label: '10X', points: 75, bonusCans: 1, fill: '#f0a94e', sunk: false },
-      { x: 310, y: 130, r: 22, label: 'DIAMOND\nHANDS', points: 60, bonusCans: 1, fill: '#5ec4c9', sunk: false },
-      { x: 220, y: 186, r: 22, label: 'PAPER\nHANDS', points: 20, bonusCans: 1, fill: '#d9c3a3', sunk: false },
-      { x: 280, y: 186, r: 22, label: 'REKT', points: 10, bonusCans: 1, fill: '#d9634f', sunk: false },
-      { x: 250, y: 242, r: 22, label: 'RUG', points: -50, bonusCans: 0, fill: '#5c3427', sunk: false },
-    ];
+    const types = shuffled(CUP_TYPES);
+    return CUP_SLOTS.map((slot, i) => ({ ...slot, ...types[i], sunk: false }));
   }
 
   let cups = makeCups();
