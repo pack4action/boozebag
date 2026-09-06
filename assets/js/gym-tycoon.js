@@ -379,6 +379,15 @@
     return { x: (u - v) * (ROOM.tileW / 2), y: (u + v) * (ROOM.tileH / 2) };
   }
 
+  // A single point on a prop's surface, (u, v) tile-units from its base and
+  // liftPx up off the ground -- for a box drawn at that same (u, v, lift)
+  // this lands exactly on its right-face plane, so small flat details
+  // (windows, screens, buttons) can be stamped directly onto a box's face.
+  function isoScreenPoint(base, u, v, liftPx) {
+    const c = isoVecRaw(u, v);
+    return { x: base.x + c.x, y: base.y + c.y - (liftPx || 0) };
+  }
+
   // Draws one shaded isometric box: (offU, offV) is its center relative to
   // the base point in tile-units, (halfA, halfB) its footprint half-extents
   // (also tile-units), height and lift in pixels (lift raises it off the
@@ -442,45 +451,75 @@
       drawIsoBox(ctx, b, -0.14, 0, 0.07, 0.10, 16, '#26262a', 6);
       drawIsoBox(ctx, b, 0.14, 0, 0.07, 0.10, 16, '#26262a', 6);
       drawIsoBox(ctx, b, 0, 0, 0.16, 0.035, 6, '#9a9aa0', 14);
+      drawIsoBox(ctx, b, -0.14, 0, 0.025, 0.035, 3, '#e0e0e4', 20);
+      drawIsoBox(ctx, b, 0.14, 0, 0.025, 0.035, 3, '#e0e0e4', 20);
     },
     mat: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0, 0.34, 0.22, 5, '#3fa8a0', 0);
+      drawIsoBox(ctx, b, 0.02, 0, 0.32, 0.20, 5, '#3fa8a0', 0);
+      drawIsoBox(ctx, b, -0.28, 0, 0.05, 0.19, 9, '#2c8c85', 0);
     },
     bench: (ctx, b) => {
       drawIsoBox(ctx, b, 0, -0.28, 0.08, 0.06, 24, '#7a7a80', 0);
       drawIsoBox(ctx, b, 0, 0.28, 0.08, 0.06, 24, '#7a7a80', 0);
       drawIsoBox(ctx, b, 0, 0, 0.14, 0.34, 10, '#2255aa', 20);
+      drawIsoBox(ctx, b, 0, 0, 0.20, 0.045, 4, '#26262a', 33);
+      drawIsoBox(ctx, b, -0.19, 0, 0.045, 0.11, 9, '#c0483a', 31);
+      drawIsoBox(ctx, b, 0.19, 0, 0.045, 0.11, 9, '#c0483a', 31);
     },
     rack: (ctx, b) => {
       drawIsoBox(ctx, b, -0.20, -0.20, 0.045, 0.045, 42, '#5a5a60', 0);
       drawIsoBox(ctx, b, 0.20, -0.20, 0.045, 0.045, 42, '#5a5a60', 0);
       drawIsoBox(ctx, b, -0.20, 0.20, 0.045, 0.045, 42, '#5a5a60', 0);
       drawIsoBox(ctx, b, 0.20, 0.20, 0.045, 0.045, 42, '#5a5a60', 0);
+      drawIsoBox(ctx, b, 0, -0.20, 0.22, 0.03, 3, '#3a3a3e', 22);
+      drawIsoBox(ctx, b, 0, 0.20, 0.22, 0.03, 3, '#3a3a3e', 22);
       drawIsoBox(ctx, b, 0, 0, 0.24, 0.24, 4, '#c0483a', 42);
     },
     cable: (ctx, b) => {
       drawIsoBox(ctx, b, -0.10, 0, 0.08, 0.10, 46, '#3a3a3e', 0);
+      drawIsoBox(ctx, b, -0.10, 0, 0.05, 0.06, 4, '#c0483a', 44);
       drawIsoBox(ctx, b, 0.14, 0, 0.10, 0.14, 20, '#4a5a6a', 0);
+      drawIsoBox(ctx, b, 0.14, 0, 0.08, 0.03, 4, '#8fa4b4', 18);
+      drawIsoBox(ctx, b, 0.14, 0, 0.08, 0.03, 4, '#c0483a', 12);
     },
     treadmill: (ctx, b) => {
       drawIsoBox(ctx, b, 0, 0.02, 0.32, 0.18, 8, '#26262a', 0);
       drawIsoBox(ctx, b, 0, -0.20, 0.06, 0.16, 24, '#3a3a3e', 8);
+      drawIsoBox(ctx, b, 0, -0.24, 0.10, 0.03, 4, '#5ec4c9', 30);
+      drawIsoBox(ctx, b, -0.17, -0.05, 0.03, 0.03, 20, '#2a2a2e', 8);
+      drawIsoBox(ctx, b, 0.17, -0.05, 0.03, 0.03, 20, '#2a2a2e', 8);
     },
     trainer: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0, 0.14, 0.12, 26, '#c98a4a', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.08, 0.08, 10, '#e0a86a', 26);
+      drawIsoBox(ctx, b, 0, 0.02, 0.09, 0.08, 15, '#2a2a2e', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.13, 0.11, 20, '#c98a4a', 15);
+      drawIsoBox(ctx, b, -0.14, 0, 0.04, 0.045, 14, '#c98a4a', 20);
+      drawIsoBox(ctx, b, 0.14, 0, 0.04, 0.045, 14, '#c98a4a', 20);
+      drawIsoBox(ctx, b, 0, 0, 0.08, 0.08, 9, '#e0a86a', 35);
+      drawIsoBox(ctx, b, 0, -0.02, 0.085, 0.06, 3, '#8a5a2e', 44);
     },
     sauna: (ctx, b) => {
       drawIsoBox(ctx, b, 0, 0, 0.30, 0.26, 44, '#8a5a34', 0);
+      drawIsoBox(ctx, b, 0.08, -0.22, 0.08, 0.02, 26, '#5a3c22', 4);
       drawIsoBox(ctx, b, 0, 0, 0.10, 0.10, 10, '#e8b04a', 44);
+      drawIsoBox(ctx, b, 0, 0, 0.05, 0.05, 5, '#ffe0a0', 54);
     },
     gear: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0, 0.10, 0.10, 30, '#c0483a', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.03, 0.03, 14, '#e8e8ea', 30);
+      drawIsoBox(ctx, b, 0, 0, 0.10, 0.10, 24, '#c0483a', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.10, 0.03, 4, '#8a2e24', 12);
+      drawIsoBox(ctx, b, 0, 0, 0.03, 0.03, 10, '#e8e8ea', 24);
+      drawIsoBox(ctx, b, 0, 0, 0.012, 0.012, 12, '#c8c8ce', 34);
     },
     hq: (ctx, b) => {
       drawIsoBox(ctx, b, 0, 0, 0.34, 0.30, 60, '#4a5a6a', 0);
       drawIsoBox(ctx, b, 0, 0, 0.20, 0.18, 14, '#c0483a', 60);
+      ctx.fillStyle = '#e8d98a';
+      [-0.14, 0.14].forEach((v) => {
+        const w = isoScreenPoint(b, 0.34, v, 40);
+        ctx.fillRect(w.x - 4, w.y - 5, 8, 8);
+      });
+      ctx.fillStyle = '#241a10';
+      const door = isoScreenPoint(b, 0.34, 0, 14);
+      ctx.fillRect(door.x - 5, door.y - 14, 10, 14);
     },
   };
 
@@ -735,6 +774,10 @@
     const roomCenterFloor = isoPoint(ROOM.cols / 2, ROOM.rows / 2);
     const lampAnchor = { x: roomCenterFloor.x, y: roomCenterFloor.y - ROOM.wallH + 6 };
     drawLightPool(roomCenterFloor, light.glow);
+    // Drawn before the props loop below, not after -- otherwise the bulb
+    // would float on top of tall gear placed in the center-ish slots
+    // instead of being hidden behind it like a real ceiling fixture.
+    drawLampFixture(lampAnchor, light);
 
     cells.forEach(({ gx, gy }) => {
       const index = gy * ROOM.cols + gx;
@@ -774,8 +817,6 @@
         floorCtx.fillText(item.emoji, c.x, c.y - 16);
       }
     });
-
-    drawLampFixture(lampAnchor, light);
 
     const vignette = floorCtx.createRadialGradient(W / 2, H * 0.42, H * 0.25, W / 2, H * 0.42, H * 0.72);
     vignette.addColorStop(0, 'rgba(0,0,0,0)');
