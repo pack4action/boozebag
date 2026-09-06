@@ -605,6 +605,8 @@
   const WORLD_PAD = 34;
   let placements = [];
   let corridors = [];
+  let preview = null;
+  let previewCorridor = null;
 
   function rebuildPlan() {
     const count = activeRooms().length;
@@ -615,11 +617,25 @@
       corridors.push(corridorBetween(placements[i], placements[i + 1], dir));
     }
 
+    // The plot the next room will stand on, worked out one room ahead. It is
+    // drawn as a staked-out site rather than left as empty black, so there is
+    // something to save towards -- and because it is measured now, buying the
+    // room drops the building straight onto it without the plan reflowing.
+    preview = null;
+    previewCorridor = null;
+    if (count < MAX_ROOMS_PER_THEME) {
+      const withNext = roomPlacements(count + 1);
+      preview = withNext[count];
+      previewCorridor = corridorBetween(
+        placements[count - 1], preview, ROOM_DIRS[(count - 1) % ROOM_DIRS.length],
+      );
+    }
+
     let minGx = Infinity;
     let maxGx = -Infinity;
     let minGy = Infinity;
     let maxGy = -Infinity;
-    placements.concat(corridors).forEach((r) => {
+    placements.concat(corridors, preview ? [preview, previewCorridor] : []).forEach((r) => {
       minGx = Math.min(minGx, r.gx0);
       maxGx = Math.max(maxGx, r.gx0 + r.cols);
       minGy = Math.min(minGy, r.gy0);
@@ -1326,11 +1342,14 @@
   // Two rooms of the same theme would otherwise be the same box twice over.
   // Each position in a chain gets its own lighting rig and its own set of
   // wall fittings on top of whatever the theme itself puts up.
+  // Deliberately escalating: the starter bay is a bare room with one bulb,
+  // and each one bought after it arrives better appointed than the last, so
+  // the plan visibly improves as it grows rather than repeating one room.
   const ROOM_FITS = [
     { lighting: 'bulb', decor: [] },
-    { lighting: 'strip', decor: ['shelf', 'vent'] },
-    { lighting: 'strip', decor: ['clock'] },
-    { lighting: 'bulb', decor: ['shelf', 'clock', 'vent'] },
+    { lighting: 'strip', decor: ['vent', 'shelf'] },
+    { lighting: 'strip', decor: ['shelf', 'clock', 'banner'] },
+    { lighting: 'strip', decor: ['mirror', 'shelf', 'banner', 'clock', 'vent'] },
   ];
   function roomFitFor(index) {
     return ROOM_FITS[index % ROOM_FITS.length];
@@ -1350,7 +1369,10 @@
       floorCtx.lineWidth = 2.5;
       floorCtx.stroke();
 
-      const lamps = 3;
+      // Longer wall, more lamps -- a bigger room should read as better lit,
+      // not as the same three lights stretched further apart.
+      const run = Math.hypot(to.x - from.x, to.y - from.y);
+      const lamps = Math.max(3, Math.min(5, Math.round(run / 95)));
       for (let i = 0; i < lamps; i++) {
         const t = 0.2 + (i * 0.6) / (lamps - 1);
         const lamp = wallPoint(from, to, t, 0.9);
@@ -1410,6 +1432,25 @@
         paintQuad(wallQuad(from, to, t - w * 0.8, t + w * 0.8, h, h - 0.016), 'rgba(255,255,255,0.10)', null);
       }
     },
+    // A run of mirrored panel, the thing that turns a bare room into a gym.
+    mirror(from, to, t) {
+      const w = 0.17;
+      paintQuad(wallQuad(from, to, t - w, t + w, 0.76, 0.30), '#2b343d', 'rgba(0,0,0,0.55)', 1.4);
+      paintQuad(wallQuad(from, to, t - w * 0.92, t + w * 0.92, 0.73, 0.33), '#4c6373', null);
+      // Two slanted highlights, so it reads as glass rather than a grey panel.
+      paintQuad(wallQuad(from, to, t - w * 0.66, t - w * 0.34, 0.73, 0.33), 'rgba(255,255,255,0.13)', null);
+      paintQuad(wallQuad(from, to, t - w * 0.1, t + w * 0.06, 0.73, 0.33), 'rgba(255,255,255,0.07)', null);
+      // Vertical joint between the two panes.
+      paintQuad(wallQuad(from, to, t - 0.006, t + 0.006, 0.73, 0.33), 'rgba(0,0,0,0.4)', null);
+    },
+    // A hanging banner -- the room has been won, not just rented.
+    banner(from, to, t) {
+      const w = 0.05;
+      paintQuad(wallQuad(from, to, t - w * 1.35, t + w * 1.35, 0.88, 0.855), '#6d747e', 'rgba(0,0,0,0.5)', 1);
+      paintQuad(wallQuad(from, to, t - w, t + w, 0.855, 0.44), '#8d2f28', 'rgba(0,0,0,0.5)', 1.2);
+      paintQuad(wallQuad(from, to, t - w * 0.5, t + w * 0.5, 0.80, 0.52), 'rgba(255, 220, 160, 0.22)', null);
+      paintQuad(wallQuad(from, to, t - w, t + w, 0.47, 0.44), 'rgba(0,0,0,0.28)', null);
+    },
     // Gym clock -- squashed along the wall so it reads as flat against it.
     clock(from, to, t) {
       const c = wallPoint(from, to, t, 0.66);
@@ -1436,10 +1477,13 @@
   function drawRoomFittings(fit, north, east, west) {
     // Spread the pieces across both walls so nothing stacks on the theme's
     // own decor, which always sits mid-wall.
+    // Kept clear of mid-wall, which is where each theme hangs its own decor.
     const slots = [
-      { wall: [north, east], t: 0.24 },
-      { wall: [north, west], t: 0.76 },
-      { wall: [north, east], t: 0.84 },
+      { wall: [north, east], t: 0.22 },
+      { wall: [north, west], t: 0.75 },
+      { wall: [north, east], t: 0.81 },
+      { wall: [north, west], t: 0.24 },
+      { wall: [north, east], t: 0.38 },
     ];
     fit.decor.forEach((name, i) => {
       const draw = WALL_FITTINGS[name];
@@ -1725,6 +1769,107 @@
     );
   }
 
+  // ---- The next room, before it is bought ----
+  // Staked out on the plan as a surveyed plot: the floor marked out, corner
+  // posts, the hallway that will reach it, and a site board naming what it
+  // is and what it costs. It lights up amber the moment it is affordable.
+
+  function plotOutline(rect, accent, faint) {
+    for (let ry = 0; ry < rect.rows; ry++) {
+      for (let rx = 0; rx < rect.cols; rx++) {
+        const gx = rect.gx0 + rx;
+        const gy = rect.gy0 + ry;
+        paintQuad([
+          isoPoint(gx, gy), isoPoint(gx + 1, gy),
+          isoPoint(gx + 1, gy + 1), isoPoint(gx, gy + 1),
+        ], faint, 'rgba(255,255,255,0.05)', 1);
+      }
+    }
+    const corners = [
+      isoPoint(rect.gx0, rect.gy0),
+      isoPoint(rect.gx0 + rect.cols, rect.gy0),
+      isoPoint(rect.gx0 + rect.cols, rect.gy0 + rect.rows),
+      isoPoint(rect.gx0, rect.gy0 + rect.rows),
+    ];
+    floorCtx.save();
+    floorCtx.setLineDash([8, 7]);
+    paintQuad(corners, null, accent, 2);
+    floorCtx.restore();
+    return corners;
+  }
+
+  function drawPlotSign(centre, index, cost, affordable, accent) {
+    const postH = 30;
+    const panelW = 104;
+    const panelH = 50;
+    const top = { x: centre.x, y: centre.y - postH - panelH };
+
+    [-panelW * 0.3, panelW * 0.3].forEach((dx) => {
+      paintQuad([
+        { x: centre.x + dx - 2.5, y: centre.y },
+        { x: centre.x + dx + 2.5, y: centre.y },
+        { x: centre.x + dx + 2.5, y: centre.y - postH },
+        { x: centre.x + dx - 2.5, y: centre.y - postH },
+      ], shade(accent, -70), 'rgba(0,0,0,0.5)', 1);
+    });
+
+    floorCtx.save();
+    if (affordable) {
+      floorCtx.shadowColor = 'rgba(255,183,3,0.5)';
+      floorCtx.shadowBlur = 16;
+    }
+    paintQuad([
+      { x: top.x - panelW / 2, y: top.y },
+      { x: top.x + panelW / 2, y: top.y },
+      { x: top.x + panelW / 2, y: top.y + panelH },
+      { x: top.x - panelW / 2, y: top.y + panelH },
+    ], 'rgba(16,15,21,0.94)', accent, 2);
+    floorCtx.restore();
+
+    floorCtx.save();
+    floorCtx.textAlign = 'center';
+    floorCtx.textBaseline = 'middle';
+    floorCtx.fillStyle = accent;
+    floorCtx.font = '800 13px Inter, system-ui, sans-serif';
+    floorCtx.fillText('ROOM ' + (index + 1), top.x, top.y + 13);
+    floorCtx.fillStyle = 'rgba(244,240,234,0.72)';
+    floorCtx.font = '700 10px Inter, system-ui, sans-serif';
+    floorCtx.fillText(slotCountFor(index) + ' SLOTS', top.x, top.y + 27);
+    floorCtx.fillStyle = affordable ? '#ffd66b' : 'rgba(244,240,234,0.5)';
+    floorCtx.font = '800 12px Inter, system-ui, sans-serif';
+    floorCtx.fillText('$' + formatNum(cost), top.x, top.y + 41);
+    floorCtx.restore();
+  }
+
+  function drawRoomPreview(rect, corridor, colors, index) {
+    const cost = ROOM_UNLOCK_COSTS[index];
+    const affordable = state.balance >= cost;
+    const accent = affordable ? '#ffb703' : 'rgba(168,159,176,0.5)';
+    const faint = affordable ? 'rgba(255,183,3,0.05)' : 'rgba(255,255,255,0.022)';
+
+    if (corridor) plotOutline(corridor, accent, faint);
+    const corners = plotOutline(rect, accent, faint);
+
+    // Corner stakes, so the plot reads as marked out rather than painted on.
+    corners.forEach((p) => {
+      paintQuad([
+        { x: p.x - 2.5, y: p.y },
+        { x: p.x + 2.5, y: p.y },
+        { x: p.x + 2.5, y: p.y - 22 },
+        { x: p.x - 2.5, y: p.y - 22 },
+      ], shade(colors.wallL, 34), 'rgba(0,0,0,0.45)', 1);
+      floorCtx.beginPath();
+      floorCtx.arc(p.x, p.y - 24, 2.6, 0, Math.PI * 2);
+      floorCtx.fillStyle = accent;
+      floorCtx.fill();
+    });
+
+    const centre = cellCenter(
+      rect.gx0 + rect.cols / 2 - 0.5, rect.gy0 + rect.rows / 2 - 0.5,
+    );
+    drawPlotSign(centre, index, cost, affordable, accent);
+  }
+
   // A step of floor across the hallway mouth, marking the threshold where a
   // room opens onto it. This end has no wall to cut a door into, so a casing
   // here would be an arch standing in open floor with nothing above it.
@@ -1776,6 +1921,12 @@
       depth: c.gx0 + c.gy0,
       draw: () => drawCorridorShell(c, colors),
     })));
+    if (preview) {
+      pieces.push({
+        depth: preview.gx0 + preview.gy0,
+        draw: () => drawRoomPreview(preview, previewCorridor, colors, rooms.length),
+      });
+    }
     pieces.sort((a, b) => a.depth - b.depth).forEach((p) => p.draw());
 
     // Door casings go on last so they read as standing in the wall the room
@@ -2296,6 +2447,16 @@
   refreshThemeRow();
   refreshRoomTabs();
 
+  // The plot sign for the next room lights up once you can afford it, so the
+  // scene has to be redrawn on the tick that crosses the price -- the loop
+  // below otherwise only touches the HUD and the buttons.
+  let couldAffordNextRoom = null;
+  function nextRoomAffordable() {
+    const rooms = activeRooms();
+    if (rooms.length >= MAX_ROOMS_PER_THEME) return null;
+    return state.balance >= ROOM_UNLOCK_COSTS[rooms.length];
+  }
+
   setInterval(() => {
     state.balance += gps / (1000 / TICK_MS);
     state.lifetime += gps / (1000 / TICK_MS);
@@ -2303,6 +2464,12 @@
     refreshShopUI();
     refreshThemeRow();
     refreshRoomTabs();
+
+    const affordable = nextRoomAffordable();
+    if (affordable !== couldAffordNextRoom) {
+      couldAffordNextRoom = affordable;
+      renderScene();
+    }
   }, TICK_MS);
 
   setInterval(() => {
