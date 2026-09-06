@@ -51,9 +51,8 @@ img { max-width: 100%; display: block; }
   flex: none;
   vertical-align: -0.13em;
 }
-/* Set into heavy type at small sizes, a 1em icon reads as a smudge -- these
-   two run a little larger than the text they sit beside. */
-.pill .icon { width: 1.3em; height: 1.3em; vertical-align: -0.3em; }
+/* Set into heavy type at small sizes, a 1em icon reads as a smudge, so in a
+   button it runs a little larger than the text beside it. */
 .btn .icon { width: 1.25em; height: 1.25em; }
 
 .grain {
@@ -241,24 +240,95 @@ img { max-width: 100%; display: block; }
   justify-content: center;
   margin-bottom: 24px;
 }
-.pill {
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  padding: 8px 16px;
+/* Hero stat tags. Built in the same language as everything else on this
+   page -- hard black keyline, offset shadow, and a few degrees of tilt so
+   they read as slapped on rather than laid out. The number carries the
+   headline weight; the words underneath are the caption to it. */
+.stat-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 18px 9px 15px;
   border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--muted);
+  /* A black keyline is what the buttons use, but it vanishes against the
+     dark hero -- so these take the amber one the featured game card uses,
+     and keep the black offset shadow underneath for the stuck-on depth. */
+  border: 2px solid rgba(255, 183, 3, 0.45);
+  background: linear-gradient(165deg, #241f2c 0%, #15131b 60%);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  /* The tilt is applied per tag below; keep it in a variable so the hover
+     state can straighten it without having to know which tag it is. */
+  --tilt: 0deg;
+  transform: rotate(var(--tilt));
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
-.pill-live { animation: live-pulse 1.8s ease-in-out infinite; }
+.badge-row .stat-tag:nth-child(1) { --tilt: -2.2deg; }
+.badge-row .stat-tag:nth-child(2) { --tilt: 1.6deg; }
+.badge-row .stat-tag:nth-child(3) { --tilt: -1deg; }
+
+.stat-tag .icon { color: var(--amber); width: 1.55em; height: 1.55em; }
+.stat-tag .icon-live { color: var(--red); }
+
+.stat-tag-num {
+  font-family: 'Anton', sans-serif;
+  text-transform: uppercase;
+  font-size: 25px;
+  line-height: 0.9;
+  color: var(--amber);
+  letter-spacing: 0.5px;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.55);
+}
+.stat-tag-label {
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+}
+
+/* Straightens up and lifts when you point at it -- the same nudge the
+   buttons do. */
+.stat-tag:hover {
+  transform: rotate(0deg) translate(-2px, -2px);
+  box-shadow: 5px 5px 0 #000;
+}
+
+/* The live tag is a link to the stream, so it gets the red treatment and an
+   on-air ping rather than sitting there as decoration. */
+.stat-tag-live {
+  border-color: rgba(255, 59, 59, 0.5);
+  background: linear-gradient(165deg, #2e1922 0%, #1a1117 60%);
+}
+.stat-tag-live .stat-tag-num { color: var(--red); }
+.stat-tag-live .stat-tag-label { color: #f3cfd2; }
+.stat-tag-live:hover { border-color: var(--red); }
 .icon-live { color: var(--red); }
 .icon-warn { color: var(--amber); }
-@keyframes live-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 59, 59, 0.45); }
-  50% { box-shadow: 0 0 0 6px rgba(255, 59, 59, 0); }
+
+.live-dot { position: relative; display: inline-flex; }
+.live-dot .icon { width: 0.85em; height: 0.85em; }
+.live-dot::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(255, 59, 59, 0.6);
+  animation: live-ping 1.9s ease-out infinite;
+}
+@keyframes live-ping {
+  0% { box-shadow: 0 0 0 0 rgba(255, 59, 59, 0.6); }
+  70%, 100% { box-shadow: 0 0 0 9px rgba(255, 59, 59, 0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pill-live { animation: none; }
+  .live-dot::after { animation: none; }
+  .stat-tag { transition: none; }
 }
 
 .hero-art {
