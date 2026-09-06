@@ -17,6 +17,8 @@
   const MIN_SPEED = 2.2;
   const MAX_SPEED = 7.5;
   const SPEED_STEP = 0.09;
+  const POWERUP_INTERVAL = 15; // every Nth block stacked
+  const POWERUP_GROWTH = 0.2; // +20% width
   const MISS_WORDS = ['DAMMIT', 'SHIT', 'FUCK', 'AW HELL', 'GODDAMMIT', 'BULLSHIT'];
   // Weight-plate colors, echoing real bumper-plate conventions while staying
   // in the site's warm palette.
@@ -157,6 +159,16 @@
     }
   }
 
+  function maybeTriggerPowerup(height) {
+    if (height === 0 || height % POWERUP_INTERVAL !== 0) return;
+    const top = stack[stack.length - 1];
+    const growBy = top.w * POWERUP_GROWTH;
+    top.w += growBy;
+    top.x = Math.max(0, Math.min(W - top.w, top.x - growBy / 2));
+    toast('POWER UP! +20% SIZE', 'legend-moon');
+    spawnPerfectBurst(top.x + top.w / 2, top.y + BLOCK_H / 2, '#8ecbff');
+  }
+
   function endGame() {
     gameOver = true;
     const height = stack.length - 1;
@@ -217,6 +229,7 @@
     hudScore.textContent = score;
     hudHeight.textContent = stack.length - 1;
     hudCombo.textContent = combo;
+    maybeTriggerPowerup(stack.length - 1);
     active = null;
     setTimeout(spawnActive, 90);
   }
