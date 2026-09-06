@@ -117,10 +117,7 @@
     const dir = Math.random() < 0.5 ? -1 : 1;
     const x = dir === 1 ? 30 : W - 30 - w;
 
-    const special = n >= 3 && Math.random() < 0.12 ? 'moon' : null;
-    const color = special === 'moon' ? '#6fb98f' : pickColor();
-
-    active = { x, w, y: top.y - BLOCK_H, dir, speed, special, color };
+    active = { x, w, y: top.y - BLOCK_H, dir, speed, color: pickColor() };
     cameraTarget = Math.max(0, CEILING_Y - active.y);
   }
 
@@ -185,35 +182,27 @@
 
     let placedX, placedW;
 
-    if (active.special === 'moon') {
-      // MOON is always forgiving: full width, wherever it lands.
-      placedX = Math.max(0, Math.min(W - active.w, active.x));
+    const activeCenter = active.x + active.w / 2;
+    const topCenter = top.x + top.w / 2;
+    const isSnap = Math.abs(activeCenter - topCenter) <= SNAP_SLOP;
+    if (isSnap) {
+      // Close enough to dead-center: snap it flush, full width, no
+      // overhang, no trim -- a genuine PERFECT rather than just a
+      // generous tolerance check.
+      placedX = Math.max(0, Math.min(W - active.w, topCenter - active.w / 2));
       placedW = active.w;
-      score += 30;
-      toast('MOON! +30', 'legend-moon');
+      combo++;
+      const bonus = 10 + combo * 2;
+      score += bonus;
+      toast(combo > 1 ? 'PERFECT x' + combo + '! +' + bonus : 'PERFECT! +' + bonus, 'legend-moon');
+      spawnPerfectBurst(placedX + placedW / 2, newY + BLOCK_H / 2, '#ffd28a');
     } else {
-      const activeCenter = active.x + active.w / 2;
-      const topCenter = top.x + top.w / 2;
-      const isSnap = Math.abs(activeCenter - topCenter) <= SNAP_SLOP;
-      if (isSnap) {
-        // Close enough to dead-center: snap it flush, full width, no
-        // overhang, no trim -- a genuine PERFECT rather than just a
-        // generous tolerance check.
-        placedX = Math.max(0, Math.min(W - active.w, topCenter - active.w / 2));
-        placedW = active.w;
-        combo++;
-        const bonus = 10 + combo * 2;
-        score += bonus;
-        toast(combo > 1 ? 'PERFECT x' + combo + '! +' + bonus : 'PERFECT! +' + bonus, 'legend-moon');
-        spawnPerfectBurst(placedX + placedW / 2, newY + BLOCK_H / 2, '#ffd28a');
-      } else {
-        placedX = overlapLeft;
-        placedW = overlapW;
-        spawnOverhangDebris(active, placedX, placedW, newY);
-        combo = 0;
-        score += 10;
-        toast('+10', null);
-      }
+      placedX = overlapLeft;
+      placedW = overlapW;
+      spawnOverhangDebris(active, placedX, placedW, newY);
+      combo = 0;
+      score += 10;
+      toast('+10', null);
     }
 
     stack.push({ x: placedX, w: placedW, y: newY, h: BLOCK_H, color: active.color });
@@ -306,14 +295,6 @@
 
     if (active) {
       drawBlock({ x: active.x, y: active.y, w: active.w, h: BLOCK_H, color: active.color });
-      if (active.special === 'moon') {
-        const screenY = active.y + cameraOffset;
-        ctx.fillStyle = '#0a0a0d';
-        ctx.font = '700 11px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('MOON', active.x + active.w / 2, screenY + BLOCK_H / 2);
-      }
     }
 
     for (const d of debris) {
