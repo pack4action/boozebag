@@ -117,17 +117,10 @@
     const dir = Math.random() < 0.5 ? -1 : 1;
     const x = dir === 1 ? 30 : W - 30 - w;
 
-    let special = null;
-    const roll = Math.random();
-    if (n >= 3 && roll < 0.12) special = 'moon';
-    else if (n >= 3 && roll < 0.24) special = 'rug';
+    const special = n >= 3 && Math.random() < 0.12 ? 'moon' : null;
+    const color = special === 'moon' ? '#6fb98f' : pickColor();
 
-    let activeW = w;
-    let color = pickColor();
-    if (special === 'moon') color = '#6fb98f';
-    if (special === 'rug') { activeW = Math.max(18, w * 0.62); color = '#5c3427'; }
-
-    active = { x, w: activeW, y: top.y - BLOCK_H, dir, speed, special, color };
+    active = { x, w, y: top.y - BLOCK_H, dir, speed, special, color };
     cameraTarget = Math.max(0, CEILING_Y - active.y);
   }
 
@@ -198,12 +191,6 @@
       placedW = active.w;
       score += 30;
       toast('MOON! +30', 'legend-moon');
-    } else if (active.special === 'rug') {
-      placedX = overlapLeft;
-      placedW = overlapW;
-      spawnOverhangDebris(active, placedX, placedW, newY);
-      combo = 0;
-      toast('RUG', 'legend-rug');
     } else {
       const activeCenter = active.x + active.w / 2;
       const topCenter = top.x + top.w / 2;
@@ -319,13 +306,13 @@
 
     if (active) {
       drawBlock({ x: active.x, y: active.y, w: active.w, h: BLOCK_H, color: active.color });
-      if (active.special) {
+      if (active.special === 'moon') {
         const screenY = active.y + cameraOffset;
-        ctx.fillStyle = active.special === 'moon' ? '#0a0a0d' : '#fff';
+        ctx.fillStyle = '#0a0a0d';
         ctx.font = '700 11px Inter, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(active.special.toUpperCase(), active.x + active.w / 2, screenY + BLOCK_H / 2);
+        ctx.fillText('MOON', active.x + active.w / 2, screenY + BLOCK_H / 2);
       }
     }
 
