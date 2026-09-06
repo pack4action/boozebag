@@ -34,110 +34,22 @@
 
   // ---- Wallet-gated local leaderboard ----
   // TODO: once a shared backend exists, mirror these writes there too.
-  const LEADERBOARD_KEY = 'degenPongLeaderboard';
-  function loadLeaderboard() {
-    try {
-      const list = JSON.parse(localStorage.getItem(LEADERBOARD_KEY));
-      return Array.isArray(list) ? list : [];
-    } catch (e) {
-      return [];
-    }
-  }
-  function upsertLeaderboard(address, score, rackReached) {
-    const list = loadLeaderboard();
-    const existing = list.find((e) => e.address === address);
-    if (existing) {
-      if (score > existing.score) {
-        existing.score = score;
-        existing.rack = rackReached;
-      }
-    } else {
-      list.push({ address, score, rack: rackReached });
-    }
-    list.sort((a, b) => b.score - a.score);
-    list.length = Math.min(list.length, 10);
-    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(list));
-    return list;
-  }
+  const leaderboard = window.BoozebagLeaderboard.makeLeaderboard('degenPongLeaderboard');
+  const leaderboardList = document.getElementById('leaderboard-list');
+  const leaderboardEmpty = document.getElementById('leaderboard-empty');
   function renderLeaderboard() {
-    const list = loadLeaderboard();
-    leaderboardList.innerHTML = '';
-    leaderboardEmpty.hidden = list.length > 0;
-    list.forEach((entry) => {
-      const li = document.createElement('li');
-      const addr = document.createElement('span');
-      addr.className = 'lb-addr';
-      addr.textContent = window.BoozebagWallet ? window.BoozebagWallet.short(entry.address) : entry.address;
-      const rack = document.createElement('span');
-      rack.className = 'lb-rack';
-      rack.textContent = 'rack ' + entry.rack;
-      const score = document.createElement('span');
-      score.className = 'lb-score';
-      score.textContent = '$' + entry.score;
-      li.append(addr, rack, score);
-      leaderboardList.appendChild(li);
-    });
+    leaderboard.render(leaderboardList, leaderboardEmpty, (rack) => 'rack ' + rack, (score) => '$' + score);
   }
 
   // ---- Wallet connect UI ----
   let connectedWallet = null;
-  const btnConnect = document.getElementById('btn-connect');
-  const walletPicker = document.getElementById('wallet-picker');
-  const walletConnected = document.getElementById('wallet-connected');
-  const walletAddress = document.getElementById('wallet-address');
-  const btnDisconnect = document.getElementById('btn-disconnect');
-  const leaderboardList = document.getElementById('leaderboard-list');
-  const leaderboardEmpty = document.getElementById('leaderboard-empty');
-
-  function setWalletUI(address) {
-    connectedWallet = address;
-    if (address) {
-      btnConnect.hidden = true;
-      walletPicker.hidden = true;
-      btnConnect.setAttribute('aria-expanded', 'false');
-      walletConnected.hidden = false;
-      walletAddress.textContent = window.BoozebagWallet.short(address);
-    } else {
-      btnConnect.hidden = false;
-      walletConnected.hidden = true;
-    }
-  }
-
-  function setPickerOpen(open) {
-    walletPicker.hidden = !open;
-    btnConnect.setAttribute('aria-expanded', String(open));
-  }
-
   if (window.BoozebagWallet) {
-    btnConnect.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setPickerOpen(walletPicker.hidden);
-    });
-    document.addEventListener('click', (e) => {
-      if (!walletPicker.hidden && !walletPicker.contains(e.target) && e.target !== btnConnect) {
-        setPickerOpen(false);
-      }
-    });
-    walletPicker.querySelectorAll('button[data-wallet]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        try {
-          const address = await window.BoozebagWallet.connect(btn.dataset.wallet);
-          setWalletUI(address);
-        } catch (e) {
-          setPickerOpen(false);
-          toast(e.message || 'Connection failed', 'legend-rug');
-        }
-      });
-    });
-    btnDisconnect.addEventListener('click', () => {
-      window.BoozebagWallet.disconnect();
-      setWalletUI(null);
-    });
-    window.BoozebagWallet.tryReconnect().then((address) => {
-      if (address) setWalletUI(address);
+    window.BoozebagWallet.attachUI({
+      onChange(address) { connectedWallet = address; },
+      onError(msg) { toast(msg, 'legend-rug'); },
     });
   } else {
-    btnConnect.hidden = true;
+    document.getElementById('btn-connect').hidden = true;
   }
 
   // ---- Cups ----
@@ -317,7 +229,7 @@
     overlayBest.textContent = 'Best bag: $' + best;
     hudBest.textContent = best;
     if (connectedWallet) {
-      upsertLeaderboard(connectedWallet, score, rack);
+      leaderboard.upsert(connectedWallet, score, rack);
       renderLeaderboard();
     }
     overlay.hidden = false;

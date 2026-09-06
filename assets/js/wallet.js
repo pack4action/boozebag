@@ -81,5 +81,65 @@
     clearSaved();
   }
 
-  window.BoozebagWallet = { connect, tryReconnect, disconnect, getSaved, short };
+  // Wires up the standard wallet-bar markup (#btn-connect, #wallet-picker,
+  // #wallet-connected, #wallet-address, #btn-disconnect) that every game
+  // page includes identically, so each game doesn't re-implement the same
+  // toggle/outside-click/connect/disconnect plumbing.
+  function attachUI({ onChange, onError }) {
+    const btnConnect = document.getElementById('btn-connect');
+    const walletPicker = document.getElementById('wallet-picker');
+    const walletConnected = document.getElementById('wallet-connected');
+    const walletAddress = document.getElementById('wallet-address');
+    const btnDisconnect = document.getElementById('btn-disconnect');
+    if (!btnConnect) return;
+
+    function setWalletUI(address) {
+      if (address) {
+        btnConnect.hidden = true;
+        walletPicker.hidden = true;
+        btnConnect.setAttribute('aria-expanded', 'false');
+        walletConnected.hidden = false;
+        walletAddress.textContent = short(address);
+      } else {
+        btnConnect.hidden = false;
+        walletConnected.hidden = true;
+      }
+      if (onChange) onChange(address);
+    }
+
+    function setPickerOpen(open) {
+      walletPicker.hidden = !open;
+      btnConnect.setAttribute('aria-expanded', String(open));
+    }
+
+    btnConnect.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setPickerOpen(walletPicker.hidden);
+    });
+    document.addEventListener('click', (e) => {
+      if (!walletPicker.hidden && !walletPicker.contains(e.target) && e.target !== btnConnect) {
+        setPickerOpen(false);
+      }
+    });
+    walletPicker.querySelectorAll('button[data-wallet]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          const address = await connect(btn.dataset.wallet);
+          setWalletUI(address);
+        } catch (e) {
+          setPickerOpen(false);
+          if (onError) onError(e.message || 'Connection failed');
+        }
+      });
+    });
+    btnDisconnect.addEventListener('click', () => {
+      disconnect();
+      setWalletUI(null);
+    });
+    tryReconnect().then((address) => {
+      if (address) setWalletUI(address);
+    });
+  }
+
+  window.BoozebagWallet = { connect, tryReconnect, disconnect, getSaved, short, attachUI };
 })();

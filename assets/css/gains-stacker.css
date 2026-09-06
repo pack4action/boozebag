@@ -1,0 +1,7 @@
+#stacker-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: linear-gradient(180deg, #201409 0%, #2e1e10 55%, #3a2814 100%);
+  cursor: pointer;
+}
