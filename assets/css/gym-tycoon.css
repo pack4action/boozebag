@@ -24,7 +24,6 @@
    line of defense -- this is the per-element belt-and-suspenders fix. */
 .tycoon-theme-btn,
 .tycoon-room-tab,
-#tycoon-floor,
 .tycoon-inv-arm,
 .tycoon-inv-sell,
 .shop-buy-btn,
@@ -150,7 +149,13 @@
   position: absolute;
   top: 0;
   left: 0;
-  cursor: pointer;
+  cursor: grab;
+  /* JS drives panning itself on pointer drag (see the pointerdown/move/up
+     handlers) -- "none" hands the browser's own touch-scroll/zoom
+     gestures over entirely so they can't fight with that. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .tycoon-synergy {

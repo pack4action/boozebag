@@ -1406,7 +1406,45 @@
     return { laneIndex, cellIndex: gy * ROOM.cols + gx };
   }
 
-  floorCanvas.addEventListener('click', (e) => {
+  // ---- Drag-to-pan ----
+  // Click-and-drag with a mouse, or swipe with a finger, to move around a
+  // theme's room chain directly -- like panning a map in Clash of Clans --
+  // instead of only being able to scroll via a visible scrollbar or a
+  // two-finger trackpad gesture. A single pointer both pans AND places
+  // gear, so a drag is told apart from a tap by how far it moved before
+  // release: past the threshold it's a pan (no placement), under it it's
+  // a tap (place/remove gear, same as the old plain click).
+  const DRAG_THRESHOLD = 6;
+  let dragState = null;
+
+  floorCanvas.addEventListener('pointerdown', (e) => {
+    if (!stageScrollEl) return;
+    dragState = {
+      pointerId: e.pointerId,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startScrollLeft: stageScrollEl.scrollLeft,
+      moved: 0,
+    };
+    try { floorCanvas.setPointerCapture(e.pointerId); } catch (err) { /* not critical */ }
+    floorCanvas.style.cursor = 'grabbing';
+  });
+
+  floorCanvas.addEventListener('pointermove', (e) => {
+    if (!dragState || e.pointerId !== dragState.pointerId) return;
+    const dx = e.clientX - dragState.startClientX;
+    const dy = e.clientY - dragState.startClientY;
+    dragState.moved = Math.max(dragState.moved, Math.abs(dx), Math.abs(dy));
+    stageScrollEl.scrollLeft = dragState.startScrollLeft - dx;
+  });
+
+  floorCanvas.addEventListener('pointerup', (e) => {
+    if (!dragState || e.pointerId !== dragState.pointerId) return;
+    const wasDrag = dragState.moved > DRAG_THRESHOLD;
+    dragState = null;
+    floorCanvas.style.cursor = 'grab';
+    if (wasDrag) return;
+
     const p = pointFromEvent(e);
     const hit = gridCellFromPoint(p.x, p.y);
     if (!hit) return;
@@ -1415,6 +1453,11 @@
       refreshRoomTabs();
     }
     onFloorCellClick(hit.cellIndex);
+  });
+
+  floorCanvas.addEventListener('pointercancel', () => {
+    dragState = null;
+    floorCanvas.style.cursor = 'grab';
   });
 
   function onFloorCellClick(index) {
