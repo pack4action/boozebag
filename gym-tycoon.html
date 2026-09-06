@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=7" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=4" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=5" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=6" />
 </head>
 <body class="game-body">
 
@@ -38,7 +38,7 @@
 <main class="game-page tycoon-page">
   <div class="game-head">
     <h1 class="game-title">GYM <span class="hl">TYCOON</span></h1>
-    <p class="game-sub">Build out the home gym one piece at a time. Every machine you buy earns gains per second, forever, even while you're not here. Click the bar to lift for a little extra on top.</p>
+    <p class="game-sub">Build out the home gym one piece at a time. Only gear actually placed on the floor earns gains per second -- and matching equipment placed next to each other earns a synergy bonus, so how you arrange the room matters as much as what you buy.</p>
   </div>
 
   <div class="game-switcher">
@@ -82,8 +82,9 @@
     <div class="tycoon-room-stage">
       <canvas id="tycoon-floor" width="480" height="340" aria-label="Your gym, isometric view"></canvas>
     </div>
+    <p class="tycoon-synergy" id="tycoon-synergy"></p>
     <div class="tycoon-inventory" id="tycoon-inventory"></div>
-    <p class="tycoon-designer-hint">Click a piece of gear below, then click an open tile in the room to place it. Click a placed piece to pack it away. Purely cosmetic -- arrange it however you want.</p>
+    <p class="tycoon-designer-hint">Click a piece of gear below, then click an open tile in the room to place it. Click a placed piece to pack it away -- only what's on the floor earns anything. Place two of the same category (color-coded) side by side for +12% each, or put a Personal Trainer, Steroid Cycle, or Second Location next to something different for +20%. Only 12 slots, so once you outgrow the room you'll need to swap gear in and out.</p>
   </div>
 
   <button class="tycoon-lift-btn" id="btn-lift" type="button">
@@ -93,7 +94,7 @@
 
   <div class="tycoon-shop" id="shop-grid"></div>
 
-  <p class="game-hint">Progress saves automatically to this browser and keeps earning while the tab is closed (capped at 8 hours of offline gains). Connect a wallet to put your total on the leaderboard.</p>
+  <p class="game-hint">Progress saves automatically to this browser and your placed gear keeps earning while the tab is closed (capped at 8 hours of offline gains). Connect a wallet to put your total on the leaderboard.</p>
 
   <div class="leaderboard">
     <h3 class="leaderboard-title">Leaderboard <span class="leaderboard-sub">this browser, for now</span></h3>
@@ -107,6 +108,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=5"></script>
+<script src="assets/js/gym-tycoon.js?v=6"></script>
 </body>
 </html>

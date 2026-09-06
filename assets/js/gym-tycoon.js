@@ -27,6 +27,79 @@
     { id: 'rooftop', name: 'Rooftop', unlockAt: 50000 },
   ];
 
+  // Grid the room is laid out on. Moved up here (rather than living with the
+  // rest of the floor-designer/rendering code further down) because the
+  // synergy math below needs it, and that math has to run before `load()`
+  // computes the very first gps figure.
+  const ROOM = { cols: 4, rows: 3, tileW: 96, tileH: 48, wallH: 110, originX: 216, originY: 120 };
+
+  // Placement is no longer cosmetic: gains/sec is earned only by gear
+  // actually sitting in the room (see computeGps), and equipment of the
+  // same category placed edge-to-edge in the grid boosts each other.
+  // Booster-category gear (trainer/gear/hq) instead boosts ANY different
+  // category neighbor, so it's worth spreading those around rather than
+  // clustering them.
+  const CATEGORY = {
+    dumbbell: 'strength', bench: 'strength', rack: 'strength', cable: 'strength',
+    treadmill: 'cardio',
+    mat: 'recovery', sauna: 'recovery',
+    trainer: 'booster', gear: 'booster', hq: 'booster',
+  };
+  const CATEGORY_META = {
+    strength: { name: 'Strength', color: '#c0483a' },
+    cardio: { name: 'Cardio', color: '#3fa0c9' },
+    recovery: { name: 'Recovery', color: '#3fa87e' },
+    booster: { name: 'Booster', color: '#d9a53f' },
+  };
+  const SAME_CATEGORY_BONUS = 0.12;
+  const BOOSTER_NEARBY_BONUS = 0.20;
+
+  function itemById(id) {
+    return ITEMS.find((i) => i.id === id);
+  }
+
+  function neighborIndexes(index) {
+    const gx = index % ROOM.cols;
+    const gy = Math.floor(index / ROOM.cols);
+    const out = [];
+    if (gx > 0) out.push(index - 1);
+    if (gx < ROOM.cols - 1) out.push(index + 1);
+    if (gy > 0) out.push(index - ROOM.cols);
+    if (gy < ROOM.rows - 1) out.push(index + ROOM.cols);
+    return out;
+  }
+
+  // Per-slot multiplier from adjacent gear: +12% for each neighbor of the
+  // same category, +20% for each neighboring booster (trainer/gear/hq) of
+  // a *different* category. Two boosters next to each other just count as
+  // a same-category match.
+  function itemSynergyMultiplier(layout, index) {
+    const itemId = layout[index];
+    if (!itemId) return 1;
+    const cat = CATEGORY[itemId];
+    let mult = 1;
+    neighborIndexes(index).forEach((nIdx) => {
+      const nId = layout[nIdx];
+      if (!nId) return;
+      const nCat = CATEGORY[nId];
+      if (nCat === cat) mult += SAME_CATEGORY_BONUS;
+      else if (nCat === 'booster') mult += BOOSTER_NEARBY_BONUS;
+    });
+    return mult;
+  }
+
+  // Gains/sec now comes entirely from what's placed in the room, not from
+  // raw ownership -- gear sitting unplaced in inventory earns nothing.
+  function computeGps(layout) {
+    let total = 0;
+    layout.forEach((itemId, index) => {
+      const item = itemId && itemById(itemId);
+      if (!item) return;
+      total += item.gps * itemSynergyMultiplier(layout, index);
+    });
+    return total;
+  }
+
   function formatNum(n) {
     if (n < 1000) return (Math.floor(n * 10) / 10).toString();
     const units = ['K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp'];
@@ -67,9 +140,21 @@
       s.layout = new Array(SLOT_COUNT).fill(null).map((_, i) => old[i] || null);
     }
 
+    // Migration for saves from before placement mattered: if the room is
+    // empty but the player owns gear, auto-fill the floor with it so
+    // returning players don't come back to a sudden $0/s.
+    if (s.layout.every((x) => !x)) {
+      const toPlace = [];
+      ITEMS.forEach((item) => {
+        const count = s.owned[item.id] || 0;
+        for (let i = 0; i < count; i++) toPlace.push(item.id);
+      });
+      toPlace.slice(0, SLOT_COUNT).forEach((id, i) => { s.layout[i] = id; });
+    }
+
     const elapsed = Math.max(0, (Date.now() - (saved.lastSaved || Date.now())) / 1000);
     const cappedElapsed = Math.min(elapsed, OFFLINE_CAP_SECONDS);
-    const gpsAtSave = gpsFromOwned(s.owned);
+    const gpsAtSave = computeGps(s.layout);
     const offlineEarnings = cappedElapsed * gpsAtSave;
     if (offlineEarnings > 1) {
       s.balance += offlineEarnings;
@@ -84,12 +169,8 @@
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
   }
 
-  function gpsFromOwned(owned) {
-    return ITEMS.reduce((sum, item) => sum + (owned[item.id] || 0) * item.gps, 0);
-  }
-
   let state = load();
-  let gps = gpsFromOwned(state.owned);
+  let gps = computeGps(state.layout);
   let clickAmount = 1 + gps * 0.05;
 
   // ---- Wallet-gated local leaderboard ----
@@ -139,9 +220,26 @@
   }
 
   function recomputeStats() {
-    gps = gpsFromOwned(state.owned);
+    gps = computeGps(state.layout);
     clickAmount = 1 + gps * 0.05;
     refreshHud();
+    refreshSynergyText();
+  }
+
+  // ---- Room synergy readout ----
+  const synergyEl = document.getElementById('tycoon-synergy');
+  function refreshSynergyText() {
+    if (!synergyEl) return;
+    const placed = state.layout.filter(Boolean).length;
+    if (placed === 0) {
+      synergyEl.textContent = "Empty room = $0/s. Arm a piece of gear below and click a tile to start earning.";
+      return;
+    }
+    const baseSum = state.layout.reduce((sum, id) => sum + (id ? itemById(id).gps : 0), 0);
+    const bonusPct = baseSum > 0 ? Math.round((gps / baseSum - 1) * 100) : 0;
+    synergyEl.textContent = placed + '/' + SLOT_COUNT + ' slots filled -- base ' + formatNum(baseSum) + '/s'
+      + (bonusPct > 0 ? ', +' + bonusPct + '% from arrangement synergy' : ', no synergy bonus yet')
+      + ' = ' + formatNum(gps) + '/s total.';
   }
 
   // ---- Shop ----
@@ -156,13 +254,15 @@
     ITEMS.forEach((item) => {
       const el = document.createElement('div');
       el.className = 'shop-item';
+      const cat = CATEGORY_META[CATEGORY[item.id]];
       el.innerHTML =
         '<div class="shop-item-head">' +
           '<span class="shop-item-emoji">' + item.emoji + '</span>' +
           '<span class="shop-item-name">' + item.name + '</span>' +
           '<span class="shop-item-owned">x0</span>' +
         '</div>' +
-        '<span class="shop-item-gps">+' + formatNum(item.gps) + ' gains/sec each</span>' +
+        '<span class="shop-item-cat" style="color:' + cat.color + '">' + cat.name + '</span>' +
+        '<span class="shop-item-gps">+' + formatNum(item.gps) + ' gains/sec when placed</span>' +
         '<button class="shop-buy-btn" type="button">Buy</button>';
       const buyBtn = el.querySelector('.shop-buy-btn');
       buyBtn.addEventListener('click', () => buyItem(item.id));
@@ -190,6 +290,15 @@
     if (state.balance < cost) return;
     state.balance -= cost;
     state.owned[id] = (state.owned[id] || 0) + 1;
+    // Auto-drop new gear into an open slot so it starts earning right away.
+    // Once the room's full, further purchases sit in inventory until you
+    // free up a slot -- that's the point where arranging what to keep on
+    // the floor actually becomes a decision.
+    const emptyIndex = state.layout.indexOf(null);
+    if (emptyIndex !== -1) {
+      state.layout[emptyIndex] = id;
+      renderScene();
+    }
     recomputeStats();
     refreshShopUI();
     renderInventory();
@@ -204,7 +313,6 @@
   const themeRowEl = document.getElementById('theme-row');
   let armedItemId = null;
 
-  const ROOM = { cols: 4, rows: 3, tileW: 96, tileH: 48, wallH: 110, originX: 216, originY: 120 };
   const THEME_COLORS = {
     garage: { floorA: '#5c4530', floorB: '#4a3624', wallL: '#3a2c1c', wallR: '#2e2116', bgTop: '#241a10', bg: '#171310' },
     basement: { floorA: '#33404a', floorB: '#28333c', wallL: '#1c242c', wallR: '#161b21', bgTop: '#171b1f', bg: '#0e1114' },
@@ -223,9 +331,6 @@
   }
   function availableCount(itemId) {
     return (state.owned[itemId] || 0) - placedCount(itemId);
-  }
-  function itemById(id) {
-    return ITEMS.find((i) => i.id === id);
   }
 
   function isoPoint(gx, gy) {
@@ -256,6 +361,15 @@
     g = Math.max(0, Math.min(255, g));
     b = Math.max(0, Math.min(255, b));
     return `rgb(${r},${g},${b})`;
+  }
+
+  function hexA(hex, alpha) {
+    const c = hex.replace('#', '');
+    const num = parseInt(c.length === 3 ? c.split('').map((x) => x + x).join('') : c, 16);
+    const r = (num >> 16) & 0xff;
+    const g = (num >> 8) & 0xff;
+    const b = num & 0xff;
+    return `rgba(${r},${g},${b},${alpha})`;
   }
 
   // Raw isometric offset (no origin) for a point (u, v) tile-units away from
@@ -623,15 +737,31 @@
     drawLightPool(roomCenterFloor, light.glow);
 
     cells.forEach(({ gx, gy }) => {
-      const itemId = state.layout[gy * ROOM.cols + gx];
+      const index = gy * ROOM.cols + gx;
+      const itemId = state.layout[index];
       if (!itemId) return;
       const item = itemById(itemId);
       if (!item) return;
       const c = cellCenter(gx, gy);
+      const catColor = CATEGORY_META[CATEGORY[itemId]].color;
+      const mult = itemSynergyMultiplier(state.layout, index);
+
+      // A glowing ring means this piece is currently getting a synergy
+      // bonus from its neighbors -- direct visual payoff for arrangement.
+      if (mult > 1) {
+        floorCtx.beginPath();
+        floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * 0.33, ROOM.tileH * 0.28, 0, 0, Math.PI * 2);
+        floorCtx.strokeStyle = catColor;
+        floorCtx.lineWidth = 2;
+        floorCtx.shadowColor = catColor;
+        floorCtx.shadowBlur = 10;
+        floorCtx.stroke();
+        floorCtx.shadowBlur = 0;
+      }
 
       floorCtx.beginPath();
       floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * 0.28, ROOM.tileH * 0.24, 0, 0, Math.PI * 2);
-      floorCtx.fillStyle = 'rgba(0,0,0,0.38)';
+      floorCtx.fillStyle = hexA(catColor, 0.34);
       floorCtx.fill();
 
       const build = PROP_BUILDERS[itemId];
@@ -687,6 +817,7 @@
       state.layout[index] = null;
       renderScene();
       renderInventory();
+      recomputeStats();
       save();
       return;
     }
@@ -695,6 +826,7 @@
       if (availableCount(armedItemId) <= 0) armedItemId = null;
       renderScene();
       renderInventory();
+      recomputeStats();
       save();
     }
   }
@@ -712,10 +844,12 @@
       return;
     }
     ownedItems.forEach((item) => {
+      const cat = CATEGORY_META[CATEGORY[item.id]];
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'tycoon-inv-item' + (armedItemId === item.id ? ' is-armed' : '');
-      chip.innerHTML = item.emoji + ' ' + item.name + ' <span class="inv-count">x' + availableCount(item.id) + '</span>';
+      chip.innerHTML = '<span class="inv-cat-dot" style="background:' + cat.color + '"></span>'
+        + item.emoji + ' ' + item.name + ' <span class="inv-count">x' + availableCount(item.id) + '</span>';
       chip.addEventListener('click', () => {
         armedItemId = armedItemId === item.id ? null : item.id;
         renderInventory();
@@ -760,6 +894,7 @@
     clickAmount = 1;
     armedItemId = null;
     refreshHud();
+    refreshSynergyText();
     refreshShopUI();
     renderScene();
     renderInventory();
@@ -770,6 +905,7 @@
   // ---- Init ----
   buildShop();
   refreshHud();
+  refreshSynergyText();
   refreshShopUI();
   renderScene();
   renderInventory();
