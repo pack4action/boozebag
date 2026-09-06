@@ -210,6 +210,13 @@
     basement: { floorA: '#33404a', floorB: '#28333c', wallL: '#1c242c', wallR: '#161b21', bgTop: '#171b1f', bg: '#0e1114' },
     rooftop: { floorA: '#5a89ad', floorB: '#4a7594', wallL: '#3f6f94', wallR: '#2f5673', bgTop: '#3f6f94', bg: '#1c3348' },
   };
+  // Per-theme ceiling fixture + ambient glow pool. Rooftop has no fixture
+  // (it's open to the sky) but still gets a warm sun-glow on the floor.
+  const LIGHT_COLORS = {
+    garage: { glow: 'rgba(255,196,120,0.30)', cord: '#171310', shade: '#caa25c', shadeDark: '#8a6a34', bulb: '#fff2cf' },
+    basement: { glow: 'rgba(170,210,255,0.20)', cord: '#0b0f12', shade: '#c6d6de', shadeDark: '#84949e', bulb: '#eaf7ff' },
+    rooftop: { glow: 'rgba(255,236,180,0.38)', cord: null, shade: null, shadeDark: null, bulb: null },
+  };
 
   function placedCount(itemId) {
     return state.layout.filter((x) => x === itemId).length;
@@ -363,8 +370,85 @@
     },
   };
 
+  // Thin trim band along the bottom of a wall, where it meets the floor,
+  // so the walls don't just end abruptly -- p0/p1 are the wall's two
+  // floor-level corners (in screen space).
+  function drawBaseboard(p0, p1) {
+    const trimH = 9;
+    floorCtx.beginPath();
+    floorCtx.moveTo(p0.x, p0.y);
+    floorCtx.lineTo(p1.x, p1.y);
+    floorCtx.lineTo(p1.x, p1.y - trimH);
+    floorCtx.lineTo(p0.x, p0.y - trimH);
+    floorCtx.closePath();
+    floorCtx.fillStyle = 'rgba(0,0,0,0.30)';
+    floorCtx.fill();
+    floorCtx.beginPath();
+    floorCtx.moveTo(p0.x, p0.y - trimH);
+    floorCtx.lineTo(p1.x, p1.y - trimH);
+    floorCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+    floorCtx.lineWidth = 1;
+    floorCtx.stroke();
+  }
+
+  // Soft radial glow pooling on the floor under the ceiling fixture --
+  // drawn with an additive blend so it lightens whatever is underneath
+  // rather than flatly covering it.
+  function drawLightPool(center, glowColor) {
+    const grad = floorCtx.createRadialGradient(center.x, center.y, 4, center.x, center.y, ROOM.tileW * 1.9);
+    grad.addColorStop(0, glowColor);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    floorCtx.save();
+    floorCtx.globalCompositeOperation = 'lighter';
+    floorCtx.fillStyle = grad;
+    floorCtx.beginPath();
+    floorCtx.ellipse(center.x, center.y, ROOM.tileW * 1.9, ROOM.tileH * 1.9, 0, 0, Math.PI * 2);
+    floorCtx.fill();
+    floorCtx.restore();
+  }
+
+  // Hanging bulb (garage/basement) -- skipped for rooftop, which is lit by
+  // open sky instead of a fixture.
+  function drawLampFixture(anchor, light) {
+    if (!light.cord) return;
+    const cordLen = 30;
+    const bulbY = anchor.y + cordLen;
+    floorCtx.beginPath();
+    floorCtx.moveTo(anchor.x, anchor.y);
+    floorCtx.lineTo(anchor.x, bulbY);
+    floorCtx.strokeStyle = light.cord;
+    floorCtx.lineWidth = 2;
+    floorCtx.stroke();
+
+    floorCtx.beginPath();
+    floorCtx.moveTo(anchor.x - 13, bulbY);
+    floorCtx.lineTo(anchor.x + 13, bulbY);
+    floorCtx.lineTo(anchor.x + 7, bulbY + 14);
+    floorCtx.lineTo(anchor.x - 7, bulbY + 14);
+    floorCtx.closePath();
+    floorCtx.fillStyle = light.shadeDark;
+    floorCtx.fill();
+    floorCtx.beginPath();
+    floorCtx.moveTo(anchor.x - 13, bulbY);
+    floorCtx.lineTo(anchor.x + 13, bulbY);
+    floorCtx.lineTo(anchor.x + 10, bulbY - 5);
+    floorCtx.lineTo(anchor.x - 10, bulbY - 5);
+    floorCtx.closePath();
+    floorCtx.fillStyle = light.shade;
+    floorCtx.fill();
+
+    floorCtx.beginPath();
+    floorCtx.arc(anchor.x, bulbY + 18, 5, 0, Math.PI * 2);
+    floorCtx.fillStyle = light.bulb;
+    floorCtx.shadowColor = light.bulb;
+    floorCtx.shadowBlur = 12;
+    floorCtx.fill();
+    floorCtx.shadowBlur = 0;
+  }
+
   function renderScene() {
     const colors = THEME_COLORS[state.theme] || THEME_COLORS.garage;
+    const light = LIGHT_COLORS[state.theme] || LIGHT_COLORS.garage;
     const W = floorCanvas.width;
     const H = floorCanvas.height;
     floorCtx.clearRect(0, 0, W, H);
@@ -379,23 +463,32 @@
     const east = isoPoint(ROOM.cols, 0);
     const west = isoPoint(0, ROOM.rows);
 
+    const wallRGrad = floorCtx.createLinearGradient(0, north.y - ROOM.wallH, 0, north.y);
+    wallRGrad.addColorStop(0, shade(colors.wallR, 14));
+    wallRGrad.addColorStop(1, shade(colors.wallR, -10));
     floorCtx.beginPath();
     floorCtx.moveTo(north.x, north.y - ROOM.wallH);
     floorCtx.lineTo(east.x, east.y - ROOM.wallH);
     floorCtx.lineTo(east.x, east.y);
     floorCtx.lineTo(north.x, north.y);
     floorCtx.closePath();
-    floorCtx.fillStyle = colors.wallR;
+    floorCtx.fillStyle = wallRGrad;
     floorCtx.fill();
 
+    const wallLGrad = floorCtx.createLinearGradient(0, north.y - ROOM.wallH, 0, north.y);
+    wallLGrad.addColorStop(0, shade(colors.wallL, 14));
+    wallLGrad.addColorStop(1, shade(colors.wallL, -10));
     floorCtx.beginPath();
     floorCtx.moveTo(north.x, north.y - ROOM.wallH);
     floorCtx.lineTo(west.x, west.y - ROOM.wallH);
     floorCtx.lineTo(west.x, west.y);
     floorCtx.lineTo(north.x, north.y);
     floorCtx.closePath();
-    floorCtx.fillStyle = colors.wallL;
+    floorCtx.fillStyle = wallLGrad;
     floorCtx.fill();
+
+    drawBaseboard(east, north);
+    drawBaseboard(north, west);
 
     const cells = allCellsBackToFront();
 
@@ -416,6 +509,10 @@
       floorCtx.lineWidth = 1;
       floorCtx.stroke();
     });
+
+    const roomCenterFloor = isoPoint(ROOM.cols / 2, ROOM.rows / 2);
+    const lampAnchor = { x: roomCenterFloor.x, y: roomCenterFloor.y - ROOM.wallH + 6 };
+    drawLightPool(roomCenterFloor, light.glow);
 
     cells.forEach(({ gx, gy }) => {
       const itemId = state.layout[gy * ROOM.cols + gx];
@@ -439,6 +536,14 @@
         floorCtx.fillText(item.emoji, c.x, c.y - 16);
       }
     });
+
+    drawLampFixture(lampAnchor, light);
+
+    const vignette = floorCtx.createRadialGradient(W / 2, H * 0.42, H * 0.25, W / 2, H * 0.42, H * 0.72);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, 'rgba(0,0,0,0.45)');
+    floorCtx.fillStyle = vignette;
+    floorCtx.fillRect(0, 0, W, H);
   }
 
   function pointFromEvent(e) {

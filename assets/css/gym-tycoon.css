@@ -196,7 +196,3 @@
   margin-left: 4px;
 }
 .tycoon-reset-link:hover { color: var(--red); }
-
-@media (max-width: 480px) {
-  .tycoon-floor { grid-template-columns: repeat(3, 1fr); max-width: 320px; }
-}
