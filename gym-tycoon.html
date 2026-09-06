@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=7" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=4" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=9" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=10" />
 </head>
 <body class="game-body">
 
@@ -80,12 +80,18 @@
   <div class="tycoon-designer">
     <div class="tycoon-room-tabs" id="room-tabs"></div>
     <div class="tycoon-theme-row" id="theme-row"></div>
-    <div class="tycoon-room-stage">
-      <canvas id="tycoon-floor" width="480" height="340" aria-label="Your gym, isometric view"></canvas>
+    <div class="tycoon-zoom-controls">
+      <button class="tycoon-zoom-btn" id="btn-zoom-out" type="button" aria-label="Zoom out">−</button>
+      <button class="tycoon-zoom-btn" id="btn-zoom-in" type="button" aria-label="Zoom in">+</button>
+    </div>
+    <div class="tycoon-room-stage" id="room-stage-scroll">
+      <div class="tycoon-room-zoom-wrap" id="room-zoom-wrap">
+        <canvas id="tycoon-floor" width="480" height="340" aria-label="Your gym, isometric view"></canvas>
+      </div>
     </div>
     <p class="tycoon-synergy" id="tycoon-synergy"></p>
     <div class="tycoon-inventory" id="tycoon-inventory"></div>
-    <p class="tycoon-designer-hint">Click a piece of gear below, then click an open tile in the room to place it. Click a placed piece to pack it away -- only what's on the floor earns anything. Place two of the same category (color-coded) side by side for +12% each, or put a Personal Trainer, Steroid Cycle, Second Location, or office hire next to something different for +20%. Garage, Basement, and Rooftop are separate floors with their own layout -- gear stays where you put it when you switch. Each floor has 12 slots; once you outgrow one, buy another room to keep expanding. Gear sitting unplaced in your inventory can be sold back for 60% of what it cost.</p>
+    <p class="tycoon-designer-hint">Click a piece of gear below, then click an open tile in the room to place it. Click a placed piece to pack it away -- only what's on the floor earns anything. Place two of the same category (color-coded) side by side for +12% each, or put a Personal Trainer, Steroid Cycle, Second Location, or office hire next to something different for +20%. Garage, Basement, and Rooftop are completely separate empires, each with its own chain of connected rooms -- gear stays where you put it when you switch theme. Each room has 12 slots; buy another room in the current theme to expand that theme's floor, scroll or zoom to see the whole layout, and use the room tabs to jump straight to one. Gear sitting unplaced in your inventory can be sold back for 60% of what it cost.</p>
   </div>
 
   <button class="tycoon-lift-btn" id="btn-lift" type="button">
@@ -118,6 +124,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=20"></script>
+<script src="assets/js/gym-tycoon.js?v=21"></script>
 </body>
 </html>

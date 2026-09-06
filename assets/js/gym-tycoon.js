@@ -138,13 +138,11 @@
     return total;
   }
 
-  // Total across every room the player has unlocked -- gear earns
-  // regardless of which room/theme is currently in view. Each theme
-  // within a room holds its own independent layout (see emptyRoom), so
-  // this has to add up all three, not just whichever one is on screen.
-  function computeTotalGps(rooms) {
-    return rooms.reduce((sum, room) => (
-      sum + THEMES.reduce((s2, t) => s2 + computeGps(room.layouts[t.id]), 0)
+  // Total across every room in every theme's chain -- gear earns
+  // regardless of which theme/room is currently in view.
+  function computeTotalGps(themeRooms) {
+    return THEMES.reduce((sum, t) => (
+      sum + (themeRooms[t.id] || []).reduce((s2, room) => s2 + computeGps(room.layout), 0)
     ), 0);
   }
 
@@ -161,28 +159,31 @@
   }
 
   // ---- Rooms ----
-  // The player starts with exactly one room and can buy more as they grow
-  // -- each is an independent 12-slot grid, so building out the empire
-  // eventually means expanding into more physical space, not just denser
-  // single-room arrangement.
-  //
-  // Garage/Basement/Rooftop are separate physical spaces within a room,
-  // not reskins of one shared floor -- each theme keeps its own layout,
-  // so switching theme shows (and only shows) whatever's actually placed
-  // there, and gear never appears to "move" between them.
+  // Garage/Basement/Rooftop are separate physical spaces, not reskins of
+  // one shared floor -- each theme grows its own independent chain of
+  // connected rooms (see the multi-lane canvas further down), so buying
+  // an extra room only expands whichever theme you're currently in, and
+  // gear never appears to "move" between themes.
   const ROOM_UNLOCK_COSTS = [0, 10000, 500000, 25000000];
-  const MAX_ROOMS = ROOM_UNLOCK_COSTS.length;
+  const MAX_ROOMS_PER_THEME = ROOM_UNLOCK_COSTS.length;
 
-  function emptyRoom(theme) {
-    const layouts = {};
-    THEMES.forEach((t) => { layouts[t.id] = new Array(SLOT_COUNT).fill(null); });
-    return { theme: theme || 'garage', layouts };
+  function emptyGymRoom() {
+    return { layout: new Array(SLOT_COUNT).fill(null) };
   }
 
-  // The layout currently on view/editable for a room: its own theme's
-  // layout, or an explicitly-requested theme's.
-  function roomLayout(room, theme) {
-    return room.layouts[theme || room.theme];
+  function defaultThemeRooms() {
+    const byTheme = {};
+    THEMES.forEach((t) => { byTheme[t.id] = [emptyGymRoom()]; });
+    return byTheme;
+  }
+
+  function normalizedRoomChain(source) {
+    const arr = Array.isArray(source) ? source : [];
+    const rooms = arr.slice(0, MAX_ROOMS_PER_THEME).map((r) => {
+      const old = Array.isArray(r && r.layout) ? r.layout : [];
+      return { layout: new Array(SLOT_COUNT).fill(null).map((_, i) => old[i] || null) };
+    });
+    return rooms.length ? rooms : [emptyGymRoom()];
   }
 
   // ---- Persistence ----
@@ -191,8 +192,9 @@
       balance: 0,
       lifetime: 0,
       owned: {},
-      rooms: [emptyRoom('garage')],
-      activeRoom: 0,
+      themeRooms: defaultThemeRooms(),
+      activeTheme: 'garage',
+      activeRoomIndex: 0,
       lastSaved: Date.now(),
     };
   }
@@ -210,64 +212,65 @@
     s.owned = saved.owned || {};
     // Object.assign above copies these over verbatim from an old-shape
     // save -- drop them so the persisted state doesn't carry dead fields
-    // around forever alongside the new `rooms` array.
+    // around forever alongside the new `themeRooms` map.
     delete s.layout;
     delete s.theme;
+    delete s.rooms;
+    delete s.activeRoom;
 
-    // Migrate older save shapes into the current one: a single top-level
-    // layout/theme (pre-rooms), a rooms array with one shared layout per
-    // room (pre-per-theme-layouts), or already-current per-theme layouts
-    // that just need normalizing to exactly SLOT_COUNT slots each.
-    function normalizedLayouts(source) {
-      const layouts = {};
+    if (Array.isArray(saved.rooms)) {
+      // Migrate from the room-slot-with-a-layout-per-theme shape: each old
+      // slot's layout for theme T becomes one room in theme T's own
+      // chain, in the same slot order, so nothing placed anywhere is lost.
+      const byTheme = {};
       THEMES.forEach((t) => {
-        const old = Array.isArray(source && source[t.id]) ? source[t.id] : [];
-        layouts[t.id] = new Array(SLOT_COUNT).fill(null).map((_, i) => old[i] || null);
+        byTheme[t.id] = normalizedRoomChain(saved.rooms.map((r) => ({
+          layout: (r && r.layouts && r.layouts[t.id]) || (r && r.layout) || [],
+        })));
       });
-      return layouts;
+      s.themeRooms = byTheme;
+      const oldActiveSlot = saved.rooms[saved.activeRoom];
+      s.activeTheme = (oldActiveSlot && oldActiveSlot.theme) || 'garage';
+      s.activeRoomIndex = Number.isInteger(saved.activeRoom) ? saved.activeRoom : 0;
+    } else if (Array.isArray(saved.layout)) {
+      // Migrate from the original single top-level layout/theme shape.
+      const theme = saved.theme || 'garage';
+      const byTheme = defaultThemeRooms();
+      byTheme[theme] = [{ layout: new Array(SLOT_COUNT).fill(null).map((_, i) => saved.layout[i] || null) }];
+      s.themeRooms = byTheme;
+      s.activeTheme = theme;
+      s.activeRoomIndex = 0;
+    } else {
+      const byTheme = {};
+      THEMES.forEach((t) => {
+        byTheme[t.id] = normalizedRoomChain(saved.themeRooms && saved.themeRooms[t.id]);
+      });
+      s.themeRooms = byTheme;
     }
 
-    if (!Array.isArray(saved.rooms)) {
-      const room = emptyRoom(saved.theme || 'garage');
-      const oldLayout = Array.isArray(saved.layout) ? saved.layout : [];
-      room.layouts[room.theme] = new Array(SLOT_COUNT).fill(null).map((_, i) => oldLayout[i] || null);
-      s.rooms = [room];
-    } else {
-      s.rooms = saved.rooms.slice(0, MAX_ROOMS).map((r) => {
-        const theme = (r && r.theme) || 'garage';
-        if (r && Array.isArray(r.layout)) {
-          // Old shape: one shared layout per room -- it belonged to
-          // whichever theme was active when it was saved.
-          const layouts = normalizedLayouts(null);
-          layouts[theme] = new Array(SLOT_COUNT).fill(null).map((_, i) => r.layout[i] || null);
-          return { theme, layouts };
-        }
-        return { theme, layouts: normalizedLayouts(r && r.layouts) };
-      });
-    }
-    if (s.rooms.length === 0) s.rooms = [emptyRoom('garage')];
-    s.activeRoom = Number.isInteger(saved.activeRoom) && saved.activeRoom >= 0 && saved.activeRoom < s.rooms.length
-      ? saved.activeRoom
+    if (!THEMES.some((t) => t.id === s.activeTheme)) s.activeTheme = 'garage';
+    const activeChain = s.themeRooms[s.activeTheme] || [];
+    s.activeRoomIndex = Number.isInteger(s.activeRoomIndex) && s.activeRoomIndex >= 0 && s.activeRoomIndex < activeChain.length
+      ? s.activeRoomIndex
       : 0;
 
-    // Migration for saves from before placement mattered: if every
-    // room/theme is empty but the player owns gear, auto-fill the first
-    // room's active theme with it so returning players don't come back to
-    // a sudden $0/s.
-    const allEmpty = s.rooms.every((r) => THEMES.every((t) => r.layouts[t.id].every((x) => !x)));
+    // Migration for saves from before placement mattered: if every room in
+    // every theme is empty but the player owns gear, auto-fill the first
+    // garage room so returning players don't come back to a sudden $0/s.
+    const allEmpty = THEMES.every((t) => s.themeRooms[t.id].every((r) => r.layout.every((x) => !x)));
     if (allEmpty) {
       const toPlace = [];
       ITEMS.forEach((item) => {
         const count = s.owned[item.id] || 0;
         for (let i = 0; i < count; i++) toPlace.push(item.id);
       });
-      const firstLayout = roomLayout(s.rooms[0]);
+      const firstLayout = s.themeRooms.garage[0].layout;
       toPlace.slice(0, SLOT_COUNT).forEach((id, i) => { firstLayout[i] = id; });
     }
 
     const elapsed = Math.max(0, (Date.now() - (saved.lastSaved || Date.now())) / 1000);
     const cappedElapsed = Math.min(elapsed, OFFLINE_CAP_SECONDS);
-    const gpsAtSave = computeTotalGps(s.rooms);
+    const gpsAtSave = computeTotalGps(s.themeRooms);
     const offlineEarnings = cappedElapsed * gpsAtSave;
     if (offlineEarnings > 1) {
       s.balance += offlineEarnings;
@@ -283,10 +286,15 @@
   }
 
   let state = load();
-  function activeRoom() {
-    return state.rooms[state.activeRoom];
+  // The current theme's own chain of rooms, and whichever one in it is
+  // focused for placement/shop/synergy purposes.
+  function activeRooms() {
+    return state.themeRooms[state.activeTheme];
   }
-  let gps = computeTotalGps(state.rooms);
+  function activeRoom() {
+    return activeRooms()[state.activeRoomIndex];
+  }
+  let gps = computeTotalGps(state.themeRooms);
   let clickAmount = 1 + gps * 0.05;
 
   // ---- Wallet-gated local leaderboard ----
@@ -336,7 +344,7 @@
   }
 
   function recomputeStats() {
-    gps = computeTotalGps(state.rooms);
+    gps = computeTotalGps(state.themeRooms);
     clickAmount = 1 + gps * 0.05;
     refreshHud();
     refreshSynergyText();
@@ -346,7 +354,7 @@
   const synergyEl = document.getElementById('tycoon-synergy');
   function refreshSynergyText() {
     if (!synergyEl) return;
-    const layout = roomLayout(activeRoom());
+    const layout = activeRoom().layout;
     const placed = layout.filter(Boolean).length;
     if (placed === 0) {
       synergyEl.textContent = "This room is empty = $0/s from here. Arm a piece of gear below and click a tile to start earning.";
@@ -453,7 +461,7 @@
     // purchases sit in inventory until you free up a slot somewhere --
     // that's the point where arranging what to keep on the floor (or
     // switching theme, or buying another room) actually becomes a decision.
-    const layout = roomLayout(activeRoom());
+    const layout = activeRoom().layout;
     const emptyIndex = layout.indexOf(null);
     if (emptyIndex !== -1) {
       layout[emptyIndex] = id;
@@ -474,12 +482,54 @@
   const themeRowEl = document.getElementById('theme-row');
   let armedItemId = null;
 
-  // Logical drawing surface stays 480x340 (every ROOM/isoPoint number below
-  // assumes that space) -- the canvas's actual pixel buffer is sized up to
-  // match the screen's device pixel ratio so the room renders crisp on
-  // retina/high-density displays instead of a blurry upscaled bitmap.
-  const BASE_W = floorCanvas.width;
+  // Every room gets its own fixed-width "lane" on one continuous canvas,
+  // laid out left to right and joined by a connecting walkway, instead of
+  // each room being a separate view swapped via tabs. LANE_W is the
+  // original single-room logical width (every ROOM/isoPoint number below
+  // is authored against that one lane, at its own local origin) -- BASE_W
+  // is the full multi-lane canvas width and grows as rooms are bought.
+  const LANE_W = floorCanvas.width;
   const BASE_H = floorCanvas.height;
+  let BASE_W = LANE_W;
+  function updateWorldWidth() {
+    BASE_W = LANE_W * activeRooms().length;
+  }
+
+  // Pan is native container scrolling; zoom is a CSS transform on the
+  // canvas itself sitting inside a wrapper sized to match (so the
+  // scrollable area's dimensions stay correct at any zoom level). Click
+  // math (pointFromEvent) is already ratio-based off getBoundingClientRect,
+  // which reflects both scroll position and the zoom transform, so it
+  // needs no special-casing for either.
+  let zoomLevel = 1;
+  const ZOOM_MIN = 0.6;
+  const ZOOM_MAX = 1.6;
+  const ZOOM_STEP = 0.2;
+  const zoomWrapEl = document.getElementById('room-zoom-wrap');
+  const stageScrollEl = document.getElementById('room-stage-scroll');
+
+  function applyStageSizing() {
+    if (zoomWrapEl) {
+      zoomWrapEl.style.width = (BASE_W * zoomLevel) + 'px';
+      zoomWrapEl.style.height = (BASE_H * zoomLevel) + 'px';
+    }
+    floorCanvas.style.width = BASE_W + 'px';
+    floorCanvas.style.height = BASE_H + 'px';
+    floorCanvas.style.transform = 'scale(' + zoomLevel + ')';
+    floorCanvas.style.transformOrigin = 'top left';
+  }
+
+  function setZoom(next) {
+    zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(next * 100) / 100));
+    applyStageSizing();
+  }
+
+  function scrollToRoom(index) {
+    if (!stageScrollEl) return;
+    const laneCenter = (index + 0.5) * LANE_W * zoomLevel;
+    stageScrollEl.scrollTo({ left: Math.max(0, laneCenter - stageScrollEl.clientWidth / 2), behavior: 'smooth' });
+  }
+
   function fitCanvasResolution() {
     const dpr = window.devicePixelRatio || 1;
     const targetW = Math.round(BASE_W * dpr);
@@ -504,12 +554,12 @@
     rooftop: { glow: 'rgba(255,236,180,0.38)', cord: null, shade: null, shadeDark: null, bulb: null },
   };
 
-  // Placement counts are global across every room AND every theme within
-  // each room -- an item bought once can only be on one floor at a time,
-  // wherever you put it.
+  // Placement counts are global across every room in every theme's chain
+  // -- an item bought once can only be on one floor at a time, wherever
+  // you put it.
   function placedCount(itemId) {
-    return state.rooms.reduce((sum, r) => (
-      sum + THEMES.reduce((s2, t) => s2 + r.layouts[t.id].filter((x) => x === itemId).length, 0)
+    return THEMES.reduce((sum, t) => (
+      sum + state.themeRooms[t.id].reduce((s2, room) => s2 + room.layout.filter((x) => x === itemId).length, 0)
     ), 0);
   }
   function availableCount(itemId) {
@@ -1135,11 +1185,11 @@
   }
 
   function renderScene() {
+    updateWorldWidth();
     fitCanvasResolution();
-    const room = activeRoom();
-    const layout = roomLayout(room);
-    const colors = THEME_COLORS[room.theme] || THEME_COLORS.garage;
-    const light = LIGHT_COLORS[room.theme] || LIGHT_COLORS.garage;
+    applyStageSizing();
+    const colors = THEME_COLORS[state.activeTheme] || THEME_COLORS.garage;
+    const light = LIGHT_COLORS[state.activeTheme] || LIGHT_COLORS.garage;
     const W = BASE_W;
     const H = BASE_H;
     floorCtx.clearRect(0, 0, W, H);
@@ -1149,7 +1199,48 @@
     bgGrad.addColorStop(1, colors.bg);
     floorCtx.fillStyle = bgGrad;
     floorCtx.fillRect(0, 0, W, H);
-    drawBackdrop(room.theme, W, H);
+
+    const rooms = activeRooms();
+    rooms.forEach((room, i) => {
+      floorCtx.save();
+      floorCtx.translate(i * LANE_W, 0);
+      drawRoomLane(room.layout, colors, light);
+      floorCtx.restore();
+    });
+
+    if (rooms.length > 1) {
+      floorCtx.save();
+      for (let i = 0; i < rooms.length - 1; i++) {
+        const seamX = (i + 1) * LANE_W;
+        const beam = floorCtx.createLinearGradient(seamX - 10, 0, seamX + 10, 0);
+        beam.addColorStop(0, 'rgba(255, 214, 120, 0)');
+        beam.addColorStop(0.5, 'rgba(255, 214, 120, 0.5)');
+        beam.addColorStop(1, 'rgba(255, 214, 120, 0)');
+        floorCtx.fillStyle = beam;
+        floorCtx.fillRect(seamX - 10, H * 0.12, 20, H * 0.82);
+
+        floorCtx.beginPath();
+        floorCtx.moveTo(seamX - 6, H * 0.5 - 8);
+        floorCtx.lineTo(seamX + 6, H * 0.5);
+        floorCtx.lineTo(seamX - 6, H * 0.5 + 8);
+        floorCtx.strokeStyle = 'rgba(255, 236, 190, 0.9)';
+        floorCtx.lineWidth = 2;
+        floorCtx.lineJoin = 'round';
+        floorCtx.stroke();
+      }
+      floorCtx.restore();
+    }
+
+    const vignette = floorCtx.createRadialGradient(W / 2, H * 0.42, H * 0.25, W / 2, H * 0.42, H * 0.72);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, 'rgba(0,0,0,0.45)');
+    floorCtx.fillStyle = vignette;
+    floorCtx.fillRect(0, 0, W, H);
+  }
+
+  function drawRoomLane(layout, colors, light) {
+    const theme = state.activeTheme;
+    drawBackdrop(theme, LANE_W, BASE_H);
 
     const north = isoPoint(0, 0);
     const east = isoPoint(ROOM.cols, 0);
@@ -1181,7 +1272,7 @@
 
     drawBaseboard(east, north);
     drawBaseboard(north, west);
-    drawWallDecor(room.theme, north, east, west);
+    drawWallDecor(theme, north, east, west);
 
     const cells = allCellsBackToFront();
 
@@ -1288,12 +1379,6 @@
         drawIsoBox(floorCtx, c, 0, 0, 0.24, 0.24, 20, catColor, 0);
       }
     });
-
-    const vignette = floorCtx.createRadialGradient(W / 2, H * 0.42, H * 0.25, W / 2, H * 0.42, H * 0.72);
-    vignette.addColorStop(0, 'rgba(0,0,0,0)');
-    vignette.addColorStop(1, 'rgba(0,0,0,0.45)');
-    floorCtx.fillStyle = vignette;
-    floorCtx.fillRect(0, 0, W, H);
   }
 
   function pointFromEvent(e) {
@@ -1308,25 +1393,32 @@
   }
 
   function gridCellFromPoint(px, py) {
-    const dx = px - ROOM.originX;
+    const laneIndex = Math.floor(px / LANE_W);
+    const localPx = px - laneIndex * LANE_W;
+    const dx = localPx - ROOM.originX;
     const dy = py - ROOM.originY;
     const a = dx / (ROOM.tileW / 2);
     const b = dy / (ROOM.tileH / 2);
     const gx = Math.floor((a + b) / 2);
     const gy = Math.floor((b - a) / 2);
+    if (laneIndex < 0 || laneIndex >= activeRooms().length) return null;
     if (gx < 0 || gx >= ROOM.cols || gy < 0 || gy >= ROOM.rows) return null;
-    return gy * ROOM.cols + gx;
+    return { laneIndex, cellIndex: gy * ROOM.cols + gx };
   }
 
   floorCanvas.addEventListener('click', (e) => {
     const p = pointFromEvent(e);
-    const index = gridCellFromPoint(p.x, p.y);
-    if (index === null) return;
-    onFloorCellClick(index);
+    const hit = gridCellFromPoint(p.x, p.y);
+    if (!hit) return;
+    if (hit.laneIndex !== state.activeRoomIndex) {
+      state.activeRoomIndex = hit.laneIndex;
+      refreshRoomTabs();
+    }
+    onFloorCellClick(hit.cellIndex);
   });
 
   function onFloorCellClick(index) {
-    const layout = roomLayout(activeRoom());
+    const layout = activeRoom().layout;
     const current = layout[index];
     if (current) {
       layout[index] = null;
@@ -1354,7 +1446,7 @@
     if (ownedItems.length === 0) {
       const p = document.createElement('p');
       p.className = 'tycoon-inv-empty';
-      p.textContent = state.rooms.some((r) => THEMES.some((t) => r.layouts[t.id].some(Boolean)))
+      p.textContent = THEMES.some((t) => state.themeRooms[t.id].some((r) => r.layout.some(Boolean)))
         ? 'Everything you own is already on the floor.'
         : 'Buy some gear below, then place it up here.';
       inventoryEl.appendChild(p);
@@ -1393,17 +1485,18 @@
 
   function refreshThemeRow() {
     themeRowEl.innerHTML = '';
-    const room = activeRoom();
     THEMES.forEach((t) => {
       const unlocked = state.lifetime >= t.unlockAt;
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'tycoon-theme-btn' + (room.theme === t.id ? ' is-active' : '') + (unlocked ? '' : ' is-locked');
+      btn.className = 'tycoon-theme-btn' + (state.activeTheme === t.id ? ' is-active' : '') + (unlocked ? '' : ' is-locked');
       btn.innerHTML = unlocked ? t.name : t.name + ' <span class="btn-lock-icon">' + iconMarkup('lock', 11) + '</span> $' + formatNum(t.unlockAt);
       btn.disabled = !unlocked;
       btn.addEventListener('click', () => {
-        if (activeRoom().theme === t.id) return;
-        activeRoom().theme = t.id;
+        if (state.activeTheme === t.id) return;
+        state.activeTheme = t.id;
+        state.activeRoomIndex = Math.min(state.activeRoomIndex, activeRooms().length - 1);
+        updateWorldWidth();
         renderScene();
         renderInventory();
         refreshThemeRow();
@@ -1415,34 +1508,38 @@
     });
   }
 
-  // ---- Room switcher: which physical room's floor you're viewing/editing.
-  // Gains/sec always adds up across every unlocked room, whichever you're
-  // looking at -- switching rooms is just about where you place gear next.
+  // ---- Room switcher: which physical room's floor you're viewing/editing,
+  // within the currently selected theme's own independent room chain.
+  // Gains/sec always adds up across every unlocked room in every theme,
+  // whichever you're looking at -- switching rooms is just about where
+  // you place gear next.
   const roomTabsEl = document.getElementById('room-tabs');
   function refreshRoomTabs() {
     if (!roomTabsEl) return;
     roomTabsEl.innerHTML = '';
-    state.rooms.forEach((room, i) => {
-      const placed = roomLayout(room).filter(Boolean).length;
+    const rooms = activeRooms();
+    rooms.forEach((room, i) => {
+      const placed = room.layout.filter(Boolean).length;
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'tycoon-room-tab' + (state.activeRoom === i ? ' is-active' : '');
+      btn.className = 'tycoon-room-tab' + (state.activeRoomIndex === i ? ' is-active' : '');
       btn.textContent = 'Room ' + (i + 1) + ' (' + placed + '/' + SLOT_COUNT + ')';
       btn.addEventListener('click', () => {
-        if (state.activeRoom === i) return;
-        state.activeRoom = i;
+        if (state.activeRoomIndex === i) return;
+        state.activeRoomIndex = i;
         renderScene();
         renderInventory();
         refreshThemeRow();
         refreshSynergyText();
         refreshRoomTabs();
+        scrollToRoom(i);
         save();
       });
       roomTabsEl.appendChild(btn);
     });
 
-    if (state.rooms.length < MAX_ROOMS) {
-      const cost = ROOM_UNLOCK_COSTS[state.rooms.length];
+    if (rooms.length < MAX_ROOMS_PER_THEME) {
+      const cost = ROOM_UNLOCK_COSTS[rooms.length];
       const affordable = state.balance >= cost;
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -1452,8 +1549,9 @@
       btn.addEventListener('click', () => {
         if (state.balance < cost) return;
         state.balance -= cost;
-        state.rooms.push(emptyRoom('garage'));
-        state.activeRoom = state.rooms.length - 1;
+        rooms.push(emptyGymRoom());
+        state.activeRoomIndex = rooms.length - 1;
+        updateWorldWidth();
         refreshHud();
         refreshShopUI();
         renderScene();
@@ -1461,6 +1559,7 @@
         refreshThemeRow();
         refreshSynergyText();
         refreshRoomTabs();
+        scrollToRoom(state.activeRoomIndex);
         save();
       });
       roomTabsEl.appendChild(btn);
@@ -1492,6 +1591,12 @@
     refreshRoomTabs();
     save();
   });
+
+  // ---- Zoom buttons ----
+  const zoomInBtn = document.getElementById('btn-zoom-in');
+  const zoomOutBtn = document.getElementById('btn-zoom-out');
+  if (zoomInBtn) zoomInBtn.addEventListener('click', () => setZoom(zoomLevel + ZOOM_STEP));
+  if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => setZoom(zoomLevel - ZOOM_STEP));
 
   // ---- Init ----
   buildShop();

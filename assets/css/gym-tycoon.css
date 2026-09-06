@@ -102,20 +102,54 @@
 }
 .tycoon-theme-btn.is-locked:hover { color: var(--muted); border-color: var(--panel-border); }
 
-/* ---- Isometric gym room ---- */
+/* ---- Zoom controls: shrink/grow the room stage to see more of a
+   theme's connected room chain at once ---- */
+.tycoon-zoom-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 auto 10px;
+}
+.tycoon-zoom-btn {
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 16px;
+  line-height: 1;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+.tycoon-zoom-btn:hover { color: var(--text); border-color: var(--blue); }
+.tycoon-zoom-btn:active { transform: translate(1px, 1px); }
+
+/* ---- Isometric gym room ----
+   The stage scrolls horizontally so a theme's whole chain of connected
+   rooms can be panned into view; the canvas itself is zoomed with a CSS
+   transform, sized via a wrapper div so the scrollable area's dimensions
+   stay correct at any zoom level (see applyStageSizing() in JS). */
 .tycoon-room-stage {
   max-width: 480px;
   margin: 0 auto 14px;
   border-radius: 18px;
   border: 3px solid #000;
   box-shadow: var(--shadow-hard);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
   line-height: 0;
+}
+.tycoon-room-zoom-wrap {
+  position: relative;
 }
 #tycoon-floor {
   display: block;
-  width: 100%;
-  height: auto;
+  position: absolute;
+  top: 0;
+  left: 0;
   cursor: pointer;
 }
 
