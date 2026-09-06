@@ -36,7 +36,7 @@
   // ---- Cups ----
   // Slot positions are fixed (physics/reachability was tuned around these
   // exact spots); which cup type lands in which slot is shuffled instead,
-  // so the board layout changes each wave without breaking the tuning.
+  // so the board layout changes each rack without breaking the tuning.
   const CUP_SLOTS = [
     { x: 190, y: 130, r: 22 },
     { x: 250, y: 130, r: 22 },
@@ -72,7 +72,7 @@
   let ball = null;
   let ballsLeft = TOTAL_BALLS;
   let score = 0;
-  let wave = 1;
+  let rack = 1;
   let best = getBestScore();
   let dragging = false;
   let dragPos = null;
@@ -81,7 +81,7 @@
 
   const hudScore = document.getElementById('hud-score');
   const hudBalls = document.getElementById('hud-balls');
-  const hudWave = document.getElementById('hud-wave');
+  const hudRack = document.getElementById('hud-rack');
   const hudBest = document.getElementById('hud-best');
   const toastEl = document.getElementById('game-toast');
   const overlay = document.getElementById('game-overlay');
@@ -181,21 +181,21 @@
     ballsLeft--;
     hudBalls.textContent = Math.max(ballsLeft, 0);
     resetBall();
-    const waveCleared = cups.filter((c) => c.label !== 'RUG').every((c) => c.sunk);
-    if (waveCleared) {
+    const rackCleared = cups.filter((c) => c.label !== 'RUG').every((c) => c.sunk);
+    if (rackCleared) {
       const bonus = 50;
       score += bonus;
       hudScore.textContent = score;
-      toast('WAVE CLEARED +' + bonus, 'legend-moon');
-      setTimeout(startNextWave, 900);
+      toast('RACK CLEARED +' + bonus, 'legend-moon');
+      setTimeout(startNextRack, 900);
     } else if (ballsLeft <= 0) {
       setTimeout(endGame, 500);
     }
   }
 
-  function startNextWave() {
-    wave++;
-    hudWave.textContent = wave;
+  function startNextRack() {
+    rack++;
+    hudRack.textContent = rack;
     cups = makeCups();
     ballsLeft = TOTAL_BALLS;
     hudBalls.textContent = ballsLeft;
@@ -205,7 +205,7 @@
     gameOver = true;
     best = submitScore(score);
     overlayTitle.textContent = 'OUT OF CANS';
-    overlayScore.textContent = 'Final bag: $' + score + ' — wave ' + wave;
+    overlayScore.textContent = 'Final bag: $' + score + ' — rack ' + rack;
     overlayBest.textContent = 'Best bag: $' + best;
     hudBest.textContent = best;
     overlay.hidden = false;
@@ -215,12 +215,12 @@
     cups = makeCups();
     ballsLeft = TOTAL_BALLS;
     score = 0;
-    wave = 1;
+    rack = 1;
     gameOver = false;
     particles = [];
     hudScore.textContent = 0;
     hudBalls.textContent = ballsLeft;
-    hudWave.textContent = wave;
+    hudRack.textContent = rack;
     resetBall();
     overlay.hidden = true;
   });
