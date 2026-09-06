@@ -662,6 +662,9 @@
     dumbbellrack: 'assets/img/equipment/dumbbell-rack.png',
     cable: 'assets/img/equipment/cable.png',
     treadmill: 'assets/img/equipment/treadmill.png',
+    rack: 'assets/img/equipment/rack.png',
+    mat: 'assets/img/equipment/mat.png',
+    bench: 'assets/img/equipment/bench.png',
   };
   const itemSprites = {};
   Object.keys(ITEM_SPRITE_SRC).forEach((id) => {
