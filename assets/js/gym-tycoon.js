@@ -10,6 +10,7 @@
 
   const ITEMS = [
     { id: 'dumbbell', name: 'Dumbbell Set', baseCost: 15, gps: 0.1 },
+    { id: 'dumbbellrack', name: 'Dumbbell Rack', baseCost: 35, gps: 0.22 },
     { id: 'mat', name: 'Yoga Mat', baseCost: 60, gps: 0.5 },
     { id: 'bench', name: 'Bench Press', baseCost: 200, gps: 2 },
     { id: 'rack', name: 'Squat Rack', baseCost: 800, gps: 8 },
@@ -33,6 +34,7 @@
   // surrounding UI element already uses.
   const ICON_PATHS = {
     dumbbell: '<rect x="2.5" y="9.2" width="3.2" height="5.6" rx="1.2"/><rect x="18.3" y="9.2" width="3.2" height="5.6" rx="1.2"/><rect x="5.5" y="7.4" width="2.4" height="9.2" rx="1"/><rect x="16.1" y="7.4" width="2.4" height="9.2" rx="1"/><rect x="7.7" y="10.9" width="8.6" height="2.2"/>',
+    dumbbellrack: '<rect x="10.8" y="1.5" width="2.4" height="21" rx="0.8"/><rect x="4.5" y="7" width="15" height="2" rx="0.6"/><rect x="3" y="5.4" width="3" height="5.2" rx="1"/><rect x="18" y="5.4" width="3" height="5.2" rx="1"/><rect x="4.5" y="15" width="15" height="2" rx="0.6"/><rect x="3" y="13.4" width="3" height="5.2" rx="1"/><rect x="18" y="13.4" width="3" height="5.2" rx="1"/>',
     mat: '<rect x="6" y="9" width="15.5" height="6" rx="1.2"/><circle cx="6" cy="12" r="3.3"/>',
     bench: '<rect x="3" y="9.2" width="18" height="2.8" rx="1"/><rect x="5" y="12" width="2.3" height="7" rx="0.6"/><rect x="16.7" y="12" width="2.3" height="7" rx="0.6"/>',
     rack: '<rect x="4" y="2" width="2.4" height="20" rx="0.6"/><rect x="17.6" y="2" width="2.4" height="20" rx="0.6"/><rect x="4" y="10" width="16" height="2.2" rx="0.6"/>',
@@ -72,7 +74,7 @@
   // category neighbor, so it's worth spreading those around rather than
   // clustering them.
   const CATEGORY = {
-    dumbbell: 'strength', bench: 'strength', rack: 'strength', cable: 'strength',
+    dumbbell: 'strength', dumbbellrack: 'strength', bench: 'strength', rack: 'strength', cable: 'strength',
     treadmill: 'cardio',
     mat: 'recovery', sauna: 'recovery',
     trainer: 'booster', gear: 'booster', hq: 'booster',
@@ -657,8 +659,8 @@
   // an entry here fall back to the hand-drawn PROP_BUILDERS box below.
   const ITEM_SPRITE_SRC = {
     dumbbell: 'assets/img/equipment/dumbbell.png',
+    dumbbellrack: 'assets/img/equipment/dumbbell-rack.png',
     cable: 'assets/img/equipment/cable.png',
-    rack: 'assets/img/equipment/rack.png',
     treadmill: 'assets/img/equipment/treadmill.png',
   };
   const itemSprites = {};
@@ -689,6 +691,17 @@
         const p = isoScreenPoint(b, u, 0, 17);
         drawIsoDisc(ctx, p, 9, 13, '#26262a');
         drawIsoDisc(ctx, p, 3.2, 4.6, '#6a6a70');
+      });
+    },
+    dumbbellrack: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0, 0.03, 0.20, 30, '#5a5a60', 0);
+      drawIsoBox(ctx, b, 0, -0.10, 0.20, 0.03, 3, '#3a3a3e', 24);
+      drawIsoBox(ctx, b, 0, 0.10, 0.20, 0.03, 3, '#3a3a3e', 10);
+      [-0.10, 0.10].forEach((v) => {
+        [24, 10].forEach((lift) => {
+          const p = isoScreenPoint(b, 0.16, v, lift + 3);
+          drawIsoDisc(ctx, p, 5, 7, '#26262a');
+        });
       });
     },
     mat: (ctx, b) => {
