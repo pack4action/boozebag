@@ -446,6 +446,89 @@
     floorCtx.shadowBlur = 0;
   }
 
+  // Point on a wall: t is fraction along the wall (0 = the near/floor
+  // corner given as fromP, 1 = toP), hFrac is fraction up from the floor
+  // (0 = floor line, 1 = ceiling). Decor drawn from this stays anchored to
+  // the wall as the room re-renders, without needing full quad-skew math.
+  function wallPoint(fromP, toP, t, hFrac) {
+    return {
+      x: fromP.x + (toP.x - fromP.x) * t,
+      y: fromP.y + (toP.y - fromP.y) * t - hFrac * ROOM.wallH,
+    };
+  }
+
+  function drawWallDecor(theme, north, east, west) {
+    if (theme === 'garage') {
+      const p = wallPoint(north, east, 0.56, 0.62);
+      floorCtx.fillStyle = 'rgba(0,0,0,0.22)';
+      floorCtx.fillRect(p.x - 32, p.y - 24, 64, 44);
+      floorCtx.strokeStyle = 'rgba(255,255,255,0.10)';
+      floorCtx.lineWidth = 1;
+      for (let row = 0; row < 4; row++) {
+        for (let col = 0; col < 6; col++) {
+          floorCtx.beginPath();
+          floorCtx.arc(p.x - 26 + col * 11, p.y - 17 + row * 11, 1.3, 0, Math.PI * 2);
+          floorCtx.stroke();
+        }
+      }
+      floorCtx.strokeStyle = '#c94f3a';
+      floorCtx.lineWidth = 2.5;
+      floorCtx.lineCap = 'round';
+      floorCtx.beginPath();
+      floorCtx.moveTo(p.x - 14, p.y + 12);
+      floorCtx.lineTo(p.x - 14, p.y - 8);
+      floorCtx.moveTo(p.x - 19, p.y - 8);
+      floorCtx.lineTo(p.x - 9, p.y - 8);
+      floorCtx.stroke();
+      floorCtx.strokeStyle = '#9aa0a8';
+      floorCtx.beginPath();
+      floorCtx.moveTo(p.x + 10, p.y + 14);
+      floorCtx.lineTo(p.x + 10, p.y - 10);
+      floorCtx.stroke();
+      floorCtx.beginPath();
+      floorCtx.arc(p.x + 10, p.y - 10, 4, 0.3, Math.PI * 1.4);
+      floorCtx.stroke();
+    } else if (theme === 'basement') {
+      const p = wallPoint(north, west, 0.5, 0.6);
+      floorCtx.fillStyle = '#1a1512';
+      floorCtx.fillRect(p.x - 26, p.y - 32, 52, 40);
+      floorCtx.fillStyle = '#dcd0b8';
+      floorCtx.fillRect(p.x - 22, p.y - 28, 44, 32);
+      floorCtx.fillStyle = 'rgba(0,0,0,0.55)';
+      floorCtx.fillRect(p.x - 17, p.y - 22, 34, 3);
+      floorCtx.fillRect(p.x - 17, p.y - 15, 22, 3);
+      floorCtx.fillRect(p.x - 17, p.y - 8, 26, 3);
+      floorCtx.fillStyle = '#c0483a';
+      floorCtx.fillRect(p.x - 17, p.y - 1, 12, 3);
+    } else if (theme === 'rooftop') {
+      const wallTopColor = 'rgba(255, 236, 190, 0.9)';
+      [
+        { from: north, to: east },
+        { from: north, to: west },
+      ].forEach(({ from, to }) => {
+        floorCtx.beginPath();
+        for (let i = 0; i <= 6; i++) {
+          const q = wallPoint(from, to, i / 6, 0.94);
+          if (i === 0) floorCtx.moveTo(q.x, q.y);
+          else floorCtx.lineTo(q.x, q.y);
+        }
+        floorCtx.strokeStyle = 'rgba(255,255,255,0.18)';
+        floorCtx.lineWidth = 1.5;
+        floorCtx.stroke();
+        for (let i = 0; i <= 6; i++) {
+          const q = wallPoint(from, to, i / 6, 0.94);
+          floorCtx.beginPath();
+          floorCtx.arc(q.x, q.y, 2.4, 0, Math.PI * 2);
+          floorCtx.fillStyle = wallTopColor;
+          floorCtx.shadowColor = wallTopColor;
+          floorCtx.shadowBlur = 8;
+          floorCtx.fill();
+          floorCtx.shadowBlur = 0;
+        }
+      });
+    }
+  }
+
   function renderScene() {
     const colors = THEME_COLORS[state.theme] || THEME_COLORS.garage;
     const light = LIGHT_COLORS[state.theme] || LIGHT_COLORS.garage;
@@ -489,6 +572,7 @@
 
     drawBaseboard(east, north);
     drawBaseboard(north, west);
+    drawWallDecor(state.theme, north, east, west);
 
     const cells = allCellsBackToFront();
 
@@ -497,16 +581,40 @@
       const p1 = isoPoint(gx + 1, gy);
       const p2 = isoPoint(gx + 1, gy + 1);
       const p3 = isoPoint(gx, gy + 1);
+      const tileColor = (gx + gy) % 2 === 0 ? colors.floorA : colors.floorB;
       floorCtx.beginPath();
       floorCtx.moveTo(p0.x, p0.y);
       floorCtx.lineTo(p1.x, p1.y);
       floorCtx.lineTo(p2.x, p2.y);
       floorCtx.lineTo(p3.x, p3.y);
       floorCtx.closePath();
-      floorCtx.fillStyle = (gx + gy) % 2 === 0 ? colors.floorA : colors.floorB;
+      floorCtx.fillStyle = tileColor;
       floorCtx.fill();
       floorCtx.strokeStyle = 'rgba(0,0,0,0.25)';
       floorCtx.lineWidth = 1;
+      floorCtx.stroke();
+
+      // Beveled-tile look: a light seam along the two edges facing the
+      // room's light source (up/left in screen space), a dark seam along
+      // the two facing away, instead of one flat fill.
+      floorCtx.beginPath();
+      floorCtx.moveTo(p0.x, p0.y);
+      floorCtx.lineTo(p1.x, p1.y);
+      floorCtx.strokeStyle = shade(tileColor, 20);
+      floorCtx.lineWidth = 1;
+      floorCtx.stroke();
+      floorCtx.beginPath();
+      floorCtx.moveTo(p0.x, p0.y);
+      floorCtx.lineTo(p3.x, p3.y);
+      floorCtx.stroke();
+      floorCtx.beginPath();
+      floorCtx.moveTo(p2.x, p2.y);
+      floorCtx.lineTo(p1.x, p1.y);
+      floorCtx.strokeStyle = shade(tileColor, -20);
+      floorCtx.stroke();
+      floorCtx.beginPath();
+      floorCtx.moveTo(p2.x, p2.y);
+      floorCtx.lineTo(p3.x, p3.y);
       floorCtx.stroke();
     });
 
