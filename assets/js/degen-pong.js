@@ -634,15 +634,33 @@
 
     const skin = '#d9a679';
     const skinShadow = shade(skin, -26);
-    const skinHi = shade(skin, 20);
     const w = 19;
     const top = -10;
     const h = 34;
+    const r1 = 8; // top corner radius
+    const r2 = 10; // bottom corner radius
+    const thumbTopY = top + 11;
+    const thumbBottomY = top + 23;
+    const thumbOutX = -w - 9;
 
-    // one cohesive fist shape instead of separate fingers -- reads much
-    // cleaner at this size than individually drawn digits did
+    // Fist and thumb are one continuous path (rounded rect with a bulge
+    // traced into its left edge) so there's a single fill/stroke and no
+    // seam where a separately-drawn thumb would overlap the palm.
     ctx.beginPath();
-    ctx.roundRect(-w, top, w * 2, h, [9, 9, 15, 15]);
+    ctx.moveTo(-w + r1, top);
+    ctx.lineTo(w - r1, top);
+    ctx.arcTo(w, top, w, top + r1, r1);
+    ctx.lineTo(w, top + h - r2);
+    ctx.arcTo(w, top + h, w - r2, top + h, r2);
+    ctx.lineTo(-w + r2, top + h);
+    ctx.arcTo(-w, top + h, -w, top + h - r2, r2);
+    ctx.lineTo(-w, thumbBottomY);
+    ctx.quadraticCurveTo(thumbOutX, thumbBottomY, thumbOutX, (thumbBottomY + thumbTopY) / 2);
+    ctx.quadraticCurveTo(thumbOutX, thumbTopY, -w, thumbTopY);
+    ctx.lineTo(-w, top + r1);
+    ctx.arcTo(-w, top, -w + r1, top, r1);
+    ctx.closePath();
+
     const grad = ctx.createLinearGradient(-w, 0, w, 0);
     grad.addColorStop(0, skinShadow);
     grad.addColorStop(0.45, skin);
@@ -670,16 +688,13 @@
       ctx.stroke();
     });
 
-    // thumb: a smooth ellipse merged into the lower-left corner
+    // soft crease where the thumb folds against the palm -- definition
+    // without a hard seam
+    ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.ellipse(-w - 2, top + 24, 8, 12, -0.5, 0, Math.PI * 2);
-    const tGrad = ctx.createLinearGradient(-w - 10, 0, -w + 6, 0);
-    tGrad.addColorStop(0, skinShadow);
-    tGrad.addColorStop(1, skinHi);
-    ctx.fillStyle = tGrad;
-    ctx.fill();
-    ctx.lineWidth = 1.6;
-    ctx.strokeStyle = 'rgba(0,0,0,0.42)';
+    ctx.moveTo(-w + 3, thumbTopY + 1);
+    ctx.quadraticCurveTo(-w + 7, (thumbTopY + thumbBottomY) / 2, -w + 3, thumbBottomY - 1);
     ctx.stroke();
 
     ctx.restore();
