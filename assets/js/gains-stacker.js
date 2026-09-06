@@ -109,10 +109,9 @@
   function spawnActive() {
     const n = stack.length - 1; // blocks placed so far, base excluded
     const top = stack[stack.length - 1];
-    // Always spawn a fresh, full-size block regardless of how narrow the
-    // last placement ended up -- a bad drop trims that one block, but
-    // doesn't compound into a permanently shrinking tower.
-    const w = BASE_W;
+    // Each block spawns at the width of whatever it's about to land on, so
+    // an off-center drop permanently narrows the tower from then on.
+    const w = top.w;
     const speed = Math.min(MIN_SPEED + n * SPEED_STEP, MAX_SPEED);
     const dir = Math.random() < 0.5 ? -1 : 1;
     const x = dir === 1 ? 30 : W - 30 - w;
