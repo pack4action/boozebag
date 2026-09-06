@@ -540,6 +540,45 @@
     return { x: base.x + c.x, y: base.y + c.y - (liftPx || 0) };
   }
 
+  // A shaded round disc (weight plate, pulley wheel, a head) -- boxes can't
+  // read as round objects no matter how much corner rounding they get, so
+  // genuinely circular parts are drawn as real ellipses with a radial
+  // shading gradient instead of being approximated with a rounded cuboid.
+  function drawIsoDisc(ctx, center, rx, ry, color) {
+    const grad = ctx.createRadialGradient(center.x - rx * 0.35, center.y - ry * 0.35, 1, center.x, center.y, Math.max(rx, ry));
+    grad.addColorStop(0, shade(color, 22));
+    grad.addColorStop(1, shade(color, -26));
+    ctx.beginPath();
+    ctx.ellipse(center.x, center.y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Traces a quad p0->p1->p2->p3 with each corner rounded by r, clamped to
+  // half the shorter adjacent edge so small/thin quads just come out
+  // pill-shaped instead of self-intersecting. Softens every box face so
+  // props read as solid rounded objects instead of sharp-cornered blocks.
+  function roundedQuadPath(ctx, p0, p1, p2, p3, r) {
+    const pts = [p0, p1, p2, p3];
+    for (let i = 0; i < 4; i++) {
+      const prev = pts[(i + 3) % 4];
+      const cur = pts[i];
+      const next = pts[(i + 1) % 4];
+      const toPrev = Math.hypot(prev.x - cur.x, prev.y - cur.y) || 1;
+      const toNext = Math.hypot(next.x - cur.x, next.y - cur.y) || 1;
+      const rr = Math.min(r, toPrev / 2, toNext / 2);
+      const inFrom = { x: cur.x + (prev.x - cur.x) / toPrev * rr, y: cur.y + (prev.y - cur.y) / toPrev * rr };
+      const outTo = { x: cur.x + (next.x - cur.x) / toNext * rr, y: cur.y + (next.y - cur.y) / toNext * rr };
+      if (i === 0) ctx.moveTo(inFrom.x, inFrom.y);
+      else ctx.lineTo(inFrom.x, inFrom.y);
+      ctx.quadraticCurveTo(cur.x, cur.y, outTo.x, outTo.y);
+    }
+    ctx.closePath();
+  }
+
   // Draws one shaded isometric box: (offU, offV) is its center relative to
   // the base point in tile-units, (halfA, halfB) its footprint half-extents
   // (also tile-units), height and lift in pixels (lift raises it off the
@@ -563,6 +602,10 @@
 
     ctx.lineWidth = 1;
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    // Corner radius scales down for small/thin boxes (accents, bars) so
+    // they don't get over-rounded into blobs, but stays big enough on
+    // normal-sized boxes to visibly soften every hard edge.
+    const r = Math.min(5, Math.min(halfA, halfB) * ROOM.tileW * 0.4, height * 0.35);
 
     // Left face: vertical gradient instead of one flat tint, so it reads as
     // a lit surface rather than a solid color swatch.
@@ -570,11 +613,7 @@
     leftGrad.addColorStop(0, shade(color, -22));
     leftGrad.addColorStop(1, shade(color, -44));
     ctx.beginPath();
-    ctx.moveTo(pLeft.x, pLeft.y);
-    ctx.lineTo(pFront.x, pFront.y);
-    ctx.lineTo(top(pFront).x, top(pFront).y);
-    ctx.lineTo(top(pLeft).x, top(pLeft).y);
-    ctx.closePath();
+    roundedQuadPath(ctx, pLeft, pFront, top(pFront), top(pLeft), r);
     ctx.fillStyle = leftGrad;
     ctx.fill();
     ctx.stroke();
@@ -584,11 +623,7 @@
     rightGrad.addColorStop(0, shade(color, 4));
     rightGrad.addColorStop(1, shade(color, -20));
     ctx.beginPath();
-    ctx.moveTo(pFront.x, pFront.y);
-    ctx.lineTo(pRight.x, pRight.y);
-    ctx.lineTo(top(pRight).x, top(pRight).y);
-    ctx.lineTo(top(pFront).x, top(pFront).y);
-    ctx.closePath();
+    roundedQuadPath(ctx, pFront, pRight, top(pRight), top(pFront), r);
     ctx.fillStyle = rightGrad;
     ctx.fill();
     ctx.stroke();
@@ -599,11 +634,7 @@
     topGrad.addColorStop(0, shade(color, 10));
     topGrad.addColorStop(1, shade(color, 32));
     ctx.beginPath();
-    ctx.moveTo(top(pFront).x, top(pFront).y);
-    ctx.lineTo(top(pRight).x, top(pRight).y);
-    ctx.lineTo(top(pBack).x, top(pBack).y);
-    ctx.lineTo(top(pLeft).x, top(pLeft).y);
-    ctx.closePath();
+    roundedQuadPath(ctx, top(pFront), top(pRight), top(pBack), top(pLeft), r);
     ctx.fillStyle = topGrad;
     ctx.fill();
     ctx.stroke();
@@ -611,10 +642,11 @@
     // Rim highlight on the nearest vertical edge, where the two side faces
     // meet -- the brightest line on the box, like light catching an edge.
     ctx.beginPath();
-    ctx.moveTo(pFront.x, pFront.y);
-    ctx.lineTo(top(pFront).x, top(pFront).y);
+    ctx.moveTo(pFront.x, pFront.y + r);
+    ctx.lineTo(top(pFront).x, top(pFront).y - r);
     ctx.strokeStyle = shade(color, 48);
     ctx.lineWidth = 1.4;
+    ctx.lineCap = 'round';
     ctx.stroke();
   }
 
@@ -622,33 +654,27 @@
   // than a flat emoji sticker, so it actually reads as part of the 3D room.
   const PROP_BUILDERS = {
     dumbbell: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0, 0.30, 0.20, 6, '#7a5a34', 0);
-      drawIsoBox(ctx, b, -0.14, 0, 0.07, 0.10, 16, '#26262a', 6);
-      drawIsoBox(ctx, b, 0.14, 0, 0.07, 0.10, 16, '#26262a', 6);
-      drawIsoBox(ctx, b, -0.17, 0, 0.02, 0.045, 17, '#4a4a50', 6);
-      drawIsoBox(ctx, b, 0.17, 0, 0.02, 0.045, 17, '#4a4a50', 6);
-      drawIsoBox(ctx, b, 0, 0, 0.16, 0.035, 6, '#9a9aa0', 14);
-      drawIsoBox(ctx, b, -0.06, 0, 0.012, 0.032, 6, '#6a6a70', 14);
-      drawIsoBox(ctx, b, 0.06, 0, 0.012, 0.032, 6, '#6a6a70', 14);
-      drawIsoBox(ctx, b, -0.14, 0, 0.025, 0.035, 3, '#e0e0e4', 20);
-      drawIsoBox(ctx, b, 0.14, 0, 0.025, 0.035, 3, '#e0e0e4', 20);
+      drawIsoBox(ctx, b, 0, 0, 0.30, 0.20, 4, '#4a3c2e', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.15, 0.032, 5, '#9a9aa0', 4);
+      [-0.15, 0.15].forEach((u) => {
+        const p = isoScreenPoint(b, u, 0, 17);
+        drawIsoDisc(ctx, p, 9, 13, '#26262a');
+        drawIsoDisc(ctx, p, 3.2, 4.6, '#6a6a70');
+      });
     },
     mat: (ctx, b) => {
       drawIsoBox(ctx, b, 0.02, 0, 0.32, 0.20, 5, '#3fa8a0', 0);
-      drawIsoBox(ctx, b, 0.02, 0, 0.32, 0.03, 5.4, '#2c8c85', 0);
       drawIsoBox(ctx, b, -0.28, 0, 0.05, 0.19, 9, '#2c8c85', 0);
-      drawIsoBox(ctx, b, -0.12, 0, 0.018, 0.21, 9.4, '#1f6a64', 0);
     },
     bench: (ctx, b) => {
       drawIsoBox(ctx, b, 0, -0.28, 0.08, 0.06, 24, '#7a7a80', 0);
       drawIsoBox(ctx, b, 0, 0.28, 0.08, 0.06, 24, '#7a7a80', 0);
       drawIsoBox(ctx, b, 0, 0, 0.14, 0.34, 10, '#2255aa', 20);
-      drawIsoBox(ctx, b, 0, 0, 0.09, 0.34, 10.4, '#1c4a8a', 20);
-      drawIsoBox(ctx, b, 0, 0, 0.20, 0.045, 4, '#26262a', 33);
-      drawIsoBox(ctx, b, -0.19, 0, 0.045, 0.11, 9, '#c0483a', 31);
-      drawIsoBox(ctx, b, 0.19, 0, 0.045, 0.11, 9, '#c0483a', 31);
-      drawIsoBox(ctx, b, -0.19, 0, 0.016, 0.016, 2, '#8a8a90', 40);
-      drawIsoBox(ctx, b, 0.19, 0, 0.016, 0.016, 2, '#8a8a90', 40);
+      drawIsoBox(ctx, b, 0, 0, 0.24, 0.04, 4, '#26262a', 33);
+      [-0.20, 0.20].forEach((u) => {
+        const p = isoScreenPoint(b, u, 0, 35);
+        drawIsoDisc(ctx, p, 7, 10, '#c0483a');
+      });
     },
     rack: (ctx, b) => {
       drawIsoBox(ctx, b, -0.20, -0.20, 0.045, 0.045, 42, '#5a5a60', 0);
@@ -657,66 +683,47 @@
       drawIsoBox(ctx, b, 0.20, 0.20, 0.045, 0.045, 42, '#5a5a60', 0);
       drawIsoBox(ctx, b, 0, -0.20, 0.22, 0.03, 3, '#3a3a3e', 22);
       drawIsoBox(ctx, b, 0, 0.20, 0.22, 0.03, 3, '#3a3a3e', 22);
-      drawIsoBox(ctx, b, 0, -0.20, 0.22, 0.025, 2.4, '#3a3a3e', 40);
-      drawIsoBox(ctx, b, -0.20, -0.20, 0.022, 0.022, 3, '#2a2a2e', 22);
-      drawIsoBox(ctx, b, 0.20, -0.20, 0.022, 0.022, 3, '#2a2a2e', 22);
       drawIsoBox(ctx, b, 0, 0, 0.24, 0.24, 4, '#c0483a', 42);
     },
     cable: (ctx, b) => {
       drawIsoBox(ctx, b, -0.10, 0, 0.09, 0.11, 4, '#26262a', 0);
       drawIsoBox(ctx, b, -0.10, 0, 0.08, 0.10, 46, '#3a3a3e', 4);
-      drawIsoBox(ctx, b, -0.10, 0, 0.05, 0.06, 4, '#c0483a', 48);
+      drawIsoDisc(ctx, isoScreenPoint(b, -0.10, 0, 51), 6, 4.2, '#c0483a');
       drawIsoBox(ctx, b, 0.14, 0, 0.10, 0.14, 20, '#4a5a6a', 0);
       drawIsoBox(ctx, b, 0.14, 0, 0.08, 0.03, 4, '#8fa4b4', 18);
       drawIsoBox(ctx, b, 0.14, 0, 0.08, 0.03, 4, '#c0483a', 12);
-      drawIsoBox(ctx, b, 0.14, 0, 0.08, 0.03, 4, '#8fa4b4', 6);
     },
     treadmill: (ctx, b) => {
       drawIsoBox(ctx, b, 0, 0.02, 0.32, 0.18, 8, '#26262a', 0);
-      drawIsoBox(ctx, b, 0, 0.14, 0.29, 0.045, 8.6, '#1a1a1e', 0);
-      drawIsoBox(ctx, b, 0, -0.06, 0.29, 0.045, 8.6, '#1a1a1e', 0);
-      drawIsoBox(ctx, b, 0, 0.20, 0.32, 0.045, 5, '#1a1a1e', 0);
       drawIsoBox(ctx, b, 0, -0.20, 0.06, 0.16, 24, '#3a3a3e', 8);
       drawIsoBox(ctx, b, 0, -0.24, 0.10, 0.03, 4, '#5ec4c9', 30);
       drawIsoBox(ctx, b, -0.17, -0.05, 0.03, 0.03, 20, '#2a2a2e', 8);
       drawIsoBox(ctx, b, 0.17, -0.05, 0.03, 0.03, 20, '#2a2a2e', 8);
     },
     trainer: (ctx, b) => {
-      drawIsoBox(ctx, b, -0.05, 0.09, 0.035, 0.04, 4, '#161616', 0);
-      drawIsoBox(ctx, b, 0.05, 0.09, 0.035, 0.04, 4, '#161616', 0);
       drawIsoBox(ctx, b, 0, 0.02, 0.09, 0.08, 15, '#2a2a2e', 0);
       drawIsoBox(ctx, b, 0, 0, 0.13, 0.11, 20, '#c98a4a', 15);
-      drawIsoBox(ctx, b, 0.02, -0.03, 0.05, 0.018, 6, '#3fa0c9', 30);
       drawIsoBox(ctx, b, -0.14, 0, 0.04, 0.045, 14, '#c98a4a', 20);
       drawIsoBox(ctx, b, 0.14, 0, 0.04, 0.045, 14, '#c98a4a', 20);
-      drawIsoBox(ctx, b, 0, 0, 0.08, 0.08, 9, '#e0a86a', 35);
-      drawIsoBox(ctx, b, 0, -0.02, 0.085, 0.06, 3, '#8a5a2e', 44);
+      drawIsoDisc(ctx, isoScreenPoint(b, 0, 0, 40), 7.5, 7.5, '#e0a86a');
+      drawIsoBox(ctx, b, 0, -0.02, 0.085, 0.06, 3, '#8a5a2e', 46);
     },
     sauna: (ctx, b) => {
       drawIsoBox(ctx, b, 0, 0, 0.30, 0.26, 44, '#8a5a34', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.30, 0.008, 44.2, '#6a4526', 0);
-      drawIsoBox(ctx, b, -0.10, 0, 0.30, 0.008, 44.2, '#6a4526', 0);
       drawIsoBox(ctx, b, 0.08, -0.22, 0.08, 0.02, 26, '#5a3c22', 4);
-      drawIsoBox(ctx, b, 0.08, -0.235, 0.03, 0.006, 8, '#ffe0a0', 15);
       drawIsoBox(ctx, b, 0, 0, 0.10, 0.10, 10, '#e8b04a', 44);
       drawIsoBox(ctx, b, 0, 0, 0.05, 0.05, 5, '#ffe0a0', 54);
     },
     gear: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0, 0.10, 0.10, 24, '#c0483a', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.105, 0.02, 3, '#8a2e24', 6);
-      drawIsoBox(ctx, b, 0, 0, 0.10, 0.03, 4, '#8a2e24', 12);
-      drawIsoBox(ctx, b, 0, 0, 0.105, 0.02, 3, '#8a2e24', 19);
-      drawIsoBox(ctx, b, 0, 0, 0.03, 0.03, 10, '#e8e8ea', 24);
-      drawIsoBox(ctx, b, 0, 0, 0.05, 0.014, 2, '#c8c8ce', 24);
-      drawIsoBox(ctx, b, 0, 0, 0.012, 0.012, 12, '#c8c8ce', 34);
-      drawIsoBox(ctx, b, 0, 0, 0.032, 0.032, 2, '#c8c8ce', 46);
+      drawIsoBox(ctx, b, 0, 0, 0.09, 0.09, 22, '#c0483a', 0);
+      drawIsoDisc(ctx, isoScreenPoint(b, 0, 0, 22), 6.5, 4.2, '#8a2e24');
+      drawIsoBox(ctx, b, 0, 0, 0.03, 0.03, 9, '#e8e8ea', 22);
+      drawIsoBox(ctx, b, 0, 0, 0.012, 0.012, 11, '#c8c8ce', 31);
     },
     hq: (ctx, b) => {
       drawIsoBox(ctx, b, 0, 0, 0.36, 0.32, 4, '#2e3844', 0);
       drawIsoBox(ctx, b, 0, 0, 0.34, 0.30, 60, '#4a5a6a', 4);
       drawIsoBox(ctx, b, 0, 0, 0.20, 0.18, 14, '#c0483a', 64);
-      drawIsoBox(ctx, b, 0.10, 0.10, 0.012, 0.012, 16, '#9a9aa0', 78);
-      drawIsoBox(ctx, b, 0.10, 0.10, 0.05, 0.02, 5, '#c0483a', 90);
       ctx.fillStyle = '#e8d98a';
       [-0.14, 0.14].forEach((v) => {
         const w = isoScreenPoint(b, 0.34, v, 44);
@@ -727,29 +734,21 @@
       ctx.fillRect(door.x - 5, door.y - 14, 10, 14);
     },
     desk: (ctx, b) => {
-      drawIsoBox(ctx, b, -0.14, 0.14, 0.09, 0.06, 9, '#4a3020', 0);
-      drawIsoBox(ctx, b, -0.14, 0.155, 0.055, 0.012, 1.2, '#26262a', 5);
       drawIsoBox(ctx, b, 0, 0.02, 0.30, 0.20, 11, '#6b4a30', 0);
-      drawIsoBox(ctx, b, -0.08, -0.02, 0.06, 0.03, 0.6, '#e8e4d8', 11.3);
       drawIsoBox(ctx, b, 0.10, -0.08, 0.03, 0.03, 9, '#26262a', 11);
       drawIsoBox(ctx, b, 0.10, -0.08, 0.09, 0.02, 7, '#3fa0c9', 18);
     },
     cubicle: (ctx, b) => {
       drawIsoBox(ctx, b, 0, 0.08, 0.10, 0.24, 30, '#9aa4b0', 0);
-      drawIsoBox(ctx, b, -0.10, -0.16, 0.02, 0.10, 30.3, '#7a828e', 0);
       drawIsoBox(ctx, b, -0.20, -0.06, 0.24, 0.06, 28, '#9aa4b0', 0);
-      drawIsoBox(ctx, b, 0.06, 0.02, 0.09, 0.09, 16, '#2a2a2e', 0);
       drawIsoBox(ctx, b, 0.06, -0.08, 0.20, 0.14, 9, '#6b4a30', 0);
       drawIsoBox(ctx, b, 0.06, -0.18, 0.045, 0.03, 8, '#26262a', 9);
       drawIsoBox(ctx, b, 0.06, -0.18, 0.10, 0.02, 6, '#3fa0c9', 15);
     },
     manager: (ctx, b) => {
       drawIsoBox(ctx, b, 0, 0.06, 0.30, 0.22, 12, '#3a2c22', 0);
-      drawIsoBox(ctx, b, -0.10, 0.12, 0.05, 0.035, 0.7, '#e8e4d8', 12.3);
       drawIsoBox(ctx, b, 0.10, -0.10, 0.03, 0.03, 10, '#26262a', 12);
       drawIsoBox(ctx, b, 0, -0.22, 0.11, 0.09, 20, '#241a10', 0);
-      drawIsoBox(ctx, b, -0.06, -0.28, 0.022, 0.022, 7, '#241a10', 20);
-      drawIsoBox(ctx, b, 0.06, -0.28, 0.022, 0.022, 7, '#241a10', 20);
       drawIsoBox(ctx, b, -0.22, 0.20, 0.07, 0.07, 4, '#8a5a34', 0);
       drawIsoBox(ctx, b, -0.22, 0.20, 0.05, 0.05, 15, '#3fa87e', 4);
     },
