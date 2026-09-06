@@ -365,6 +365,35 @@
     return Math.ceil(item.baseCost * Math.pow(COST_GROWTH, state.owned[item.id] || 0));
   }
 
+  const SELL_REFUND_RATE = 0.6;
+  // Refunds 60% of what the most recently bought unit actually cost --
+  // costFor scales with owned count, so pricing it one unit down gives
+  // exactly that unit's purchase price, not the (higher) next-buy price.
+  function sellPrice(item) {
+    const owned = state.owned[item.id] || 0;
+    if (owned <= 0) return 0;
+    const lastUnitCost = Math.ceil(item.baseCost * Math.pow(COST_GROWTH, owned - 1));
+    return Math.floor(lastUnitCost * SELL_REFUND_RATE);
+  }
+
+  // Only unplaced (available) gear can be sold -- selling a piece that's
+  // on the floor would need to also rip it out of whatever room/theme
+  // it's sitting in, so requiring it be packed away first keeps the
+  // room's layout the single source of truth for what's placed.
+  function sellItem(id) {
+    const item = ITEMS.find((i) => i.id === id);
+    if (!item || availableCount(id) <= 0) return;
+    const refund = sellPrice(item);
+    state.owned[id] -= 1;
+    state.balance += refund;
+    if (armedItemId === id && availableCount(id) <= 0) armedItemId = null;
+    recomputeStats();
+    refreshShopUI();
+    renderInventory();
+    save();
+    toast('+$' + formatNum(refund), 'legend-paper');
+  }
+
   const shopGrid = document.getElementById('shop-grid');
   const shopEls = {};
 
@@ -665,6 +694,11 @@
     rack: 'assets/img/equipment/rack.png',
     mat: 'assets/img/equipment/mat.png',
     bench: 'assets/img/equipment/bench.png',
+    trainer: 'assets/img/equipment/trainer.png',
+    sauna: 'assets/img/equipment/sauna.png',
+    gear: 'assets/img/equipment/gear.png',
+    desk: 'assets/img/equipment/desk.png',
+    cubicle: 'assets/img/equipment/cubicle.png',
   };
   const itemSprites = {};
   Object.keys(ITEM_SPRITE_SRC).forEach((id) => {
@@ -1328,16 +1362,31 @@
     }
     ownedItems.forEach((item) => {
       const cat = CATEGORY_META[CATEGORY[item.id]];
-      const chip = document.createElement('button');
-      chip.type = 'button';
+      // A wrapping div rather than a button, since it holds two separate
+      // clickable controls (arm-to-place, and sell) -- buttons can't nest.
+      const chip = document.createElement('div');
       chip.className = 'tycoon-inv-item' + (armedItemId === item.id ? ' is-armed' : '');
-      chip.innerHTML = '<span class="inv-cat-dot" style="background:' + cat.color + '"></span>'
+
+      const armBtn = document.createElement('button');
+      armBtn.type = 'button';
+      armBtn.className = 'tycoon-inv-arm';
+      armBtn.innerHTML = '<span class="inv-cat-dot" style="background:' + cat.color + '"></span>'
         + '<span class="inv-icon">' + iconMarkup(item.id, 15) + '</span> '
         + item.name + ' <span class="inv-count">x' + availableCount(item.id) + '</span>';
-      chip.addEventListener('click', () => {
+      armBtn.addEventListener('click', () => {
         armedItemId = armedItemId === item.id ? null : item.id;
         renderInventory();
       });
+      chip.appendChild(armBtn);
+
+      const sellBtn = document.createElement('button');
+      sellBtn.type = 'button';
+      sellBtn.className = 'tycoon-inv-sell';
+      sellBtn.textContent = 'Sell +$' + formatNum(sellPrice(item));
+      sellBtn.title = 'Sell one for 60% of what it cost';
+      sellBtn.addEventListener('click', () => sellItem(item.id));
+      chip.appendChild(sellBtn);
+
       inventoryEl.appendChild(chip);
     });
   }

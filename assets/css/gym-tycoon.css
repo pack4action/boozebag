@@ -25,7 +25,8 @@
 .tycoon-theme-btn,
 .tycoon-room-tab,
 #tycoon-floor,
-.tycoon-inv-item,
+.tycoon-inv-arm,
+.tycoon-inv-sell,
 .shop-buy-btn,
 .tycoon-lift-btn {
   touch-action: manipulation;
@@ -140,19 +141,43 @@
 .tycoon-inv-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 800;
-  font-size: 13px;
-  padding: 7px 12px;
+  gap: 4px;
+  padding: 4px 4px 4px 12px;
   border-radius: 999px;
   border: 1px solid var(--panel-border);
   background: var(--panel);
   color: var(--text);
-  cursor: pointer;
 }
 .tycoon-inv-item:hover { border-color: var(--amber); }
 .tycoon-inv-item.is-armed { background: var(--amber); color: #1a1200; border-color: #000; }
-.tycoon-inv-item .inv-count { color: var(--muted); font-weight: 700; }
+.tycoon-inv-arm {
+  display: flex;
+  align-items: center;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 13px;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 3px 2px;
+  cursor: pointer;
+}
+.tycoon-inv-sell {
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 4px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tycoon-inv-sell:hover { color: var(--red); border-color: var(--red); }
+.tycoon-inv-item.is-armed .tycoon-inv-sell { background: rgba(0, 0, 0, 0.15); border-color: #000; color: #4a3300; }
+.tycoon-inv-item.is-armed .tycoon-inv-sell:hover { color: var(--red); }
+.tycoon-inv-item .inv-count { color: var(--muted); font-weight: 700; margin-left: 3px; }
 .tycoon-inv-item.is-armed .inv-count { color: #4a3300; }
 .tycoon-inv-empty { color: var(--muted); font-size: 13px; margin: 4px 0 6px; }
 .inv-cat-dot {
