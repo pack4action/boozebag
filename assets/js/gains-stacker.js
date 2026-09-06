@@ -18,7 +18,7 @@
   const MAX_SPEED = 7.5;
   const SPEED_STEP = 0.09;
   const POWERUP_INTERVAL = 15; // every Nth block stacked
-  const POWERUP_GROWTH = 0.2; // +20% width
+  const POWERUP_GROWTH = 0.35; // +35% width
   const MISS_WORDS = ['DAMMIT', 'SHIT', 'FUCK', 'AW HELL', 'GODDAMMIT', 'BULLSHIT'];
   // Weight-plate colors, echoing real bumper-plate conventions while staying
   // in the site's warm palette.
@@ -165,7 +165,7 @@
     const growBy = top.w * POWERUP_GROWTH;
     top.w += growBy;
     top.x = Math.max(0, Math.min(W - top.w, top.x - growBy / 2));
-    toast('POWER UP! +20% SIZE', 'legend-moon');
+    toast('POWER UP! +' + Math.round(POWERUP_GROWTH * 100) + '% SIZE', 'legend-moon');
     spawnPerfectBurst(top.x + top.w / 2, top.y + BLOCK_H / 2, '#8ecbff');
   }
 
