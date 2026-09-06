@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=9" />
-<link rel="stylesheet" href="assets/css/game-common.css?v=4" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=17" />
+<link rel="stylesheet" href="assets/css/game-common.css?v=5" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=18" />
 </head>
 <body class="game-body">
 
@@ -94,20 +94,22 @@
     <p class="tycoon-designer-hint">Click a piece of gear below, then click an open tile in the room to place it. Click a placed piece to pack it away -- only what's on the floor earns anything. Place two of the same category (color-coded) side by side for +12% each, or put a Personal Trainer, Steroid Cycle, Second Location, or office hire next to something different for +20%. Garage, Basement, and Rooftop are completely separate empires, each with its own chain of connected rooms -- gear stays where you put it when you switch theme. Rooms come in different sizes -- the first holds 12 slots and each one you buy after it is bigger, up to 20 -- and every new room is joined to the last by a hallway, so a theme's floor plan turns corners as it grows. Drag or swipe to pan around it, pinch (or use the +/- buttons) to zoom, and use the room tabs to jump straight to a room. Gear sitting unplaced in your inventory can be sold back for 60% of what it cost.</p>
   </div>
 
-  <button class="tycoon-lift-btn" id="btn-lift" type="button">
-    <span class="tycoon-lift-icon">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <rect x="2.5" y="9.2" width="3.2" height="5.6" rx="1.2"/>
-        <rect x="18.3" y="9.2" width="3.2" height="5.6" rx="1.2"/>
-        <rect x="5.5" y="7.4" width="2.4" height="9.2" rx="1"/>
-        <rect x="16.1" y="7.4" width="2.4" height="9.2" rx="1"/>
-        <rect x="7.7" y="10.9" width="8.6" height="2.2"/>
-      </svg>
-    </span>
-    <span>LIFT</span>
-  </button>
+  <div class="tycoon-sidebar">
+    <button class="tycoon-lift-btn" id="btn-lift" type="button">
+      <span class="tycoon-lift-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <rect x="2.5" y="9.2" width="3.2" height="5.6" rx="1.2"/>
+          <rect x="18.3" y="9.2" width="3.2" height="5.6" rx="1.2"/>
+          <rect x="5.5" y="7.4" width="2.4" height="9.2" rx="1"/>
+          <rect x="16.1" y="7.4" width="2.4" height="9.2" rx="1"/>
+          <rect x="7.7" y="10.9" width="8.6" height="2.2"/>
+        </svg>
+      </span>
+      <span>LIFT</span>
+    </button>
 
-  <div class="tycoon-shop" id="shop-grid"></div>
+    <div class="tycoon-shop" id="shop-grid"></div>
+  </div>
 
   <p class="game-hint">Progress saves automatically to this browser and your placed gear keeps earning across every room while the tab is closed (capped at 8 hours of offline gains). Connect a wallet to put your total on the leaderboard.</p>
 
@@ -124,6 +126,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=33"></script>
+<script src="assets/js/gym-tycoon.js?v=34"></script>
 </body>
 </html>

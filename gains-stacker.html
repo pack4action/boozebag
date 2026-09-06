@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=9" />
-<link rel="stylesheet" href="assets/css/game-common.css?v=4" />
+<link rel="stylesheet" href="assets/css/game-common.css?v=5" />
 <link rel="stylesheet" href="assets/css/gains-stacker.css?v=1" />
 </head>
 <body class="game-body">
@@ -47,33 +47,35 @@
     <a href="gains-stacker.html" class="game-switch-tab is-active">Gains Stacker</a>
   </div>
 
-  <div class="wallet-bar">
-    <button class="btn btn-outline btn-small wallet-toggle" id="btn-connect" type="button">
-      Connect Wallet
-      <svg class="wallet-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-    <div class="wallet-picker" id="wallet-picker" hidden>
-      <button type="button" data-wallet="phantom">
-        <img class="wallet-icon" src="assets/img/wallets/phantom.png" width="20" height="20" alt="" />
-        Phantom
+  <div class="game-rail game-rail-left">
+    <div class="wallet-bar">
+      <button class="btn btn-outline btn-small wallet-toggle" id="btn-connect" type="button">
+        Connect Wallet
+        <svg class="wallet-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <button type="button" data-wallet="solflare">
-        <img class="wallet-icon" src="assets/img/wallets/solflare.png?v=2" width="20" height="20" alt="" />
-        Solflare
-      </button>
+      <div class="wallet-picker" id="wallet-picker" hidden>
+        <button type="button" data-wallet="phantom">
+          <img class="wallet-icon" src="assets/img/wallets/phantom.png" width="20" height="20" alt="" />
+          Phantom
+        </button>
+        <button type="button" data-wallet="solflare">
+          <img class="wallet-icon" src="assets/img/wallets/solflare.png?v=2" width="20" height="20" alt="" />
+          Solflare
+        </button>
+      </div>
+      <div class="wallet-connected" id="wallet-connected" hidden>
+        <span class="wallet-dot"></span>
+        <span class="wallet-address" id="wallet-address"></span>
+        <button class="wallet-disconnect" id="btn-disconnect" type="button" aria-label="Disconnect wallet">Disconnect</button>
+      </div>
     </div>
-    <div class="wallet-connected" id="wallet-connected" hidden>
-      <span class="wallet-dot"></span>
-      <span class="wallet-address" id="wallet-address"></span>
-      <button class="wallet-disconnect" id="btn-disconnect" type="button" aria-label="Disconnect wallet">Disconnect</button>
-    </div>
-  </div>
 
-  <div class="game-hud">
-    <div class="hud-stat"><span class="hud-label">Score</span><span class="hud-value" id="hud-score">0</span></div>
-    <div class="hud-stat"><span class="hud-label">Height</span><span class="hud-value" id="hud-height">0</span></div>
-    <div class="hud-stat"><span class="hud-label">Combo</span><span class="hud-value" id="hud-combo">0</span></div>
-    <div class="hud-stat"><span class="hud-label">Best</span><span class="hud-value" id="hud-best">0</span></div>
+    <div class="game-hud">
+      <div class="hud-stat"><span class="hud-label">Score</span><span class="hud-value" id="hud-score">0</span></div>
+      <div class="hud-stat"><span class="hud-label">Height</span><span class="hud-value" id="hud-height">0</span></div>
+      <div class="hud-stat"><span class="hud-label">Combo</span><span class="hud-value" id="hud-combo">0</span></div>
+      <div class="hud-stat"><span class="hud-label">Best</span><span class="hud-value" id="hud-best">0</span></div>
+    </div>
   </div>
 
   <div class="game-stage">
@@ -89,15 +91,17 @@
     </div>
   </div>
 
-  <p class="game-hint">Works with mouse, touch, or spacebar. Get close enough to center and it snaps flush for a PERFECT with a growing combo bonus. Land off to the side and the overhang breaks off and falls for good, narrowing the stack permanently. Survive to every 15th block and the stack gets a +35% size power-up. Miss it completely and it's game over.</p>
+  <div class="game-rail game-rail-right">
+    <p class="game-hint">Works with mouse, touch, or spacebar. Get close enough to center and it snaps flush for a PERFECT with a growing combo bonus. Land off to the side and the overhang breaks off and falls for good, narrowing the stack permanently. Survive to every 15th block and the stack gets a +35% size power-up. Miss it completely and it's game over.</p>
 
-  <div class="leaderboard">
-    <h3 class="leaderboard-title">Leaderboard <span class="leaderboard-sub">this browser, for now</span></h3>
-    <ol class="leaderboard-list" id="leaderboard-list"></ol>
-    <p class="leaderboard-empty" id="leaderboard-empty">Nobody's on the board yet. Connect a wallet and build a stack.</p>
+    <div class="leaderboard">
+      <h3 class="leaderboard-title">Leaderboard <span class="leaderboard-sub">this browser, for now</span></h3>
+      <ol class="leaderboard-list" id="leaderboard-list"></ol>
+      <p class="leaderboard-empty" id="leaderboard-empty">Nobody's on the board yet. Connect a wallet and build a stack.</p>
+    </div>
+
+    <p class="game-footnote">Wallet sign-in is live; scores save to this browser for now. A real shared leaderboard with $BOOZEBAG giveaways for top players is coming.</p>
   </div>
-
-  <p class="game-footnote">Wallet sign-in is live; scores save to this browser for now. A real shared leaderboard with $BOOZEBAG giveaways for top players is coming.</p>
 </main>
 
 <script src="assets/js/main.js?v=2"></script>

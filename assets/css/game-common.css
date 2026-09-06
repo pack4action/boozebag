@@ -348,3 +348,118 @@
   margin: 26px auto 0;
   line-height: 1.6;
 }
+
+/* ---- Rails ----
+   Wrappers that exist purely so the desktop grid below has something to put
+   in its side columns. `display: contents` makes them invisible to layout
+   everywhere else, so a phone lays the page out exactly as if they were
+   never in the markup. */
+.game-rail { display: contents; }
+
+/* ---- Desktop ---------------------------------------------------------
+   One narrow centred column is right for a phone and wrong for a monitor:
+   the board lands below the fold with a thousand pixels of dead black on
+   either side of it, so you scroll to play and lose sight of your score.
+   Wide viewports get the arcade-cabinet treatment instead -- the board
+   sized off the viewport's HEIGHT so the whole thing is visible at once,
+   flanked by a score panel on the left and the rules and leaderboard on
+   the right. */
+@media (min-width: 1040px) {
+  .game-page:not(.tycoon-page) {
+    max-width: 1280px;
+    padding: 30px 36px 46px;
+    display: grid;
+    grid-template-columns: 250px minmax(0, 1fr) 280px;
+    /* Rows 1-3 hug their content and row 4 soaks up whatever height the
+       board has left over, so the score panel sits directly under the
+       blurb instead of being pushed halfway down the board's shadow. */
+    grid-template-rows: auto auto auto 1fr;
+    column-gap: 36px;
+    justify-content: center;
+    align-items: start;
+  }
+
+  /* Only the title and the game tabs run across the top; the blurb drops
+     into the left rail, because every line of centred prose above the
+     board is a line the board itself does not get. */
+  .game-page:not(.tycoon-page) .game-head { display: contents; }
+  :not(.tycoon-page) > .game-head > .game-title { grid-column: 1 / -1; grid-row: 1; }
+  .game-page:not(.tycoon-page) .game-switcher { grid-column: 1 / -1; grid-row: 2; margin-bottom: 22px; }
+  .game-page:not(.tycoon-page) .game-sub {
+    grid-column: 1;
+    grid-row: 3;
+    max-width: none;
+    margin: 0 0 18px;
+    text-align: left;
+    font-size: 14px;
+  }
+
+  .game-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    text-align: left;
+  }
+  .game-rail-left { grid-column: 1; grid-row: 4; }
+  .game-stage { grid-column: 2; grid-row: 3 / 5; }
+  .game-rail-right { grid-column: 3; grid-row: 3 / 5; }
+
+  /* The wallet button is centred on a phone; in a rail it reads as a
+     control belonging to the panel below it, so it hugs the left edge. */
+  .game-rail-left .wallet-bar { justify-content: flex-start; margin-bottom: 0; }
+
+  /* A row of chips becomes a scoreboard: one line per stat, label left,
+     number right, tabular figures already keeping the digits from
+     jittering as they count up. */
+  .game-rail-left .game-hud {
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 0;
+  }
+  .game-rail-left .hud-stat {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    width: 100%;
+    padding: 11px 18px;
+  }
+  .game-rail-left .hud-label { font-size: 11.5px; }
+  .game-rail-left .hud-value { font-size: 27px; line-height: 1; }
+
+  .game-rail-right .game-hint,
+  .game-rail-right .game-footnote {
+    max-width: none;
+    margin: 0;
+    text-align: left;
+  }
+  .game-rail-right .game-legend {
+    max-width: none;
+    margin: 0;
+    justify-content: flex-start;
+  }
+  .game-rail-right .leaderboard { max-width: none; margin: 0; }
+  /* "this browser, for now" trails the title on a wide page; in a 280px
+     rail it wraps into the middle of it, so give it its own line. */
+  .game-rail-right .leaderboard-sub { display: block; margin-top: 3px; }
+
+  /* The canvases are a fixed 5:7 portrait, so the board is sized by picking
+     a width and letting the aspect ratio derive the height. The three terms
+     are the three things that can limit it: the column it sits in, its own
+     native 500px, and the viewport height (converted through the 5:7), which
+     is the one that actually keeps the whole board above the fold. The
+     max() floor stops a very short window shrinking it to nothing -- there,
+     a little page scroll is the better trade. */
+  .game-stage {
+    justify-self: center;
+    max-width: none;
+    width: min(100%, 500px, max(300px, calc((100vh - 268px) * 5 / 7)));
+    aspect-ratio: 5 / 7;
+    height: auto;
+    margin: 0;
+  }
+  .game-stage canvas {
+    width: 100%;
+    height: 100%;
+  }
+}

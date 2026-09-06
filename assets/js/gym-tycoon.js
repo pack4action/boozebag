@@ -677,12 +677,18 @@
   // added or a theme with a different plan comes into view.
   let userSetZoom = false;
 
+  // A desktop stage window can be bigger than a one-room plan, so the fit is
+  // allowed past 1x rather than leaving the room marooned in the middle of a
+  // large empty frame -- fitCanvasResolution() below redraws the backing
+  // store at the zoomed size, so filling the window costs no sharpness.
+  const FIT_MAX = 1.4;
+
   function fitZoomToStage() {
     if (!stageScrollEl || userSetZoom) return;
     const availW = stageScrollEl.clientWidth;
     const availH = stageScrollEl.clientHeight;
     if (!availW || !availH) return;
-    const fit = Math.min(availW / BASE_W, availH / BASE_H, 1);
+    const fit = Math.min(availW / BASE_W, availH / BASE_H, FIT_MAX);
     zoomLevel = Math.max(ZOOM_MIN, Math.round(fit * 100) / 100);
   }
 
@@ -697,10 +703,20 @@
     floorCanvas.style.transformOrigin = 'top left';
   }
 
+  // Re-rendering on every frame of a pinch would mean redrawing a canvas
+  // that is getting bigger as the gesture goes, so the gesture itself rides
+  // on the cheap CSS transform and the sharper redraw lands once it settles.
+  let resRepaintTimer = null;
+  function queueResolutionRepaint() {
+    clearTimeout(resRepaintTimer);
+    resRepaintTimer = setTimeout(renderScene, 110);
+  }
+
   function setZoom(next) {
     userSetZoom = true;
     zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(next * 100) / 100));
     applyStageSizing();
+    queueResolutionRepaint();
   }
 
   function scrollToRoom(index) {
@@ -717,15 +733,22 @@
     });
   }
 
+  // Zoom is a CSS transform on the canvas, so zooming past 1x would blow up
+  // a fixed bitmap and go soft. Rendering the backing store at the zoomed
+  // size instead keeps the plan crisp all the way up. Capped so a big plan
+  // on a retina screen cannot ask for an absurd texture.
+  const MAX_BACKING_SCALE = 3;
+
   function fitCanvasResolution() {
     const dpr = window.devicePixelRatio || 1;
-    const targetW = Math.round(BASE_W * dpr);
-    const targetH = Math.round(BASE_H * dpr);
+    const scale = Math.min(MAX_BACKING_SCALE, dpr * Math.max(1, zoomLevel));
+    const targetW = Math.round(BASE_W * scale);
+    const targetH = Math.round(BASE_H * scale);
     if (floorCanvas.width !== targetW || floorCanvas.height !== targetH) {
       floorCanvas.width = targetW;
       floorCanvas.height = targetH;
     }
-    floorCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    floorCtx.setTransform(scale, 0, 0, scale, 0, 0);
   }
 
   const THEME_COLORS = {
@@ -1940,6 +1963,33 @@
     floorCtx.fillRect(0, 0, W, H);
   }
 
+  // ---- Hover ----
+  // A phone has no hover, so nothing on the plan says which tile a tap is
+  // about to land on -- you find out by tapping. A mouse can say it up
+  // front, and knowing where an armed piece is going is most of what makes
+  // arranging a room with a pointer feel deliberate rather than approximate.
+  let hoverCell = null;
+
+  function drawHoverTile(quad, occupied) {
+    // Amber to place, red to pack away, plain white when there is nothing
+    // armed and the tile is empty -- the same colours those two actions use
+    // everywhere else on the page.
+    const placing = armedItemId && !occupied;
+    const fill = occupied ? 'rgba(255,80,70,0.16)'
+      : placing ? 'rgba(255,183,3,0.24)' : 'rgba(255,255,255,0.09)';
+    const line = occupied ? 'rgba(255,120,110,0.9)'
+      : placing ? 'rgba(255,183,3,0.95)' : 'rgba(255,255,255,0.55)';
+    floorCtx.beginPath();
+    floorCtx.moveTo(quad[0].x, quad[0].y);
+    for (let i = 1; i < quad.length; i++) floorCtx.lineTo(quad[i].x, quad[i].y);
+    floorCtx.closePath();
+    floorCtx.fillStyle = fill;
+    floorCtx.fill();
+    floorCtx.strokeStyle = line;
+    floorCtx.lineWidth = 1.8;
+    floorCtx.stroke();
+  }
+
   function drawRoom(layout, colors, light, roomIndex) {
     const theme = state.activeTheme;
     const place = placements[roomIndex];
@@ -1966,7 +2016,7 @@
 
     const cells = cellsBackToFront(place);
 
-    cells.forEach(({ gx, gy }) => {
+    cells.forEach(({ gx, gy, rx, ry }) => {
       const p0 = isoPoint(gx, gy);
       const p1 = isoPoint(gx + 1, gy);
       const p2 = isoPoint(gx + 1, gy + 1);
@@ -2006,6 +2056,11 @@
       floorCtx.moveTo(p2.x, p2.y);
       floorCtx.lineTo(p3.x, p3.y);
       floorCtx.stroke();
+
+      if (hoverCell && hoverCell.laneIndex === roomIndex
+          && hoverCell.cellIndex === ry * shape.cols + rx) {
+        drawHoverTile([p0, p1, p2, p3], layout[ry * shape.cols + rx]);
+      }
     });
 
     drawSlabEdges(place, colors);
@@ -2221,6 +2276,36 @@
     panBy(dx, dy);
   });
 
+  function sameCell(a, b) {
+    return (!a && !b)
+      || (!!a && !!b && a.laneIndex === b.laneIndex && a.cellIndex === b.cellIndex);
+  }
+
+  function setHoverCell(next) {
+    if (sameCell(hoverCell, next)) return;
+    hoverCell = next;
+    // Only fires when the pointer crosses into a different tile, not on
+    // every mouse move, so this is a handful of repaints a second at most.
+    renderScene();
+  }
+
+  function restCursor() {
+    gestureEl.style.cursor = hoverCell ? 'pointer' : 'grab';
+  }
+
+  gestureEl.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    if (dragState || pinchState) { setHoverCell(null); return; }
+    const p = pointFromEvent(e);
+    setHoverCell(gridCellFromPoint(p.x, p.y));
+    restCursor();
+  });
+
+  gestureEl.addEventListener('pointerleave', () => {
+    setHoverCell(null);
+    restCursor();
+  });
+
   gestureEl.addEventListener('pointerup', (e) => {
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchState = null;
@@ -2228,7 +2313,7 @@
     if (!dragState || e.pointerId !== dragState.pointerId) return;
     const wasDrag = dragState.moved > DRAG_THRESHOLD;
     dragState = null;
-    gestureEl.style.cursor = 'grab';
+    restCursor();
     if (wasDrag) return;
 
     const p = pointFromEvent(e);
@@ -2253,7 +2338,7 @@
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchState = null;
     dragState = null;
-    gestureEl.style.cursor = 'grab';
+    restCursor();
   });
 
   function onFloorCellClick(index) {
@@ -2476,6 +2561,17 @@
     save();
     updateLeaderboardEntry();
   }, 5000);
+
+  // The stage window is sized off the viewport on desktop, so dragging a
+  // browser window between a laptop screen and a monitor changes how much
+  // plan fits. renderScene() re-measures the window on every call (that is
+  // what fitZoomToStage does), so a repaint is the whole fix -- debounced,
+  // because a resize fires on every frame of the drag.
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderScene, 120);
+  });
 
   window.addEventListener('beforeunload', save);
   document.addEventListener('visibilitychange', () => {
