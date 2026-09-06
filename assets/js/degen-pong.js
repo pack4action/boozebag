@@ -660,7 +660,6 @@
 
       ctx.fillStyle = 'rgba(255,255,255,0.6)';
       let sx = ANCHOR.x, sy = ANCHOR.y, svx = vx, svy = vy;
-      let lastX = sx, lastY = sy;
       const steps = 22;
       for (let i = 0; i < steps; i++) {
         svy += GRAVITY;
@@ -671,15 +670,7 @@
           ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
           ctx.fill();
         }
-        lastX = sx; lastY = sy;
       }
-      // crosshair at end of preview
-      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(lastX - 7, lastY); ctx.lineTo(lastX + 7, lastY);
-      ctx.moveTo(lastX, lastY - 7); ctx.lineTo(lastX, lastY + 7);
-      ctx.stroke();
 
       drawHand(ANCHOR.x - dx, ANCHOR.y - dy);
       drawCan(ANCHOR.x - dx, ANCHOR.y - dy, 0);
