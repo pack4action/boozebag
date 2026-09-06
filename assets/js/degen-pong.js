@@ -660,7 +660,7 @@
 
       ctx.fillStyle = 'rgba(255,255,255,0.6)';
       let sx = ANCHOR.x, sy = ANCHOR.y, svx = vx, svy = vy;
-      const steps = 22;
+      const steps = 12;
       for (let i = 0; i < steps; i++) {
         svy += GRAVITY;
         sx += svx;
