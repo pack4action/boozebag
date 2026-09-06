@@ -313,6 +313,23 @@
   const themeRowEl = document.getElementById('theme-row');
   let armedItemId = null;
 
+  // Logical drawing surface stays 480x340 (every ROOM/isoPoint number below
+  // assumes that space) -- the canvas's actual pixel buffer is sized up to
+  // match the screen's device pixel ratio so the room renders crisp on
+  // retina/high-density displays instead of a blurry upscaled bitmap.
+  const BASE_W = floorCanvas.width;
+  const BASE_H = floorCanvas.height;
+  function fitCanvasResolution() {
+    const dpr = window.devicePixelRatio || 1;
+    const targetW = Math.round(BASE_W * dpr);
+    const targetH = Math.round(BASE_H * dpr);
+    if (floorCanvas.width !== targetW || floorCanvas.height !== targetH) {
+      floorCanvas.width = targetW;
+      floorCanvas.height = targetH;
+    }
+    floorCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
   const THEME_COLORS = {
     garage: { floorA: '#5c4530', floorB: '#4a3624', wallL: '#3a2c1c', wallR: '#2e2116', bgTop: '#241a10', bg: '#171310' },
     basement: { floorA: '#33404a', floorB: '#28333c', wallL: '#1c242c', wallR: '#161b21', bgTop: '#171b1f', bg: '#0e1114' },
@@ -412,34 +429,57 @@
     ctx.lineWidth = 1;
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
 
+    // Left face: vertical gradient instead of one flat tint, so it reads as
+    // a lit surface rather than a solid color swatch.
+    const leftGrad = ctx.createLinearGradient(pLeft.x, top(pLeft).y, pLeft.x, pLeft.y);
+    leftGrad.addColorStop(0, shade(color, -22));
+    leftGrad.addColorStop(1, shade(color, -44));
     ctx.beginPath();
     ctx.moveTo(pLeft.x, pLeft.y);
     ctx.lineTo(pFront.x, pFront.y);
     ctx.lineTo(top(pFront).x, top(pFront).y);
     ctx.lineTo(top(pLeft).x, top(pLeft).y);
     ctx.closePath();
-    ctx.fillStyle = shade(color, -35);
+    ctx.fillStyle = leftGrad;
     ctx.fill();
     ctx.stroke();
 
+    // Right face: faces the room's light more directly, brighter overall.
+    const rightGrad = ctx.createLinearGradient(pRight.x, top(pRight).y, pRight.x, pRight.y);
+    rightGrad.addColorStop(0, shade(color, 4));
+    rightGrad.addColorStop(1, shade(color, -20));
     ctx.beginPath();
     ctx.moveTo(pFront.x, pFront.y);
     ctx.lineTo(pRight.x, pRight.y);
     ctx.lineTo(top(pRight).x, top(pRight).y);
     ctx.lineTo(top(pFront).x, top(pFront).y);
     ctx.closePath();
-    ctx.fillStyle = shade(color, -15);
+    ctx.fillStyle = rightGrad;
     ctx.fill();
     ctx.stroke();
 
+    // Top face: brightest near the front corner (closest to the ceiling
+    // light and the viewer), dimming toward the back.
+    const topGrad = ctx.createLinearGradient(top(pBack).x, top(pBack).y, top(pFront).x, top(pFront).y);
+    topGrad.addColorStop(0, shade(color, 10));
+    topGrad.addColorStop(1, shade(color, 32));
     ctx.beginPath();
     ctx.moveTo(top(pFront).x, top(pFront).y);
     ctx.lineTo(top(pRight).x, top(pRight).y);
     ctx.lineTo(top(pBack).x, top(pBack).y);
     ctx.lineTo(top(pLeft).x, top(pLeft).y);
     ctx.closePath();
-    ctx.fillStyle = shade(color, 22);
+    ctx.fillStyle = topGrad;
     ctx.fill();
+    ctx.stroke();
+
+    // Rim highlight on the nearest vertical edge, where the two side faces
+    // meet -- the brightest line on the box, like light catching an edge.
+    ctx.beginPath();
+    ctx.moveTo(pFront.x, pFront.y);
+    ctx.lineTo(top(pFront).x, top(pFront).y);
+    ctx.strokeStyle = shade(color, 48);
+    ctx.lineWidth = 1.4;
     ctx.stroke();
   }
 
@@ -556,6 +596,17 @@
     floorCtx.fillStyle = grad;
     floorCtx.beginPath();
     floorCtx.ellipse(center.x, center.y, ROOM.tileW * 1.9, ROOM.tileH * 1.9, 0, 0, Math.PI * 2);
+    floorCtx.fill();
+
+    // A tighter, brighter hot spot right under the fixture on top of the
+    // wide ambient pool -- gives the floor a real specular sheen instead
+    // of one flat wash of color.
+    const hot = floorCtx.createRadialGradient(center.x, center.y, 0, center.x, center.y, ROOM.tileW * 0.5);
+    hot.addColorStop(0, 'rgba(255,255,255,0.22)');
+    hot.addColorStop(1, 'rgba(255,255,255,0)');
+    floorCtx.fillStyle = hot;
+    floorCtx.beginPath();
+    floorCtx.ellipse(center.x, center.y, ROOM.tileW * 0.5, ROOM.tileH * 0.5, 0, 0, Math.PI * 2);
     floorCtx.fill();
     floorCtx.restore();
   }
@@ -683,10 +734,11 @@
   }
 
   function renderScene() {
+    fitCanvasResolution();
     const colors = THEME_COLORS[state.theme] || THEME_COLORS.garage;
     const light = LIGHT_COLORS[state.theme] || LIGHT_COLORS.garage;
-    const W = floorCanvas.width;
-    const H = floorCanvas.height;
+    const W = BASE_W;
+    const H = BASE_H;
     floorCtx.clearRect(0, 0, W, H);
 
     const bgGrad = floorCtx.createLinearGradient(0, 0, 0, H);
@@ -802,6 +854,17 @@
         floorCtx.shadowBlur = 0;
       }
 
+      // Soft blurred contact shadow underneath, plus the crisper
+      // category-tinted pool on top -- reads as the item actually
+      // sitting on the floor instead of a flat sticker.
+      floorCtx.save();
+      floorCtx.filter = 'blur(3px)';
+      floorCtx.beginPath();
+      floorCtx.ellipse(c.x, c.y + 4, ROOM.tileW * 0.30, ROOM.tileH * 0.26, 0, 0, Math.PI * 2);
+      floorCtx.fillStyle = 'rgba(0,0,0,0.4)';
+      floorCtx.fill();
+      floorCtx.restore();
+
       floorCtx.beginPath();
       floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * 0.28, ROOM.tileH * 0.24, 0, 0, Math.PI * 2);
       floorCtx.fillStyle = hexA(catColor, 0.34);
@@ -827,8 +890,10 @@
 
   function pointFromEvent(e) {
     const rect = floorCanvas.getBoundingClientRect();
-    const scaleX = floorCanvas.width / rect.width;
-    const scaleY = floorCanvas.height / rect.height;
+    // Scale into the LOGICAL 480x340 drawing space that isoPoint/ROOM use,
+    // not the canvas's physical (device-pixel-ratio-scaled) buffer size.
+    const scaleX = BASE_W / rect.width;
+    const scaleY = BASE_H / rect.height;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
