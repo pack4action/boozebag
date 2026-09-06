@@ -674,13 +674,33 @@
     itemSprites[id] = img;
   });
 
-  function drawItemSprite(ctx, center, img, size) {
+  // Per-item overrides: `scale` shrinks a sprite that reads too large for
+  // its tile (a flat, wide object like a mat photographed on a diagonal
+  // needs to be sized down more than a naturally tall/narrow one), and
+  // `anchor` shifts how far the image's bottom edge sits below the tile
+  // center -- an object whose visual "weight" isn't near the bottom of
+  // its own bounding box (a dumbbell shot at an angle, a mat lying flat)
+  // needs a bigger push down or it reads as floating above its shadow.
+  const ITEM_SPRITE_TUNING = {
+    dumbbell: { scale: 0.62, anchor: 0.34 },
+    mat: { scale: 0.58, anchor: 0.36 },
+  };
+  const DEFAULT_SPRITE_TUNING = { scale: 1, anchor: 0.16 };
+
+  function drawItemSprite(ctx, center, img, itemId) {
     const ready = img.complete && img.naturalWidth > 0;
     if (!ready) return false;
+    const tuning = ITEM_SPRITE_TUNING[itemId] || DEFAULT_SPRITE_TUNING;
+    const maxH = ROOM.tileH * 1.45 * tuning.scale;
+    const maxW = ROOM.tileW * 1.15 * tuning.scale;
     const aspect = img.naturalWidth / img.naturalHeight;
-    const h = size;
-    const w = size * aspect;
-    ctx.drawImage(img, center.x - w / 2, center.y - h + h * 0.16, w, h);
+    let h = maxH;
+    let w = h * aspect;
+    if (w > maxW) {
+      w = maxW;
+      h = w / aspect;
+    }
+    ctx.drawImage(img, center.x - w / 2, center.y - h + h * tuning.anchor, w, h);
     return true;
   }
 
@@ -1221,7 +1241,7 @@
       floorCtx.fill();
 
       const sprite = itemSprites[itemId];
-      const drewSprite = sprite && drawItemSprite(floorCtx, c, sprite, ROOM.tileH * 1.45);
+      const drewSprite = sprite && drawItemSprite(floorCtx, c, sprite, itemId);
       const build = PROP_BUILDERS[itemId];
       if (drewSprite) {
         // real icon art, already drawn above
