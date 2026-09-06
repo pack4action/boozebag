@@ -197,11 +197,19 @@
     save();
   }
 
-  // ---- Floor designer ----
-  const floorEl = document.getElementById('tycoon-floor');
+  // ---- Floor designer: isometric room rendered on canvas ----
+  const floorCanvas = document.getElementById('tycoon-floor');
+  const floorCtx = floorCanvas.getContext('2d');
   const inventoryEl = document.getElementById('tycoon-inventory');
   const themeRowEl = document.getElementById('theme-row');
   let armedItemId = null;
+
+  const ROOM = { cols: 4, rows: 3, tileW: 96, tileH: 48, wallH: 110, originX: 216, originY: 120 };
+  const THEME_COLORS = {
+    garage: { floorA: '#5c4530', floorB: '#4a3624', wallL: '#3a2c1c', wallR: '#2e2116', bgTop: '#241a10', bg: '#171310' },
+    basement: { floorA: '#33404a', floorB: '#28333c', wallL: '#1c242c', wallR: '#161b21', bgTop: '#171b1f', bg: '#0e1114' },
+    rooftop: { floorA: '#5a89ad', floorB: '#4a7594', wallL: '#3f6f94', wallR: '#2f5673', bgTop: '#3f6f94', bg: '#1c3348' },
+  };
 
   function placedCount(itemId) {
     return state.layout.filter((x) => x === itemId).length;
@@ -213,27 +221,129 @@
     return ITEMS.find((i) => i.id === id);
   }
 
-  function renderFloor() {
-    floorEl.className = 'tycoon-floor theme-' + state.theme;
-    floorEl.innerHTML = '';
-    state.layout.forEach((itemId, i) => {
-      const slot = document.createElement('div');
-      slot.className = 'tycoon-slot' + (itemId ? ' is-filled' : '');
-      if (itemId) {
-        const item = itemById(itemId);
-        slot.textContent = item ? item.emoji : '';
-        slot.title = item ? item.name + ' (click to pack away)' : '';
-      }
-      slot.addEventListener('click', () => onSlotClick(i));
-      floorEl.appendChild(slot);
+  function isoPoint(gx, gy) {
+    return {
+      x: ROOM.originX + (gx - gy) * (ROOM.tileW / 2),
+      y: ROOM.originY + (gx + gy) * (ROOM.tileH / 2),
+    };
+  }
+  function cellCenter(gx, gy) {
+    return isoPoint(gx + 0.5, gy + 0.5);
+  }
+  function allCellsBackToFront() {
+    const cells = [];
+    for (let gy = 0; gy < ROOM.rows; gy++) {
+      for (let gx = 0; gx < ROOM.cols; gx++) cells.push({ gx, gy });
+    }
+    cells.sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));
+    return cells;
+  }
+
+  function renderScene() {
+    const colors = THEME_COLORS[state.theme] || THEME_COLORS.garage;
+    const W = floorCanvas.width;
+    const H = floorCanvas.height;
+    floorCtx.clearRect(0, 0, W, H);
+
+    const bgGrad = floorCtx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, colors.bgTop);
+    bgGrad.addColorStop(1, colors.bg);
+    floorCtx.fillStyle = bgGrad;
+    floorCtx.fillRect(0, 0, W, H);
+
+    const north = isoPoint(0, 0);
+    const east = isoPoint(ROOM.cols, 0);
+    const west = isoPoint(0, ROOM.rows);
+
+    floorCtx.beginPath();
+    floorCtx.moveTo(north.x, north.y - ROOM.wallH);
+    floorCtx.lineTo(east.x, east.y - ROOM.wallH);
+    floorCtx.lineTo(east.x, east.y);
+    floorCtx.lineTo(north.x, north.y);
+    floorCtx.closePath();
+    floorCtx.fillStyle = colors.wallR;
+    floorCtx.fill();
+
+    floorCtx.beginPath();
+    floorCtx.moveTo(north.x, north.y - ROOM.wallH);
+    floorCtx.lineTo(west.x, west.y - ROOM.wallH);
+    floorCtx.lineTo(west.x, west.y);
+    floorCtx.lineTo(north.x, north.y);
+    floorCtx.closePath();
+    floorCtx.fillStyle = colors.wallL;
+    floorCtx.fill();
+
+    const cells = allCellsBackToFront();
+
+    cells.forEach(({ gx, gy }) => {
+      const p0 = isoPoint(gx, gy);
+      const p1 = isoPoint(gx + 1, gy);
+      const p2 = isoPoint(gx + 1, gy + 1);
+      const p3 = isoPoint(gx, gy + 1);
+      floorCtx.beginPath();
+      floorCtx.moveTo(p0.x, p0.y);
+      floorCtx.lineTo(p1.x, p1.y);
+      floorCtx.lineTo(p2.x, p2.y);
+      floorCtx.lineTo(p3.x, p3.y);
+      floorCtx.closePath();
+      floorCtx.fillStyle = (gx + gy) % 2 === 0 ? colors.floorA : colors.floorB;
+      floorCtx.fill();
+      floorCtx.strokeStyle = 'rgba(0,0,0,0.25)';
+      floorCtx.lineWidth = 1;
+      floorCtx.stroke();
+    });
+
+    cells.forEach(({ gx, gy }) => {
+      const itemId = state.layout[gy * ROOM.cols + gx];
+      if (!itemId) return;
+      const item = itemById(itemId);
+      if (!item) return;
+      const c = cellCenter(gx, gy);
+
+      floorCtx.beginPath();
+      floorCtx.ellipse(c.x, c.y + 4, ROOM.tileW * 0.26, ROOM.tileH * 0.22, 0, 0, Math.PI * 2);
+      floorCtx.fillStyle = 'rgba(0,0,0,0.35)';
+      floorCtx.fill();
+
+      floorCtx.font = '30px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
+      floorCtx.textAlign = 'center';
+      floorCtx.textBaseline = 'middle';
+      floorCtx.fillText(item.emoji, c.x, c.y - 16);
     });
   }
 
-  function onSlotClick(index) {
+  function pointFromEvent(e) {
+    const rect = floorCanvas.getBoundingClientRect();
+    const scaleX = floorCanvas.width / rect.width;
+    const scaleY = floorCanvas.height / rect.height;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  }
+
+  function gridCellFromPoint(px, py) {
+    const dx = px - ROOM.originX;
+    const dy = py - ROOM.originY;
+    const a = dx / (ROOM.tileW / 2);
+    const b = dy / (ROOM.tileH / 2);
+    const gx = Math.floor((a + b) / 2);
+    const gy = Math.floor((b - a) / 2);
+    if (gx < 0 || gx >= ROOM.cols || gy < 0 || gy >= ROOM.rows) return null;
+    return gy * ROOM.cols + gx;
+  }
+
+  floorCanvas.addEventListener('click', (e) => {
+    const p = pointFromEvent(e);
+    const index = gridCellFromPoint(p.x, p.y);
+    if (index === null) return;
+    onFloorCellClick(index);
+  });
+
+  function onFloorCellClick(index) {
     const current = state.layout[index];
     if (current) {
       state.layout[index] = null;
-      renderFloor();
+      renderScene();
       renderInventory();
       save();
       return;
@@ -241,7 +351,7 @@
     if (armedItemId && availableCount(armedItemId) > 0) {
       state.layout[index] = armedItemId;
       if (availableCount(armedItemId) <= 0) armedItemId = null;
-      renderFloor();
+      renderScene();
       renderInventory();
       save();
     }
@@ -283,7 +393,7 @@
       btn.disabled = !unlocked;
       btn.addEventListener('click', () => {
         state.theme = t.id;
-        renderFloor();
+        renderScene();
         refreshThemeRow();
         save();
       });
@@ -309,7 +419,7 @@
     armedItemId = null;
     refreshHud();
     refreshShopUI();
-    renderFloor();
+    renderScene();
     renderInventory();
     refreshThemeRow();
     save();
@@ -319,7 +429,7 @@
   buildShop();
   refreshHud();
   refreshShopUI();
-  renderFloor();
+  renderScene();
   renderInventory();
   refreshThemeRow();
 

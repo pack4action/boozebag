@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=7" />
-<link rel="stylesheet" href="assets/css/game-common.css?v=3" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=3" />
+<link rel="stylesheet" href="assets/css/game-common.css?v=4" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=4" />
 </head>
 <body class="game-body">
 
@@ -79,9 +79,11 @@
 
   <div class="tycoon-designer">
     <div class="tycoon-theme-row" id="theme-row"></div>
-    <div class="tycoon-floor" id="tycoon-floor"></div>
+    <div class="tycoon-room-stage">
+      <canvas id="tycoon-floor" width="480" height="340" aria-label="Your gym, isometric view"></canvas>
+    </div>
     <div class="tycoon-inventory" id="tycoon-inventory"></div>
-    <p class="tycoon-designer-hint">Click a piece of gear below, then click an open spot on the floor to place it. Click a placed piece to pack it away. Purely cosmetic -- arrange it however you want.</p>
+    <p class="tycoon-designer-hint">Click a piece of gear below, then click an open tile in the room to place it. Click a placed piece to pack it away. Purely cosmetic -- arrange it however you want.</p>
   </div>
 
   <button class="tycoon-lift-btn" id="btn-lift" type="button">
@@ -105,6 +107,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=1"></script>
+<script src="assets/js/gym-tycoon.js?v=2"></script>
 </body>
 </html>
