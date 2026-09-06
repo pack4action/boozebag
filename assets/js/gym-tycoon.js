@@ -682,7 +682,7 @@
   // its own bounding box (a dumbbell shot at an angle, a mat lying flat)
   // needs a bigger push down or it reads as floating above its shadow.
   const ITEM_SPRITE_TUNING = {
-    dumbbell: { scale: 0.62, anchor: 0.34 },
+    dumbbell: { scale: 0.48, anchor: 0.34 },
     mat: { scale: 0.58, anchor: 0.36 },
   };
   const DEFAULT_SPRITE_TUNING = { scale: 1, anchor: 0.16 };
