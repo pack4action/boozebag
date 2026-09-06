@@ -2,16 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
-<title>Gains Stacker: A $BOOZEBAG Minigame</title>
-<meta name="description" content="Stack the gains as high as you can without toppling. Land it perfect or watch it shrink: play Gains Stacker, the $BOOZEBAG minigame." />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gym Tycoon: The $BOOZEBAG Empire Builder</title>
+<meta name="description" content="Build out the home gym empire, one dumbbell at a time. Idle tycoon game for $BOOZEBAG: buy equipment, stack gains/sec, watch the bag grow." />
 <link rel="icon" type="image/png" href="assets/img/favicon.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=7" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=3" />
-<link rel="stylesheet" href="assets/css/gains-stacker.css?v=1" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=1" />
 </head>
 <body class="game-body">
 
@@ -35,16 +35,16 @@
   </button>
 </header>
 
-<main class="game-page">
+<main class="game-page tycoon-page">
   <div class="game-head">
-    <h1 class="game-title">GAINS <span class="hl">STACKER</span></h1>
-    <p class="game-sub">Click or tap to drop the next block. Land it dead-center and it snaps into place PERFECT for bonus points and a combo. Off-center trims the overhang for good, so the stack only gets narrower from there. Every 15 blocks you survive earns a +35% size power-up. Miss the stack entirely and the whole thing goes over.</p>
+    <h1 class="game-title">GYM <span class="hl">TYCOON</span></h1>
+    <p class="game-sub">Build out the home gym one piece at a time. Every machine you buy earns gains per second, forever, even while you're not here. Click the bar to lift for a little extra on top.</p>
   </div>
 
   <div class="game-switcher">
-    <a href="gym-tycoon.html" class="game-switch-tab is-main">Gym Tycoon</a>
+    <a href="gym-tycoon.html" class="game-switch-tab is-active is-main">Gym Tycoon</a>
     <a href="degen-pong.html" class="game-switch-tab">Degen Pong</a>
-    <a href="gains-stacker.html" class="game-switch-tab is-active">Gains Stacker</a>
+    <a href="gains-stacker.html" class="game-switch-tab">Gains Stacker</a>
   </div>
 
   <div class="wallet-bar">
@@ -70,39 +70,41 @@
   </div>
 
   <div class="game-hud">
-    <div class="hud-stat"><span class="hud-label">Score</span><span class="hud-value" id="hud-score">0</span></div>
-    <div class="hud-stat"><span class="hud-label">Height</span><span class="hud-value" id="hud-height">0</span></div>
-    <div class="hud-stat"><span class="hud-label">Combo</span><span class="hud-value" id="hud-combo">0</span></div>
-    <div class="hud-stat"><span class="hud-label">Best</span><span class="hud-value" id="hud-best">0</span></div>
+    <div class="hud-stat"><span class="hud-label">Total Gains</span><span class="hud-value" id="hud-total">0</span></div>
+    <div class="hud-stat"><span class="hud-label">Per Second</span><span class="hud-value" id="hud-gps">0</span></div>
+    <div class="hud-stat"><span class="hud-label">Per Click</span><span class="hud-value" id="hud-click">1</span></div>
   </div>
 
-  <div class="game-stage">
-    <canvas id="stacker-canvas" width="500" height="700" aria-label="Gains Stacker game board"></canvas>
-    <div class="game-toast" id="game-toast"></div>
-    <div class="game-overlay" id="game-overlay" hidden>
-      <div class="overlay-card">
-        <h2 id="overlay-title">TOWER TOPPLED</h2>
-        <p id="overlay-score">Final bag: $0 — height 0</p>
-        <p id="overlay-best">Best bag: $0</p>
-        <button class="btn btn-primary btn-lg" id="btn-replay" type="button">Rebuild</button>
-      </div>
-    </div>
+  <div class="game-toast" id="game-toast"></div>
+
+  <div class="tycoon-designer">
+    <div class="tycoon-theme-row" id="theme-row"></div>
+    <div class="tycoon-floor" id="tycoon-floor"></div>
+    <div class="tycoon-inventory" id="tycoon-inventory"></div>
+    <p class="tycoon-designer-hint">Click a piece of gear below, then click an open spot on the floor to place it. Click a placed piece to pack it away. Purely cosmetic -- arrange it however you want.</p>
   </div>
 
-  <p class="game-hint">Works with mouse, touch, or spacebar. Get close enough to center and it snaps flush for a PERFECT with a growing combo bonus. Land off to the side and the overhang breaks off and falls for good, narrowing the stack permanently. Survive to every 15th block and the stack gets a +35% size power-up. Miss it completely and it's game over.</p>
+  <button class="tycoon-lift-btn" id="btn-lift" type="button">
+    <span class="tycoon-lift-emoji">🏋️</span>
+    <span>LIFT</span>
+  </button>
+
+  <div class="tycoon-shop" id="shop-grid"></div>
+
+  <p class="game-hint">Progress saves automatically to this browser and keeps earning while the tab is closed (capped at 8 hours of offline gains). Connect a wallet to put your total on the leaderboard.</p>
 
   <div class="leaderboard">
     <h3 class="leaderboard-title">Leaderboard <span class="leaderboard-sub">this browser, for now</span></h3>
     <ol class="leaderboard-list" id="leaderboard-list"></ol>
-    <p class="leaderboard-empty" id="leaderboard-empty">Nobody's on the board yet. Connect a wallet and build a stack.</p>
+    <p class="leaderboard-empty" id="leaderboard-empty">Nobody's on the board yet. Connect a wallet and start stacking gains/sec.</p>
   </div>
 
-  <p class="game-footnote">Wallet sign-in is live; scores save to this browser for now. A real shared leaderboard with $BOOZEBAG giveaways for top players is coming.</p>
+  <p class="game-footnote">Wallet sign-in is live; progress saves to this browser for now. A real shared leaderboard with $BOOZEBAG giveaways for top players is coming. <button class="tycoon-reset-link" id="btn-reset" type="button">Reset my progress</button></p>
 </main>
 
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gains-stacker.js?v=9"></script>
+<script src="assets/js/gym-tycoon.js?v=1"></script>
 </body>
 </html>
