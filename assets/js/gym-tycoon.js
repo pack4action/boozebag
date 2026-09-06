@@ -135,9 +135,13 @@
     if (dir === 'east' || dir === 'west') {
       const left = dir === 'east' ? a : b;
       const right = dir === 'east' ? b : a;
+      // Run the hallway flush with the back of the rooms rather than centred
+      // between them. Centred, its back wall sat a tile in front of theirs and
+      // needed an odd stub of wall to reach back -- flush, the hallway wall
+      // simply continues the room wall in one straight line.
       const lo = Math.max(a.gy0, b.gy0);
       const hi = Math.min(a.gy0 + a.rows, b.gy0 + b.rows);
-      const gy0 = Math.round((lo + hi) / 2 - CORRIDOR_WIDTH / 2);
+      const gy0 = Math.min(lo, hi - CORRIDOR_WIDTH);
       return {
         gx0: left.gx0 + left.cols,
         gy0,
@@ -145,13 +149,14 @@
         rows: CORRIDOR_WIDTH,
         doorRoom: right,
         doorWall: 'west',
+        nearRoom: left,
       };
     }
     const top = dir === 'south' ? a : b;
     const bottom = dir === 'south' ? b : a;
     const lo = Math.max(a.gx0, b.gx0);
     const hi = Math.min(a.gx0 + a.cols, b.gx0 + b.cols);
-    const gx0 = Math.round((lo + hi) / 2 - CORRIDOR_WIDTH / 2);
+    const gx0 = Math.min(lo, hi - CORRIDOR_WIDTH);
     return {
       gx0,
       gy0: top.gy0 + top.rows,
@@ -159,6 +164,7 @@
       rows: bottom.gy0 - (top.gy0 + top.rows),
       doorRoom: bottom,
       doorWall: 'north',
+      nearRoom: top,
     };
   }
 
@@ -1564,23 +1570,53 @@
     }
   }
 
-  // Wall running from floor point a to floor point b, `h` tall, with its top
-  // face drawn as a slab `depth` deep -- that top face is what reads as
-  // thickness rather than a paper-thin plane.
-  function drawThickWall(a, b, h, depth, colors) {
-    const face = [a, b, liftPt(b, h), liftPt(a, h)];
-    const grad = floorCtx.createLinearGradient(0, a.y - h, 0, a.y);
-    grad.addColorStop(0, shade(colors.wallL, 16));
-    grad.addColorStop(1, shade(colors.wallL, -12));
-    paintQuad(face, grad, 'rgba(0,0,0,0.45)', 1);
+  // ---- Walls ----
+  // Every wall in the plan, room or hallway, is built here, so a room's wall
+  // and the hallway wall running into it are the same solid and actually
+  // meet at the corner. Earlier the rooms drew flat planes while corridors
+  // drew slabs, which is why the junctions never lined up.
+  const WALL_THICK = 0.3; // in tiles
 
-    const top = [
-      liftPt(a, h),
-      liftPt(b, h),
-      { x: b.x + depth.x, y: b.y + depth.y - h },
-      { x: a.x + depth.x, y: a.y + depth.y - h },
-    ];
-    paintQuad(top, shade(colors.wallL, 62), 'rgba(0,0,0,0.4)', 1);
+  // Which way a wall's thickness points: away from the space it encloses,
+  // along the other tile axis. Walls that run along +gx are backed off in
+  // -gy, and vice versa, so the depth stays on the isometric grid instead of
+  // being a screen-space guess.
+  function wallDepth(axis) {
+    return axis === 'gx' ? isoVecRaw(0, -WALL_THICK) : isoVecRaw(-WALL_THICK, 0);
+  }
+
+  // A wall as an actual solid: the face you look at, the top surface that
+  // gives it thickness, and a cap on the far end. The cap belongs on the far
+  // end only -- that is the end whose cut face turns toward the viewer, for
+  // both axes, given a always starts at the shared back corner.
+  function drawWallSlab(a, b, h, depth, baseColor) {
+    const off = (p, lift) => ({ x: p.x + depth.x, y: p.y + depth.y - (lift || 0) });
+
+    paintQuad(
+      [b, off(b), off(b, h), liftPt(b, h)],
+      shade(baseColor, -20), 'rgba(0,0,0,0.5)', 1,
+    );
+
+    paintQuad(
+      [liftPt(a, h), liftPt(b, h), off(b, h), off(a, h)],
+      shade(baseColor, 46), 'rgba(0,0,0,0.42)', 1,
+    );
+
+    const grad = floorCtx.createLinearGradient(0, a.y - h, 0, a.y);
+    grad.addColorStop(0, shade(baseColor, 16));
+    grad.addColorStop(1, shade(baseColor, -12));
+    paintQuad([a, b, liftPt(b, h), liftPt(a, h)], grad, 'rgba(0,0,0,0.45)', 1);
+  }
+
+  // The square of ceiling left between two walls meeting at a back corner --
+  // without it the two top faces stop short and leave a notch in the corner.
+  function drawWallCorner(corner, depthA, depthB, h, baseColor) {
+    paintQuad([
+      liftPt(corner, h),
+      { x: corner.x + depthA.x, y: corner.y + depthA.y - h },
+      { x: corner.x + depthA.x + depthB.x, y: corner.y + depthA.y + depthB.y - h },
+      { x: corner.x + depthB.x, y: corner.y + depthB.y - h },
+    ], shade(baseColor, 46), 'rgba(0,0,0,0.42)', 1);
   }
 
   // The two floor corners spanning a corridor's end, in the order that keeps
@@ -1610,21 +1646,52 @@
 
     drawSlabEdges(c, colors);
 
+    // Full room height, not a shorter parapet: the hallway wall runs into a
+    // room wall at both ends, and any difference in height shows up as a step
+    // at the junction.
+    //
+    // The far end butts into the far room's back wall, which is a solid of
+    // the same height, so that junction closes itself. The near end opens out
+    // of a room's cutaway front, where there is no wall to meet -- so the
+    // hallway wall would otherwise begin in mid-air, a few tiles adrift of
+    // where the room's own wall stopped. The return below is the piece of the
+    // room's side wall above the doorway that carries one into the other.
     const along = c.cols > c.rows;
-    const h = ROOM.wallH * 0.82;
+    const near = c.nearRoom;
     if (along) {
-      // Running east: the back edge is the gy0 side; thickness pushes away
-      // from the viewer, up and to the right.
-      drawThickWall(
+      // Running east along the gy0 edge; thickness backs off up and right.
+      drawWallSlab(
         isoPoint(c.gx0, c.gy0), isoPoint(c.gx0 + c.cols, c.gy0),
-        h, { x: ROOM.tileW * 0.16, y: -ROOM.tileH * 0.16 }, colors,
+        ROOM.wallH, wallDepth('gx'), colors.wallR,
       );
+      if (near && c.gy0 > near.gy0) {
+        drawWallSlab(
+          isoPoint(c.gx0, near.gy0), isoPoint(c.gx0, c.gy0),
+          ROOM.wallH, wallDepth('gy'), colors.wallL,
+        );
+        // Mitre both ends of the return: into the room's back wall at the top,
+        // into the hallway's own wall at the bottom.
+        drawWallCorner(isoPoint(c.gx0, near.gy0), wallDepth('gx'), wallDepth('gy'),
+          ROOM.wallH, colors.wallL);
+        drawWallCorner(isoPoint(c.gx0, c.gy0), wallDepth('gx'), wallDepth('gy'),
+          ROOM.wallH, colors.wallL);
+      }
     } else {
-      // Running south: the back edge is the gx0 side, thickness up-left.
-      drawThickWall(
+      // Running south along the gx0 edge; thickness backs off up and left.
+      drawWallSlab(
         isoPoint(c.gx0, c.gy0), isoPoint(c.gx0, c.gy0 + c.rows),
-        h, { x: -ROOM.tileW * 0.16, y: -ROOM.tileH * 0.16 }, colors,
+        ROOM.wallH, wallDepth('gy'), colors.wallL,
       );
+      if (near && c.gx0 > near.gx0) {
+        drawWallSlab(
+          isoPoint(near.gx0, c.gy0), isoPoint(c.gx0, c.gy0),
+          ROOM.wallH, wallDepth('gx'), colors.wallR,
+        );
+        drawWallCorner(isoPoint(near.gx0, c.gy0), wallDepth('gx'), wallDepth('gy'),
+          ROOM.wallH, colors.wallL);
+        drawWallCorner(isoPoint(c.gx0, c.gy0), wallDepth('gx'), wallDepth('gy'),
+          ROOM.wallH, colors.wallL);
+      }
     }
   }
 
@@ -1658,15 +1725,24 @@
     );
   }
 
-  // Only one end of a hallway meets a wall. Rooms are open at the front and
-  // walled at the back, so a corridor running away from a room leaves through
-  // its open side (nothing to frame) and arrives through the far room's back
-  // wall (which is where the casing belongs). A frame at the open end would
-  // be a door standing in mid-air.
+  // A step of floor across the hallway mouth, marking the threshold where a
+  // room opens onto it. This end has no wall to cut a door into, so a casing
+  // here would be an arch standing in open floor with nothing above it.
+  function drawThreshold(p0, p1, colors) {
+    const back = ROOM.tileH * 0.16;
+    const shift = (p) => ({ x: p.x, y: p.y - back });
+    paintQuad([p0, p1, shift(p1), shift(p0)], shade(colors.floorA, 14), 'rgba(0,0,0,0.35)', 1);
+  }
+
+  // Only one end of a hallway can meet a wall. Rooms are walled along their
+  // two back edges and cut away along the two front ones, so a hallway leaves
+  // its first room through that open front -- there is nothing there to hang
+  // a door in -- and arrives at the far room through a real back wall, which
+  // is where the casing belongs.
   function drawCorridorDoors(c, colors) {
     const near = corridorEnd(c, false);
     const far = corridorEnd(c, true);
-    drawCorridorDoor(near[0], near[1], colors);
+    drawThreshold(near[0], near[1], colors);
     drawCorridorDoor(far[0], far[1], colors);
   }
 
@@ -1688,17 +1764,19 @@
     floorCtx.fillRect(0, 0, W, H);
     drawBackdrop(state.activeTheme, W, H);
 
-    // Hallways go down first: a room drawn after will correctly cover the end
-    // that runs behind its wall, leaving only the doorway showing.
-    corridors.forEach((c) => drawCorridorShell(c, colors));
-
-    // Rooms back-to-front, so a nearer room's walls overlap what is behind it
-    // rather than the draw order fighting the projection.
+    // Rooms and hallways go down in one back-to-front pass, ordered by how far
+    // back their rear corner sits. Drawing all the hallways first instead
+    // meant a room painted over the very wall joining it to its hallway,
+    // because that wall stands on the room's own boundary.
     const rooms = activeRooms();
-    rooms
-      .map((room, i) => ({ room, i }))
-      .sort((a, b) => (placements[a.i].gx0 + placements[a.i].gy0) - (placements[b.i].gx0 + placements[b.i].gy0))
-      .forEach(({ room, i }) => drawRoom(room.layout, colors, light, i));
+    const pieces = rooms.map((room, i) => ({
+      depth: placements[i].gx0 + placements[i].gy0,
+      draw: () => drawRoom(room.layout, colors, light, i),
+    })).concat(corridors.map((c) => ({
+      depth: c.gx0 + c.gy0,
+      draw: () => drawCorridorShell(c, colors),
+    })));
+    pieces.sort((a, b) => a.depth - b.depth).forEach((p) => p.draw());
 
     // Door casings go on last so they read as standing in the wall the room
     // just painted over the hallway's end, rather than behind it.
@@ -1720,29 +1798,15 @@
     const east = isoPoint(place.gx0 + place.cols, place.gy0);
     const west = isoPoint(place.gx0, place.gy0 + place.rows);
 
-    const wallRGrad = floorCtx.createLinearGradient(0, north.y - ROOM.wallH, 0, north.y);
-    wallRGrad.addColorStop(0, shade(colors.wallR, 14));
-    wallRGrad.addColorStop(1, shade(colors.wallR, -10));
-    floorCtx.beginPath();
-    floorCtx.moveTo(north.x, north.y - ROOM.wallH);
-    floorCtx.lineTo(east.x, east.y - ROOM.wallH);
-    floorCtx.lineTo(east.x, east.y);
-    floorCtx.lineTo(north.x, north.y);
-    floorCtx.closePath();
-    floorCtx.fillStyle = wallRGrad;
-    floorCtx.fill();
-
-    const wallLGrad = floorCtx.createLinearGradient(0, north.y - ROOM.wallH, 0, north.y);
-    wallLGrad.addColorStop(0, shade(colors.wallL, 14));
-    wallLGrad.addColorStop(1, shade(colors.wallL, -10));
-    floorCtx.beginPath();
-    floorCtx.moveTo(north.x, north.y - ROOM.wallH);
-    floorCtx.lineTo(west.x, west.y - ROOM.wallH);
-    floorCtx.lineTo(west.x, west.y);
-    floorCtx.lineTo(north.x, north.y);
-    floorCtx.closePath();
-    floorCtx.fillStyle = wallLGrad;
-    floorCtx.fill();
+    // Both back walls, as solids. The north corner they share gets its own
+    // patch of ceiling so the two top faces mitre instead of leaving a notch,
+    // and each wall caps off at the room's open corner, which is where you
+    // see how thick it is.
+    const depthNE = wallDepth('gx');
+    const depthNW = wallDepth('gy');
+    drawWallSlab(north, east, ROOM.wallH, depthNE, colors.wallR);
+    drawWallSlab(north, west, ROOM.wallH, depthNW, colors.wallL);
+    drawWallCorner(north, depthNE, depthNW, ROOM.wallH, colors.wallL);
 
     drawBaseboard(east, north);
     drawBaseboard(north, west);
