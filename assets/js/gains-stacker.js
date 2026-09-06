@@ -18,7 +18,15 @@
   const MAX_SPEED = 7.5;
   const SPEED_STEP = 0.09;
   const MISS_WORDS = ['DAMMIT', 'SHIT', 'FUCK', 'AW HELL', 'GODDAMMIT', 'BULLSHIT'];
-  const PALETTE = ['#e0a45c', '#5ec4c9', '#d97a5c', '#c9a86a', '#7a9e6e'];
+  // Weight-plate colors, echoing real bumper-plate conventions while staying
+  // in the site's warm palette.
+  const PLATES = [
+    { color: '#e3a83b', label: '45' },
+    { color: '#c0483a', label: '35' },
+    { color: '#3d7a9e', label: '25' },
+    { color: '#4f9d6e', label: '10' },
+    { color: '#3a3632', label: '5' },
+  ];
 
   // ---- Persistence (local for now; see wallet.js/leaderboard.js for why) ----
   const STORAGE_KEY = 'gainsStackerHighScore';
@@ -85,8 +93,8 @@
     return `rgb(${r},${g},${b})`;
   }
 
-  function pickColor() {
-    return PALETTE[Math.floor(Math.random() * PALETTE.length)];
+  function pickPlate() {
+    return PLATES[Math.floor(Math.random() * PLATES.length)];
   }
 
   // ---- Game state ----
@@ -116,12 +124,13 @@
     const dir = Math.random() < 0.5 ? -1 : 1;
     const x = dir === 1 ? 30 : W - 30 - w;
 
-    active = { x, w, y: top.y - BLOCK_H, dir, speed, color: pickColor() };
+    const plate = pickPlate();
+    active = { x, w, y: top.y - BLOCK_H, dir, speed, color: plate.color, label: plate.label };
     cameraTarget = Math.max(0, CEILING_Y - active.y);
   }
 
   function reset() {
-    stack = [{ x: (W - BASE_W) / 2, w: BASE_W, y: BASE_TOP_Y, h: BASE_H, color: '#4a3320' }];
+    stack = [{ x: (W - BASE_W) / 2, w: BASE_W, y: BASE_TOP_Y, h: BASE_H, color: '#2b2724', isBase: true }];
     debris = [];
     particles = [];
     score = 0;
@@ -204,7 +213,7 @@
       toast('+10', null);
     }
 
-    stack.push({ x: placedX, w: placedW, y: newY, h: BLOCK_H, color: active.color });
+    stack.push({ x: placedX, w: placedW, y: newY, h: BLOCK_H, color: active.color, label: active.label });
     hudScore.textContent = score;
     hudHeight.textContent = stack.length - 1;
     hudCombo.textContent = combo;
@@ -246,54 +255,160 @@
 
   function drawBackground() {
     const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#241a10');
-    g.addColorStop(1, '#3a2814');
+    g.addColorStop(0, '#171310');
+    g.addColorStop(1, '#332a20');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    const tile = 140;
+    // rack uprights framing the lane
+    const uprightW = 26;
+    ctx.fillStyle = '#100d0b';
+    ctx.fillRect(0, 0, uprightW, H);
+    ctx.fillRect(W - uprightW, 0, uprightW, H);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(uprightW - 3, 0, 3, H);
+    ctx.fillRect(W - uprightW, 0, 3, H);
+
+    // peg holes with hanging plate silhouettes, scrolling with the world
+    const pegSpacing = 90;
+    const pegOffset = ((cameraOffset % pegSpacing) + pegSpacing) % pegSpacing;
+    for (let y = -pegSpacing + pegOffset; y < H + pegSpacing; y += pegSpacing) {
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.beginPath();
+      ctx.arc(uprightW / 2, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(227,168,59,0.16)';
+      ctx.beginPath();
+      ctx.ellipse(uprightW / 2 + 9, y, 7, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const y2 = y + pegSpacing / 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.beginPath();
+      ctx.arc(W - uprightW / 2, y2, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(61,122,158,0.16)';
+      ctx.beginPath();
+      ctx.ellipse(W - uprightW / 2 - 9, y2, 7, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // rubber floor speckle, scrolling
+    const tile = 46;
     const offset = ((cameraOffset % tile) + tile) % tile;
     ctx.save();
+    ctx.globalAlpha = 0.07;
+    ctx.fillStyle = '#000';
     for (let y = -tile + offset; y < H + tile; y += tile) {
-      ctx.fillStyle = 'rgba(255,200,130,0.10)';
-      ctx.fillRect(0, y, 14, 70);
-      ctx.fillRect(W - 14, y, 14, 70);
-    }
-    ctx.strokeStyle = 'rgba(0,0,0,0.16)';
-    ctx.lineWidth = 2;
-    for (let y = -tile + offset; y < H + tile; y += tile / 2) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(W, y);
-      ctx.stroke();
+      for (let x = uprightW; x < W - uprightW; x += tile) {
+        ctx.beginPath();
+        ctx.arc(x + tile / 2, y + tile / 2, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.restore();
+
+    // hanging gym light, world-anchored -- scrolls away as the tower grows
+    const lampScreenY = -40 + cameraOffset;
+    if (lampScreenY > -80 && lampScreenY < H + 80) {
+      const glow = ctx.createRadialGradient(W / 2, lampScreenY, 10, W / 2, lampScreenY, 190);
+      glow.addColorStop(0, 'rgba(255,210,140,0.20)');
+      glow.addColorStop(1, 'rgba(255,210,140,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#0d0b09';
+      ctx.fillRect(W / 2 - 3, lampScreenY - 30, 6, 30);
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,210,140,0.9)';
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = '#ffdca0';
+      ctx.beginPath();
+      ctx.ellipse(W / 2, lampScreenY, 22, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // vignette
+    const vg = ctx.createRadialGradient(W / 2, H * 0.45, H * 0.25, W / 2, H * 0.45, H * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
   }
 
   function drawBlock(b) {
     const screenY = b.y + cameraOffset;
     if (screenY > H + 10 || screenY + b.h < -10) return;
-    const grad = ctx.createLinearGradient(b.x, 0, b.x + b.w, 0);
-    grad.addColorStop(0, shade(b.color, -18));
-    grad.addColorStop(0.5, b.color);
-    grad.addColorStop(1, shade(b.color, -18));
+    const r = Math.min(10, b.h / 2, b.w / 2);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(b.x + b.w / 2, screenY + b.h + 3, Math.max(4, (b.w / 2) * 0.9), 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const grad = ctx.createLinearGradient(0, screenY, 0, screenY + b.h);
+    grad.addColorStop(0, shade(b.color, 30));
+    grad.addColorStop(0.15, shade(b.color, 8));
+    grad.addColorStop(0.85, shade(b.color, -10));
+    grad.addColorStop(1, shade(b.color, -32));
+    ctx.beginPath();
+    ctx.roundRect(b.x, screenY, b.w, b.h, r);
     ctx.fillStyle = grad;
-    ctx.fillRect(b.x, screenY, b.w, b.h);
-    ctx.fillStyle = shade(b.color, 26);
-    ctx.fillRect(b.x, screenY, b.w, 4);
-    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.fill();
     ctx.lineWidth = 2;
-    ctx.strokeRect(b.x, screenY, b.w, b.h);
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.roundRect(b.x + 2, screenY + 2, Math.max(0, b.w - 4), Math.max(3, b.h * 0.22), r * 0.6);
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.fill();
+
+    if (b.w > 40) {
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.fillRect(b.x + b.w / 2 - 1, screenY + 3, 2, b.h - 6);
+    }
+
+    if (b.label && b.w > 34) {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.font = '700 12px Anton, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(b.label, b.x + b.w / 2, screenY + b.h / 2 + 1);
+    }
+  }
+
+  function drawBase(b) {
+    const screenY = b.y + cameraOffset;
+    const barH = 10;
+    const barY = screenY + b.h / 2 - barH / 2;
+    const overhang = 22;
+
+    const barGrad = ctx.createLinearGradient(0, barY, 0, barY + barH);
+    barGrad.addColorStop(0, '#9a9aa0');
+    barGrad.addColorStop(0.5, '#d4d4da');
+    barGrad.addColorStop(1, '#74747a');
+    ctx.fillStyle = barGrad;
+    ctx.fillRect(b.x - overhang, barY, b.w + overhang * 2, barH);
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(b.x - overhang, barY, b.w + overhang * 2, barH);
+
+    ctx.fillStyle = '#4a4a50';
+    ctx.fillRect(b.x - overhang - 4, barY - 4, 8, barH + 8);
+    ctx.fillRect(b.x + b.w + overhang - 4, barY - 4, 8, barH + 8);
+
+    drawBlock(b);
   }
 
   function draw() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
 
-    for (const b of stack) drawBlock(b);
+    stack.forEach((b, i) => { if (i === 0) drawBase(b); else drawBlock(b); });
 
     if (active) {
-      drawBlock({ x: active.x, y: active.y, w: active.w, h: BLOCK_H, color: active.color });
+      drawBlock({ x: active.x, y: active.y, w: active.w, h: BLOCK_H, color: active.color, label: active.label });
     }
 
     for (const d of debris) {
