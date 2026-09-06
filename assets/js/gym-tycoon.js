@@ -650,6 +650,117 @@
     floorCtx.shadowBlur = 0;
   }
 
+  // The walls/floor only cover the middle ~70% of the canvas width -- the
+  // ~70px strips on either side (and the sliver above the wall peak) are
+  // plain background. Give each theme something to actually look at back
+  // there instead of a flat gradient: a skyline for rooftop, rafters and
+  // stacked tires for garage, exposed ductwork for basement. Drawn before
+  // the walls, so the walls correctly cover whatever part would fall
+  // behind them.
+  function drawBackdrop(theme, W, H) {
+    if (theme === 'rooftop') {
+      const sunX = W - 68;
+      const sunY = 54;
+      const sunGlow = floorCtx.createRadialGradient(sunX, sunY, 2, sunX, sunY, 48);
+      sunGlow.addColorStop(0, 'rgba(255,244,200,0.9)');
+      sunGlow.addColorStop(1, 'rgba(255,244,200,0)');
+      floorCtx.fillStyle = sunGlow;
+      floorCtx.beginPath();
+      floorCtx.arc(sunX, sunY, 48, 0, Math.PI * 2);
+      floorCtx.fill();
+      floorCtx.beginPath();
+      floorCtx.arc(sunX, sunY, 13, 0, Math.PI * 2);
+      floorCtx.fillStyle = '#fff6da';
+      floorCtx.fill();
+
+      floorCtx.fillStyle = 'rgba(255,255,255,0.32)';
+      [[46, 38, 22], [118, 64, 15], [W - 140, 88, 17]].forEach(([cx, cy, r]) => {
+        floorCtx.beginPath();
+        floorCtx.ellipse(cx, cy, r * 1.6, r * 0.65, 0, 0, Math.PI * 2);
+        floorCtx.fill();
+      });
+
+      const skylineY = 300;
+      const buildings = [
+        { x: 0, w: 26, h: 120 }, { x: 24, w: 20, h: 82 }, { x: 42, w: 30, h: 152 },
+        { x: W - 30, w: 30, h: 132 }, { x: W - 55, w: 22, h: 92 }, { x: W - 78, w: 24, h: 162 },
+      ];
+      buildings.forEach((b) => {
+        floorCtx.fillStyle = 'rgba(26,46,66,0.6)';
+        floorCtx.fillRect(b.x, skylineY - b.h, b.w, b.h);
+        floorCtx.fillStyle = 'rgba(255,228,158,0.55)';
+        for (let wy = skylineY - b.h + 10; wy < skylineY - 8; wy += 13) {
+          for (let wx = b.x + 4; wx < b.x + b.w - 4; wx += 8) {
+            if (((wx + wy) * 7) % 5 < 2) floorCtx.fillRect(wx, wy, 3, 4);
+          }
+        }
+      });
+    } else if (theme === 'garage') {
+      floorCtx.strokeStyle = shade(THEME_COLORS.garage.bg, 40);
+      floorCtx.lineWidth = 4;
+      floorCtx.lineCap = 'round';
+      [[0, 26], [0, 88], [W, 26], [W, 88]].forEach(([x, y]) => {
+        floorCtx.beginPath();
+        floorCtx.moveTo(x, y);
+        floorCtx.lineTo(ROOM.originX, -8);
+        floorCtx.stroke();
+      });
+
+      [[32, 256, 24], [32, 212, 20]].forEach(([x, y, r]) => {
+        floorCtx.beginPath();
+        floorCtx.arc(x, y, r, 0, Math.PI * 2);
+        floorCtx.fillStyle = '#100f0d';
+        floorCtx.fill();
+        floorCtx.strokeStyle = '#4a453e';
+        floorCtx.lineWidth = 1.5;
+        floorCtx.stroke();
+        floorCtx.beginPath();
+        floorCtx.arc(x, y, r * 0.45, 0, Math.PI * 2);
+        floorCtx.fillStyle = '#4a453e';
+        floorCtx.fill();
+      });
+
+      [150, 190, 230].forEach((y) => {
+        floorCtx.fillStyle = 'rgba(0,0,0,0.4)';
+        floorCtx.fillRect(W - 48, y, 32, 6);
+        floorCtx.fillStyle = 'rgba(255,255,255,0.08)';
+        floorCtx.fillRect(W - 48, y, 32, 1.5);
+      });
+      floorCtx.fillStyle = '#c0483a';
+      floorCtx.fillRect(W - 40, 160, 10, 24);
+      floorCtx.fillStyle = '#3fa8a0';
+      floorCtx.fillRect(W - 26, 200, 8, 26);
+    } else if (theme === 'basement') {
+      floorCtx.strokeStyle = '#3a4650';
+      floorCtx.lineWidth = 5;
+      floorCtx.beginPath();
+      floorCtx.moveTo(0, 20);
+      floorCtx.lineTo(W, 20);
+      floorCtx.stroke();
+      floorCtx.fillStyle = '#4a5862';
+      for (let x = 10; x < W; x += 55) {
+        floorCtx.beginPath();
+        floorCtx.arc(x, 20, 5, 0, Math.PI * 2);
+        floorCtx.fill();
+      }
+      floorCtx.strokeStyle = '#3a4650';
+      floorCtx.lineWidth = 4;
+      [28, W - 28].forEach((x) => {
+        floorCtx.beginPath();
+        floorCtx.moveTo(x, 20);
+        floorCtx.lineTo(x, 262);
+        floorCtx.stroke();
+      });
+      floorCtx.fillStyle = 'rgba(180,210,230,0.14)';
+      floorCtx.beginPath();
+      floorCtx.moveTo(30, 100);
+      floorCtx.lineTo(90, 260);
+      floorCtx.lineTo(30, 260);
+      floorCtx.closePath();
+      floorCtx.fill();
+    }
+  }
+
   // Point on a wall: t is fraction along the wall (0 = the near/floor
   // corner given as fromP, 1 = toP), hFrac is fraction up from the floor
   // (0 = floor line, 1 = ceiling). Decor drawn from this stays anchored to
@@ -746,6 +857,7 @@
     bgGrad.addColorStop(1, colors.bg);
     floorCtx.fillStyle = bgGrad;
     floorCtx.fillRect(0, 0, W, H);
+    drawBackdrop(state.theme, W, H);
 
     const north = isoPoint(0, 0);
     const east = isoPoint(ROOM.cols, 0);
