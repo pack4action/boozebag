@@ -19,6 +19,12 @@
     { id: 'sauna', name: 'Sauna', emoji: '🔥', baseCost: 150000, gps: 1500 },
     { id: 'gear', name: 'Steroid Cycle', emoji: '💉', baseCost: 600000, gps: 6000 },
     { id: 'hq', name: 'Second Location', emoji: '🏢', baseCost: 2500000, gps: 25000 },
+    // Office tier: hidden in the shop until you've built the gym up past HQ
+    // level (see unlockAt) -- the "then you build a desk for employees"
+    // progression stage that comes after the core gym equipment.
+    { id: 'desk', name: 'Reception Desk', emoji: '🗄️', baseCost: 10000000, gps: 100000, unlockAt: 2500000 },
+    { id: 'cubicle', name: 'Sales Cubicle', emoji: '💻', baseCost: 40000000, gps: 400000, unlockAt: 10000000 },
+    { id: 'manager', name: "Manager's Office", emoji: '🧑‍💼', baseCost: 160000000, gps: 1600000, unlockAt: 40000000 },
   ];
 
   const THEMES = [
@@ -44,12 +50,14 @@
     treadmill: 'cardio',
     mat: 'recovery', sauna: 'recovery',
     trainer: 'booster', gear: 'booster', hq: 'booster',
+    desk: 'office', cubicle: 'office', manager: 'office',
   };
   const CATEGORY_META = {
     strength: { name: 'Strength', color: '#c0483a' },
     cardio: { name: 'Cardio', color: '#3fa0c9' },
     recovery: { name: 'Recovery', color: '#3fa87e' },
     booster: { name: 'Booster', color: '#d9a53f' },
+    office: { name: 'Office', color: '#8a6fd1' },
   };
   const SAME_CATEGORY_BONUS = 0.12;
   const BOOSTER_NEARBY_BONUS = 0.20;
@@ -90,6 +98,8 @@
 
   // Gains/sec now comes entirely from what's placed in the room, not from
   // raw ownership -- gear sitting unplaced in inventory earns nothing.
+  // Synergy is computed per-room: adjacency only matters within the same
+  // grid, so equipment in different rooms never interacts.
   function computeGps(layout) {
     let total = 0;
     layout.forEach((itemId, index) => {
@@ -98,6 +108,12 @@
       total += item.gps * itemSynergyMultiplier(layout, index);
     });
     return total;
+  }
+
+  // Total across every room the player has unlocked -- gear earns
+  // regardless of which room is currently in view.
+  function computeTotalGps(rooms) {
+    return rooms.reduce((sum, room) => sum + computeGps(room.layout), 0);
   }
 
   function formatNum(n) {
@@ -112,14 +128,26 @@
     return v.toFixed(2) + units[u];
   }
 
+  // ---- Rooms ----
+  // The player starts with exactly one room and can buy more as they grow
+  // -- each is an independent 12-slot grid with its own theme, so building
+  // out the empire eventually means expanding into more physical space,
+  // not just denser single-room arrangement.
+  const ROOM_UNLOCK_COSTS = [0, 10000, 500000, 25000000];
+  const MAX_ROOMS = ROOM_UNLOCK_COSTS.length;
+
+  function emptyRoom(theme) {
+    return { theme: theme || 'garage', layout: new Array(SLOT_COUNT).fill(null) };
+  }
+
   // ---- Persistence ----
   function defaultState() {
     return {
       balance: 0,
       lifetime: 0,
       owned: {},
-      layout: new Array(SLOT_COUNT).fill(null),
-      theme: 'garage',
+      rooms: [emptyRoom('garage')],
+      activeRoom: 0,
       lastSaved: Date.now(),
     };
   }
@@ -135,26 +163,50 @@
 
     const s = Object.assign(defaultState(), saved);
     s.owned = saved.owned || {};
-    if (!Array.isArray(s.layout) || s.layout.length !== SLOT_COUNT) {
-      const old = Array.isArray(saved.layout) ? saved.layout : [];
-      s.layout = new Array(SLOT_COUNT).fill(null).map((_, i) => old[i] || null);
-    }
+    // Object.assign above copies these over verbatim from an old-shape
+    // save -- drop them so the persisted state doesn't carry dead fields
+    // around forever alongside the new `rooms` array.
+    delete s.layout;
+    delete s.theme;
 
-    // Migration for saves from before placement mattered: if the room is
-    // empty but the player owns gear, auto-fill the floor with it so
+    // Migrate saves from before multiple rooms existed (a single top-level
+    // layout/theme) into the new rooms array; normalize anything else to
+    // exactly SLOT_COUNT slots per room.
+    if (!Array.isArray(saved.rooms)) {
+      const oldLayout = Array.isArray(saved.layout) ? saved.layout : [];
+      s.rooms = [{
+        theme: saved.theme || 'garage',
+        layout: new Array(SLOT_COUNT).fill(null).map((_, i) => oldLayout[i] || null),
+      }];
+    } else {
+      s.rooms = saved.rooms.slice(0, MAX_ROOMS).map((r) => {
+        const oldLayout = Array.isArray(r && r.layout) ? r.layout : [];
+        return {
+          theme: (r && r.theme) || 'garage',
+          layout: new Array(SLOT_COUNT).fill(null).map((_, i) => oldLayout[i] || null),
+        };
+      });
+    }
+    if (s.rooms.length === 0) s.rooms = [emptyRoom('garage')];
+    s.activeRoom = Number.isInteger(saved.activeRoom) && saved.activeRoom >= 0 && saved.activeRoom < s.rooms.length
+      ? saved.activeRoom
+      : 0;
+
+    // Migration for saves from before placement mattered: if every room is
+    // empty but the player owns gear, auto-fill the first room with it so
     // returning players don't come back to a sudden $0/s.
-    if (s.layout.every((x) => !x)) {
+    if (s.rooms.every((r) => r.layout.every((x) => !x))) {
       const toPlace = [];
       ITEMS.forEach((item) => {
         const count = s.owned[item.id] || 0;
         for (let i = 0; i < count; i++) toPlace.push(item.id);
       });
-      toPlace.slice(0, SLOT_COUNT).forEach((id, i) => { s.layout[i] = id; });
+      toPlace.slice(0, SLOT_COUNT).forEach((id, i) => { s.rooms[0].layout[i] = id; });
     }
 
     const elapsed = Math.max(0, (Date.now() - (saved.lastSaved || Date.now())) / 1000);
     const cappedElapsed = Math.min(elapsed, OFFLINE_CAP_SECONDS);
-    const gpsAtSave = computeGps(s.layout);
+    const gpsAtSave = computeTotalGps(s.rooms);
     const offlineEarnings = cappedElapsed * gpsAtSave;
     if (offlineEarnings > 1) {
       s.balance += offlineEarnings;
@@ -170,7 +222,10 @@
   }
 
   let state = load();
-  let gps = computeGps(state.layout);
+  function activeRoom() {
+    return state.rooms[state.activeRoom];
+  }
+  let gps = computeTotalGps(state.rooms);
   let clickAmount = 1 + gps * 0.05;
 
   // ---- Wallet-gated local leaderboard ----
@@ -220,26 +275,28 @@
   }
 
   function recomputeStats() {
-    gps = computeGps(state.layout);
+    gps = computeTotalGps(state.rooms);
     clickAmount = 1 + gps * 0.05;
     refreshHud();
     refreshSynergyText();
   }
 
-  // ---- Room synergy readout ----
+  // ---- Room synergy readout (describes the room currently in view) ----
   const synergyEl = document.getElementById('tycoon-synergy');
   function refreshSynergyText() {
     if (!synergyEl) return;
-    const placed = state.layout.filter(Boolean).length;
+    const room = activeRoom();
+    const placed = room.layout.filter(Boolean).length;
     if (placed === 0) {
-      synergyEl.textContent = "Empty room = $0/s. Arm a piece of gear below and click a tile to start earning.";
+      synergyEl.textContent = "This room is empty = $0/s from here. Arm a piece of gear below and click a tile to start earning.";
       return;
     }
-    const baseSum = state.layout.reduce((sum, id) => sum + (id ? itemById(id).gps : 0), 0);
-    const bonusPct = baseSum > 0 ? Math.round((gps / baseSum - 1) * 100) : 0;
+    const baseSum = room.layout.reduce((sum, id) => sum + (id ? itemById(id).gps : 0), 0);
+    const roomGps = computeGps(room.layout);
+    const bonusPct = baseSum > 0 ? Math.round((roomGps / baseSum - 1) * 100) : 0;
     synergyEl.textContent = placed + '/' + SLOT_COUNT + ' slots filled -- base ' + formatNum(baseSum) + '/s'
       + (bonusPct > 0 ? ', +' + bonusPct + '% from arrangement synergy' : ', no synergy bonus yet')
-      + ' = ' + formatNum(gps) + '/s total.';
+      + ' = ' + formatNum(roomGps) + '/s from this room.';
   }
 
   // ---- Shop ----
@@ -274,6 +331,16 @@
   function refreshShopUI() {
     ITEMS.forEach((item) => {
       const els = shopEls[item.id];
+      const unlockAt = item.unlockAt || 0;
+      const unlocked = state.lifetime >= unlockAt;
+      els.root.classList.toggle('is-locked', !unlocked);
+      if (!unlocked) {
+        els.ownedEl.textContent = '';
+        els.buyBtn.textContent = '🔒 Unlocks at $' + formatNum(unlockAt) + ' lifetime';
+        els.buyBtn.disabled = true;
+        els.root.classList.remove('is-affordable');
+        return;
+      }
       const owned = state.owned[item.id] || 0;
       const cost = costFor(item);
       els.ownedEl.textContent = 'x' + owned;
@@ -286,22 +353,26 @@
 
   function buyItem(id) {
     const item = ITEMS.find((i) => i.id === id);
+    if (state.lifetime < (item.unlockAt || 0)) return;
     const cost = costFor(item);
     if (state.balance < cost) return;
     state.balance -= cost;
     state.owned[id] = (state.owned[id] || 0) + 1;
-    // Auto-drop new gear into an open slot so it starts earning right away.
-    // Once the room's full, further purchases sit in inventory until you
-    // free up a slot -- that's the point where arranging what to keep on
-    // the floor actually becomes a decision.
-    const emptyIndex = state.layout.indexOf(null);
+    // Auto-drop new gear into an open slot in the room currently in view
+    // so it starts earning right away. Once that room's full, further
+    // purchases sit in inventory until you free up a slot somewhere --
+    // that's the point where arranging what to keep on the floor (or
+    // buying another room) actually becomes a decision.
+    const room = activeRoom();
+    const emptyIndex = room.layout.indexOf(null);
     if (emptyIndex !== -1) {
-      state.layout[emptyIndex] = id;
+      room.layout[emptyIndex] = id;
       renderScene();
     }
     recomputeStats();
     refreshShopUI();
     renderInventory();
+    refreshRoomTabs();
     updateLeaderboardEntry();
     save();
   }
@@ -343,8 +414,10 @@
     rooftop: { glow: 'rgba(255,236,180,0.38)', cord: null, shade: null, shadeDark: null, bulb: null },
   };
 
+  // Placement counts are global across every room -- an item bought once
+  // can only be on the floor of one room at a time, wherever you put it.
   function placedCount(itemId) {
-    return state.layout.filter((x) => x === itemId).length;
+    return state.rooms.reduce((sum, r) => sum + r.layout.filter((x) => x === itemId).length, 0);
   }
   function availableCount(itemId) {
     return (state.owned[itemId] || 0) - placedCount(itemId);
@@ -560,6 +633,25 @@
       ctx.fillStyle = '#241a10';
       const door = isoScreenPoint(b, 0.34, 0, 14);
       ctx.fillRect(door.x - 5, door.y - 14, 10, 14);
+    },
+    desk: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0.02, 0.30, 0.20, 11, '#6b4a30', 0);
+      drawIsoBox(ctx, b, 0.10, -0.08, 0.03, 0.03, 9, '#26262a', 11);
+      drawIsoBox(ctx, b, 0.10, -0.08, 0.09, 0.02, 7, '#3fa0c9', 18);
+    },
+    cubicle: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0.08, 0.10, 0.24, 30, '#9aa4b0', 0);
+      drawIsoBox(ctx, b, -0.20, -0.06, 0.24, 0.06, 28, '#9aa4b0', 0);
+      drawIsoBox(ctx, b, 0.06, -0.08, 0.20, 0.14, 9, '#6b4a30', 0);
+      drawIsoBox(ctx, b, 0.06, -0.18, 0.045, 0.03, 8, '#26262a', 9);
+      drawIsoBox(ctx, b, 0.06, -0.18, 0.10, 0.02, 6, '#3fa0c9', 15);
+    },
+    manager: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0.06, 0.30, 0.22, 12, '#3a2c22', 0);
+      drawIsoBox(ctx, b, 0.10, -0.10, 0.03, 0.03, 10, '#26262a', 12);
+      drawIsoBox(ctx, b, 0, -0.22, 0.11, 0.09, 20, '#241a10', 0);
+      drawIsoBox(ctx, b, -0.22, 0.20, 0.07, 0.07, 4, '#8a5a34', 0);
+      drawIsoBox(ctx, b, -0.22, 0.20, 0.05, 0.05, 15, '#3fa87e', 4);
     },
   };
 
@@ -846,8 +938,9 @@
 
   function renderScene() {
     fitCanvasResolution();
-    const colors = THEME_COLORS[state.theme] || THEME_COLORS.garage;
-    const light = LIGHT_COLORS[state.theme] || LIGHT_COLORS.garage;
+    const room = activeRoom();
+    const colors = THEME_COLORS[room.theme] || THEME_COLORS.garage;
+    const light = LIGHT_COLORS[room.theme] || LIGHT_COLORS.garage;
     const W = BASE_W;
     const H = BASE_H;
     floorCtx.clearRect(0, 0, W, H);
@@ -857,7 +950,7 @@
     bgGrad.addColorStop(1, colors.bg);
     floorCtx.fillStyle = bgGrad;
     floorCtx.fillRect(0, 0, W, H);
-    drawBackdrop(state.theme, W, H);
+    drawBackdrop(room.theme, W, H);
 
     const north = isoPoint(0, 0);
     const east = isoPoint(ROOM.cols, 0);
@@ -889,7 +982,7 @@
 
     drawBaseboard(east, north);
     drawBaseboard(north, west);
-    drawWallDecor(state.theme, north, east, west);
+    drawWallDecor(room.theme, north, east, west);
 
     const cells = allCellsBackToFront();
 
@@ -945,13 +1038,13 @@
 
     cells.forEach(({ gx, gy }) => {
       const index = gy * ROOM.cols + gx;
-      const itemId = state.layout[index];
+      const itemId = room.layout[index];
       if (!itemId) return;
       const item = itemById(itemId);
       if (!item) return;
       const c = cellCenter(gx, gy);
       const catColor = CATEGORY_META[CATEGORY[itemId]].color;
-      const mult = itemSynergyMultiplier(state.layout, index);
+      const mult = itemSynergyMultiplier(room.layout, index);
 
       // A glowing ring means this piece is currently getting a synergy
       // bonus from its neighbors -- direct visual payoff for arrangement.
@@ -1030,21 +1123,24 @@
   });
 
   function onFloorCellClick(index) {
-    const current = state.layout[index];
+    const room = activeRoom();
+    const current = room.layout[index];
     if (current) {
-      state.layout[index] = null;
+      room.layout[index] = null;
       renderScene();
       renderInventory();
       recomputeStats();
+      refreshRoomTabs();
       save();
       return;
     }
     if (armedItemId && availableCount(armedItemId) > 0) {
-      state.layout[index] = armedItemId;
+      room.layout[index] = armedItemId;
       if (availableCount(armedItemId) <= 0) armedItemId = null;
       renderScene();
       renderInventory();
       recomputeStats();
+      refreshRoomTabs();
       save();
     }
   }
@@ -1055,7 +1151,7 @@
     if (ownedItems.length === 0) {
       const p = document.createElement('p');
       p.className = 'tycoon-inv-empty';
-      p.textContent = state.layout.some(Boolean)
+      p.textContent = state.rooms.some((r) => r.layout.some(Boolean))
         ? 'Everything you own is already on the floor.'
         : 'Buy some gear below, then place it up here.';
       inventoryEl.appendChild(p);
@@ -1078,21 +1174,74 @@
 
   function refreshThemeRow() {
     themeRowEl.innerHTML = '';
+    const room = activeRoom();
     THEMES.forEach((t) => {
       const unlocked = state.lifetime >= t.unlockAt;
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'tycoon-theme-btn' + (state.theme === t.id ? ' is-active' : '') + (unlocked ? '' : ' is-locked');
+      btn.className = 'tycoon-theme-btn' + (room.theme === t.id ? ' is-active' : '') + (unlocked ? '' : ' is-locked');
       btn.textContent = unlocked ? t.name : t.name + ' 🔒 $' + formatNum(t.unlockAt);
       btn.disabled = !unlocked;
       btn.addEventListener('click', () => {
-        state.theme = t.id;
+        activeRoom().theme = t.id;
         renderScene();
         refreshThemeRow();
         save();
       });
       themeRowEl.appendChild(btn);
     });
+  }
+
+  // ---- Room switcher: which physical room's floor you're viewing/editing.
+  // Gains/sec always adds up across every unlocked room, whichever you're
+  // looking at -- switching rooms is just about where you place gear next.
+  const roomTabsEl = document.getElementById('room-tabs');
+  function refreshRoomTabs() {
+    if (!roomTabsEl) return;
+    roomTabsEl.innerHTML = '';
+    state.rooms.forEach((room, i) => {
+      const placed = room.layout.filter(Boolean).length;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tycoon-room-tab' + (state.activeRoom === i ? ' is-active' : '');
+      btn.textContent = 'Room ' + (i + 1) + ' (' + placed + '/' + SLOT_COUNT + ')';
+      btn.addEventListener('click', () => {
+        if (state.activeRoom === i) return;
+        state.activeRoom = i;
+        renderScene();
+        renderInventory();
+        refreshThemeRow();
+        refreshSynergyText();
+        refreshRoomTabs();
+        save();
+      });
+      roomTabsEl.appendChild(btn);
+    });
+
+    if (state.rooms.length < MAX_ROOMS) {
+      const cost = ROOM_UNLOCK_COSTS[state.rooms.length];
+      const affordable = state.balance >= cost;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tycoon-room-tab tycoon-room-add' + (affordable ? '' : ' is-locked');
+      btn.textContent = '+ Add Room — $' + formatNum(cost);
+      btn.disabled = !affordable;
+      btn.addEventListener('click', () => {
+        if (state.balance < cost) return;
+        state.balance -= cost;
+        state.rooms.push(emptyRoom('garage'));
+        state.activeRoom = state.rooms.length - 1;
+        refreshHud();
+        refreshShopUI();
+        renderScene();
+        renderInventory();
+        refreshThemeRow();
+        refreshSynergyText();
+        refreshRoomTabs();
+        save();
+      });
+      roomTabsEl.appendChild(btn);
+    }
   }
 
   // ---- Lift button ----
@@ -1117,6 +1266,7 @@
     renderScene();
     renderInventory();
     refreshThemeRow();
+    refreshRoomTabs();
     save();
   });
 
@@ -1128,6 +1278,7 @@
   renderScene();
   renderInventory();
   refreshThemeRow();
+  refreshRoomTabs();
 
   setInterval(() => {
     state.balance += gps / (1000 / TICK_MS);
@@ -1135,6 +1286,7 @@
     refreshHud();
     refreshShopUI();
     refreshThemeRow();
+    refreshRoomTabs();
   }, TICK_MS);
 
   setInterval(() => {

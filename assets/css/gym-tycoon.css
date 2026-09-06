@@ -23,6 +23,7 @@
    zoom the page, even with the viewport's user-scalable=no as a first
    line of defense -- this is the per-element belt-and-suspenders fix. */
 .tycoon-theme-btn,
+.tycoon-room-tab,
 #tycoon-floor,
 .tycoon-inv-item,
 .shop-buy-btn,
@@ -30,6 +31,43 @@
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* ---- Room switcher: which physical room you're viewing/editing ---- */
+.tycoon-room-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 auto 10px;
+}
+.tycoon-room-tab {
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 12px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+}
+.tycoon-room-tab:hover { color: var(--text); border-color: var(--blue); }
+.tycoon-room-tab.is-active {
+  background: var(--blue);
+  color: #001318;
+  border-color: #000;
+}
+.tycoon-room-tab.tycoon-room-add {
+  border-style: dashed;
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.tycoon-room-tab.tycoon-room-add:hover { color: var(--text); }
+.tycoon-room-tab.is-locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-style: dashed;
 }
 
 /* ---- Room theme selector ---- */
@@ -175,6 +213,7 @@
   gap: 6px;
 }
 .shop-item.is-affordable { border-color: var(--amber); }
+.shop-item.is-locked { opacity: 0.5; }
 .shop-item-head {
   display: flex;
   align-items: center;
