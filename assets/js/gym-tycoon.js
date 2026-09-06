@@ -5,7 +5,6 @@
   const SAVE_KEY = 'gymTycoonSave';
   const COST_GROWTH = 1.15;
   const OFFLINE_CAP_SECONDS = 8 * 3600;
-  const SLOT_COUNT = 12;
   const TICK_MS = 100;
 
   const ITEMS = [
@@ -61,11 +60,111 @@
     { id: 'rooftop', name: 'Rooftop', unlockAt: 50000 },
   ];
 
-  // Grid the room is laid out on. Moved up here (rather than living with the
-  // rest of the floor-designer/rendering code further down) because the
+  // Grid the rooms are laid out on. Moved up here (rather than living with
+  // the rest of the floor-designer/rendering code further down) because the
   // synergy math below needs it, and that math has to run before `load()`
   // computes the very first gps figure.
-  const ROOM = { cols: 4, rows: 3, tileW: 96, tileH: 48, wallH: 110, originX: 216, originY: 120 };
+  //
+  // The whole floor plan lives on ONE isometric lattice: every room and
+  // corridor is a rectangle of tiles on it, at absolute tile coordinates.
+  // (An earlier version parked each room in its own screen-space cell, which
+  // meant corridors between them could never line up with the tile grid and
+  // read as planks bridging a gap rather than hallways.)
+  const ROOM = { tileW: 96, tileH: 48, wallH: 110 };
+
+  // Rooms are not one bay stamped out N times: each position in a chain has
+  // its own footprint, so a plan reads as an actual building. Bigger rooms
+  // hold more gear, which is most of what the later ones are bought for.
+  const ROOM_SHAPES = [
+    { cols: 4, rows: 3 }, // 12 slots -- the starter bay
+    { cols: 5, rows: 3 }, // 15 slots -- long and wide
+    { cols: 4, rows: 4 }, // 16 slots -- square hall
+    { cols: 5, rows: 4 }, // 20 slots -- the big floor
+  ];
+
+  // Which way the plan grows at each step. Turning instead of running in one
+  // line is what folds it into the L a real floor plan makes.
+  const ROOM_DIRS = ['east', 'south', 'west'];
+  const CORRIDOR_LEN = 3; // tiles of hallway between two rooms
+  const CORRIDOR_WIDTH = 2;
+
+  function roomShapeFor(index) {
+    return ROOM_SHAPES[index % ROOM_SHAPES.length];
+  }
+  function slotCountFor(index) {
+    const s = roomShapeFor(index);
+    return s.cols * s.rows;
+  }
+
+  // Tile rectangles for a chain of `count` rooms, each butted up against the
+  // previous one with a corridor's worth of space between them and centred on
+  // the shared edge.
+  function roomPlacements(count) {
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const shape = roomShapeFor(i);
+      if (i === 0) {
+        out.push({ gx0: 0, gy0: 0, cols: shape.cols, rows: shape.rows });
+        continue;
+      }
+      const prev = out[i - 1];
+      const dir = ROOM_DIRS[(i - 1) % ROOM_DIRS.length];
+      let gx0;
+      let gy0;
+      if (dir === 'east') {
+        gx0 = prev.gx0 + prev.cols + CORRIDOR_LEN;
+        gy0 = prev.gy0 + Math.round((prev.rows - shape.rows) / 2);
+      } else if (dir === 'west') {
+        gx0 = prev.gx0 - CORRIDOR_LEN - shape.cols;
+        gy0 = prev.gy0 + Math.round((prev.rows - shape.rows) / 2);
+      } else {
+        gy0 = prev.gy0 + prev.rows + CORRIDOR_LEN;
+        gx0 = prev.gx0 + Math.round((prev.cols - shape.cols) / 2);
+      }
+      out.push({ gx0, gy0, cols: shape.cols, rows: shape.rows });
+    }
+    return out;
+  }
+
+  // The hallway tiles joining two consecutive rooms, plus which side of which
+  // room it opens through. A corridor running along +gx pierces the eastern
+  // room's back-left wall; one running along +gy pierces the southern room's
+  // back-right wall. The other end comes out of a room's open front, where
+  // there is no wall to cut a door into.
+  function corridorBetween(a, b, dir) {
+    if (dir === 'east' || dir === 'west') {
+      const left = dir === 'east' ? a : b;
+      const right = dir === 'east' ? b : a;
+      const lo = Math.max(a.gy0, b.gy0);
+      const hi = Math.min(a.gy0 + a.rows, b.gy0 + b.rows);
+      const gy0 = Math.round((lo + hi) / 2 - CORRIDOR_WIDTH / 2);
+      return {
+        gx0: left.gx0 + left.cols,
+        gy0,
+        cols: right.gx0 - (left.gx0 + left.cols),
+        rows: CORRIDOR_WIDTH,
+        doorRoom: right,
+        doorWall: 'west',
+      };
+    }
+    const top = dir === 'south' ? a : b;
+    const bottom = dir === 'south' ? b : a;
+    const lo = Math.max(a.gx0, b.gx0);
+    const hi = Math.min(a.gx0 + a.cols, b.gx0 + b.cols);
+    const gx0 = Math.round((lo + hi) / 2 - CORRIDOR_WIDTH / 2);
+    return {
+      gx0,
+      gy0: top.gy0 + top.rows,
+      cols: CORRIDOR_WIDTH,
+      rows: bottom.gy0 - (top.gy0 + top.rows),
+      doorRoom: bottom,
+      doorWall: 'north',
+    };
+  }
+
+  // Screen position of the lattice's (0,0), set by updateWorldBounds so the
+  // whole plan sits inside the canvas with a margin.
+  const worldOrigin = { x: 0, y: 0 };
 
   // Placement is no longer cosmetic: gains/sec is earned only by gear
   // actually sitting in the room (see computeGps), and equipment of the
@@ -94,14 +193,14 @@
     return ITEMS.find((i) => i.id === id);
   }
 
-  function neighborIndexes(index) {
-    const gx = index % ROOM.cols;
-    const gy = Math.floor(index / ROOM.cols);
+  function neighborIndexes(index, shape) {
+    const gx = index % shape.cols;
+    const gy = Math.floor(index / shape.cols);
     const out = [];
     if (gx > 0) out.push(index - 1);
-    if (gx < ROOM.cols - 1) out.push(index + 1);
-    if (gy > 0) out.push(index - ROOM.cols);
-    if (gy < ROOM.rows - 1) out.push(index + ROOM.cols);
+    if (gx < shape.cols - 1) out.push(index + 1);
+    if (gy > 0) out.push(index - shape.cols);
+    if (gy < shape.rows - 1) out.push(index + shape.cols);
     return out;
   }
 
@@ -109,12 +208,12 @@
   // same category, +20% for each neighboring booster (trainer/gear/hq) of
   // a *different* category. Two boosters next to each other just count as
   // a same-category match.
-  function itemSynergyMultiplier(layout, index) {
+  function itemSynergyMultiplier(layout, index, shape) {
     const itemId = layout[index];
     if (!itemId) return 1;
     const cat = CATEGORY[itemId];
     let mult = 1;
-    neighborIndexes(index).forEach((nIdx) => {
+    neighborIndexes(index, shape).forEach((nIdx) => {
       const nId = layout[nIdx];
       if (!nId) return;
       const nCat = CATEGORY[nId];
@@ -128,21 +227,23 @@
   // raw ownership -- gear sitting unplaced in inventory earns nothing.
   // Synergy is computed per-room: adjacency only matters within the same
   // grid, so equipment in different rooms never interacts.
-  function computeGps(layout) {
+  function computeGps(layout, shape) {
     let total = 0;
     layout.forEach((itemId, index) => {
       const item = itemId && itemById(itemId);
       if (!item) return;
-      total += item.gps * itemSynergyMultiplier(layout, index);
+      total += item.gps * itemSynergyMultiplier(layout, index, shape);
     });
     return total;
   }
 
   // Total across every room in every theme's chain -- gear earns
-  // regardless of which theme/room is currently in view.
+  // regardless of which theme/room is currently in view. Each room is scored
+  // against its own footprint, since that decides which slots are neighbours.
   function computeTotalGps(themeRooms) {
     return THEMES.reduce((sum, t) => (
-      sum + (themeRooms[t.id] || []).reduce((s2, room) => s2 + computeGps(room.layout), 0)
+      sum + (themeRooms[t.id] || []).reduce(
+        (s2, room, i) => s2 + computeGps(room.layout, roomShapeFor(i)), 0)
     ), 0);
   }
 
@@ -167,23 +268,27 @@
   const ROOM_UNLOCK_COSTS = [0, 10000, 500000, 25000000];
   const MAX_ROOMS_PER_THEME = ROOM_UNLOCK_COSTS.length;
 
-  function emptyGymRoom() {
-    return { layout: new Array(SLOT_COUNT).fill(null) };
+  function emptyGymRoom(index) {
+    return { layout: new Array(slotCountFor(index)).fill(null) };
   }
 
   function defaultThemeRooms() {
     const byTheme = {};
-    THEMES.forEach((t) => { byTheme[t.id] = [emptyGymRoom()]; });
+    THEMES.forEach((t) => { byTheme[t.id] = [emptyGymRoom(0)]; });
     return byTheme;
   }
 
+  // Resizes each saved room to the footprint its position now calls for.
+  // Every footprint holds at least the 12 slots rooms used to have, so a save
+  // written before rooms varied in size only ever gains slots, never drops
+  // gear off the end.
   function normalizedRoomChain(source) {
     const arr = Array.isArray(source) ? source : [];
-    const rooms = arr.slice(0, MAX_ROOMS_PER_THEME).map((r) => {
+    const rooms = arr.slice(0, MAX_ROOMS_PER_THEME).map((r, i) => {
       const old = Array.isArray(r && r.layout) ? r.layout : [];
-      return { layout: new Array(SLOT_COUNT).fill(null).map((_, i) => old[i] || null) };
+      return { layout: new Array(slotCountFor(i)).fill(null).map((_, s) => old[s] || null) };
     });
-    return rooms.length ? rooms : [emptyGymRoom()];
+    return rooms.length ? rooms : [emptyGymRoom(0)];
   }
 
   // ---- Persistence ----
@@ -236,7 +341,7 @@
       // Migrate from the original single top-level layout/theme shape.
       const theme = saved.theme || 'garage';
       const byTheme = defaultThemeRooms();
-      byTheme[theme] = [{ layout: new Array(SLOT_COUNT).fill(null).map((_, i) => saved.layout[i] || null) }];
+      byTheme[theme] = [{ layout: new Array(slotCountFor(0)).fill(null).map((_, i) => saved.layout[i] || null) }];
       s.themeRooms = byTheme;
       s.activeTheme = theme;
       s.activeRoomIndex = 0;
@@ -265,7 +370,7 @@
         for (let i = 0; i < count; i++) toPlace.push(item.id);
       });
       const firstLayout = s.themeRooms.garage[0].layout;
-      toPlace.slice(0, SLOT_COUNT).forEach((id, i) => { firstLayout[i] = id; });
+      toPlace.slice(0, firstLayout.length).forEach((id, i) => { firstLayout[i] = id; });
     }
 
     const elapsed = Math.max(0, (Date.now() - (saved.lastSaved || Date.now())) / 1000);
@@ -364,9 +469,9 @@
       const item = id && itemById(id);
       return sum + (item ? item.gps : 0);
     }, 0);
-    const roomGps = computeGps(layout);
+    const roomGps = computeGps(layout, roomShapeFor(state.activeRoomIndex));
     const bonusPct = baseSum > 0 ? Math.round((roomGps / baseSum - 1) * 100) : 0;
-    synergyEl.textContent = placed + '/' + SLOT_COUNT + ' slots filled -- base ' + formatNum(baseSum) + '/s'
+    synergyEl.textContent = placed + '/' + layout.length + ' slots filled -- base ' + formatNum(baseSum) + '/s'
       + (bonusPct > 0 ? ', +' + bonusPct + '% from arrangement synergy' : ', no synergy bonus yet')
       + ' = ' + formatNum(roomGps) + '/s from this room.';
   }
@@ -485,39 +590,48 @@
   const themeRowEl = document.getElementById('theme-row');
   let armedItemId = null;
 
-  // Every room gets its own fixed-size "cell" on one continuous canvas,
-  // laid out in a snaking 2-column grid (right, right, down, left, left,
-  // down, right, ...) and joined by connecting walkways, instead of one
-  // straight left-right row -- so a real floor plan with turns emerges as
-  // you add rooms, and you pan both horizontally and vertically to see it
-  // all rather than only side to side. LANE_W/LANE_H are the original
-  // single-room logical dimensions (every ROOM/isoPoint number below is
-  // authored against that one cell, at its own local origin) -- BASE_W/
-  // BASE_H are the full multi-room canvas dimensions, growing in whichever
-  // axis the grid needs as rooms are bought.
-  const LANE_W = floorCanvas.width;
-  const LANE_H = floorCanvas.height;
-  const GRID_COLS = 2;
-  let BASE_W = LANE_W;
-  let BASE_H = LANE_H;
+  // The plan lives on one lattice, so the canvas is however big the drawn
+  // tiles turn out to be. BASE_W/BASE_H are recomputed, and worldOrigin
+  // shifted, every time the plan changes -- a new room, or a theme whose
+  // chain is a different length.
+  let BASE_W = 480;
+  let BASE_H = 380;
+  const WORLD_PAD = 34;
+  let placements = [];
+  let corridors = [];
 
-  function roomGridPos(i) {
-    const row = Math.floor(i / GRID_COLS);
-    const colInRow = i % GRID_COLS;
-    const col = row % 2 === 0 ? colInRow : GRID_COLS - 1 - colInRow;
-    return { col, row };
-  }
+  function rebuildPlan() {
+    const count = activeRooms().length;
+    placements = roomPlacements(count);
+    corridors = [];
+    for (let i = 0; i < count - 1; i++) {
+      const dir = ROOM_DIRS[i % ROOM_DIRS.length];
+      corridors.push(corridorBetween(placements[i], placements[i + 1], dir));
+    }
 
-  function updateWorldWidth() {
-    let maxCol = 0;
-    let maxRow = 0;
-    activeRooms().forEach((_, i) => {
-      const pos = roomGridPos(i);
-      maxCol = Math.max(maxCol, pos.col);
-      maxRow = Math.max(maxRow, pos.row);
+    let minGx = Infinity;
+    let maxGx = -Infinity;
+    let minGy = Infinity;
+    let maxGy = -Infinity;
+    placements.concat(corridors).forEach((r) => {
+      minGx = Math.min(minGx, r.gx0);
+      maxGx = Math.max(maxGx, r.gx0 + r.cols);
+      minGy = Math.min(minGy, r.gy0);
+      maxGy = Math.max(maxGy, r.gy0 + r.rows);
     });
-    BASE_W = LANE_W * (maxCol + 1);
-    BASE_H = LANE_H * (maxRow + 1);
+
+    const halfW = ROOM.tileW / 2;
+    const halfH = ROOM.tileH / 2;
+    // Screen extremes of the lattice: widest points are the west and east
+    // corners; the top is a wall's height above the back corner.
+    const xMin = (minGx - maxGy) * halfW - WORLD_PAD;
+    const xMax = (maxGx - minGy) * halfW + WORLD_PAD;
+    const yMin = (minGx + minGy) * halfH - ROOM.wallH - WORLD_PAD;
+    const yMax = (maxGx + maxGy) * halfH + WORLD_PAD;
+    worldOrigin.x = -xMin;
+    worldOrigin.y = -yMin;
+    BASE_W = Math.round(xMax - xMin);
+    BASE_H = Math.round(yMax - yMin);
   }
 
   // Pan is native container scrolling (or the click-and-drag/touch-swipe
@@ -569,9 +683,11 @@
 
   function scrollToRoom(index) {
     if (!stageScrollEl) return;
-    const pos = roomGridPos(index);
-    const centerX = (pos.col + 0.5) * LANE_W * zoomLevel;
-    const centerY = (pos.row + 0.5) * LANE_H * zoomLevel;
+    const place = placements[index];
+    if (!place) return;
+    const mid = cellCenter(place.gx0 + place.cols / 2 - 0.5, place.gy0 + place.rows / 2 - 0.5);
+    const centerX = mid.x * zoomLevel;
+    const centerY = mid.y * zoomLevel;
     stageScrollEl.scrollTo({
       left: Math.max(0, centerX - stageScrollEl.clientWidth / 2),
       top: Math.max(0, centerY - stageScrollEl.clientHeight / 2),
@@ -615,19 +731,25 @@
     return (state.owned[itemId] || 0) - placedCount(itemId);
   }
 
+  // Tile coordinates are absolute across the whole plan, so one origin serves
+  // every room.
   function isoPoint(gx, gy) {
     return {
-      x: ROOM.originX + (gx - gy) * (ROOM.tileW / 2),
-      y: ROOM.originY + (gx + gy) * (ROOM.tileH / 2),
+      x: worldOrigin.x + (gx - gy) * (ROOM.tileW / 2),
+      y: worldOrigin.y + (gx + gy) * (ROOM.tileH / 2),
     };
   }
   function cellCenter(gx, gy) {
     return isoPoint(gx + 0.5, gy + 0.5);
   }
-  function allCellsBackToFront() {
+  // A room's tiles, furthest-back first, so nearer gear paints over what is
+  // behind it.
+  function cellsBackToFront(place) {
     const cells = [];
-    for (let gy = 0; gy < ROOM.rows; gy++) {
-      for (let gx = 0; gx < ROOM.cols; gx++) cells.push({ gx, gy });
+    for (let ry = 0; ry < place.rows; ry++) {
+      for (let rx = 0; rx < place.cols; rx++) {
+        cells.push({ rx, ry, gx: place.gx0 + rx, gy: place.gy0 + ry });
+      }
     }
     cells.sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));
     return cells;
@@ -1047,6 +1169,11 @@
   // the walls, so the walls correctly cover whatever part would fall
   // behind them.
   function drawBackdrop(theme, W, H) {
+    // The scenery below was composed against a single 480x340 room. The
+    // canvas is now as big as the whole floor plan, so vertical positions
+    // scale with it -- otherwise the props bunch up along the top edge and
+    // float in dead space away from any room.
+    const sy = H / 340;
     if (theme === 'rooftop') {
       const sunX = W - 68;
       const sunY = 54;
@@ -1063,13 +1190,13 @@
       floorCtx.fill();
 
       floorCtx.fillStyle = 'rgba(255,255,255,0.32)';
-      [[46, 38, 22], [118, 64, 15], [W - 140, 88, 17]].forEach(([cx, cy, r]) => {
+      [[46, 38 * sy, 22], [118, 64 * sy, 15], [W - 140, 88 * sy, 17]].forEach(([cx, cy, r]) => {
         floorCtx.beginPath();
         floorCtx.ellipse(cx, cy, r * 1.6, r * 0.65, 0, 0, Math.PI * 2);
         floorCtx.fill();
       });
 
-      const skylineY = 300;
+      const skylineY = 300 * sy;
       const buildings = [
         { x: 0, w: 26, h: 120 }, { x: 24, w: 20, h: 82 }, { x: 42, w: 30, h: 152 },
         { x: W - 30, w: 30, h: 132 }, { x: W - 55, w: 22, h: 92 }, { x: W - 78, w: 24, h: 162 },
@@ -1088,14 +1215,14 @@
       floorCtx.strokeStyle = shade(THEME_COLORS.garage.bg, 40);
       floorCtx.lineWidth = 4;
       floorCtx.lineCap = 'round';
-      [[0, 26], [0, 88], [W, 26], [W, 88]].forEach(([x, y]) => {
+      [[0, 26 * sy], [0, 88 * sy], [W, 26 * sy], [W, 88 * sy]].forEach(([x, y]) => {
         floorCtx.beginPath();
         floorCtx.moveTo(x, y);
-        floorCtx.lineTo(ROOM.originX, -8);
+        floorCtx.lineTo(W / 2, -8);
         floorCtx.stroke();
       });
 
-      [[32, 256, 24], [32, 212, 20]].forEach(([x, y, r]) => {
+      [[32, 256 * sy, 24], [32, 212 * sy, 20]].forEach(([x, y, r]) => {
         floorCtx.beginPath();
         floorCtx.arc(x, y, r, 0, Math.PI * 2);
         floorCtx.fillStyle = '#100f0d';
@@ -1109,16 +1236,16 @@
         floorCtx.fill();
       });
 
-      [150, 190, 230].forEach((y) => {
+      [150 * sy, 190 * sy, 230 * sy].forEach((y) => {
         floorCtx.fillStyle = 'rgba(0,0,0,0.4)';
         floorCtx.fillRect(W - 48, y, 32, 6);
         floorCtx.fillStyle = 'rgba(255,255,255,0.08)';
         floorCtx.fillRect(W - 48, y, 32, 1.5);
       });
       floorCtx.fillStyle = '#c0483a';
-      floorCtx.fillRect(W - 40, 160, 10, 24);
+      floorCtx.fillRect(W - 40, 160 * sy, 10, 24);
       floorCtx.fillStyle = '#3fa8a0';
-      floorCtx.fillRect(W - 26, 200, 8, 26);
+      floorCtx.fillRect(W - 26, 200 * sy, 8, 26);
     } else if (theme === 'basement') {
       floorCtx.strokeStyle = '#3a4650';
       floorCtx.lineWidth = 5;
@@ -1137,14 +1264,14 @@
       [28, W - 28].forEach((x) => {
         floorCtx.beginPath();
         floorCtx.moveTo(x, 20);
-        floorCtx.lineTo(x, 262);
+        floorCtx.lineTo(x, 262 * sy);
         floorCtx.stroke();
       });
       floorCtx.fillStyle = 'rgba(180,210,230,0.14)';
       floorCtx.beginPath();
-      floorCtx.moveTo(30, 100);
-      floorCtx.lineTo(90, 260);
-      floorCtx.lineTo(30, 260);
+      floorCtx.moveTo(30, 100 * sy);
+      floorCtx.lineTo(90, 260 * sy);
+      floorCtx.lineTo(30, 260 * sy);
       floorCtx.closePath();
       floorCtx.fill();
     }
@@ -1159,6 +1286,160 @@
       x: fromP.x + (toP.x - fromP.x) * t,
       y: fromP.y + (toP.y - fromP.y) * t - hFrac * ROOM.wallH,
     };
+  }
+
+  // A flat panel lying on a wall plane, corners given as fractions along the
+  // wall (t) and up it (h) -- so it skews with the wall instead of sitting on
+  // it as an unconvincing screen-aligned rectangle.
+  function wallQuad(from, to, t0, t1, h0, h1) {
+    return [
+      wallPoint(from, to, t0, h0),
+      wallPoint(from, to, t1, h0),
+      wallPoint(from, to, t1, h1),
+      wallPoint(from, to, t0, h1),
+    ];
+  }
+
+  function paintQuad(pts, fill, stroke, lineWidth) {
+    floorCtx.beginPath();
+    floorCtx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) floorCtx.lineTo(pts[i].x, pts[i].y);
+    floorCtx.closePath();
+    if (fill) {
+      floorCtx.fillStyle = fill;
+      floorCtx.fill();
+    }
+    if (stroke) {
+      floorCtx.strokeStyle = stroke;
+      floorCtx.lineWidth = lineWidth || 1.2;
+      floorCtx.stroke();
+    }
+  }
+
+  // ---- Per-room fit-out ----
+  // Two rooms of the same theme would otherwise be the same box twice over.
+  // Each position in a chain gets its own lighting rig and its own set of
+  // wall fittings on top of whatever the theme itself puts up.
+  const ROOM_FITS = [
+    { lighting: 'bulb', decor: [] },
+    { lighting: 'strip', decor: ['shelf', 'vent'] },
+    { lighting: 'strip', decor: ['clock'] },
+    { lighting: 'bulb', decor: ['shelf', 'clock', 'vent'] },
+  ];
+  function roomFitFor(index) {
+    return ROOM_FITS[index % ROOM_FITS.length];
+  }
+
+  // A lit rail running the length of both walls, downlights washing the wall
+  // beneath each lamp -- the alternative to the single hanging bulb.
+  function drawCeilingStrip(north, east, west, light) {
+    const bulbColor = light.bulb || '#eaf7ff';
+    [[north, east], [north, west]].forEach(([from, to]) => {
+      const railA = wallPoint(from, to, 0.05, 0.92);
+      const railB = wallPoint(from, to, 0.95, 0.92);
+      floorCtx.beginPath();
+      floorCtx.moveTo(railA.x, railA.y);
+      floorCtx.lineTo(railB.x, railB.y);
+      floorCtx.strokeStyle = 'rgba(198, 214, 228, 0.28)';
+      floorCtx.lineWidth = 2.5;
+      floorCtx.stroke();
+
+      const lamps = 3;
+      for (let i = 0; i < lamps; i++) {
+        const t = 0.2 + (i * 0.6) / (lamps - 1);
+        const lamp = wallPoint(from, to, t, 0.9);
+
+        // Wash of light down the wall below the lamp.
+        const spread = 0.11;
+        const cone = wallQuad(from, to, t - spread * 0.45, t + spread * 0.45, 0.9, 0.08);
+        const wide = [
+          cone[0],
+          cone[1],
+          wallPoint(from, to, t + spread, 0.08),
+          wallPoint(from, to, t - spread, 0.08),
+        ];
+        const grad = floorCtx.createLinearGradient(lamp.x, lamp.y, lamp.x, wide[2].y);
+        grad.addColorStop(0, hexA(bulbColor, 0.28));
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        floorCtx.save();
+        floorCtx.globalCompositeOperation = 'lighter';
+        paintQuad(wide, grad, null);
+        floorCtx.restore();
+
+        floorCtx.beginPath();
+        floorCtx.ellipse(lamp.x, lamp.y, 5, 3.4, 0, 0, Math.PI * 2);
+        floorCtx.fillStyle = bulbColor;
+        floorCtx.shadowColor = bulbColor;
+        floorCtx.shadowBlur = 9;
+        floorCtx.fill();
+        floorCtx.shadowBlur = 0;
+      }
+    });
+  }
+
+  // Wall fittings placed by roomFitFor. Each takes a wall (as its two floor
+  // corners) so it can be hung on whichever side has room for it.
+  const WALL_FITTINGS = {
+    // Bracketed shelving with a few boxes on it, like a stockroom rack.
+    shelf(from, to, t) {
+      const w = 0.13;
+      [0.62, 0.42].forEach((h) => {
+        paintQuad(wallQuad(from, to, t - w, t + w, h, h - 0.045), '#4a4f5c', 'rgba(0,0,0,0.5)');
+        paintQuad(wallQuad(from, to, t - w, t + w, h - 0.045, h - 0.06), '#31353f', null);
+      });
+      // Uprights.
+      [t - w, t + w].forEach((tt) => {
+        paintQuad(wallQuad(from, to, tt - 0.012, tt + 0.012, 0.64, 0.36), '#3c414c', 'rgba(0,0,0,0.45)');
+      });
+      // Boxes sitting on the top shelf.
+      paintQuad(wallQuad(from, to, t - 0.09, t - 0.02, 0.72, 0.62), '#7d6a4f', 'rgba(0,0,0,0.5)');
+      paintQuad(wallQuad(from, to, t + 0.01, t + 0.08, 0.69, 0.62), '#6d5b45', 'rgba(0,0,0,0.5)');
+    },
+    // Extractor grille.
+    vent(from, to, t) {
+      const w = 0.07;
+      paintQuad(wallQuad(from, to, t - w, t + w, 0.78, 0.62), '#2b2f36', 'rgba(0,0,0,0.55)');
+      for (let i = 0; i < 4; i++) {
+        const h = 0.755 - i * 0.038;
+        paintQuad(wallQuad(from, to, t - w * 0.8, t + w * 0.8, h, h - 0.016), 'rgba(255,255,255,0.10)', null);
+      }
+    },
+    // Gym clock -- squashed along the wall so it reads as flat against it.
+    clock(from, to, t) {
+      const c = wallPoint(from, to, t, 0.66);
+      const edge = wallPoint(from, to, t + 0.05, 0.66);
+      const rx = Math.max(7, Math.abs(edge.x - c.x));
+      floorCtx.beginPath();
+      floorCtx.ellipse(c.x, c.y, rx, 11, 0, 0, Math.PI * 2);
+      floorCtx.fillStyle = '#e8e4d8';
+      floorCtx.fill();
+      floorCtx.strokeStyle = '#1b1a17';
+      floorCtx.lineWidth = 1.6;
+      floorCtx.stroke();
+      floorCtx.beginPath();
+      floorCtx.moveTo(c.x, c.y);
+      floorCtx.lineTo(c.x + rx * 0.1, c.y - 6);
+      floorCtx.moveTo(c.x, c.y);
+      floorCtx.lineTo(c.x + rx * 0.55, c.y + 2);
+      floorCtx.strokeStyle = '#1b1a17';
+      floorCtx.lineWidth = 1.4;
+      floorCtx.stroke();
+    },
+  };
+
+  function drawRoomFittings(fit, north, east, west) {
+    // Spread the pieces across both walls so nothing stacks on the theme's
+    // own decor, which always sits mid-wall.
+    const slots = [
+      { wall: [north, east], t: 0.24 },
+      { wall: [north, west], t: 0.76 },
+      { wall: [north, east], t: 0.84 },
+    ];
+    fit.decor.forEach((name, i) => {
+      const draw = WALL_FITTINGS[name];
+      const slot = slots[i % slots.length];
+      if (draw) draw(slot.wall[0], slot.wall[1], slot.t);
+    });
   }
 
   function drawWallDecor(theme, north, east, west) {
@@ -1233,62 +1514,164 @@
     }
   }
 
-  // A glowing beam + chevron marking where one room's walkway joins the
-  // next, drawn in flat world coordinates after every room lane -- a
-  // stylized "there's a doorway here" cue rather than a literal cutout in
-  // the isometric wall geometry.
-  function drawHorizontalConnector(rowBaseY, seamX, dir) {
-    const beam = floorCtx.createLinearGradient(seamX - 10, 0, seamX + 10, 0);
-    beam.addColorStop(0, 'rgba(255, 214, 120, 0)');
-    beam.addColorStop(0.5, 'rgba(255, 214, 120, 0.5)');
-    beam.addColorStop(1, 'rgba(255, 214, 120, 0)');
-    floorCtx.fillStyle = beam;
-    floorCtx.fillRect(seamX - 10, rowBaseY + LANE_H * 0.12, 20, LANE_H * 0.82);
+  // ---- Corridors between rooms ----
+  // Rooms are joined by an actual short corridor with a lit doorframe at
+  // each end, rather than a glowing marker floated over the seam -- that
+  // join is what makes a plan read as one building instead of rooms parked
+  // next to each other.
 
-    const cy = rowBaseY + LANE_H * 0.5;
-    floorCtx.beginPath();
-    if (dir > 0) {
-      floorCtx.moveTo(seamX - 6, cy - 8);
-      floorCtx.lineTo(seamX + 6, cy);
-      floorCtx.lineTo(seamX - 6, cy + 8);
-    } else {
-      floorCtx.moveTo(seamX + 6, cy - 8);
-      floorCtx.lineTo(seamX - 6, cy);
-      floorCtx.lineTo(seamX + 6, cy + 8);
-    }
-    floorCtx.strokeStyle = 'rgba(255, 236, 190, 0.9)';
-    floorCtx.lineWidth = 2;
-    floorCtx.lineJoin = 'round';
-    floorCtx.stroke();
+  // ---- Corridors ----
+  // A hallway is built the same way a room is: real tiles on the shared
+  // lattice, a wall with visible thickness down its back edge, and a pale
+  // door casing standing at each end where it meets a room.
+
+  function lerpPt(a, b, t) {
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+  }
+  function liftPt(p, h) {
+    return { x: p.x, y: p.y - h };
   }
 
-  function drawVerticalConnector(colBaseX, seamY, dir) {
-    const beam = floorCtx.createLinearGradient(0, seamY - 10, 0, seamY + 10);
-    beam.addColorStop(0, 'rgba(255, 214, 120, 0)');
-    beam.addColorStop(0.5, 'rgba(255, 214, 120, 0.5)');
-    beam.addColorStop(1, 'rgba(255, 214, 120, 0)');
-    floorCtx.fillStyle = beam;
-    floorCtx.fillRect(colBaseX + LANE_W * 0.12, seamY - 10, LANE_W * 0.82, 20);
+  function tileIsFloor(gx, gy) {
+    const inside = (r) => gx >= r.gx0 && gx < r.gx0 + r.cols && gy >= r.gy0 && gy < r.gy0 + r.rows;
+    return placements.some(inside) || corridors.some(inside);
+  }
 
-    const cx = colBaseX + LANE_W * 0.5;
-    floorCtx.beginPath();
-    if (dir > 0) {
-      floorCtx.moveTo(cx - 8, seamY - 6);
-      floorCtx.lineTo(cx, seamY + 6);
-      floorCtx.lineTo(cx + 8, seamY - 6);
-    } else {
-      floorCtx.moveTo(cx - 8, seamY + 6);
-      floorCtx.lineTo(cx, seamY - 6);
-      floorCtx.lineTo(cx + 8, seamY + 6);
+  // The lip under a floor plate's two front edges. Without it every space
+  // runs into the next as one flat sheet; with it each room and hallway
+  // reads as a slab of its own, which is most of what separates them.
+  // Edges that a hallway continues through are skipped, so the floor stays
+  // unbroken where you can actually walk between two spaces.
+  function drawSlabEdges(rect, colors) {
+    const h = 15;
+    const right = shade(colors.floorB, -40);
+    const left = shade(colors.floorB, -26);
+    const outline = 'rgba(0,0,0,0.55)';
+    const drop = (a, b, fill) => paintQuad(
+      [a, b, { x: b.x, y: b.y + h }, { x: a.x, y: a.y + h }], fill, outline, 1,
+    );
+
+    const gxEdge = rect.gx0 + rect.cols;
+    for (let gy = rect.gy0; gy < rect.gy0 + rect.rows; gy++) {
+      if (tileIsFloor(gxEdge, gy)) continue;
+      drop(isoPoint(gxEdge, gy), isoPoint(gxEdge, gy + 1), right);
     }
-    floorCtx.strokeStyle = 'rgba(255, 236, 190, 0.9)';
-    floorCtx.lineWidth = 2;
-    floorCtx.lineJoin = 'round';
-    floorCtx.stroke();
+
+    const gyEdge = rect.gy0 + rect.rows;
+    for (let gx = rect.gx0; gx < rect.gx0 + rect.cols; gx++) {
+      if (tileIsFloor(gx, gyEdge)) continue;
+      drop(isoPoint(gx, gyEdge), isoPoint(gx + 1, gyEdge), left);
+    }
+  }
+
+  // Wall running from floor point a to floor point b, `h` tall, with its top
+  // face drawn as a slab `depth` deep -- that top face is what reads as
+  // thickness rather than a paper-thin plane.
+  function drawThickWall(a, b, h, depth, colors) {
+    const face = [a, b, liftPt(b, h), liftPt(a, h)];
+    const grad = floorCtx.createLinearGradient(0, a.y - h, 0, a.y);
+    grad.addColorStop(0, shade(colors.wallL, 16));
+    grad.addColorStop(1, shade(colors.wallL, -12));
+    paintQuad(face, grad, 'rgba(0,0,0,0.45)', 1);
+
+    const top = [
+      liftPt(a, h),
+      liftPt(b, h),
+      { x: b.x + depth.x, y: b.y + depth.y - h },
+      { x: a.x + depth.x, y: a.y + depth.y - h },
+    ];
+    paintQuad(top, shade(colors.wallL, 62), 'rgba(0,0,0,0.4)', 1);
+  }
+
+  // The two floor corners spanning a corridor's end, in the order that keeps
+  // the frame facing the viewer.
+  function corridorEnd(c, far) {
+    const along = c.cols > c.rows;
+    if (along) {
+      const gx = far ? c.gx0 + c.cols : c.gx0;
+      return [isoPoint(gx, c.gy0), isoPoint(gx, c.gy0 + c.rows)];
+    }
+    const gy = far ? c.gy0 + c.rows : c.gy0;
+    return [isoPoint(c.gx0, gy), isoPoint(c.gx0 + c.cols, gy)];
+  }
+
+  function drawCorridorShell(c, colors) {
+    for (let ry = 0; ry < c.rows; ry++) {
+      for (let rx = 0; rx < c.cols; rx++) {
+        const gx = c.gx0 + rx;
+        const gy = c.gy0 + ry;
+        const tile = (gx + gy) % 2 === 0 ? colors.floorA : colors.floorB;
+        paintQuad([
+          isoPoint(gx, gy), isoPoint(gx + 1, gy),
+          isoPoint(gx + 1, gy + 1), isoPoint(gx, gy + 1),
+        ], shade(tile, -8), 'rgba(0,0,0,0.28)', 1);
+      }
+    }
+
+    drawSlabEdges(c, colors);
+
+    const along = c.cols > c.rows;
+    const h = ROOM.wallH * 0.82;
+    if (along) {
+      // Running east: the back edge is the gy0 side; thickness pushes away
+      // from the viewer, up and to the right.
+      drawThickWall(
+        isoPoint(c.gx0, c.gy0), isoPoint(c.gx0 + c.cols, c.gy0),
+        h, { x: ROOM.tileW * 0.16, y: -ROOM.tileH * 0.16 }, colors,
+      );
+    } else {
+      // Running south: the back edge is the gx0 side, thickness up-left.
+      drawThickWall(
+        isoPoint(c.gx0, c.gy0), isoPoint(c.gx0, c.gy0 + c.rows),
+        h, { x: -ROOM.tileW * 0.16, y: -ROOM.tileH * 0.16 }, colors,
+      );
+    }
+  }
+
+  // A pale casing standing across the corridor mouth: two jambs and a lintel
+  // around an unlit opening. Drawn as a frame rather than a filled slab so
+  // the doorway reads as something you look through, not a black panel.
+  function drawCorridorDoor(p0, p1, colors) {
+    const h = ROOM.wallH * 0.56;
+    // Narrow it to the middle of the hallway -- a door, not the whole end
+    // wall gone missing.
+    const a = lerpPt(p0, p1, 0.18);
+    const b = lerpPt(p0, p1, 0.82);
+    const casing = shade(colors.wallL, 112);
+    const edge = 'rgba(0,0,0,0.5)';
+    const jamb = 0.12;
+    const lintel = 10;
+
+    // Dim depth behind the opening -- shadowed, not a void.
+    const depth = floorCtx.createLinearGradient(0, a.y - h, 0, a.y);
+    depth.addColorStop(0, shade(colors.wallR, -14));
+    depth.addColorStop(1, shade(colors.floorB, -24));
+    paintQuad([a, b, liftPt(b, h), liftPt(a, h)], depth, null);
+
+    const aj = lerpPt(a, b, jamb);
+    const bj = lerpPt(a, b, 1 - jamb);
+    paintQuad([a, aj, liftPt(aj, h), liftPt(a, h)], casing, edge, 1.2);
+    paintQuad([bj, b, liftPt(b, h), liftPt(bj, h)], casing, edge, 1.2);
+    paintQuad(
+      [liftPt(a, h - lintel), liftPt(b, h - lintel), liftPt(b, h), liftPt(a, h)],
+      casing, edge, 1.2,
+    );
+  }
+
+  // Only one end of a hallway meets a wall. Rooms are open at the front and
+  // walled at the back, so a corridor running away from a room leaves through
+  // its open side (nothing to frame) and arrives through the far room's back
+  // wall (which is where the casing belongs). A frame at the open end would
+  // be a door standing in mid-air.
+  function drawCorridorDoors(c, colors) {
+    const near = corridorEnd(c, false);
+    const far = corridorEnd(c, true);
+    drawCorridorDoor(near[0], near[1], colors);
+    drawCorridorDoor(far[0], far[1], colors);
   }
 
   function renderScene() {
-    updateWorldWidth();
+    rebuildPlan();
     fitZoomToStage();
     fitCanvasResolution();
     applyStageSizing();
@@ -1303,31 +1686,23 @@
     bgGrad.addColorStop(1, colors.bg);
     floorCtx.fillStyle = bgGrad;
     floorCtx.fillRect(0, 0, W, H);
+    drawBackdrop(state.activeTheme, W, H);
 
+    // Hallways go down first: a room drawn after will correctly cover the end
+    // that runs behind its wall, leaving only the doorway showing.
+    corridors.forEach((c) => drawCorridorShell(c, colors));
+
+    // Rooms back-to-front, so a nearer room's walls overlap what is behind it
+    // rather than the draw order fighting the projection.
     const rooms = activeRooms();
-    rooms.forEach((room, i) => {
-      const pos = roomGridPos(i);
-      floorCtx.save();
-      floorCtx.translate(pos.col * LANE_W, pos.row * LANE_H);
-      drawRoomLane(room.layout, colors, light);
-      floorCtx.restore();
-    });
+    rooms
+      .map((room, i) => ({ room, i }))
+      .sort((a, b) => (placements[a.i].gx0 + placements[a.i].gy0) - (placements[b.i].gx0 + placements[b.i].gy0))
+      .forEach(({ room, i }) => drawRoom(room.layout, colors, light, i));
 
-    if (rooms.length > 1) {
-      floorCtx.save();
-      for (let i = 0; i < rooms.length - 1; i++) {
-        const a = roomGridPos(i);
-        const b = roomGridPos(i + 1);
-        if (a.row === b.row) {
-          const seamX = (Math.min(a.col, b.col) + 1) * LANE_W;
-          drawHorizontalConnector(a.row * LANE_H, seamX, b.col > a.col ? 1 : -1);
-        } else {
-          const seamY = (Math.min(a.row, b.row) + 1) * LANE_H;
-          drawVerticalConnector(a.col * LANE_W, seamY, b.row > a.row ? 1 : -1);
-        }
-      }
-      floorCtx.restore();
-    }
+    // Door casings go on last so they read as standing in the wall the room
+    // just painted over the hallway's end, rather than behind it.
+    corridors.forEach((c) => drawCorridorDoors(c, colors));
 
     const vignette = floorCtx.createRadialGradient(W / 2, H * 0.42, H * 0.25, W / 2, H * 0.42, H * 0.72);
     vignette.addColorStop(0, 'rgba(0,0,0,0)');
@@ -1336,13 +1711,14 @@
     floorCtx.fillRect(0, 0, W, H);
   }
 
-  function drawRoomLane(layout, colors, light) {
+  function drawRoom(layout, colors, light, roomIndex) {
     const theme = state.activeTheme;
-    drawBackdrop(theme, LANE_W, LANE_H);
+    const place = placements[roomIndex];
+    const shape = { cols: place.cols, rows: place.rows };
 
-    const north = isoPoint(0, 0);
-    const east = isoPoint(ROOM.cols, 0);
-    const west = isoPoint(0, ROOM.rows);
+    const north = isoPoint(place.gx0, place.gy0);
+    const east = isoPoint(place.gx0 + place.cols, place.gy0);
+    const west = isoPoint(place.gx0, place.gy0 + place.rows);
 
     const wallRGrad = floorCtx.createLinearGradient(0, north.y - ROOM.wallH, 0, north.y);
     wallRGrad.addColorStop(0, shade(colors.wallR, 14));
@@ -1371,8 +1747,9 @@
     drawBaseboard(east, north);
     drawBaseboard(north, west);
     drawWallDecor(theme, north, east, west);
+    drawRoomFittings(roomFitFor(roomIndex), north, east, west);
 
-    const cells = allCellsBackToFront();
+    const cells = cellsBackToFront(place);
 
     cells.forEach(({ gx, gy }) => {
       const p0 = isoPoint(gx, gy);
@@ -1416,23 +1793,28 @@
       floorCtx.stroke();
     });
 
-    const roomCenterFloor = isoPoint(ROOM.cols / 2, ROOM.rows / 2);
-    const lampAnchor = { x: roomCenterFloor.x, y: roomCenterFloor.y - ROOM.wallH + 6 };
-    drawLightPool(roomCenterFloor, light.glow);
-    // Drawn before the props loop below, not after -- otherwise the bulb
-    // would float on top of tall gear placed in the center-ish slots
-    // instead of being hidden behind it like a real ceiling fixture.
-    drawLampFixture(lampAnchor, light);
+    drawSlabEdges(place, colors);
 
-    cells.forEach(({ gx, gy }) => {
-      const index = gy * ROOM.cols + gx;
+    const roomCenterFloor = isoPoint(place.gx0 + shape.cols / 2, place.gy0 + shape.rows / 2);
+    drawLightPool(roomCenterFloor, light.glow);
+    // Drawn before the props loop below, not after -- otherwise a fixture
+    // would float on top of tall gear placed in the center-ish slots
+    // instead of being hidden behind it like real ceiling hardware.
+    if (roomFitFor(roomIndex).lighting === 'strip') {
+      drawCeilingStrip(north, east, west, light);
+    } else {
+      drawLampFixture({ x: roomCenterFloor.x, y: roomCenterFloor.y - ROOM.wallH + 6 }, light);
+    }
+
+    cells.forEach(({ gx, gy, rx, ry }) => {
+      const index = ry * shape.cols + rx;
       const itemId = layout[index];
       if (!itemId) return;
       const item = itemById(itemId);
       if (!item) return;
       const c = cellCenter(gx, gy);
       const catColor = CATEGORY_META[CATEGORY[itemId]].color;
-      const mult = itemSynergyMultiplier(layout, index);
+      const mult = itemSynergyMultiplier(layout, index, shape);
 
       // A glowing ring means this piece is currently getting a synergy
       // bonus from its neighbors -- direct visual payoff for arrangement.
@@ -1490,73 +1872,148 @@
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   }
 
+  // Every room is on the one lattice, so a click resolves to a single tile
+  // and then to whichever room's rectangle contains it -- no per-room origin
+  // to unwind first.
   function gridCellFromPoint(px, py) {
-    const colClicked = Math.floor(px / LANE_W);
-    const rowClicked = Math.floor(py / LANE_H);
-    const rooms = activeRooms();
-    let laneIndex = -1;
-    for (let i = 0; i < rooms.length; i++) {
-      const pos = roomGridPos(i);
-      if (pos.col === colClicked && pos.row === rowClicked) { laneIndex = i; break; }
-    }
-    if (laneIndex === -1) return null;
-
-    const localPx = px - colClicked * LANE_W;
-    const localPy = py - rowClicked * LANE_H;
-    const dx = localPx - ROOM.originX;
-    const dy = localPy - ROOM.originY;
+    const dx = px - worldOrigin.x;
+    const dy = py - worldOrigin.y;
     const a = dx / (ROOM.tileW / 2);
     const b = dy / (ROOM.tileH / 2);
     const gx = Math.floor((a + b) / 2);
     const gy = Math.floor((b - a) / 2);
-    if (gx < 0 || gx >= ROOM.cols || gy < 0 || gy >= ROOM.rows) return null;
-    return { laneIndex, cellIndex: gy * ROOM.cols + gx };
+
+    for (let i = 0; i < placements.length; i++) {
+      const p = placements[i];
+      if (gx >= p.gx0 && gx < p.gx0 + p.cols && gy >= p.gy0 && gy < p.gy0 + p.rows) {
+        return { laneIndex: i, cellIndex: (gy - p.gy0) * p.cols + (gx - p.gx0) };
+      }
+    }
+    return null;
   }
 
-  // ---- Drag-to-pan ----
-  // Click-and-drag with a mouse, or swipe with a finger, to move around a
-  // theme's room chain directly -- like panning a map in Clash of Clans --
-  // instead of only being able to scroll via a visible scrollbar or a
-  // two-finger trackpad gesture. A single pointer both pans AND places
-  // gear, so a drag is told apart from a tap by how far it moved before
-  // release: past the threshold it's a pan (no placement), under it it's
-  // a tap (place/remove gear, same as the old plain click).
+  // ---- Pan and pinch ----
+  // One pointer drags the plan around; two fingers pinch to zoom. The canvas
+  // takes the whole touch gesture (touch-action: none) so a pinch can't be
+  // half-swallowed by the browser's own scrolling -- which in turn means
+  // vertical drags have to hand what they cannot use back to the page
+  // themselves, or a finger starting on the canvas would trap the reader on
+  // a 340px-tall element with the shop below it out of reach.
+  // Listen on the stage window rather than the canvas: zoomed out the plan
+  // is smaller than the window, and a pinch that happens to start on the
+  // background beside it should still work.
+  const gestureEl = stageScrollEl || floorCanvas;
   const DRAG_THRESHOLD = 6;
+  const pointers = new Map();
   let dragState = null;
+  let pinchState = null;
 
-  floorCanvas.addEventListener('pointerdown', (e) => {
+  function pointerMid() {
+    const pts = Array.from(pointers.values());
+    return {
+      x: (pts[0].x + pts[1].x) / 2,
+      y: (pts[0].y + pts[1].y) / 2,
+      dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+    };
+  }
+
+  // Zoom about a fixed point on screen: work out which world coordinate sits
+  // under it, apply the new zoom, then re-scroll so that same coordinate is
+  // still under it. Without this the plan lurches away from your fingers.
+  function zoomAround(nextZoom, clientX, clientY) {
     if (!stageScrollEl) return;
+    const rect = floorCanvas.getBoundingClientRect();
+    const clamp = (v, hi) => Math.max(0, Math.min(hi, v));
+    // Clamp to the plan: pinching about a point off in the background would
+    // otherwise anchor to a coordinate outside it and fling the view away.
+    const worldX = clamp(rect.width ? (clientX - rect.left) * (BASE_W / rect.width) : 0, BASE_W);
+    const worldY = clamp(rect.height ? (clientY - rect.top) * (BASE_H / rect.height) : 0, BASE_H);
+    const stageRect = stageScrollEl.getBoundingClientRect();
+
+    setZoom(nextZoom);
+
+    stageScrollEl.scrollLeft = stageRect.left + worldX * zoomLevel - clientX;
+    stageScrollEl.scrollTop = stageRect.top + worldY * zoomLevel - clientY;
+  }
+
+  // Pan the stage, and pass whatever scroll it cannot absorb on to the page,
+  // the way a nested scroller normally chains.
+  function panBy(dx, dy) {
+    stageScrollEl.scrollLeft = dragState.startScrollLeft - dx;
+
+    const wantTop = dragState.startScrollTop - dy;
+    const maxTop = Math.max(0, stageScrollEl.scrollHeight - stageScrollEl.clientHeight);
+    const clamped = Math.max(0, Math.min(maxTop, wantTop));
+    stageScrollEl.scrollTop = clamped;
+    const leftover = wantTop - clamped;
+    if (leftover !== 0) {
+      const applied = dragState.pageScrolled || 0;
+      window.scrollBy(0, leftover - applied);
+      dragState.pageScrolled = leftover;
+    }
+  }
+
+  gestureEl.addEventListener('pointerdown', (e) => {
+    if (!stageScrollEl) return;
+    // The primary pointer is the first one down of a gesture, so this is
+    // where a new gesture begins -- clear anything the last one left behind.
+    // A pointerup can go missing (capture lost, the browser cancelling a
+    // touch), and a stale entry would otherwise make the next pinch measure
+    // its span against a finger that is no longer on the glass.
+    if (e.isPrimary) {
+      pointers.clear();
+      pinchState = null;
+    }
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { gestureEl.setPointerCapture(e.pointerId); } catch (err) { /* not critical */ }
+
+    if (pointers.size === 2) {
+      // Second finger down: stop panning, start pinching.
+      dragState = null;
+      const mid = pointerMid();
+      pinchState = { startDist: mid.dist || 1, startZoom: zoomLevel };
+      return;
+    }
+    if (pointers.size > 2) return;
+
     dragState = {
       pointerId: e.pointerId,
       startClientX: e.clientX,
       startClientY: e.clientY,
       startScrollLeft: stageScrollEl.scrollLeft,
       startScrollTop: stageScrollEl.scrollTop,
+      pageScrolled: 0,
       moved: 0,
     };
-    try { floorCanvas.setPointerCapture(e.pointerId); } catch (err) { /* not critical */ }
-    floorCanvas.style.cursor = 'grabbing';
+    gestureEl.style.cursor = 'grabbing';
   });
 
-  floorCanvas.addEventListener('pointermove', (e) => {
+  gestureEl.addEventListener('pointermove', (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pinchState && pointers.size >= 2) {
+      const mid = pointerMid();
+      if (!mid.dist) return;
+      zoomAround(pinchState.startZoom * (mid.dist / pinchState.startDist), mid.x, mid.y);
+      return;
+    }
+
     if (!dragState || e.pointerId !== dragState.pointerId) return;
     const dx = e.clientX - dragState.startClientX;
     const dy = e.clientY - dragState.startClientY;
     dragState.moved = Math.max(dragState.moved, Math.abs(dx), Math.abs(dy));
-    stageScrollEl.scrollLeft = dragState.startScrollLeft - dx;
-    // Vertical is the browser's on touch (see touch-action: pan-y) -- moving
-    // it here too would double up on the scroll it is already doing. A mouse
-    // or pen ignores touch-action, so there we pan both axes ourselves.
-    if (e.pointerType !== 'touch') {
-      stageScrollEl.scrollTop = dragState.startScrollTop - dy;
-    }
+    panBy(dx, dy);
   });
 
-  floorCanvas.addEventListener('pointerup', (e) => {
+  gestureEl.addEventListener('pointerup', (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchState = null;
+
     if (!dragState || e.pointerId !== dragState.pointerId) return;
     const wasDrag = dragState.moved > DRAG_THRESHOLD;
     dragState = null;
-    floorCanvas.style.cursor = 'grab';
+    gestureEl.style.cursor = 'grab';
     if (wasDrag) return;
 
     const p = pointFromEvent(e);
@@ -1569,9 +2026,19 @@
     onFloorCellClick(hit.cellIndex);
   });
 
-  floorCanvas.addEventListener('pointercancel', () => {
+  // A trackpad pinch arrives as a wheel event with ctrlKey set; a plain wheel
+  // is left alone so the page still scrolls normally over the canvas.
+  gestureEl.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    zoomAround(zoomLevel * (1 - e.deltaY * 0.01), e.clientX, e.clientY);
+  }, { passive: false });
+
+  gestureEl.addEventListener('pointercancel', (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchState = null;
     dragState = null;
-    floorCanvas.style.cursor = 'grab';
+    gestureEl.style.cursor = 'grab';
   });
 
   function onFloorCellClick(index) {
@@ -1653,7 +2120,7 @@
         if (state.activeTheme === t.id) return;
         state.activeTheme = t.id;
         state.activeRoomIndex = Math.min(state.activeRoomIndex, activeRooms().length - 1);
-        updateWorldWidth();
+        rebuildPlan();
         renderScene();
         renderInventory();
         refreshThemeRow();
@@ -1680,7 +2147,7 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'tycoon-room-tab' + (state.activeRoomIndex === i ? ' is-active' : '');
-      btn.textContent = 'Room ' + (i + 1) + ' (' + placed + '/' + SLOT_COUNT + ')';
+      btn.textContent = 'Room ' + (i + 1) + ' (' + placed + '/' + room.layout.length + ')';
       btn.addEventListener('click', () => {
         if (state.activeRoomIndex === i) return;
         state.activeRoomIndex = i;
@@ -1701,14 +2168,14 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'tycoon-room-tab tycoon-room-add' + (affordable ? '' : ' is-locked');
-      btn.textContent = '+ Add Room — $' + formatNum(cost);
+      btn.textContent = '+ Add Room (' + slotCountFor(rooms.length) + ' slots) — $' + formatNum(cost);
       btn.disabled = !affordable;
       btn.addEventListener('click', () => {
         if (state.balance < cost) return;
         state.balance -= cost;
-        rooms.push(emptyGymRoom());
+        rooms.push(emptyGymRoom(rooms.length));
         state.activeRoomIndex = rooms.length - 1;
-        updateWorldWidth();
+        rebuildPlan();
         refreshHud();
         refreshShopUI();
         renderScene();

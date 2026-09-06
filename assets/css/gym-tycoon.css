@@ -125,14 +125,13 @@
 .tycoon-zoom-btn:hover { color: var(--text); border-color: var(--blue); }
 .tycoon-zoom-btn:active { transform: translate(1px, 1px); }
 
-/* ---- Isometric gym room ----
-   A theme's rooms snake across a 2-column grid (right, down, left, down,
-   right, ...) rather than one straight row, so the stage is a fixed-size
-   window that scrolls in both directions to pan around that floor plan;
-   the canvas itself is zoomed with a CSS transform, sized via a wrapper
-   div so the scrollable area's dimensions stay correct at any zoom level
-   (see applyStageSizing() in JS, and the drag-to-pan handlers for
-   click/touch panning on top of native scroll). */
+/* ---- Isometric gym floor plan ----
+   A theme's rooms are laid out on one isometric lattice, joined by hallways
+   and turning a corner as the chain grows, so the stage is a fixed-size
+   window that scrolls in both directions to pan around that plan. The canvas
+   is zoomed with a CSS transform, sized via a wrapper div so the scrollable
+   area's dimensions stay right at any zoom level (see applyStageSizing() in
+   JS, plus the pan/pinch handlers that drive both). */
 .tycoon-room-stage {
   width: 100%;
   max-width: 480px;
@@ -144,6 +143,15 @@
   overflow: auto;
   -webkit-overflow-scrolling: touch;
   line-height: 0;
+  cursor: grab;
+  /* JS owns the whole touch gesture here, which is the only way a two-finger
+     pinch can be read reliably -- the browser would otherwise claim part of
+     it for scrolling. In exchange the drag handler chains leftover vertical
+     movement to the page itself (see panBy), so a finger starting here can
+     still scroll on down to the shop rather than being trapped on the plan. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
   /* Centre a plan small enough to fit (zoomed out, it would otherwise sit in
      the top-left with dead space below). "safe" drops back to start-aligned
      once the plan is bigger than the window, so centring never strands the
@@ -162,13 +170,6 @@
   top: 0;
   left: 0;
   cursor: grab;
-  /* "pan-y" splits touch gestures by axis: the browser keeps vertical ones
-     (scrolling the stage, then chaining on to the page once the stage hits
-     its limit) while horizontal ones fall through to the JS drag handlers
-     below. "none" would hand JS the whole gesture -- and trap the reader,
-     since a swipe up anywhere on this 340px-tall canvas would pan the room
-     instead of scrolling down the page to the shop. */
-  touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
 }
