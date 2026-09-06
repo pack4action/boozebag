@@ -13,7 +13,7 @@
   const BASE_TOP_Y = BASE_BOTTOM_Y - BASE_H;
   const CEILING_Y = 220; // once the tower grows this high on screen, the camera starts following
   const MIN_OVERLAP = 5;
-  const PERFECT_SLOP = 6;
+  const SNAP_SLOP = 4; // how close to dead-center counts as a PERFECT snap
   const MIN_SPEED = 2.2;
   const MAX_SPEED = 7.5;
   const SPEED_STEP = 0.09;
@@ -109,7 +109,10 @@
   function spawnActive() {
     const n = stack.length - 1; // blocks placed so far, base excluded
     const top = stack[stack.length - 1];
-    const w = top.w;
+    // Always spawn a fresh, full-size block regardless of how narrow the
+    // last placement ended up -- a bad drop trims that one block, but
+    // doesn't compound into a permanently shrinking tower.
+    const w = BASE_W;
     const speed = Math.min(MIN_SPEED + n * SPEED_STEP, MAX_SPEED);
     const dir = Math.random() < 0.5 ? -1 : 1;
     const x = dir === 1 ? 30 : W - 30 - w;
@@ -143,6 +146,19 @@
     overlay.hidden = true;
   }
 
+  function spawnOverhangDebris(block, placedX, placedW, y) {
+    if (placedX > block.x + 0.5) {
+      const cutW = placedX - block.x;
+      debris.push({ x: block.x, y, w: cutW, h: BLOCK_H, color: block.color, vx: -2.2, vy: -1, rot: 0, vr: -0.15 });
+    }
+    const rightCutStart = placedX + placedW;
+    const rightCutEnd = block.x + block.w;
+    if (rightCutEnd > rightCutStart + 0.5) {
+      const cutW = rightCutEnd - rightCutStart;
+      debris.push({ x: rightCutStart, y, w: cutW, h: BLOCK_H, color: block.color, vx: 2.2, vy: -1, rot: 0, vr: 0.15 });
+    }
+  }
+
   function endGame() {
     gameOver = true;
     const height = stack.length - 1;
@@ -174,27 +190,39 @@
       return;
     }
 
-    // Landing anywhere with enough overlap keeps the block at full width --
-    // only a total miss (handled above) ends the stack. Alignment precision
-    // instead drives the PERFECT combo/score bonus.
-    const placedX = Math.max(0, Math.min(W - active.w, active.x));
-    const placedW = active.w;
+    let placedX, placedW;
 
     if (active.special === 'moon') {
+      // MOON is always forgiving: full width, wherever it lands.
+      placedX = Math.max(0, Math.min(W - active.w, active.x));
+      placedW = active.w;
       score += 30;
       toast('MOON! +30', 'legend-moon');
     } else if (active.special === 'rug') {
+      placedX = overlapLeft;
+      placedW = overlapW;
+      spawnOverhangDebris(active, placedX, placedW, newY);
       combo = 0;
       toast('RUG', 'legend-rug');
     } else {
-      const perfect = Math.abs(active.x - top.x) <= PERFECT_SLOP;
-      if (perfect) {
+      const activeCenter = active.x + active.w / 2;
+      const topCenter = top.x + top.w / 2;
+      const isSnap = Math.abs(activeCenter - topCenter) <= SNAP_SLOP;
+      if (isSnap) {
+        // Close enough to dead-center: snap it flush, full width, no
+        // overhang, no trim -- a genuine PERFECT rather than just a
+        // generous tolerance check.
+        placedX = Math.max(0, Math.min(W - active.w, topCenter - active.w / 2));
+        placedW = active.w;
         combo++;
         const bonus = 10 + combo * 2;
         score += bonus;
         toast(combo > 1 ? 'PERFECT x' + combo + '! +' + bonus : 'PERFECT! +' + bonus, 'legend-moon');
         spawnPerfectBurst(placedX + placedW / 2, newY + BLOCK_H / 2, '#ffd28a');
       } else {
+        placedX = overlapLeft;
+        placedW = overlapW;
+        spawnOverhangDebris(active, placedX, placedW, newY);
         combo = 0;
         score += 10;
         toast('+10', null);
