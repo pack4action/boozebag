@@ -482,27 +482,50 @@
   const themeRowEl = document.getElementById('theme-row');
   let armedItemId = null;
 
-  // Every room gets its own fixed-width "lane" on one continuous canvas,
-  // laid out left to right and joined by a connecting walkway, instead of
-  // each room being a separate view swapped via tabs. LANE_W is the
-  // original single-room logical width (every ROOM/isoPoint number below
-  // is authored against that one lane, at its own local origin) -- BASE_W
-  // is the full multi-lane canvas width and grows as rooms are bought.
+  // Every room gets its own fixed-size "cell" on one continuous canvas,
+  // laid out in a snaking 2-column grid (right, right, down, left, left,
+  // down, right, ...) and joined by connecting walkways, instead of one
+  // straight left-right row -- so a real floor plan with turns emerges as
+  // you add rooms, and you pan both horizontally and vertically to see it
+  // all rather than only side to side. LANE_W/LANE_H are the original
+  // single-room logical dimensions (every ROOM/isoPoint number below is
+  // authored against that one cell, at its own local origin) -- BASE_W/
+  // BASE_H are the full multi-room canvas dimensions, growing in whichever
+  // axis the grid needs as rooms are bought.
   const LANE_W = floorCanvas.width;
-  const BASE_H = floorCanvas.height;
+  const LANE_H = floorCanvas.height;
+  const GRID_COLS = 2;
   let BASE_W = LANE_W;
-  function updateWorldWidth() {
-    BASE_W = LANE_W * activeRooms().length;
+  let BASE_H = LANE_H;
+
+  function roomGridPos(i) {
+    const row = Math.floor(i / GRID_COLS);
+    const colInRow = i % GRID_COLS;
+    const col = row % 2 === 0 ? colInRow : GRID_COLS - 1 - colInRow;
+    return { col, row };
   }
 
-  // Pan is native container scrolling; zoom is a CSS transform on the
-  // canvas itself sitting inside a wrapper sized to match (so the
-  // scrollable area's dimensions stay correct at any zoom level). Click
-  // math (pointFromEvent) is already ratio-based off getBoundingClientRect,
-  // which reflects both scroll position and the zoom transform, so it
-  // needs no special-casing for either.
+  function updateWorldWidth() {
+    let maxCol = 0;
+    let maxRow = 0;
+    activeRooms().forEach((_, i) => {
+      const pos = roomGridPos(i);
+      maxCol = Math.max(maxCol, pos.col);
+      maxRow = Math.max(maxRow, pos.row);
+    });
+    BASE_W = LANE_W * (maxCol + 1);
+    BASE_H = LANE_H * (maxRow + 1);
+  }
+
+  // Pan is native container scrolling (or the click-and-drag/touch-swipe
+  // handlers further down); zoom is a CSS transform on the canvas itself
+  // sitting inside a wrapper sized to match (so the scrollable area's
+  // dimensions stay correct at any zoom level). Click math (pointFromEvent)
+  // is already ratio-based off getBoundingClientRect, which reflects both
+  // scroll position and the zoom transform, so it needs no special-casing
+  // for either.
   let zoomLevel = 1;
-  const ZOOM_MIN = 0.6;
+  const ZOOM_MIN = 0.4;
   const ZOOM_MAX = 1.6;
   const ZOOM_STEP = 0.2;
   const zoomWrapEl = document.getElementById('room-zoom-wrap');
@@ -526,8 +549,14 @@
 
   function scrollToRoom(index) {
     if (!stageScrollEl) return;
-    const laneCenter = (index + 0.5) * LANE_W * zoomLevel;
-    stageScrollEl.scrollTo({ left: Math.max(0, laneCenter - stageScrollEl.clientWidth / 2), behavior: 'smooth' });
+    const pos = roomGridPos(index);
+    const centerX = (pos.col + 0.5) * LANE_W * zoomLevel;
+    const centerY = (pos.row + 0.5) * LANE_H * zoomLevel;
+    stageScrollEl.scrollTo({
+      left: Math.max(0, centerX - stageScrollEl.clientWidth / 2),
+      top: Math.max(0, centerY - stageScrollEl.clientHeight / 2),
+      behavior: 'smooth',
+    });
   }
 
   function fitCanvasResolution() {
@@ -1184,6 +1213,60 @@
     }
   }
 
+  // A glowing beam + chevron marking where one room's walkway joins the
+  // next, drawn in flat world coordinates after every room lane -- a
+  // stylized "there's a doorway here" cue rather than a literal cutout in
+  // the isometric wall geometry.
+  function drawHorizontalConnector(rowBaseY, seamX, dir) {
+    const beam = floorCtx.createLinearGradient(seamX - 10, 0, seamX + 10, 0);
+    beam.addColorStop(0, 'rgba(255, 214, 120, 0)');
+    beam.addColorStop(0.5, 'rgba(255, 214, 120, 0.5)');
+    beam.addColorStop(1, 'rgba(255, 214, 120, 0)');
+    floorCtx.fillStyle = beam;
+    floorCtx.fillRect(seamX - 10, rowBaseY + LANE_H * 0.12, 20, LANE_H * 0.82);
+
+    const cy = rowBaseY + LANE_H * 0.5;
+    floorCtx.beginPath();
+    if (dir > 0) {
+      floorCtx.moveTo(seamX - 6, cy - 8);
+      floorCtx.lineTo(seamX + 6, cy);
+      floorCtx.lineTo(seamX - 6, cy + 8);
+    } else {
+      floorCtx.moveTo(seamX + 6, cy - 8);
+      floorCtx.lineTo(seamX - 6, cy);
+      floorCtx.lineTo(seamX + 6, cy + 8);
+    }
+    floorCtx.strokeStyle = 'rgba(255, 236, 190, 0.9)';
+    floorCtx.lineWidth = 2;
+    floorCtx.lineJoin = 'round';
+    floorCtx.stroke();
+  }
+
+  function drawVerticalConnector(colBaseX, seamY, dir) {
+    const beam = floorCtx.createLinearGradient(0, seamY - 10, 0, seamY + 10);
+    beam.addColorStop(0, 'rgba(255, 214, 120, 0)');
+    beam.addColorStop(0.5, 'rgba(255, 214, 120, 0.5)');
+    beam.addColorStop(1, 'rgba(255, 214, 120, 0)');
+    floorCtx.fillStyle = beam;
+    floorCtx.fillRect(colBaseX + LANE_W * 0.12, seamY - 10, LANE_W * 0.82, 20);
+
+    const cx = colBaseX + LANE_W * 0.5;
+    floorCtx.beginPath();
+    if (dir > 0) {
+      floorCtx.moveTo(cx - 8, seamY - 6);
+      floorCtx.lineTo(cx, seamY + 6);
+      floorCtx.lineTo(cx + 8, seamY - 6);
+    } else {
+      floorCtx.moveTo(cx - 8, seamY + 6);
+      floorCtx.lineTo(cx, seamY - 6);
+      floorCtx.lineTo(cx + 8, seamY + 6);
+    }
+    floorCtx.strokeStyle = 'rgba(255, 236, 190, 0.9)';
+    floorCtx.lineWidth = 2;
+    floorCtx.lineJoin = 'round';
+    floorCtx.stroke();
+  }
+
   function renderScene() {
     updateWorldWidth();
     fitCanvasResolution();
@@ -1202,8 +1285,9 @@
 
     const rooms = activeRooms();
     rooms.forEach((room, i) => {
+      const pos = roomGridPos(i);
       floorCtx.save();
-      floorCtx.translate(i * LANE_W, 0);
+      floorCtx.translate(pos.col * LANE_W, pos.row * LANE_H);
       drawRoomLane(room.layout, colors, light);
       floorCtx.restore();
     });
@@ -1211,22 +1295,15 @@
     if (rooms.length > 1) {
       floorCtx.save();
       for (let i = 0; i < rooms.length - 1; i++) {
-        const seamX = (i + 1) * LANE_W;
-        const beam = floorCtx.createLinearGradient(seamX - 10, 0, seamX + 10, 0);
-        beam.addColorStop(0, 'rgba(255, 214, 120, 0)');
-        beam.addColorStop(0.5, 'rgba(255, 214, 120, 0.5)');
-        beam.addColorStop(1, 'rgba(255, 214, 120, 0)');
-        floorCtx.fillStyle = beam;
-        floorCtx.fillRect(seamX - 10, H * 0.12, 20, H * 0.82);
-
-        floorCtx.beginPath();
-        floorCtx.moveTo(seamX - 6, H * 0.5 - 8);
-        floorCtx.lineTo(seamX + 6, H * 0.5);
-        floorCtx.lineTo(seamX - 6, H * 0.5 + 8);
-        floorCtx.strokeStyle = 'rgba(255, 236, 190, 0.9)';
-        floorCtx.lineWidth = 2;
-        floorCtx.lineJoin = 'round';
-        floorCtx.stroke();
+        const a = roomGridPos(i);
+        const b = roomGridPos(i + 1);
+        if (a.row === b.row) {
+          const seamX = (Math.min(a.col, b.col) + 1) * LANE_W;
+          drawHorizontalConnector(a.row * LANE_H, seamX, b.col > a.col ? 1 : -1);
+        } else {
+          const seamY = (Math.min(a.row, b.row) + 1) * LANE_H;
+          drawVerticalConnector(a.col * LANE_W, seamY, b.row > a.row ? 1 : -1);
+        }
       }
       floorCtx.restore();
     }
@@ -1240,7 +1317,7 @@
 
   function drawRoomLane(layout, colors, light) {
     const theme = state.activeTheme;
-    drawBackdrop(theme, LANE_W, BASE_H);
+    drawBackdrop(theme, LANE_W, LANE_H);
 
     const north = isoPoint(0, 0);
     const east = isoPoint(ROOM.cols, 0);
@@ -1393,15 +1470,24 @@
   }
 
   function gridCellFromPoint(px, py) {
-    const laneIndex = Math.floor(px / LANE_W);
-    const localPx = px - laneIndex * LANE_W;
+    const colClicked = Math.floor(px / LANE_W);
+    const rowClicked = Math.floor(py / LANE_H);
+    const rooms = activeRooms();
+    let laneIndex = -1;
+    for (let i = 0; i < rooms.length; i++) {
+      const pos = roomGridPos(i);
+      if (pos.col === colClicked && pos.row === rowClicked) { laneIndex = i; break; }
+    }
+    if (laneIndex === -1) return null;
+
+    const localPx = px - colClicked * LANE_W;
+    const localPy = py - rowClicked * LANE_H;
     const dx = localPx - ROOM.originX;
-    const dy = py - ROOM.originY;
+    const dy = localPy - ROOM.originY;
     const a = dx / (ROOM.tileW / 2);
     const b = dy / (ROOM.tileH / 2);
     const gx = Math.floor((a + b) / 2);
     const gy = Math.floor((b - a) / 2);
-    if (laneIndex < 0 || laneIndex >= activeRooms().length) return null;
     if (gx < 0 || gx >= ROOM.cols || gy < 0 || gy >= ROOM.rows) return null;
     return { laneIndex, cellIndex: gy * ROOM.cols + gx };
   }
@@ -1424,6 +1510,7 @@
       startClientX: e.clientX,
       startClientY: e.clientY,
       startScrollLeft: stageScrollEl.scrollLeft,
+      startScrollTop: stageScrollEl.scrollTop,
       moved: 0,
     };
     try { floorCanvas.setPointerCapture(e.pointerId); } catch (err) { /* not critical */ }
@@ -1436,6 +1523,7 @@
     const dy = e.clientY - dragState.startClientY;
     dragState.moved = Math.max(dragState.moved, Math.abs(dx), Math.abs(dy));
     stageScrollEl.scrollLeft = dragState.startScrollLeft - dx;
+    stageScrollEl.scrollTop = dragState.startScrollTop - dy;
   });
 
   floorCanvas.addEventListener('pointerup', (e) => {
