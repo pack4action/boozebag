@@ -1,5 +1,18 @@
 .tycoon-page { max-width: 720px; position: relative; }
 
+/* Pin the stat bar under the sticky nav so your balance stays visible
+   while tapping LIFT, even after scrolling down past the floor/shop. */
+.tycoon-page .game-hud {
+  position: sticky;
+  top: 69px;
+  z-index: 40;
+  margin: 0 -6vw 20px;
+  padding: 12px 6vw 14px;
+  background: rgba(10, 10, 13, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--panel-border);
+}
+
 /* Fast repeat taps on iOS Safari otherwise register as double-taps and
    zoom the page, even with the viewport's user-scalable=no as a first
    line of defense -- this is the per-element belt-and-suspenders fix. */
