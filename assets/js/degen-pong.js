@@ -633,73 +633,54 @@
     ctx.translate(x, y + CAN_R * 1.6);
 
     const skin = '#d9a679';
-    const skinDark = shade(skin, -30);
-    const skinLight = shade(skin, 18);
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    const skinShadow = shade(skin, -26);
+    const skinHi = shade(skin, 20);
+    const w = 19;
+    const top = -10;
+    const h = 34;
 
-    // wrist grounds the hand instead of it floating as a bare palm
-    ctx.fillStyle = skinDark;
+    // one cohesive fist shape instead of separate fingers -- reads much
+    // cleaner at this size than individually drawn digits did
     ctx.beginPath();
-    ctx.roundRect(-13, 20, 26, 22, 8);
+    ctx.roundRect(-w, top, w * 2, h, [9, 9, 15, 15]);
+    const grad = ctx.createLinearGradient(-w, 0, w, 0);
+    grad.addColorStop(0, skinShadow);
+    grad.addColorStop(0.45, skin);
+    grad.addColorStop(0.55, skin);
+    grad.addColorStop(1, skinShadow);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = 'rgba(0,0,0,0.42)';
+    ctx.stroke();
+
+    // top sheen for volume
+    ctx.beginPath();
+    ctx.roundRect(-w + 3, top + 2, w * 2 - 6, 7, 4);
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
     ctx.fill();
 
-    // fingers curl up around the can, varied length/angle for a natural fan
-    const fingers = [
-      { x: -15, len: 14, ang: -0.32 },
-      { x: -6, len: 18, ang: -0.08 },
-      { x: 4, len: 18, ang: 0.08 },
-      { x: 13, len: 14, ang: 0.3 },
-    ];
-    fingers.forEach((f) => {
-      ctx.save();
-      ctx.translate(f.x, -3);
-      ctx.rotate(f.ang);
-      const fGrad = ctx.createLinearGradient(0, -f.len, 0, 6);
-      fGrad.addColorStop(0, skinLight);
-      fGrad.addColorStop(1, skin);
-      ctx.fillStyle = fGrad;
-      ctx.lineWidth = 1.3;
+    // knuckle creases
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+    ctx.lineWidth = 1.3;
+    [-w * 0.5, 0, w * 0.5].forEach((cx) => {
       ctx.beginPath();
-      ctx.roundRect(-4.5, -f.len, 9, f.len + 6, 4.5);
-      ctx.fill();
+      ctx.moveTo(cx, top + 3);
+      ctx.lineTo(cx, top + 15);
       ctx.stroke();
-      ctx.strokeStyle = 'rgba(0,0,0,0.16)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(-3.5, -f.len * 0.42);
-      ctx.lineTo(3.5, -f.len * 0.42);
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-      ctx.restore();
     });
 
-    // palm, drawn over the base of the fingers
-    const palmGrad = ctx.createLinearGradient(-18, 0, 18, 0);
-    palmGrad.addColorStop(0, skinDark);
-    palmGrad.addColorStop(0.5, skin);
-    palmGrad.addColorStop(1, skinDark);
-    ctx.fillStyle = palmGrad;
-    ctx.lineWidth = 1.5;
+    // thumb: a smooth ellipse merged into the lower-left corner
     ctx.beginPath();
-    ctx.ellipse(0, 12, 18, 20, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // thumb attaches low on the palm and presses up and across the front,
-    // so it has to cross the palm's own silhouette to read as a separate digit
-    ctx.save();
-    ctx.translate(-14, 17);
-    ctx.rotate(-1.0);
-    const tGrad = ctx.createLinearGradient(0, -20, 0, 2);
-    tGrad.addColorStop(0, skinLight);
-    tGrad.addColorStop(1, skin);
+    ctx.ellipse(-w - 2, top + 24, 8, 12, -0.5, 0, Math.PI * 2);
+    const tGrad = ctx.createLinearGradient(-w - 10, 0, -w + 6, 0);
+    tGrad.addColorStop(0, skinShadow);
+    tGrad.addColorStop(1, skinHi);
     ctx.fillStyle = tGrad;
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.roundRect(-4.5, -20, 9, 22, 4.5);
     ctx.fill();
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = 'rgba(0,0,0,0.42)';
     ctx.stroke();
-    ctx.restore();
 
     ctx.restore();
   }
