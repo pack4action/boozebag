@@ -144,9 +144,17 @@
   overflow: auto;
   -webkit-overflow-scrolling: touch;
   line-height: 0;
+  /* Centre a plan small enough to fit (zoomed out, it would otherwise sit in
+     the top-left with dead space below). "safe" drops back to start-aligned
+     once the plan is bigger than the window, so centring never strands the
+     overflow out of scroll reach. */
+  display: flex;
+  align-items: safe center;
+  justify-content: safe center;
 }
 .tycoon-room-zoom-wrap {
   position: relative;
+  flex: none;
 }
 #tycoon-floor {
   display: block;
@@ -154,10 +162,13 @@
   top: 0;
   left: 0;
   cursor: grab;
-  /* JS drives panning itself on pointer drag (see the pointerdown/move/up
-     handlers) -- "none" hands the browser's own touch-scroll/zoom
-     gestures over entirely so they can't fight with that. */
-  touch-action: none;
+  /* "pan-y" splits touch gestures by axis: the browser keeps vertical ones
+     (scrolling the stage, then chaining on to the page once the stage hits
+     its limit) while horizontal ones fall through to the JS drag handlers
+     below. "none" would hand JS the whole gesture -- and trap the reader,
+     since a swipe up anywhere on this 340px-tall canvas would pan the room
+     instead of scrolling down the page to the shop. */
+  touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -328,3 +339,24 @@
   margin-left: 4px;
 }
 .tycoon-reset-link:hover { color: var(--red); }
+
+/* ---- Phones ----
+   The three stat boxes wrap onto two rows at this width, and since the bar
+   is sticky those extra ~90px sit on top of the room for the whole session,
+   hiding most of the floor you are trying to arrange. Split the row evenly
+   and trim the type instead so it stays one line. Scoped to this page: the
+   other games have no sticky room under their HUD. */
+@media (max-width: 560px) {
+  .tycoon-page .game-hud { gap: 8px; }
+  .tycoon-page .hud-stat {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 8px;
+    text-align: center;
+  }
+  .tycoon-page .hud-label { font-size: 9px; letter-spacing: 0.4px; }
+  .tycoon-page .hud-value { font-size: 19px; }
+
+  /* Comfortable thumb targets for the pan/zoom controls. */
+  .tycoon-zoom-btn { width: 40px; height: 40px; font-size: 18px; }
+}

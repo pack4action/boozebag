@@ -360,7 +360,10 @@
       synergyEl.textContent = "This room is empty = $0/s from here. Arm a piece of gear below and click a tile to start earning.";
       return;
     }
-    const baseSum = layout.reduce((sum, id) => sum + (id ? itemById(id).gps : 0), 0);
+    const baseSum = layout.reduce((sum, id) => {
+      const item = id && itemById(id);
+      return sum + (item ? item.gps : 0);
+    }, 0);
     const roomGps = computeGps(layout);
     const bonusPct = baseSum > 0 ? Math.round((roomGps / baseSum - 1) * 100) : 0;
     synergyEl.textContent = placed + '/' + SLOT_COUNT + ' slots filled -- base ' + formatNum(baseSum) + '/s'
@@ -525,11 +528,27 @@
   // scroll position and the zoom transform, so it needs no special-casing
   // for either.
   let zoomLevel = 1;
-  const ZOOM_MIN = 0.4;
+  const ZOOM_MIN = 0.3;
   const ZOOM_MAX = 1.6;
   const ZOOM_STEP = 0.2;
   const zoomWrapEl = document.getElementById('room-zoom-wrap');
   const stageScrollEl = document.getElementById('room-stage-scroll');
+
+  // On a phone the stage window is only ~330px wide, so a 1x view of a
+  // 960px-wide floor plan drops you onto one anonymous corner of one room.
+  // Until the player works the zoom buttons themselves, keep the whole plan
+  // framed to fit the window -- which also re-frames itself as rooms are
+  // added or a theme with a different plan comes into view.
+  let userSetZoom = false;
+
+  function fitZoomToStage() {
+    if (!stageScrollEl || userSetZoom) return;
+    const availW = stageScrollEl.clientWidth;
+    const availH = stageScrollEl.clientHeight;
+    if (!availW || !availH) return;
+    const fit = Math.min(availW / BASE_W, availH / BASE_H, 1);
+    zoomLevel = Math.max(ZOOM_MIN, Math.round(fit * 100) / 100);
+  }
 
   function applyStageSizing() {
     if (zoomWrapEl) {
@@ -543,6 +562,7 @@
   }
 
   function setZoom(next) {
+    userSetZoom = true;
     zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(next * 100) / 100));
     applyStageSizing();
   }
@@ -1269,6 +1289,7 @@
 
   function renderScene() {
     updateWorldWidth();
+    fitZoomToStage();
     fitCanvasResolution();
     applyStageSizing();
     const colors = THEME_COLORS[state.activeTheme] || THEME_COLORS.garage;
@@ -1523,7 +1544,12 @@
     const dy = e.clientY - dragState.startClientY;
     dragState.moved = Math.max(dragState.moved, Math.abs(dx), Math.abs(dy));
     stageScrollEl.scrollLeft = dragState.startScrollLeft - dx;
-    stageScrollEl.scrollTop = dragState.startScrollTop - dy;
+    // Vertical is the browser's on touch (see touch-action: pan-y) -- moving
+    // it here too would double up on the scroll it is already doing. A mouse
+    // or pen ignores touch-action, so there we pan both axes ourselves.
+    if (e.pointerType !== 'touch') {
+      stageScrollEl.scrollTop = dragState.startScrollTop - dy;
+    }
   });
 
   floorCanvas.addEventListener('pointerup', (e) => {
