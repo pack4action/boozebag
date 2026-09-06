@@ -1,7 +1,12 @@
 .tycoon-page { max-width: 720px; position: relative; }
 
 /* Pin the stat bar under the sticky nav so your balance stays visible
-   while tapping LIFT, even after scrolling down past the floor/shop. */
+   while tapping LIFT, even after scrolling down past the floor/shop.
+   Sticky elements hover over whatever normal-flow content ends up at
+   the same viewport position once stuck (they don't push it down) --
+   since this bar has nothing clickable in it, pointer-events: none
+   lets clicks fall through to the canvas/buttons underneath instead
+   of the bar silently swallowing them. */
 .tycoon-page .game-hud {
   position: sticky;
   top: 69px;
@@ -11,6 +16,7 @@
   background: rgba(10, 10, 13, 0.92);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--panel-border);
+  pointer-events: none;
 }
 
 /* Fast repeat taps on iOS Safari otherwise register as double-taps and

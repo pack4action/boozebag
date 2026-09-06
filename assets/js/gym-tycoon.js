@@ -239,6 +239,130 @@
     return cells;
   }
 
+  function shade(hex, amt) {
+    const c = hex.replace('#', '');
+    const num = parseInt(c.length === 3 ? c.split('').map((x) => x + x).join('') : c, 16);
+    let r = (num >> 16) + amt;
+    let g = ((num >> 8) & 0xff) + amt;
+    let b = (num & 0xff) + amt;
+    r = Math.max(0, Math.min(255, r));
+    g = Math.max(0, Math.min(255, g));
+    b = Math.max(0, Math.min(255, b));
+    return `rgb(${r},${g},${b})`;
+  }
+
+  // Raw isometric offset (no origin) for a point (u, v) tile-units away from
+  // some base -- used to build little 3D boxes out of props in the same
+  // projection as the floor tiles.
+  function isoVecRaw(u, v) {
+    return { x: (u - v) * (ROOM.tileW / 2), y: (u + v) * (ROOM.tileH / 2) };
+  }
+
+  // Draws one shaded isometric box: (offU, offV) is its center relative to
+  // the base point in tile-units, (halfA, halfB) its footprint half-extents
+  // (also tile-units), height and lift in pixels (lift raises it off the
+  // ground, for stacking props on top of one another).
+  function drawIsoBox(ctx, base, offU, offV, halfA, halfB, height, color, lift) {
+    lift = lift || 0;
+    const c = isoVecRaw(offU, offV);
+    const groundY = base.y + c.y - lift;
+    const groundX = base.x + c.x;
+
+    const front = isoVecRaw(halfA, halfB);
+    const right = isoVecRaw(halfA, -halfB);
+    const back = isoVecRaw(-halfA, -halfB);
+    const left = isoVecRaw(-halfA, halfB);
+
+    const pFront = { x: groundX + front.x, y: groundY + front.y };
+    const pRight = { x: groundX + right.x, y: groundY + right.y };
+    const pBack = { x: groundX + back.x, y: groundY + back.y };
+    const pLeft = { x: groundX + left.x, y: groundY + left.y };
+    const top = (p) => ({ x: p.x, y: p.y - height });
+
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+
+    ctx.beginPath();
+    ctx.moveTo(pLeft.x, pLeft.y);
+    ctx.lineTo(pFront.x, pFront.y);
+    ctx.lineTo(top(pFront).x, top(pFront).y);
+    ctx.lineTo(top(pLeft).x, top(pLeft).y);
+    ctx.closePath();
+    ctx.fillStyle = shade(color, -35);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(pFront.x, pFront.y);
+    ctx.lineTo(pRight.x, pRight.y);
+    ctx.lineTo(top(pRight).x, top(pRight).y);
+    ctx.lineTo(top(pFront).x, top(pFront).y);
+    ctx.closePath();
+    ctx.fillStyle = shade(color, -15);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(top(pFront).x, top(pFront).y);
+    ctx.lineTo(top(pRight).x, top(pRight).y);
+    ctx.lineTo(top(pBack).x, top(pBack).y);
+    ctx.lineTo(top(pLeft).x, top(pLeft).y);
+    ctx.closePath();
+    ctx.fillStyle = shade(color, 22);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Each piece of equipment is built from a couple of shaded boxes rather
+  // than a flat emoji sticker, so it actually reads as part of the 3D room.
+  const PROP_BUILDERS = {
+    dumbbell: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0, 0.30, 0.20, 6, '#7a5a34', 0);
+      drawIsoBox(ctx, b, -0.14, 0, 0.07, 0.10, 16, '#26262a', 6);
+      drawIsoBox(ctx, b, 0.14, 0, 0.07, 0.10, 16, '#26262a', 6);
+      drawIsoBox(ctx, b, 0, 0, 0.16, 0.035, 6, '#9a9aa0', 14);
+    },
+    mat: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0, 0.34, 0.22, 5, '#3fa8a0', 0);
+    },
+    bench: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, -0.28, 0.08, 0.06, 24, '#7a7a80', 0);
+      drawIsoBox(ctx, b, 0, 0.28, 0.08, 0.06, 24, '#7a7a80', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.14, 0.34, 10, '#2255aa', 20);
+    },
+    rack: (ctx, b) => {
+      drawIsoBox(ctx, b, -0.20, -0.20, 0.045, 0.045, 42, '#5a5a60', 0);
+      drawIsoBox(ctx, b, 0.20, -0.20, 0.045, 0.045, 42, '#5a5a60', 0);
+      drawIsoBox(ctx, b, -0.20, 0.20, 0.045, 0.045, 42, '#5a5a60', 0);
+      drawIsoBox(ctx, b, 0.20, 0.20, 0.045, 0.045, 42, '#5a5a60', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.24, 0.24, 4, '#c0483a', 42);
+    },
+    cable: (ctx, b) => {
+      drawIsoBox(ctx, b, -0.10, 0, 0.08, 0.10, 46, '#3a3a3e', 0);
+      drawIsoBox(ctx, b, 0.14, 0, 0.10, 0.14, 20, '#4a5a6a', 0);
+    },
+    treadmill: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0.02, 0.32, 0.18, 8, '#26262a', 0);
+      drawIsoBox(ctx, b, 0, -0.20, 0.06, 0.16, 24, '#3a3a3e', 8);
+    },
+    trainer: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0, 0.14, 0.12, 26, '#c98a4a', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.08, 0.08, 10, '#e0a86a', 26);
+    },
+    sauna: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0, 0.30, 0.26, 44, '#8a5a34', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.10, 0.10, 10, '#e8b04a', 44);
+    },
+    gear: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0, 0.10, 0.10, 30, '#c0483a', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.03, 0.03, 14, '#e8e8ea', 30);
+    },
+    hq: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0, 0.34, 0.30, 60, '#4a5a6a', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.20, 0.18, 14, '#c0483a', 60);
+    },
+  };
+
   function renderScene() {
     const colors = THEME_COLORS[state.theme] || THEME_COLORS.garage;
     const W = floorCanvas.width;
@@ -301,14 +425,19 @@
       const c = cellCenter(gx, gy);
 
       floorCtx.beginPath();
-      floorCtx.ellipse(c.x, c.y + 4, ROOM.tileW * 0.26, ROOM.tileH * 0.22, 0, 0, Math.PI * 2);
-      floorCtx.fillStyle = 'rgba(0,0,0,0.35)';
+      floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * 0.28, ROOM.tileH * 0.24, 0, 0, Math.PI * 2);
+      floorCtx.fillStyle = 'rgba(0,0,0,0.38)';
       floorCtx.fill();
 
-      floorCtx.font = '30px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
-      floorCtx.textAlign = 'center';
-      floorCtx.textBaseline = 'middle';
-      floorCtx.fillText(item.emoji, c.x, c.y - 16);
+      const build = PROP_BUILDERS[itemId];
+      if (build) {
+        build(floorCtx, c);
+      } else {
+        floorCtx.font = '30px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
+        floorCtx.textAlign = 'center';
+        floorCtx.textBaseline = 'middle';
+        floorCtx.fillText(item.emoji, c.x, c.y - 16);
+      }
     });
   }
 
