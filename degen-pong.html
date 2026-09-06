@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=2" />
-<link rel="stylesheet" href="assets/css/degen-pong.css?v=4" />
+<link rel="stylesheet" href="assets/css/degen-pong.css?v=5" />
 </head>
 <body class="game-body">
 
@@ -40,10 +40,25 @@
   </div>
 
   <div class="wallet-bar">
-    <button class="btn btn-outline btn-small" id="btn-connect" type="button">Connect Wallet</button>
+    <button class="btn btn-outline btn-small wallet-toggle" id="btn-connect" type="button">
+      Connect Wallet
+      <svg class="wallet-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
     <div class="wallet-picker" id="wallet-picker" hidden>
-      <button type="button" data-wallet="phantom">Phantom</button>
-      <button type="button" data-wallet="solflare">Solflare</button>
+      <button type="button" data-wallet="phantom">
+        <svg class="wallet-icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+          <rect width="20" height="20" rx="6" fill="#AB9FF2"/>
+          <path d="M10 5.5c-2.9 0-5.3 2.3-5.3 5.3 0 2.6 1.9 4.7 4.3 5.2v-1.2c-1.7-.4-2.9-1.9-2.9-3.7 0-2.1 1.7-3.8 3.9-3.8 2.2 0 3.9 1.6 3.9 3.7 0 1.3-.6 2.3-1.3 2.9-.4.3-.6.6-.6 1.1v1c2.4-.5 4.2-2.6 4.2-5.1 0-3-2.4-5.4-6.2-5.4z" fill="#fff"/>
+        </svg>
+        Phantom
+      </button>
+      <button type="button" data-wallet="solflare">
+        <svg class="wallet-icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+          <rect width="20" height="20" rx="6" fill="#FC9905"/>
+          <path d="M10 3.5l2 4.3 4.5.7-3.3 3.2.8 4.6L10 14.2l-4 2.1.8-4.6-3.3-3.2 4.5-.7z" fill="#fff"/>
+        </svg>
+        Solflare
+      </button>
     </div>
     <div class="wallet-connected" id="wallet-connected" hidden>
       <span class="wallet-dot"></span>
@@ -94,6 +109,6 @@
 
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=1"></script>
-<script src="assets/js/degen-pong.js?v=20"></script>
+<script src="assets/js/degen-pong.js?v=21"></script>
 </body>
 </html>

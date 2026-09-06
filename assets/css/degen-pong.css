@@ -32,34 +32,49 @@
   justify-content: center;
   margin-bottom: 20px;
 }
+/* .btn and the flex/absolute display rules below would otherwise beat the
+   browser's default [hidden]{display:none}, since author CSS always wins
+   over the UA stylesheet regardless of specificity -- see the game-overlay
+   fix for the same issue. */
+.wallet-bar [hidden] { display: none !important; }
+
+.wallet-toggle { display: inline-flex; align-items: center; gap: 8px; }
+.wallet-chevron { color: var(--muted); transition: transform 0.15s ease; }
+.wallet-toggle[aria-expanded="true"] .wallet-chevron { transform: rotate(180deg); }
+
 .wallet-picker {
   position: absolute;
   top: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
   z-index: 5;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  min-width: 160px;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 12px;
-  padding: 8px;
+  padding: 6px;
   box-shadow: var(--shadow-hard);
 }
 .wallet-picker button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-family: inherit;
   font-weight: 800;
   font-size: 13px;
   color: var(--text);
   background: transparent;
-  border: 1px solid var(--panel-border);
+  border: none;
   border-radius: 8px;
-  padding: 8px 20px;
+  padding: 9px 12px;
   cursor: pointer;
   white-space: nowrap;
+  text-align: left;
 }
-.wallet-picker button:hover { border-color: var(--amber); color: var(--amber); }
+.wallet-picker button:hover { background: rgba(255,255,255,0.06); color: var(--amber); }
+.wallet-icon { flex-shrink: 0; border-radius: 6px; }
 
 .wallet-connected {
   display: flex;

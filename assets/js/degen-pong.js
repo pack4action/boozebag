@@ -94,6 +94,7 @@
     if (address) {
       btnConnect.hidden = true;
       walletPicker.hidden = true;
+      btnConnect.setAttribute('aria-expanded', 'false');
       walletConnected.hidden = false;
       walletAddress.textContent = window.BoozebagWallet.short(address);
     } else {
@@ -102,9 +103,20 @@
     }
   }
 
+  function setPickerOpen(open) {
+    walletPicker.hidden = !open;
+    btnConnect.setAttribute('aria-expanded', String(open));
+  }
+
   if (window.BoozebagWallet) {
-    btnConnect.addEventListener('click', () => {
-      walletPicker.hidden = !walletPicker.hidden;
+    btnConnect.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setPickerOpen(walletPicker.hidden);
+    });
+    document.addEventListener('click', (e) => {
+      if (!walletPicker.hidden && !walletPicker.contains(e.target) && e.target !== btnConnect) {
+        setPickerOpen(false);
+      }
     });
     walletPicker.querySelectorAll('button[data-wallet]').forEach((btn) => {
       btn.addEventListener('click', async () => {
@@ -112,7 +124,7 @@
           const address = await window.BoozebagWallet.connect(btn.dataset.wallet);
           setWalletUI(address);
         } catch (e) {
-          walletPicker.hidden = true;
+          setPickerOpen(false);
           toast(e.message || 'Connection failed', 'legend-rug');
         }
       });
