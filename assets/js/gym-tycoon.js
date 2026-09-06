@@ -9,23 +9,49 @@
   const TICK_MS = 100;
 
   const ITEMS = [
-    { id: 'dumbbell', name: 'Dumbbell Set', emoji: '🏋️', baseCost: 15, gps: 0.1 },
-    { id: 'mat', name: 'Yoga Mat', emoji: '🧘', baseCost: 60, gps: 0.5 },
-    { id: 'bench', name: 'Bench Press', emoji: '🛋️', baseCost: 200, gps: 2 },
-    { id: 'rack', name: 'Squat Rack', emoji: '🏗️', baseCost: 800, gps: 8 },
-    { id: 'cable', name: 'Cable Machine', emoji: '⚙️', baseCost: 3000, gps: 30 },
-    { id: 'treadmill', name: 'Treadmill', emoji: '🏃', baseCost: 10000, gps: 100 },
-    { id: 'trainer', name: 'Personal Trainer', emoji: '🧑‍🏫', baseCost: 40000, gps: 400 },
-    { id: 'sauna', name: 'Sauna', emoji: '🔥', baseCost: 150000, gps: 1500 },
-    { id: 'gear', name: 'Steroid Cycle', emoji: '💉', baseCost: 600000, gps: 6000 },
-    { id: 'hq', name: 'Second Location', emoji: '🏢', baseCost: 2500000, gps: 25000 },
+    { id: 'dumbbell', name: 'Dumbbell Set', baseCost: 15, gps: 0.1 },
+    { id: 'mat', name: 'Yoga Mat', baseCost: 60, gps: 0.5 },
+    { id: 'bench', name: 'Bench Press', baseCost: 200, gps: 2 },
+    { id: 'rack', name: 'Squat Rack', baseCost: 800, gps: 8 },
+    { id: 'cable', name: 'Cable Machine', baseCost: 3000, gps: 30 },
+    { id: 'treadmill', name: 'Treadmill', baseCost: 10000, gps: 100 },
+    { id: 'trainer', name: 'Personal Trainer', baseCost: 40000, gps: 400 },
+    { id: 'sauna', name: 'Sauna', baseCost: 150000, gps: 1500 },
+    { id: 'gear', name: 'Steroid Cycle', baseCost: 600000, gps: 6000 },
+    { id: 'hq', name: 'Second Location', baseCost: 2500000, gps: 25000 },
     // Office tier: hidden in the shop until you've built the gym up past HQ
     // level (see unlockAt) -- the "then you build a desk for employees"
     // progression stage that comes after the core gym equipment.
-    { id: 'desk', name: 'Reception Desk', emoji: '🗄️', baseCost: 10000000, gps: 100000, unlockAt: 2500000 },
-    { id: 'cubicle', name: 'Sales Cubicle', emoji: '💻', baseCost: 40000000, gps: 400000, unlockAt: 10000000 },
-    { id: 'manager', name: "Manager's Office", emoji: '🧑‍💼', baseCost: 160000000, gps: 1600000, unlockAt: 40000000 },
+    { id: 'desk', name: 'Reception Desk', baseCost: 10000000, gps: 100000, unlockAt: 2500000 },
+    { id: 'cubicle', name: 'Sales Cubicle', baseCost: 40000000, gps: 400000, unlockAt: 10000000 },
+    { id: 'manager', name: "Manager's Office", baseCost: 160000000, gps: 1600000, unlockAt: 40000000 },
   ];
+
+  // Flat-shape line/solid icons (24x24) standing in for every item's old
+  // emoji, plus a lock glyph for locked shop rows and theme buttons --
+  // single-color (currentColor) so they inherit whatever text color the
+  // surrounding UI element already uses.
+  const ICON_PATHS = {
+    dumbbell: '<rect x="2.5" y="9.2" width="3.2" height="5.6" rx="1.2"/><rect x="18.3" y="9.2" width="3.2" height="5.6" rx="1.2"/><rect x="5.5" y="7.4" width="2.4" height="9.2" rx="1"/><rect x="16.1" y="7.4" width="2.4" height="9.2" rx="1"/><rect x="7.7" y="10.9" width="8.6" height="2.2"/>',
+    mat: '<rect x="6" y="9" width="15.5" height="6" rx="1.2"/><circle cx="6" cy="12" r="3.3"/>',
+    bench: '<rect x="3" y="9.2" width="18" height="2.8" rx="1"/><rect x="5" y="12" width="2.3" height="7" rx="0.6"/><rect x="16.7" y="12" width="2.3" height="7" rx="0.6"/>',
+    rack: '<rect x="4" y="2" width="2.4" height="20" rx="0.6"/><rect x="17.6" y="2" width="2.4" height="20" rx="0.6"/><rect x="4" y="10" width="16" height="2.2" rx="0.6"/>',
+    cable: '<rect x="4" y="3" width="4" height="18" rx="1"/><circle cx="6" cy="6.2" r="2.1" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.6 8.2 L16.5 17.8" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/><circle cx="17" cy="18.2" r="1.9"/>',
+    treadmill: '<rect x="3" y="15.2" width="15" height="3.6" rx="1.4"/><rect x="15" y="4" width="3" height="12.5" rx="1"/><rect x="13.6" y="2.6" width="6" height="2.4" rx="1"/>',
+    trainer: '<circle cx="12" cy="6.2" r="3.1"/><rect x="8" y="10.2" width="8" height="9.6" rx="3.2"/>',
+    sauna: '<path d="M12 2.2c-1.2 3-4.6 4.7-4.6 9a4.6 4.6 0 0 0 9.2 0c0-2.1-1-3.3-2-4.6.1 1.7-1 2.9-2 2.9-1.2 0-1.7-1.2-1-2.4C13 5.6 13 4 12 2.2Z"/>',
+    gear: '<rect x="1.2" y="10.9" width="3.4" height="2.2" rx="0.6"/><rect x="4.4" y="9.8" width="11" height="4.4" rx="1.2"/><rect x="15" y="10.6" width="6.4" height="2.8" rx="0.8"/>',
+    hq: '<path d="M4 5 L12 1.4 L20 5 Z"/><rect x="5" y="5" width="14" height="17.4" rx="1"/>',
+    desk: '<rect x="3" y="13.4" width="18" height="2.8" rx="1"/><rect x="5" y="16.2" width="2" height="5.4" rx="0.6"/><rect x="17" y="16.2" width="2" height="5.4" rx="0.6"/><rect x="9" y="5.4" width="6.4" height="6" rx="1"/><rect x="11.2" y="11.4" width="2" height="2.2"/>',
+    cubicle: '<rect x="3" y="4" width="3" height="16.5" rx="0.8"/><rect x="3" y="4" width="14.5" height="3" rx="0.8"/><rect x="6" y="14.5" width="14.5" height="3" rx="1"/><rect x="15.3" y="8.2" width="5.2" height="5.2" rx="1"/>',
+    manager: '<path d="M9 9V6.4a3 3 0 0 1 6 0V9" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><rect x="3" y="9" width="18" height="11.4" rx="2"/>',
+    lock: '<path d="M7 10.4V7.2a5 5 0 0 1 10 0v3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5" y="10.4" width="14" height="10" rx="2.2"/>',
+  };
+  function iconMarkup(id, sizePx) {
+    const inner = ICON_PATHS[id] || '';
+    const size = sizePx || 22;
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' + inner + '</svg>';
+  }
 
   const THEMES = [
     { id: 'garage', name: 'Garage', unlockAt: 0 },
@@ -314,7 +340,7 @@
       const cat = CATEGORY_META[CATEGORY[item.id]];
       el.innerHTML =
         '<div class="shop-item-head">' +
-          '<span class="shop-item-emoji">' + item.emoji + '</span>' +
+          '<span class="shop-item-emoji" style="color:' + cat.color + '">' + iconMarkup(item.id, 26) + '</span>' +
           '<span class="shop-item-name">' + item.name + '</span>' +
           '<span class="shop-item-owned">x0</span>' +
         '</div>' +
@@ -336,7 +362,7 @@
       els.root.classList.toggle('is-locked', !unlocked);
       if (!unlocked) {
         els.ownedEl.textContent = '';
-        els.buyBtn.textContent = '🔒 Unlocks at $' + formatNum(unlockAt) + ' lifetime';
+        els.buyBtn.innerHTML = '<span class="btn-lock-icon">' + iconMarkup('lock', 13) + '</span> Unlocks at $' + formatNum(unlockAt) + ' lifetime';
         els.buyBtn.disabled = true;
         els.root.classList.remove('is-affordable');
         return;
@@ -1079,10 +1105,10 @@
       if (build) {
         build(floorCtx, c);
       } else {
-        floorCtx.font = '30px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
-        floorCtx.textAlign = 'center';
-        floorCtx.textBaseline = 'middle';
-        floorCtx.fillText(item.emoji, c.x, c.y - 16);
+        // Every current item has a PROP_BUILDER; this is just a safety net
+        // for a future item that doesn't yet, drawn as a plain block
+        // rather than any placeholder glyph.
+        drawIsoBox(floorCtx, c, 0, 0, 0.24, 0.24, 20, catColor, 0);
       }
     });
 
@@ -1163,7 +1189,8 @@
       chip.type = 'button';
       chip.className = 'tycoon-inv-item' + (armedItemId === item.id ? ' is-armed' : '');
       chip.innerHTML = '<span class="inv-cat-dot" style="background:' + cat.color + '"></span>'
-        + item.emoji + ' ' + item.name + ' <span class="inv-count">x' + availableCount(item.id) + '</span>';
+        + '<span class="inv-icon">' + iconMarkup(item.id, 15) + '</span> '
+        + item.name + ' <span class="inv-count">x' + availableCount(item.id) + '</span>';
       chip.addEventListener('click', () => {
         armedItemId = armedItemId === item.id ? null : item.id;
         renderInventory();
@@ -1180,7 +1207,7 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'tycoon-theme-btn' + (room.theme === t.id ? ' is-active' : '') + (unlocked ? '' : ' is-locked');
-      btn.textContent = unlocked ? t.name : t.name + ' 🔒 $' + formatNum(t.unlockAt);
+      btn.innerHTML = unlocked ? t.name : t.name + ' <span class="btn-lock-icon">' + iconMarkup('lock', 11) + '</span> $' + formatNum(t.unlockAt);
       btn.disabled = !unlocked;
       btn.addEventListener('click', () => {
         activeRoom().theme = t.id;

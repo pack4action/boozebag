@@ -163,6 +163,12 @@
   margin-right: 5px;
   vertical-align: middle;
 }
+.inv-icon, .btn-lock-icon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+.inv-icon svg, .btn-lock-icon svg { display: block; }
 
 .tycoon-designer-hint {
   color: var(--muted);
@@ -193,7 +199,7 @@
 }
 .tycoon-lift-btn:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 #000; }
 .tycoon-lift-btn:active { transform: translate(1px, 1px); box-shadow: 3px 3px 0 #000; }
-.tycoon-lift-emoji { font-size: 26px; }
+.tycoon-lift-emoji { display: inline-flex; align-items: center; }
 
 /* ---- Shop ---- */
 .tycoon-shop {
@@ -219,7 +225,7 @@
   align-items: center;
   gap: 10px;
 }
-.shop-item-emoji { font-size: 26px; }
+.shop-item-emoji { display: inline-flex; align-items: center; }
 .shop-item-name { font-weight: 800; font-size: 14px; color: var(--text); }
 .shop-item-owned { font-size: 11px; color: var(--muted); margin-left: auto; }
 .shop-item-cat { font-size: 10.5px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase; }
