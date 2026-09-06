@@ -9,7 +9,7 @@
   const GRAVITY = 0.34;
   const WALL_DAMP = 0.72;
   const MAX_PULL = 120;
-  const POWER = 0.16;
+  const POWER = 0.19;
   const CAN_R = 15;
   const ANCHOR = { x: W / 2, y: 610 };
   const TOTAL_BALLS = 5;
