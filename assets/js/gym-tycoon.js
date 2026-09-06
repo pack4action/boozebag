@@ -520,7 +520,7 @@
       const cat = CATEGORY_META[CATEGORY[item.id]];
       el.innerHTML =
         '<div class="shop-item-head">' +
-          '<span class="shop-item-emoji" style="color:' + cat.color + '">' + iconMarkup(item.id, 26) + '</span>' +
+          '<span class="shop-item-icon" style="color:' + cat.color + '">' + iconMarkup(item.id, 26) + '</span>' +
           '<span class="shop-item-name">' + item.name + '</span>' +
           '<span class="shop-item-owned">x0</span>' +
         '</div>' +

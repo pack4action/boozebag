@@ -9,9 +9,102 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=7" />
+<link rel="stylesheet" href="assets/css/style.css?v=8" />
 </head>
 <body>
+
+<!-- Icon sprite. Referenced with <use href="#i-..."> wherever an emoji used
+     to sit: emoji render as a different picture on every platform (and as an
+     empty box wherever the font is missing), while these inherit the
+     surrounding colour and size like any other part of the design. -->
+<svg class="icon-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-beer" viewBox="0 0 24 24">
+    <rect x="4.4" y="9.2" width="9.8" height="12" rx="1.9"/>
+    <path d="M14.2 11.2h2.4a3 3 0 0 1 0 6h-2.4V15h2.4a.8.8 0 0 0 0-1.6h-2.4v-2.2Z"/>
+    <rect x="3.7" y="6.2" width="11.2" height="4.2" rx="2.1"/>
+    <circle cx="6.5" cy="5.7" r="2"/><circle cx="10" cy="5" r="2.4"/><circle cx="13.2" cy="5.9" r="1.9"/>
+  </symbol>
+  <symbol id="i-barbell" viewBox="0 0 24 24">
+    <rect x="2.5" y="9.2" width="3.2" height="5.6" rx="1.2"/><rect x="18.3" y="9.2" width="3.2" height="5.6" rx="1.2"/>
+    <rect x="5.5" y="7.4" width="2.4" height="9.2" rx="1"/><rect x="16.1" y="7.4" width="2.4" height="9.2" rx="1"/>
+    <rect x="7.7" y="10.9" width="8.6" height="2.2"/>
+  </symbol>
+  <symbol id="i-stack" viewBox="0 0 24 24">
+    <rect x="4.4" y="16.6" width="15.2" height="4.4" rx="1.1"/>
+    <rect x="6" y="11.4" width="12" height="4.4" rx="1.1"/>
+    <rect x="7.7" y="6.2" width="8.6" height="4.4" rx="1.1"/>
+    <rect x="9.3" y="2" width="5.4" height="3.4" rx="1.1"/>
+  </symbol>
+  <symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></symbol>
+  <symbol id="i-warning" viewBox="0 0 24 24">
+    <path d="M12 3.4 22 20.6H2L12 3.4Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    <rect x="11" y="9.4" width="2" height="5.6" rx="1"/><circle cx="12" cy="17.6" r="1.25"/>
+  </symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24">
+    <rect x="2.8" y="5" width="18.4" height="16.2" rx="2.6" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M2.8 10.2h18.4" fill="none" stroke="currentColor" stroke-width="2"/>
+    <rect x="6.9" y="2.4" width="2.2" height="4.6" rx="1.1"/><rect x="14.9" y="2.4" width="2.2" height="4.6" rx="1.1"/>
+    <rect x="6.6" y="12.6" width="3" height="3" rx="0.8"/><rect x="14.4" y="12.6" width="3" height="3" rx="0.8"/>
+    <rect x="6.6" y="17" width="3" height="3" rx="0.8"/>
+  </symbol>
+  <symbol id="i-chart-up" viewBox="0 0 24 24">
+    <path d="M3.4 15.6 9 10l3.6 3.4 6-6.6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M14.4 6.6h5.2v5.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="2.4" y="19.2" width="19.2" height="2.2" rx="1.1"/>
+  </symbol>
+  <symbol id="i-gift" viewBox="0 0 24 24">
+    <path d="M12 9.4c-1.5-3.2-3.2-4.5-4.9-3.8-1.6.6-1.5 3.2.6 3.8M12 9.4c1.5-3.2 3.2-4.5 4.9-3.8 1.6.6 1.5 3.2-.6 3.8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    <rect x="2.6" y="9.4" width="18.8" height="4" rx="1.1"/>
+    <rect x="4.4" y="13.4" width="15.2" height="8" rx="1.4"/>
+    <rect x="10.7" y="9.4" width="2.6" height="12"/>
+  </symbol>
+  <symbol id="i-trophy" viewBox="0 0 24 24">
+    <path d="M7 2.8h10v6.4a5 5 0 0 1-10 0V2.8Z"/>
+    <path d="M7 4.6H4.2v1.5a3.5 3.5 0 0 0 3.2 3.5M17 4.6h2.8v1.5a3.5 3.5 0 0 1-3.2 3.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <rect x="10.8" y="13.8" width="2.4" height="3.8"/>
+    <rect x="7.4" y="17.4" width="9.2" height="2.8" rx="1.2"/>
+  </symbol>
+  <symbol id="i-megaphone" viewBox="0 0 24 24">
+    <path d="M4.2 9.2 15.6 4.4v15.2L4.2 14.8V9.2Z"/>
+    <rect x="1.4" y="9.2" width="3" height="5.6" rx="1"/>
+    <path d="M18 9.2a3.6 3.6 0 0 1 0 5.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    <path d="M6.8 15.4v3a2 2 0 0 0 4 0v-1.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  </symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24">
+    <path d="M7 10.4V7.2a5 5 0 0 1 10 0v3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <rect x="5" y="10.4" width="14" height="10" rx="2.2"/>
+  </symbol>
+  <symbol id="i-no-entry" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="2.4"/>
+    <path d="M5.9 18.1 18.1 5.9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="i-broadcast" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="2.6"/>
+    <path d="M7.9 7.9a5.8 5.8 0 0 0 0 8.2M16.1 7.9a5.8 5.8 0 0 1 0 8.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    <path d="M5 5a9.9 9.9 0 0 0 0 14M19 5a9.9 9.9 0 0 1 0 14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="i-x" viewBox="0 0 24 24">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231L18.244 2.25Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z"/>
+  </symbol>
+  <symbol id="i-telegram" viewBox="0 0 24 24">
+    <path d="M21.9 4.3 2.9 11.6c-1 .4-1 1 .1 1.3l4.6 1.4 1.8 5.4c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.3-2.2 4.7 3.5c.9.5 1.5.2 1.7-.8l3.1-14.6c.3-1.2-.5-1.8-1.1-1.6Zm-13.3 9.7 10-6.3c.5-.3.9-.1.6.2l-8.6 7.8-.3 3.6-1.7-5.3Z"/>
+  </symbol>
+  <symbol id="i-video" viewBox="0 0 24 24">
+    <rect x="2.4" y="5.6" width="13.4" height="12.8" rx="2.6"/>
+    <path d="M17.4 10.6 21 8.1c.5-.4 1.2 0 1.2.6v6.6c0 .6-.7 1-1.2.6l-3.6-2.5v-2.8Z"/>
+  </symbol>
+  <symbol id="i-bars" viewBox="0 0 24 24">
+    <rect x="3" y="12.4" width="4.2" height="8.6" rx="1.2"/>
+    <rect x="9.9" y="7.4" width="4.2" height="13.6" rx="1.2"/>
+    <rect x="16.8" y="3.2" width="4.2" height="17.8" rx="1.2"/>
+  </symbol>
+  <symbol id="i-discord" viewBox="0 0 24 24">
+    <path d="M19.3 5.6A16.3 16.3 0 0 0 15.2 4.3l-.25.5a12.3 12.3 0 0 1 3.6 1.85 17.2 17.2 0 0 0-13.1 0A12.3 12.3 0 0 1 9.05 4.8L8.8 4.3A16.3 16.3 0 0 0 4.7 5.6C2.15 9.35 1.45 13 1.85 16.55a16.5 16.5 0 0 0 5.05 2.55l1.1-1.5a10.7 10.7 0 0 1-1.7-.82l.42-.32a11.8 11.8 0 0 0 10.56 0l.42.32a10.7 10.7 0 0 1-1.7.82l1.1 1.5a16.5 16.5 0 0 0 5.05-2.55c.47-4.13-.72-7.75-2.85-10.95ZM8.6 14.3c-1 0-1.82-.9-1.82-2s.8-2 1.82-2 1.83.9 1.81 2c0 1.1-.8 2-1.81 2Zm6.8 0c-1 0-1.82-.9-1.82-2s.8-2 1.82-2 1.83.9 1.81 2c0 1.1-.8 2-1.81 2Z"/>
+  </symbol>
+  <symbol id="i-external" viewBox="0 0 24 24">
+    <path d="M8.4 15.6 15.6 8.4M9.8 8.4h5.8v5.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+</svg>
 
 <div class="grain"></div>
 
@@ -53,9 +146,9 @@
   </picture>
   <div class="hero-inner">
     <div class="badge-row">
-      <span class="pill">🍺 24 drinks / day</span>
-      <span class="pill">💪 0 days lifting</span>
-      <span class="pill pill-live">🔴 live on Kick daily</span>
+      <span class="pill"><svg class="icon" aria-hidden="true"><use href="#i-beer"></use></svg> 24 drinks / day</span>
+      <span class="pill"><svg class="icon" aria-hidden="true"><use href="#i-barbell"></use></svg> 0 days lifting</span>
+      <span class="pill pill-live"><svg class="icon icon-live" aria-hidden="true"><use href="#i-dot"></use></svg> live on Kick daily</span>
     </div>
 
     <picture>
@@ -67,7 +160,7 @@
     <p class="hero-sub">Zero fucking training. Five months of blasting gear and drinking like it was my job. Then I stepped on a real bodybuilding stage anyway. It's pulled 2M+ views across every platform, and that's just the start. The coin's already live. I'm not stopping.</p>
     <div class="hero-ctas">
       <span class="scribble">trust the process<br/>(barely)</span>
-      <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" class="btn btn-primary btn-lg">Buy $BOOZEBAG 🍺</a>
+      <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" class="btn btn-primary btn-lg">Buy $BOOZEBAG <svg class="icon" aria-hidden="true"><use href="#i-beer"></use></svg></a>
       <a href="https://t.me/degenhorde" target="_blank" rel="noopener" class="btn btn-outline btn-lg">Join the Telegram</a>
     </div>
 
@@ -76,10 +169,10 @@
       <span class="ca-value ca-address" id="ca-value">3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump</span>
       <button class="btn btn-tiny" id="ca-copy" type="button">Copy</button>
     </div>
-    <p class="ca-warning">⚠️ Match every character before you buy, don't be an idiot about it. I only ever post it on <a href="https://x.com/BoozebagFitness" target="_blank" rel="noopener">@BoozebagFitness</a> or in the <a href="https://t.me/degenhorde" target="_blank" rel="noopener">Telegram</a> above. Anything else is a scam.</p>
+    <p class="ca-warning"><svg class="icon icon-warn" aria-hidden="true"><use href="#i-warning"></use></svg> Match every character before you buy, don't be an idiot about it. I only ever post it on <a href="https://x.com/BoozebagFitness" target="_blank" rel="noopener">@BoozebagFitness</a> or in the <a href="https://t.me/degenhorde" target="_blank" rel="noopener">Telegram</a> above. Anything else is a scam.</p>
     <p class="quick-links">
-      <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">View on pump.fun ↗</a>
-      <a href="https://dexscreener.com/solana/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">Chart on DexScreener ↗</a>
+      <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">View on pump.fun <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
+      <a href="https://dexscreener.com/solana/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">Chart on DexScreener <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
     </p>
   </div>
 </section>
@@ -160,8 +253,8 @@
       <div class="stat"><span class="stat-num" data-target="24">0</span><span class="stat-label">Drinks / Day</span></div>
 
       <div class="proof-links">
-        <a href="https://x.com/boozebagfitness/status/2096077150990348347" target="_blank" rel="noopener" class="btn btn-outline btn-small">Watch the post ↗</a>
-        <a href="https://x.com/boozebagfitness/status/2096028740287418669" target="_blank" rel="noopener" class="btn btn-outline btn-small">Watch another ↗</a>
+        <a href="https://x.com/boozebagfitness/status/2096077150990348347" target="_blank" rel="noopener" class="btn btn-outline btn-small">Watch the post <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
+        <a href="https://x.com/boozebagfitness/status/2096028740287418669" target="_blank" rel="noopener" class="btn btn-outline btn-small">Watch another <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
       </div>
     </div>
   </div>
@@ -180,27 +273,27 @@
 
   <div class="content-grid">
     <div class="content-card">
-      <div class="content-icon">📅</div>
+      <div class="content-icon"><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg></div>
       <h3>Daily Uploads</h3>
       <p>New clips on X every single damn day. The beer marathon, the gains, the chaos, all of it. No off days, no excuses.</p>
     </div>
     <div class="content-card">
-      <div class="content-icon">📈</div>
+      <div class="content-icon"><svg class="icon" aria-hidden="true"><use href="#i-chart-up"></use></svg></div>
       <h3>Live Trading Streams</h3>
       <p>I'm live daily on Kick, trading and running giveaways for the community. Same drunk energy, different scoreboard.</p>
     </div>
     <div class="content-card">
-      <div class="content-icon">🎁</div>
+      <div class="content-icon"><svg class="icon" aria-hidden="true"><use href="#i-gift"></use></svg></div>
       <h3>Stream Giveaways</h3>
       <p>Unclaimed $BOOZEBAG supply is unlocked and getting airdropped live on stream. Show up or don't, your loss.</p>
     </div>
     <div class="content-card">
-      <div class="content-icon">🏆</div>
+      <div class="content-icon"><svg class="icon" aria-hidden="true"><use href="#i-trophy"></use></svg></div>
       <h3>Beer Marathon, Etc.</h3>
       <p>More chaos on the way. Fitness stages, endurance drinking, whatever's next, it's all getting documented.</p>
     </div>
     <div class="content-card">
-      <div class="content-icon">📣</div>
+      <div class="content-icon"><svg class="icon" aria-hidden="true"><use href="#i-megaphone"></use></svg></div>
       <h3>Telegram &amp; X</h3>
       <p>Everything drops there first. Streams, uploads, giveaway calls, all of it.</p>
     </div>
@@ -218,7 +311,7 @@
     <span class="game-featured-tag">Main Game</span>
     <h3>Gym Tycoon</h3>
     <p>Build out the home gym one piece at a time. Only equipment placed on the floor earns gains/sec, and arranging matching gear side by side stacks a synergy bonus. Progress saves to your browser and keeps earning even while you're gone.</p>
-    <a href="gym-tycoon.html" class="btn btn-primary btn-lg">Start Building 🏋️</a>
+    <a href="gym-tycoon.html" class="btn btn-primary btn-lg">Start Building <svg class="icon" aria-hidden="true"><use href="#i-barbell"></use></svg></a>
   </div>
 
   <p class="game-side-label">Side Minigames</p>
@@ -226,12 +319,12 @@
     <div class="game-card">
       <h3>Degen Pong</h3>
       <p>Drag, sling, sink the cup. MOON pays the most, RUG will actually cost you, and REKT is exactly what it sounds like. Don't suck at it.</p>
-      <a href="degen-pong.html" class="btn btn-outline btn-lg">Play Now 🍺</a>
+      <a href="degen-pong.html" class="btn btn-outline btn-lg">Play Now <svg class="icon" aria-hidden="true"><use href="#i-beer"></use></svg></a>
     </div>
     <div class="game-card">
       <h3>Gains Stacker</h3>
       <p>Stack the gains as high as you can. Land it dead-center for a snapping PERFECT and a growing combo. Off-center trims the overhang for good, but every 15 blocks earns a +35% size power-up. Miss entirely and the tower goes over.</p>
-      <a href="gains-stacker.html" class="btn btn-outline btn-lg">Play Now 💪</a>
+      <a href="gains-stacker.html" class="btn btn-outline btn-lg">Play Now <svg class="icon" aria-hidden="true"><use href="#i-stack"></use></svg></a>
     </div>
   </div>
 </section>
@@ -245,22 +338,22 @@
 
   <div class="token-grid">
     <div class="token-card">
-      <div class="token-emoji">🍺</div>
+      <div class="token-icon"><svg class="icon" aria-hidden="true"><use href="#i-beer"></use></svg></div>
       <h3>100% Community</h3>
       <p>No presale allocation carved out for insiders. The bag is the community's, not mine to hoard.</p>
     </div>
     <div class="token-card">
-      <div class="token-emoji">🔒</div>
+      <div class="token-icon"><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg></div>
       <h3>LP Locked / Burned</h3>
       <p>Liquidity gets locked or burned at launch, confirmed on-chain. No rug in this regimen, I promise you that much.</p>
     </div>
     <div class="token-card">
-      <div class="token-emoji">🚫</div>
+      <div class="token-icon"><svg class="icon" aria-hidden="true"><use href="#i-no-entry"></use></svg></div>
       <h3>No Team Tax</h3>
       <p>Zero ongoing buy/sell tax to a team wallet. What you see is what you trade.</p>
     </div>
     <div class="token-card">
-      <div class="token-emoji">📢</div>
+      <div class="token-icon"><svg class="icon" aria-hidden="true"><use href="#i-broadcast"></use></svg></div>
       <h3>CA Is Live</h3>
       <p>Launched on pump.fun, Solana. Only trust the address I post myself. Anywhere else, it's a scam and you're an idiot for falling for it.</p>
     </div>
@@ -317,27 +410,27 @@
 
   <div class="community-grid">
     <a href="https://x.com/BoozebagFitness" target="_blank" rel="noopener" class="community-card">
-      <div class="community-icon">𝕏</div>
+      <div class="community-icon"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></div>
       <h3>@BoozebagFitness</h3>
       <p>My daily uploads, live streams, and whatever dumb shit I pull next.</p>
     </a>
     <a href="https://t.me/degenhorde" target="_blank" rel="noopener" class="community-card">
-      <div class="community-icon">✈️</div>
+      <div class="community-icon"><svg class="icon" aria-hidden="true"><use href="#i-telegram"></use></svg></div>
       <h3>Telegram</h3>
       <p>Degen Horde. Where the CA lives, the chart gets watched, and the trading talk happens.</p>
     </a>
     <a href="https://kick.com/petermossfield" target="_blank" rel="noopener" class="community-card">
-      <div class="community-icon">🎥</div>
+      <div class="community-icon"><svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg></div>
       <h3>Kick</h3>
       <p>I'm live daily: trading, giveaways, and the real-time plan for the coin.</p>
     </a>
     <a href="https://fomo.family/r/Boozebag" target="_blank" rel="noopener" class="community-card">
-      <div class="community-icon">📊</div>
+      <div class="community-icon"><svg class="icon" aria-hidden="true"><use href="#i-bars"></use></svg></div>
       <h3>Fomo</h3>
       <p>My public, verifiable trading positions. Follow along and see exactly what I'm holding.</p>
     </a>
     <a href="https://discord.gg/K6QfX6e7Yn" target="_blank" rel="noopener" class="community-card">
-      <div class="community-icon">💬</div>
+      <div class="community-icon"><svg class="icon" aria-hidden="true"><use href="#i-discord"></use></svg></div>
       <h3>Discord</h3>
       <p>The original fitness and beer marathon crowd. Still me, still drunk, just a different couch.</p>
     </a>
