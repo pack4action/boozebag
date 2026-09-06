@@ -650,6 +650,35 @@
     ctx.stroke();
   }
 
+  // Real icon art for equipment, where we have it -- drawn as a flat
+  // "billboard" sprite standing on the tile rather than skewed into the
+  // isometric projection (the standard, accepted way isometric games
+  // render sprites that weren't modeled/drawn in true 3D). Items without
+  // an entry here fall back to the hand-drawn PROP_BUILDERS box below.
+  const ITEM_SPRITE_SRC = {
+    dumbbell: 'assets/img/equipment/dumbbell.png',
+    cable: 'assets/img/equipment/cable.png',
+    rack: 'assets/img/equipment/rack.png',
+    treadmill: 'assets/img/equipment/treadmill.png',
+  };
+  const itemSprites = {};
+  Object.keys(ITEM_SPRITE_SRC).forEach((id) => {
+    const img = new Image();
+    img.onload = () => renderScene();
+    img.src = ITEM_SPRITE_SRC[id];
+    itemSprites[id] = img;
+  });
+
+  function drawItemSprite(ctx, center, img, size) {
+    const ready = img.complete && img.naturalWidth > 0;
+    if (!ready) return false;
+    const aspect = img.naturalWidth / img.naturalHeight;
+    const h = size;
+    const w = size * aspect;
+    ctx.drawImage(img, center.x - w / 2, center.y - h + h * 0.16, w, h);
+    return true;
+  }
+
   // Each piece of equipment is built from a couple of shaded boxes rather
   // than a flat emoji sticker, so it actually reads as part of the 3D room.
   const PROP_BUILDERS = {
@@ -1175,8 +1204,12 @@
       floorCtx.fillStyle = hexA(catColor, 0.34);
       floorCtx.fill();
 
+      const sprite = itemSprites[itemId];
+      const drewSprite = sprite && drawItemSprite(floorCtx, c, sprite, ROOM.tileH * 1.45);
       const build = PROP_BUILDERS[itemId];
-      if (build) {
+      if (drewSprite) {
+        // real icon art, already drawn above
+      } else if (build) {
         build(floorCtx, c);
       } else {
         // Every current item has a PROP_BUILDER; this is just a safety net
