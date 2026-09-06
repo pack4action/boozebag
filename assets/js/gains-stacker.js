@@ -90,7 +90,21 @@
   }
 
   // ---- Game state ----
-  let stack, active, debris, cameraOffset, cameraTarget, score, combo, gameOver;
+  let stack, active, debris, particles, cameraOffset, cameraTarget, score, combo, gameOver;
+
+  function spawnPerfectBurst(x, y, color) {
+    for (let i = 0; i < 16; i++) {
+      const angle = (Math.PI * 2 * i) / 16;
+      const speed = 1.5 + Math.random() * 2.8;
+      particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 32,
+        color,
+      });
+    }
+  }
 
   function spawnActive() {
     const n = stack.length - 1; // blocks placed so far, base excluded
@@ -117,6 +131,7 @@
   function reset() {
     stack = [{ x: (W - BASE_W) / 2, w: BASE_W, y: BASE_TOP_Y, h: BASE_H, color: '#4a3320' }];
     debris = [];
+    particles = [];
     score = 0;
     combo = 0;
     gameOver = false;
@@ -126,19 +141,6 @@
     spawnActive();
     cameraOffset = cameraTarget;
     overlay.hidden = true;
-  }
-
-  function spawnDebrisForTrim(block, placedX, placedW, y) {
-    if (placedX > block.x + 0.5) {
-      const cutW = placedX - block.x;
-      debris.push({ x: block.x, y, w: cutW, h: BLOCK_H, color: block.color, vx: -2.2, vy: -1, rot: 0, vr: -0.15 });
-    }
-    const rightCutStart = placedX + placedW;
-    const rightCutEnd = block.x + block.w;
-    if (rightCutEnd > rightCutStart + 0.5) {
-      const cutW = rightCutEnd - rightCutStart;
-      debris.push({ x: rightCutStart, y, w: cutW, h: BLOCK_H, color: block.color, vx: 2.2, vy: -1, rot: 0, vr: 0.15 });
-    }
   }
 
   function endGame() {
@@ -172,30 +174,26 @@
       return;
     }
 
-    let placedX, placedW;
-    let perfect = false;
+    // Landing anywhere with enough overlap keeps the block at full width --
+    // only a total miss (handled above) ends the stack. Alignment precision
+    // instead drives the PERFECT combo/score bonus.
+    const placedX = Math.max(0, Math.min(W - active.w, active.x));
+    const placedW = active.w;
 
     if (active.special === 'moon') {
-      placedX = Math.max(0, Math.min(W - active.w, active.x));
-      placedW = active.w;
       score += 30;
       toast('MOON! +30', 'legend-moon');
     } else if (active.special === 'rug') {
-      placedX = overlapLeft;
-      placedW = overlapW;
-      spawnDebrisForTrim(active, placedX, placedW, newY);
       combo = 0;
       toast('RUG', 'legend-rug');
     } else {
-      placedX = overlapLeft;
-      placedW = overlapW;
-      perfect = overlapW >= active.w - PERFECT_SLOP;
-      spawnDebrisForTrim(active, placedX, placedW, newY);
+      const perfect = Math.abs(active.x - top.x) <= PERFECT_SLOP;
       if (perfect) {
         combo++;
         const bonus = 10 + combo * 2;
         score += bonus;
         toast(combo > 1 ? 'PERFECT x' + combo + '! +' + bonus : 'PERFECT! +' + bonus, 'legend-moon');
+        spawnPerfectBurst(placedX + placedW / 2, newY + BLOCK_H / 2, '#ffd28a');
       } else {
         combo = 0;
         score += 10;
@@ -233,6 +231,14 @@
       d.rot += d.vr;
     }
     debris = debris.filter((d) => d.y + cameraOffset < H + 150);
+
+    particles = particles.filter((p) => p.life > 0);
+    for (const p of particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.12;
+      p.life--;
+    }
   }
 
   function drawBackground() {
@@ -303,6 +309,16 @@
       ctx.fillStyle = d.color;
       ctx.fillRect(-d.w / 2, -d.h / 2, d.w, d.h);
       ctx.restore();
+    }
+
+    for (const p of particles) {
+      const screenY = p.y + cameraOffset;
+      ctx.globalAlpha = Math.max(p.life / 32, 0);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, screenY, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
   }
 
