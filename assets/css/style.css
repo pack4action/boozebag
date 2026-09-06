@@ -295,14 +295,13 @@ img { max-width: 100%; display: block; }
 
 .ca-box {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  justify-content: center;
+  gap: 10px;
   background: var(--panel);
   border: 2px dashed var(--panel-border);
   border-radius: 20px;
-  padding: 14px 22px;
+  padding: 18px 22px;
   max-width: 620px;
   margin: 0 auto 14px;
 }
@@ -316,9 +315,8 @@ img { max-width: 100%; display: block; }
   font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
   font-size: 13px;
   color: var(--muted);
-  flex: 1;
-  min-width: 180px;
   text-align: center;
+  max-width: 100%;
 }
 .ca-address {
   word-break: break-all;
