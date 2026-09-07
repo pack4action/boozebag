@@ -602,14 +602,21 @@
   // chain is a different length.
   let BASE_W = 480;
   let BASE_H = 380;
-  // How tightly the canvas frames the plan, and how much dim ground is drawn
-  // out beyond that frame. The bleed is scenery only: it is deliberately not
-  // part of what the auto-fit zoom measures (see PLAN_W/PLAN_H), or adding
-  // background would shrink the rooms.
+  // How tightly the canvas frames the plan, and how much room is left around
+  // it for the place the plan stands in. Asymmetric because the surroundings
+  // are: the site's own back walls rise above the plan, so the top needs the
+  // most, while the floor only has to run far enough off the other three
+  // edges to be cut off rather than to end. None of it counts towards the
+  // auto-fit zoom (see PLAN_W/PLAN_H), or adding background would shrink the
+  // rooms.
   const WORLD_PAD = 34;
-  const BACKDROP_BLEED = 130;
+  const BLEED_TOP = 250;
+  const BLEED_SIDE = 150;
+  const BLEED_BOTTOM = 120;
   let PLAN_W = 480;
   let PLAN_H = 380;
+  // The plan's extent in tiles, which is what the site is built around.
+  const planBounds = { gx0: 0, gy0: 0, gx1: 4, gy1: 3 };
   let placements = [];
   let corridors = [];
   let preview = null;
@@ -659,10 +666,14 @@
     const yMax = (maxGx + maxGy) * halfH + WORLD_PAD;
     PLAN_W = Math.round(xMax - xMin);
     PLAN_H = Math.round(yMax - yMin);
-    worldOrigin.x = -xMin + BACKDROP_BLEED;
-    worldOrigin.y = -yMin + BACKDROP_BLEED;
-    BASE_W = PLAN_W + BACKDROP_BLEED * 2;
-    BASE_H = PLAN_H + BACKDROP_BLEED * 2;
+    planBounds.gx0 = minGx;
+    planBounds.gy0 = minGy;
+    planBounds.gx1 = maxGx;
+    planBounds.gy1 = maxGy;
+    worldOrigin.x = -xMin + BLEED_SIDE;
+    worldOrigin.y = -yMin + BLEED_TOP;
+    BASE_W = PLAN_W + BLEED_SIDE * 2;
+    BASE_H = PLAN_H + BLEED_TOP + BLEED_BOTTOM;
   }
 
   // Pan is native container scrolling (or the click-and-drag/touch-swipe
@@ -822,24 +833,30 @@
     return cells;
   }
 
-  function shade(hex, amt) {
-    const c = hex.replace('#', '');
+  // Accepts "#rgb", "#rrggbb" or the "rgb(r,g,b)" that shade() itself
+  // returns. That last case is the one that matters: shade() feeds its own
+  // output back in whenever a colour is derived twice (a prop tinted off a
+  // palette entry, then shaded again for one of its faces), and parsing
+  // "rgb(...)" as hex yields NaN, which lands on black.
+  function toRgb(color) {
+    const m = /^rgba?\(([^)]+)\)/.exec(color);
+    if (m) {
+      const parts = m[1].split(',').map((v) => parseFloat(v));
+      return { r: parts[0] | 0, g: parts[1] | 0, b: parts[2] | 0 };
+    }
+    const c = color.replace('#', '');
     const num = parseInt(c.length === 3 ? c.split('').map((x) => x + x).join('') : c, 16);
-    let r = (num >> 16) + amt;
-    let g = ((num >> 8) & 0xff) + amt;
-    let b = (num & 0xff) + amt;
-    r = Math.max(0, Math.min(255, r));
-    g = Math.max(0, Math.min(255, g));
-    b = Math.max(0, Math.min(255, b));
-    return `rgb(${r},${g},${b})`;
+    return { r: (num >> 16) & 0xff, g: (num >> 8) & 0xff, b: num & 0xff };
   }
 
-  function hexA(hex, alpha) {
-    const c = hex.replace('#', '');
-    const num = parseInt(c.length === 3 ? c.split('').map((x) => x + x).join('') : c, 16);
-    const r = (num >> 16) & 0xff;
-    const g = (num >> 8) & 0xff;
-    const b = num & 0xff;
+  function shade(color, amt) {
+    const { r, g, b } = toRgb(color);
+    const clamp = (v) => Math.max(0, Math.min(255, v + amt));
+    return `rgb(${clamp(r)},${clamp(g)},${clamp(b)})`;
+  }
+
+  function hexA(color, alpha) {
+    const { r, g, b } = toRgb(color);
     return `rgba(${r},${g},${b},${alpha})`;
   }
 
@@ -1235,68 +1252,634 @@
   // stacked tires for garage, exposed ductwork for basement. Drawn before
   // the walls, so the walls correctly cover whatever part would fall
   // behind them.
-  // ---- Ambience ----
-  // What sits around the plan. It used to be scenery pinned to the canvas
-  // edges -- rafters converging on the top corners, a tool rack at x = W - 48
-  // -- which framed the rooms in a hard rectangle and left lines running off
-  // the sides. Everything here is positioned against the PLAN instead, over a
-  // ground that carries on past it and is then erased towards the canvas edge
-  // (see maskAmbienceEdges), so the view has no border to find.
+  // ---- The site ----
+  // What the plan stands in. Not a backdrop pinned to the canvas: an actual
+  // space built on the same isometric lattice as the rooms, with a floor
+  // running off three edges and its own back walls rising above -- a unit,
+  // a boiler room, a roof. The plan is a building inside it.
+  // The site has its own palette. Deriving it from the room colours produced
+  // a black hole to stand the plan in: those values are a room's shadowed
+  // inside, not a poured floor with lights on it.
+  const SITE_COLORS = {
+    garage: { floor: '#3b332a', wall: '#2b241d', trim: '#4b4136' },
+    basement: { floor: '#37424a', wall: '#28313a', trim: '#46525c' },
+    rooftop: { floor: '#333f4c', wall: '#2b3644', trim: '#44515f' },
+  };
 
-  function planRect() {
+  const SITE_MARGIN = 3;        // tiles of floor beyond the plan, on the back sides
+  const SITE_FRONT_MARGIN = 5;  // and on the near sides, where it runs off screen
+  const SITE_WALL_H = 250;
+  const SITE_WALL_THICK = 0.5;  // tiles
+
+  function siteRect() {
     return {
-      x0: BACKDROP_BLEED,
-      y0: BACKDROP_BLEED,
-      x1: BACKDROP_BLEED + PLAN_W,
-      y1: BACKDROP_BLEED + PLAN_H,
-      cx: BACKDROP_BLEED + PLAN_W / 2,
-      cy: BACKDROP_BLEED + PLAN_H / 2,
+      gx0: planBounds.gx0 - SITE_MARGIN,
+      gy0: planBounds.gy0 - SITE_MARGIN,
+      gx1: planBounds.gx1 + SITE_FRONT_MARGIN,
+      gy1: planBounds.gy1 + SITE_FRONT_MARGIN,
     };
   }
 
-  // The floor the whole site stands on: isometric lines on the same lattice
-  // as the rooms, running well past them. Rooms read as built on something
-  // rather than cut out and pasted onto a backing colour.
-  function drawGroundLattice(colors) {
-    const step = 2;
-    const halfW = ROOM.tileW / 2;
-    const halfH = ROOM.tileH / 2;
-    // How many lattice steps it takes to cross the canvas diagonally, which
-    // is the most either axis can need.
-    const reach = Math.ceil((BASE_W / halfW + BASE_H / halfH) / 2) + step * 2;
-    const span = reach * 2;
+  function siteCorners() {
+    const r = siteRect();
+    return {
+      north: isoPoint(r.gx0, r.gy0),
+      east: isoPoint(r.gx1, r.gy0),
+      west: isoPoint(r.gx0, r.gy1),
+      south: isoPoint(r.gx1, r.gy1),
+      rect: r,
+    };
+  }
 
-    floorCtx.save();
-    floorCtx.strokeStyle = shade(colors.bg, 16);
-    floorCtx.lineWidth = 1;
-    for (let i = -reach; i <= reach; i += step) {
-      const a = isoPoint(i, -span);
-      const b = isoPoint(i, span);
+  // Same idea as wallPoint, against the site's taller walls.
+  function sitePoint(from, to, t, hFrac) {
+    return {
+      x: from.x + (to.x - from.x) * t,
+      y: from.y + (to.y - from.y) * t - hFrac * SITE_WALL_H,
+    };
+  }
+  function siteQuad(from, to, t0, t1, h0, h1) {
+    return [
+      sitePoint(from, to, t0, h0), sitePoint(from, to, t1, h0),
+      sitePoint(from, to, t1, h1), sitePoint(from, to, t0, h1),
+    ];
+  }
+
+  // ---- Floor ----
+  // Big poured slabs, four lattice tiles to a bay, so the ground under the
+  // plan reads as a different, rougher surface than the rooms' own tiling.
+  function drawSiteFloor(site) {
+    const r = siteRect();
+    const base = site.floor;
+    const seam = 'rgba(0,0,0,0.4)';
+    for (let gy = r.gy0; gy < r.gy1; gy += 2) {
+      for (let gx = r.gx0; gx < r.gx1; gx += 2) {
+        const n = Math.abs((gx * 7 + gy * 13) % 5);
+        paintQuad([
+          isoPoint(gx, gy), isoPoint(gx + 2, gy),
+          isoPoint(gx + 2, gy + 2), isoPoint(gx, gy + 2),
+        ], shade(base, n * 2 - 4), seam, 1);
+      }
+    }
+    // Grime worked into the slab. One patch per cell would land on the
+    // lattice and read as polka dots, so these are a handful of big soft
+    // pools at scattered spots, sized off a hash of where they land.
+    for (let gy = r.gy0; gy < r.gy1; gy += 3) {
+      for (let gx = r.gx0; gx < r.gx1; gx += 3) {
+        const h = Math.abs((gx * 73 + gy * 149) % 11);
+        if (h > 4) continue;
+        const c = cellCenter(gx + (h % 3) * 0.7, gy + (h % 2) * 0.9);
+        const rad = ROOM.tileW * (0.9 + h * 0.28);
+        const g = floorCtx.createRadialGradient(c.x, c.y, rad * 0.1, c.x, c.y, rad);
+        g.addColorStop(0, 'rgba(0,0,0,0.16)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        floorCtx.save();
+        floorCtx.translate(c.x, c.y);
+        floorCtx.scale(1, ROOM.tileH / ROOM.tileW);
+        floorCtx.fillStyle = g;
+        floorCtx.beginPath();
+        floorCtx.arc(0, 0, rad, 0, Math.PI * 2);
+        floorCtx.fill();
+        floorCtx.restore();
+      }
+    }
+  }
+
+  // A puddle: a shallow pool with a colour-cast sheen, which is most of what
+  // makes a concrete floor look like it belongs somewhere real.
+  function drawPuddle(gx, gy, rx, sheen) {
+    const c = cellCenter(gx, gy);
+    floorCtx.beginPath();
+    floorCtx.ellipse(c.x, c.y, rx, rx * 0.42, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = 'rgba(0,0,0,0.34)';
+    floorCtx.fill();
+    floorCtx.beginPath();
+    floorCtx.ellipse(c.x - rx * 0.1, c.y - rx * 0.05, rx * 0.72, rx * 0.26, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = sheen;
+    floorCtx.fill();
+  }
+
+  // A drain set flush into the slab.
+  function drawFloorDrain(gx, gy, site) {
+    const c = cellCenter(gx, gy);
+    const half = 0.3;
+    paintQuad([
+      isoPoint(gx + 0.5 - half, gy + 0.5 - half), isoPoint(gx + 0.5 + half, gy + 0.5 - half),
+      isoPoint(gx + 0.5 + half, gy + 0.5 + half), isoPoint(gx + 0.5 - half, gy + 0.5 + half),
+    ], shade(site.floor, -22), 'rgba(0,0,0,0.6)', 1.4);
+    floorCtx.strokeStyle = shade(site.floor, 14);
+    floorCtx.lineWidth = 1.4;
+    for (let i = 1; i < 5; i++) {
+      const t = -half + (half * 2 * i) / 5;
+      const a = isoPoint(gx + 0.5 + t, gy + 0.5 - half);
+      const b = isoPoint(gx + 0.5 + t, gy + 0.5 + half);
       floorCtx.beginPath();
       floorCtx.moveTo(a.x, a.y);
       floorCtx.lineTo(b.x, b.y);
       floorCtx.stroke();
-
-      const c = isoPoint(-span, i);
-      const d = isoPoint(span, i);
-      floorCtx.beginPath();
-      floorCtx.moveTo(c.x, c.y);
-      floorCtx.lineTo(d.x, d.y);
-      floorCtx.stroke();
     }
+    floorCtx.fillStyle = 'rgba(255,255,255,0.05)';
+    floorCtx.beginPath();
+    floorCtx.ellipse(c.x, c.y, 26, 11, 0, 0, Math.PI * 2);
+    floorCtx.fill();
+  }
+
+  // Hazard markings painted onto the slab, running along a lattice axis.
+  function drawFloorStripe(gx0, gy0, len, axis, color) {
+    const w = 0.14;
+    const a = axis === 'gx'
+      ? [isoPoint(gx0, gy0 - w), isoPoint(gx0 + len, gy0 - w),
+         isoPoint(gx0 + len, gy0 + w), isoPoint(gx0, gy0 + w)]
+      : [isoPoint(gx0 - w, gy0), isoPoint(gx0 + w, gy0),
+         isoPoint(gx0 + w, gy0 + len), isoPoint(gx0 - w, gy0 + len)];
+    paintQuad(a, color, null, 0);
+  }
+
+  // ---- Wall furniture ----
+  // A lit tube on a wall: the fitting, then the light it throws onto the
+  // wall around it. Cheap, and it is what carries the mood in all three.
+  // Light spilling across a wall. A plain radial gradient in screen space
+  // hangs in front of the wall as a disc, which is what made the big fittings
+  // look stuck on; this lays the glow ON the wall plane instead -- stretched
+  // along the wall's own direction, upright in screen space, because that is
+  // how a wall runs in this projection -- so it washes along the surface the
+  // way light actually does.
+  function wallGlow(from, to, t, hFrac, color, alongR, upR, strength) {
+    const dir = { x: to.x - from.x, y: to.y - from.y };
+    const len = Math.hypot(dir.x, dir.y) || 1;
+    const at = sitePoint(from, to, t, hFrac);
+    floorCtx.save();
+    floorCtx.translate(at.x, at.y);
+    floorCtx.transform((dir.x / len) * alongR, (dir.y / len) * alongR, 0, upR, 0, 0);
+    const g = floorCtx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, alphaOf(color, strength));
+    g.addColorStop(0.45, alphaOf(color, strength * 0.42));
+    g.addColorStop(1, alphaOf(color, 0));
+    floorCtx.fillStyle = g;
+    floorCtx.beginPath();
+    floorCtx.arc(0, 0, 1, 0, Math.PI * 2);
+    floorCtx.fill();
     floorCtx.restore();
   }
 
-  // A wash of the theme's own light pooled over the plan, brightest where the
-  // rooms are and gone by the time it reaches open ground.
-  function drawAmbientWash(colors, tint) {
-    const r = planRect();
-    const radius = Math.max(PLAN_W, PLAN_H) * 0.72;
+  // Re-alpha an "rgb(...)"/"rgba(...)"/hex colour without disturbing its hue.
+  function alphaOf(color, a) {
+    const { r, g, b } = toRgb(color);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  function drawStripLight(from, to, t, hFrac, site, glowColor, len) {
+    const half = (len || 0.075);
+    // The wash first, so the fitting itself sits crisply on top of it.
+    wallGlow(from, to, t, hFrac, glowColor, 300, 150, 0.26);
+    wallGlow(from, to, t, hFrac - 0.06, glowColor, 170, 70, 0.2);
+
+    paintQuad(siteQuad(from, to, t - half, t + half, hFrac - 0.022, hFrac + 0.022),
+      shade(site.wall, 40), 'rgba(0,0,0,0.45)', 1);
+    paintQuad(siteQuad(from, to, t - half * 0.9, t + half * 0.9, hFrac - 0.012, hFrac + 0.012),
+      glowColor, null, 0);
+
+    // And a pool of it on the floor below, squashed onto the ground plane.
+    const foot = sitePoint(from, to, t, 0);
     floorCtx.save();
-    floorCtx.translate(r.cx, r.cy);
-    // Squashed towards the isometric, so the pool lies on the ground plane
-    // instead of hanging in front of it as a circle.
-    floorCtx.scale(1, ROOM.tileH / ROOM.tileW * 1.5);
+    floorCtx.translate(foot.x, foot.y);
+    const dir = { x: to.x - from.x, y: to.y - from.y };
+    const dl = Math.hypot(dir.x, dir.y) || 1;
+    floorCtx.transform((dir.x / dl) * 200, (dir.y / dl) * 200, 0, 62, 0, 0);
+    const pool = floorCtx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    pool.addColorStop(0, alphaOf(glowColor, 0.1));
+    pool.addColorStop(1, alphaOf(glowColor, 0));
+    floorCtx.fillStyle = pool;
+    floorCtx.beginPath();
+    floorCtx.arc(0, 0, 1, 0, Math.PI * 2);
+    floorCtx.fill();
+    floorCtx.restore();
+  }
+
+  // A louvred vent grille.
+  function drawWallVent(from, to, t, hFrac, site) {
+    const w = 0.05;
+    const h = 0.08;
+    paintQuad(siteQuad(from, to, t - w, t + w, hFrac - h, hFrac + h),
+      shade(site.wall, -8), 'rgba(0,0,0,0.5)', 1.2);
+    for (let i = 1; i < 6; i++) {
+      const hh = hFrac - h + (h * 2 * i) / 6;
+      paintQuad(siteQuad(from, to, t - w * 0.86, t + w * 0.86, hh - 0.006, hh + 0.006),
+        shade(site.wall, 26), null, 0);
+    }
+  }
+
+  // A junction box, with the yellow triangle every one of them carries.
+  function drawWallBox(from, to, t, hFrac, site, warn) {
+    const w = 0.045;
+    const h = 0.11;
+    paintQuad(siteQuad(from, to, t - w, t + w, hFrac - h, hFrac + h),
+      shade(site.wall, 18), 'rgba(0,0,0,0.55)', 1.2);
+    paintQuad(siteQuad(from, to, t - w * 0.8, t + w * 0.8, hFrac - h * 0.8, hFrac + h * 0.8),
+      shade(site.wall, 30), 'rgba(0,0,0,0.3)', 1);
+    if (warn) {
+      const a = sitePoint(from, to, t, hFrac + h * 0.32);
+      const b = sitePoint(from, to, t - w * 0.42, hFrac - h * 0.28);
+      const c = sitePoint(from, to, t + w * 0.42, hFrac - h * 0.28);
+      paintQuad([a, c, b], 'rgba(224,178,54,0.85)', 'rgba(0,0,0,0.4)', 1);
+    }
+  }
+
+  // A pipe run along a wall, with a bracket every so often.
+  function drawWallPipe(from, to, hFrac, site, width) {
+    const a = sitePoint(from, to, -0.02, hFrac);
+    const b = sitePoint(from, to, 1.02, hFrac);
+    floorCtx.save();
+    floorCtx.lineCap = 'round';
+    floorCtx.strokeStyle = shade(site.wall, 20);
+    floorCtx.lineWidth = width;
+    floorCtx.beginPath();
+    floorCtx.moveTo(a.x, a.y);
+    floorCtx.lineTo(b.x, b.y);
+    floorCtx.stroke();
+    floorCtx.strokeStyle = shade(site.wall, 46);
+    floorCtx.lineWidth = width * 0.3;
+    floorCtx.beginPath();
+    floorCtx.moveTo(a.x, a.y - width * 0.28);
+    floorCtx.lineTo(b.x, b.y - width * 0.28);
+    floorCtx.stroke();
+    floorCtx.restore();
+    for (let t = 0.1; t < 1; t += 0.22) {
+      const p = sitePoint(from, to, t, hFrac);
+      paintQuad(siteQuad(from, to, t - 0.012, t + 0.012,
+        hFrac - width / SITE_WALL_H * 0.8, hFrac + width / SITE_WALL_H * 0.8),
+        shade(site.wall, 6), null, 0);
+      void p;
+    }
+  }
+
+  // ---- Floor furniture ----
+  function drawCrate(gx, gy, size, site, lift) {
+    const base = isoPoint(gx, gy);
+    drawIsoBox(floorCtx, base, 0, 0, size, size, size * 150, shade(site.trim, 10), lift || 0);
+  }
+
+  function drawBarrel(gx, gy, site) {
+    const base = isoPoint(gx, gy);
+    const h = 62;
+    const rx = 26;
+    floorCtx.beginPath();
+    floorCtx.moveTo(base.x - rx, base.y - h);
+    floorCtx.lineTo(base.x - rx, base.y);
+    floorCtx.ellipse(base.x, base.y, rx, rx * 0.42, 0, Math.PI, 0, true);
+    floorCtx.lineTo(base.x + rx, base.y - h);
+    floorCtx.closePath();
+    const g = floorCtx.createLinearGradient(base.x - rx, 0, base.x + rx, 0);
+    g.addColorStop(0, shade(site.trim, -22));
+    g.addColorStop(0.45, shade(site.trim, 6));
+    g.addColorStop(1, shade(site.trim, -28));
+    floorCtx.fillStyle = g;
+    floorCtx.fill();
+    floorCtx.strokeStyle = 'rgba(0,0,0,0.5)';
+    floorCtx.lineWidth = 1;
+    floorCtx.stroke();
+    floorCtx.beginPath();
+    floorCtx.ellipse(base.x, base.y - h, rx, rx * 0.42, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = shade(site.trim, 10);
+    floorCtx.fill();
+    floorCtx.stroke();
+  }
+
+  function drawTyreStack(gx, gy, n, site) {
+    const base = isoPoint(gx, gy);
+    for (let i = 0; i < n; i++) {
+      const y = base.y - i * 15;
+      floorCtx.beginPath();
+      floorCtx.ellipse(base.x, y, 30, 14, 0, 0, Math.PI * 2);
+      floorCtx.fillStyle = shade(site.floor, -18 + i * 3);
+      floorCtx.fill();
+      floorCtx.strokeStyle = 'rgba(0,0,0,0.55)';
+      floorCtx.lineWidth = 1;
+      floorCtx.stroke();
+    }
+    floorCtx.beginPath();
+    floorCtx.ellipse(base.x, base.y - (n - 1) * 15, 12, 5.5, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = 'rgba(0,0,0,0.55)';
+    floorCtx.fill();
+  }
+
+  // Shelving: an open frame of uprights and shelves, with boxes on it.
+  function drawShelving(gx, gy, bays, site) {
+    const base = isoPoint(gx, gy);
+    const w = bays * 0.9;
+    drawIsoBox(floorCtx, base, w / 2, 0, w / 2, 0.16, 8, shade(site.trim, -2), 0);
+    for (let level = 0; level < 3; level++) {
+      const lift = 34 + level * 46;
+      drawIsoBox(floorCtx, base, w / 2, 0, w / 2, 0.16, 6, shade(site.trim, 2), lift);
+      for (let b = 0; b < bays; b++) {
+        if (((b * 7 + level * 5) % 3) === 0) continue;
+        drawIsoBox(floorCtx, base, 0.45 + b * 0.9, 0, 0.24, 0.12, 26,
+          shade(site.trim, 16 + ((b + level) % 3) * 12), lift + 6);
+      }
+    }
+  }
+
+  // ---- Site shells, one per theme ----
+  // Each builds the same three things in the same order -- floor, enclosure,
+  // then what is standing around in it -- but a boiler room, a workshop and
+  // a roof are different enough places that they get their own.
+
+  function drawSiteWalls(site) {
+    const c = siteCorners();
+    const depthE = isoVecRaw(0, -SITE_WALL_THICK);
+    const depthW = isoVecRaw(-SITE_WALL_THICK, 0);
+    drawWallSlab(c.north, c.east, SITE_WALL_H, depthE, site.wall);
+    drawWallSlab(c.north, c.west, SITE_WALL_H, depthW, site.wall);
+    drawWallCorner(c.north, depthE, depthW, SITE_WALL_H, site.wall);
+    drawBaseboard(c.east, c.north);
+    drawBaseboard(c.north, c.west);
+    return c;
+  }
+
+  const SITE = {
+    basement: (site) => {
+      drawSiteFloor(site);
+      const c = drawSiteWalls(site);
+      const cyan = 'rgba(150,240,240,0.9)';
+
+      [c.east, c.west].forEach((far, side) => {
+        // Damp streaking down the concrete, under the pipe run.
+        for (let t = 0.08; t < 1; t += 0.17) {
+          paintQuad(siteQuad(c.north, far, t, t + 0.035, 0.05, 0.86),
+            'rgba(0,0,0,0.13)', null, 0);
+        }
+        drawWallPipe(c.north, far, 0.9, site, 13);
+        drawWallPipe(c.north, far, 0.82, site, 7);
+        drawWallVent(c.north, far, side ? 0.36 : 0.44, 0.6, site);
+        drawWallBox(c.north, far, side ? 0.62 : 0.68, 0.62, site, true);
+        drawWallBox(c.north, far, side ? 0.52 : 0.16, 0.5, site, false);
+        [0.24, 0.64].forEach((t, i) => {
+          if (side === 1 && i === 1) return;
+          drawStripLight(c.north, far, t, 0.72, site, cyan);
+        });
+      });
+
+      const r = siteRect();
+      drawCrate(r.gx0 + 1.0, r.gy0 + 2.6, 0.34, site);
+      drawCrate(r.gx0 + 1.1, r.gy0 + 1.4, 0.28, site);
+      drawBarrel(r.gx0 + 0.8, r.gy0 + 3.9, site);
+      drawCrate(r.gx1 - 1.3, r.gy0 + 1.1, 0.32, site);
+      drawBarrel(r.gx1 - 1.1, r.gy0 + 2.3, site);
+
+      const sheen = 'rgba(150,230,240,0.16)';
+      [[r.gx0 + 3, r.gy0 + 6, 60], [r.gx1 - 3, r.gy0 + 4, 48],
+       [r.gx0 + 5, r.gy1 - 3, 66], [r.gx1 - 5, r.gy1 - 4, 44]]
+        .forEach(([gx, gy, rx]) => drawPuddle(gx, gy, rx, sheen));
+      [[r.gx0 + 2, r.gy0 + 4], [r.gx1 - 4, r.gy1 - 3], [r.gx0 + 6, r.gy1 - 2]]
+        .forEach(([gx, gy]) => drawFloorDrain(gx, gy, site));
+    },
+
+    garage: (site) => {
+      drawSiteFloor(site);
+      const c = drawSiteWalls(site);
+      const amber = 'rgba(255,206,130,0.9)';
+
+      // Timber cladding: vertical boarding down both walls.
+      [c.east, c.west].forEach((far) => {
+        for (let t = 0; t < 1; t += 0.035) {
+          paintQuad(siteQuad(c.north, far, t, t + 0.035, 0, 1),
+            null, 'rgba(0,0,0,0.2)', 1);
+        }
+      });
+
+      // The roller shutter, along the left-hand wall.
+      const sh0 = 0.52;
+      const sh1 = 0.8;
+      paintQuad(siteQuad(c.north, c.west, sh0, sh1, 0, 0.62),
+        shade(site.wall, -10), 'rgba(0,0,0,0.55)', 1.6);
+      for (let h = 0.03; h < 0.6; h += 0.036) {
+        paintQuad(siteQuad(c.north, c.west, sh0 + 0.012, sh1 - 0.012, h, h + 0.021),
+          shade(site.wall, 22), null, 0);
+      }
+      // Cold daylight leaking in under it, and the wedge of it on the floor.
+      paintQuad(siteQuad(c.north, c.west, sh0 + 0.02, sh1 - 0.02, 0, 0.028),
+        'rgba(180,220,255,0.55)', null, 0);
+      const sA = sitePoint(c.north, c.west, sh0 + 0.02, 0);
+      const sB = sitePoint(c.north, c.west, sh1 - 0.02, 0);
+      const reach = isoVecRaw(3.2, 0);
+      const spill = floorCtx.createLinearGradient(sA.x, sA.y, sA.x + reach.x, sA.y + reach.y);
+      spill.addColorStop(0, 'rgba(150,200,255,0.20)');
+      spill.addColorStop(1, 'rgba(150,200,255,0)');
+      paintQuad([sA, sB, { x: sB.x + reach.x, y: sB.y + reach.y },
+        { x: sA.x + reach.x, y: sA.y + reach.y }], spill, null, 0);
+
+      // Pegboard of tools over the bench, on the right-hand wall.
+      const pb0 = 0.44;
+      const pb1 = 0.7;
+      paintQuad(siteQuad(c.north, c.east, pb0, pb1, 0.44, 0.68),
+        shade(site.wall, -12), 'rgba(0,0,0,0.5)', 1.2);
+      for (let i = 0; i < 11; i++) {
+        const t = pb0 + 0.014 + i * 0.0225;
+        if (i % 4 === 3) continue;
+        paintQuad(siteQuad(c.north, c.east, t, t + 0.009, 0.48, 0.64),
+          i % 3 ? 'rgba(206,178,132,0.7)' : 'rgba(176,86,72,0.7)', null, 0);
+      }
+
+      drawStripLight(c.north, c.west, 0.2, 0.8, site, amber, 0.1);
+      drawStripLight(c.north, c.west, 0.92, 0.74, site, amber, 0.08);
+      [0.2, 0.56, 0.88].forEach((t) => drawStripLight(c.north, c.east, t, 0.82, site, amber, 0.09));
+
+      const r = siteRect();
+      // A bench under the pegboard, running along the back-right wall.
+      for (let i = 0; i < 4; i++) {
+        const b = isoPoint(r.gx1 - 5.4 + i * 0.95, r.gy0 + 0.62);
+        drawIsoBox(floorCtx, b, 0, 0, 0.42, 0.2, 44, shade(site.trim, -6), 0);
+        drawIsoBox(floorCtx, b, 0, 0, 0.46, 0.23, 11, shade(site.trim, 22), 46);
+      }
+      drawShelving(r.gx0 + 0.8, r.gy0 + 1.3, 2, site);
+      drawShelving(r.gx1 - 2.8, r.gy0 + 0.7, 2, site);
+      drawTyreStack(r.gx0 + 0.9, r.gy0 + 4.3, 4, site);
+      drawTyreStack(r.gx1 - 1.0, r.gy0 + 3.5, 3, site);
+      drawBarrel(r.gx0 + 2.0, r.gy0 + 0.9, site);
+
+      // Bay markings and the drain channel across the floor.
+      const yellow = 'rgba(206,160,48,0.42)';
+      drawFloorStripe(r.gx0 + 2, r.gy1 - 4, 6, 'gx', yellow);
+      drawFloorStripe(r.gx0 + 2, r.gy1 - 4, 5, 'gy', yellow);
+      drawFloorStripe(r.gx1 - 3, r.gy0 + 3, 5, 'gy', yellow);
+      for (let i = 0; i < 5; i++) drawFloorDrain(r.gx0 + 3 + i, r.gy1 - 2, site);
+      [[r.gx0 + 4, r.gy0 + 5, 54], [r.gx1 - 4, r.gy1 - 5, 44]]
+        .forEach(([gx, gy, rx]) => drawPuddle(gx, gy, rx, 'rgba(255,214,150,0.10)'));
+    },
+
+    rooftop: (site) => {
+      // No enclosure up here: a night sky, a city standing in it, and a low
+      // parapet at the edge of the deck.
+      const c = siteCorners();
+      const horizon = c.north.y;
+      const sky = floorCtx.createLinearGradient(0, 0, 0, horizon + 60);
+      sky.addColorStop(0, '#0b1428');
+      sky.addColorStop(0.55, '#182842');
+      sky.addColorStop(1, '#27405e');
+      floorCtx.fillStyle = sky;
+      floorCtx.fillRect(0, 0, BASE_W, horizon + 60);
+
+      // The city, in two ranks -- the far one hazier and set back. Drawn
+      // either side of the moon and the landmarks, so those stand between
+      // the ranks instead of behind everything.
+      const skylineBase = horizon - 26;
+      const drawRank = (rank) => {
+        let x = -70;
+        let seed = rank.seed;
+        while (x < BASE_W + 70) {
+          seed = wobbleSeed(seed);
+          const w = 46 + (seed % 6) * 17;
+          const h = (95 + (seed % 9) * 36) * rank.tall;
+          const top = skylineBase - rank.set - h;
+          floorCtx.fillStyle = rank.tint;
+          floorCtx.fillRect(x, top, w, h + rank.set + 160);
+          const warm = `rgba(255,204,126,${rank.lit})`;
+          const cool = `rgba(126,214,240,${rank.lit})`;
+          for (let wy = top + 15; wy < top + h - 12; wy += 18) {
+            for (let wx = x + 8; wx < x + w - 10; wx += 14) {
+              if (((wx * 13 + wy * 7) % 5) >= 2) continue;
+              floorCtx.fillStyle = ((wx + wy) % 3) === 0 ? cool : warm;
+              floorCtx.fillRect(wx, wy, 5, 8);
+            }
+          }
+          if ((seed % 4) === 0) {
+            floorCtx.fillStyle = 'rgba(255,86,74,0.9)';
+            floorCtx.fillRect(x + w / 2 - 2, top - 8, 4, 6);
+          }
+          x += w + 9 + (seed % 4) * 8;
+        }
+      };
+
+      drawRank({ set: 90, tint: '#1d2f4e', lit: 0.30, tall: 1.2, seed: 9 });
+
+      // Moon, high enough to clear the towers.
+      const moon = { x: BASE_W * 0.79, y: 92 };
+      const halo = floorCtx.createRadialGradient(moon.x, moon.y, 6, moon.x, moon.y, 170);
+      halo.addColorStop(0, 'rgba(226,236,255,0.5)');
+      halo.addColorStop(1, 'rgba(226,236,255,0)');
+      floorCtx.fillStyle = halo;
+      floorCtx.beginPath();
+      floorCtx.arc(moon.x, moon.y, 170, 0, Math.PI * 2);
+      floorCtx.fill();
+      floorCtx.beginPath();
+      floorCtx.arc(moon.x, moon.y, 36, 0, Math.PI * 2);
+      floorCtx.fillStyle = '#e9efff';
+      floorCtx.fill();
+      floorCtx.beginPath();
+      floorCtx.arc(moon.x - 11, moon.y - 6, 6, 0, Math.PI * 2);
+      floorCtx.arc(moon.x + 9, moon.y + 8, 8, 0, Math.PI * 2);
+      floorCtx.fillStyle = 'rgba(196,208,232,0.55)';
+      floorCtx.fill();
+
+      drawRank({ set: 0, tint: '#131f38', lit: 0.55, tall: 0.9, seed: 23 });
+
+      // Water tower and a comms mast, standing clear in front of the city.
+      const silhouette = '#0e1a2e';
+      const wt = { x: BASE_W * 0.1, y: skylineBase - 30 };
+      floorCtx.fillStyle = silhouette;
+      [-38, -12, 12, 38].forEach((dx) => floorCtx.fillRect(wt.x + dx, wt.y - 66, 6, 70));
+      floorCtx.fillRect(wt.x - 45, wt.y - 128, 90, 64);
+      floorCtx.beginPath();
+      floorCtx.moveTo(wt.x - 52, wt.y - 128);
+      floorCtx.lineTo(wt.x, wt.y - 158);
+      floorCtx.lineTo(wt.x + 52, wt.y - 128);
+      floorCtx.closePath();
+      floorCtx.fill();
+      // A rim of moonlight down one side, or the tower is a black slab.
+      floorCtx.fillStyle = 'rgba(198,216,246,0.18)';
+      floorCtx.fillRect(wt.x + 34, wt.y - 128, 11, 64);
+      floorCtx.fillStyle = 'rgba(198,216,246,0.12)';
+      floorCtx.fillRect(wt.x - 45, wt.y - 130, 90, 4);
+      floorCtx.strokeStyle = 'rgba(198,216,246,0.14)';
+      floorCtx.lineWidth = 2;
+      for (let ry = wt.y - 120; ry < wt.y - 68; ry += 15) {
+        floorCtx.beginPath();
+        floorCtx.moveTo(wt.x - 43, ry);
+        floorCtx.lineTo(wt.x + 43, ry);
+        floorCtx.stroke();
+      }
+
+      const mast = { x: BASE_W * 0.93, y: skylineBase - 22 };
+      floorCtx.fillStyle = silhouette;
+      floorCtx.fillRect(mast.x - 4, mast.y - 152, 8, 156);
+      [-116, -86, -56].forEach((dy) => floorCtx.fillRect(mast.x - 15, mast.y + dy, 30, 5));
+      floorCtx.fillStyle = 'rgba(255,86,74,0.95)';
+      floorCtx.fillRect(mast.x - 4, mast.y - 163, 8, 9);
+
+      drawSiteFloor(site);
+
+      // The parapet: a low wall around the two back edges, lights set in it.
+      const parapetH = 66;
+      const depthE = isoVecRaw(0, -SITE_WALL_THICK);
+      const depthW = isoVecRaw(-SITE_WALL_THICK, 0);
+      drawWallSlab(c.north, c.east, parapetH, depthE, site.wall);
+      drawWallSlab(c.north, c.west, parapetH, depthW, site.wall);
+      drawWallCorner(c.north, depthE, depthW, parapetH, site.wall);
+      [c.east, c.west].forEach((far) => {
+        for (let t = 0.14; t < 1; t += 0.24) {
+          const at = (f) => ({ x: c.north.x + (far.x - c.north.x) * f,
+                               y: c.north.y + (far.y - c.north.y) * f });
+          const a = at(t);
+          const b = at(t + 0.032);
+          // Same reasoning as the strip lights: the wash lies along the
+          // parapet, not as a disc hanging in front of it.
+          wallGlow(c.north, far, t + 0.016, 0.132, 'rgba(255,198,112,1)', 150, 62, 0.22);
+          paintQuad([liftPt(a, 40), liftPt(b, 40), liftPt(b, 26), liftPt(a, 26)],
+            'rgba(255,198,112,0.9)', null, 0);
+        }
+      });
+
+      // Plant on the deck.
+      const r = siteRect();
+      const unit = isoPoint(r.gx0 + 1.2, r.gy0 + 5.2);
+      drawIsoBox(floorCtx, unit, 0, 0, 0.62, 0.46, 74, shade(site.trim, 24), 0);
+      [[-0.24, -0.18], [0.24, 0.18]].forEach(([u, v]) => {
+        const o = isoVecRaw(u, v);
+        const f = { x: unit.x + o.x, y: unit.y + o.y - 76 };
+        floorCtx.beginPath();
+        floorCtx.ellipse(f.x, f.y, 25, 12, 0, 0, Math.PI * 2);
+        floorCtx.fillStyle = shade(site.trim, -2);
+        floorCtx.fill();
+        floorCtx.strokeStyle = shade(site.trim, 44);
+        floorCtx.lineWidth = 1.4;
+        floorCtx.stroke();
+      });
+      drawIsoBox(floorCtx, isoPoint(r.gx1 - 1.6, r.gy0 + 4.6), 0, 0, 0.4, 0.34, 56,
+        shade(site.trim, 20), 0);
+      drawIsoBox(floorCtx, isoPoint(r.gx0 + 2.4, r.gy0 + 7.0), 0, 0, 0.34, 0.3, 40,
+        shade(site.trim, 12), 0);
+      drawIsoBox(floorCtx, isoPoint(r.gx0 + 1.6, r.gy1 - 5.0), 0, 0, 0.3, 0.26, 46,
+        shade(site.trim, 18), 0);
+      const stack = isoPoint(r.gx0 + 3.0, r.gy1 - 6.6);
+      drawIsoBox(floorCtx, stack, 0, 0, 0.16, 0.14, 52, shade(site.trim, 26), 0);
+      const steam = floorCtx.createRadialGradient(stack.x, stack.y - 92, 4, stack.x, stack.y - 92, 74);
+      steam.addColorStop(0, 'rgba(200,220,240,0.18)');
+      steam.addColorStop(1, 'rgba(200,220,240,0)');
+      floorCtx.fillStyle = steam;
+      floorCtx.beginPath();
+      floorCtx.arc(stack.x, stack.y - 92, 74, 0, Math.PI * 2);
+      floorCtx.fill();
+
+      [[r.gx0 + 4, r.gy1 - 4, 62], [r.gx1 - 4, r.gy0 + 5, 48], [r.gx0 + 6, r.gy0 + 6, 40]]
+        .forEach(([gx, gy, rx]) => drawPuddle(gx, gy, rx, 'rgba(180,215,255,0.16)'));
+    },
+  };
+
+  // Deterministic per-position jitter, so a skyline is uneven but does not
+  // reshuffle itself on every repaint.
+  function wobbleSeed(seed) {
+    return (seed * 37 + 11) % 97;
+  }
+
+  // A pool of the theme's own light over the plan, so the middle of the view
+  // is lit and the far corners of the site fall away.
+  function drawSiteWash(tint) {
+    const cx = BLEED_SIDE + PLAN_W / 2;
+    const cy = BLEED_TOP + PLAN_H / 2;
+    const radius = Math.max(PLAN_W, PLAN_H) * 0.8;
+    floorCtx.save();
+    floorCtx.translate(cx, cy);
+    floorCtx.scale(1, 0.6);
     const g = floorCtx.createRadialGradient(0, 0, radius * 0.1, 0, 0, radius);
     g.addColorStop(0, tint);
     g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -1307,195 +1890,47 @@
     floorCtx.restore();
   }
 
-  // Scenery sits at fractions of the plan's own box, so it keeps its
-  // distance from the rooms however the chain grows. Values outside 0..1
-  // land in the bleed band, which is where most of it belongs.
-  function offPlanPoint(fx, fy) {
-    const r = planRect();
-    return { x: r.x0 + PLAN_W * fx, y: r.y0 + PLAN_H * fy };
-  }
-
-  // A band of silhouettes standing behind the plan and hazing out with
-  // distance. This is what makes a view read as somewhere -- a roof with a
-  // city behind it, a unit with its far wall a long way off -- rather than
-  // as a rectangle with things drawn on it.
-  function distantBand() {
-    const r = planRect();
-    return { y: r.y0 + PLAN_H * 0.12, x0: -BACKDROP_BLEED, x1: BASE_W + BACKDROP_BLEED };
-  }
-
-  // Wash the theme's own darkness back over the band so the silhouettes sit
-  // behind the air rather than in front of it.
-  function hazeOver(colors, band, height, alpha) {
-    floorCtx.save();
-    floorCtx.globalAlpha = alpha;
-    floorCtx.fillStyle = colors.bg;
-    floorCtx.fillRect(0, band.y - height, BASE_W, height);
-    floorCtx.restore();
-  }
-
-  // Deterministic per-position jitter, so a skyline or a row of doors is
-  // uneven but does not reshuffle itself on every repaint.
-  function wobble(seed) {
-    return (seed * 37 + 11) % 97;
-  }
-
-  const AMBIENCE = {
-    garage: (colors) => {
-      // The far wall of the unit: a run of roller shutters, receding.
-      const band = distantBand();
-      let x = band.x0;
-      let seed = 7;
-      while (x < band.x1) {
-        seed = wobble(seed);
-        const w = 76 + (seed % 4) * 18;
-        const h = 92 + (seed % 5) * 16;
-        floorCtx.fillStyle = shade(colors.bg, 15);
-        floorCtx.fillRect(x, band.y - h, w, h);
-        floorCtx.fillStyle = shade(colors.bg, 25);
-        for (let sy = band.y - h + 9; sy < band.y - 7; sy += 12) {
-          floorCtx.fillRect(x + 6, sy, w - 12, 3);
-        }
-        x += w + 18 + (seed % 3) * 12;
-      }
-      hazeOver(colors, band, 320, 0.4);
-
-      // Ground clutter, well clear of the rooms: tyres stacked against the
-      // wall, and old oil soaked into the concrete.
-      [[0.06, 0.56], [0.10, 0.67]].forEach(([fx, fy], i) => {
-        const p = offPlanPoint(fx, fy);
-        floorCtx.beginPath();
-        floorCtx.ellipse(p.x, p.y, 27, 13, 0, 0, Math.PI * 2);
-        floorCtx.fillStyle = shade(colors.bg, 6);
-        floorCtx.fill();
-        floorCtx.strokeStyle = shade(colors.bg, 22);
-        floorCtx.lineWidth = 1.5;
-        floorCtx.stroke();
-        floorCtx.beginPath();
-        floorCtx.ellipse(p.x, p.y - 1 - i, 11, 5.5, 0, 0, Math.PI * 2);
-        floorCtx.fillStyle = shade(colors.bg, 20);
-        floorCtx.fill();
-      });
-      [[0.9, 0.36], [0.44, 0.9]].forEach(([fx, fy]) => {
-        const p = offPlanPoint(fx, fy);
-        floorCtx.beginPath();
-        floorCtx.ellipse(p.x, p.y, 62, 25, 0, 0, Math.PI * 2);
-        floorCtx.fillStyle = 'rgba(0,0,0,0.22)';
-        floorCtx.fill();
-      });
-    },
-
-    basement: (colors) => {
-      // The far end of the boiler room: tanks and standpipes.
-      const band = distantBand();
-      let x = band.x0;
-      let seed = 5;
-      while (x < band.x1) {
-        seed = wobble(seed);
-        const w = 30 + (seed % 4) * 12;
-        const h = 58 + (seed % 6) * 20;
-        floorCtx.fillStyle = shade(colors.bg, 9);
-        floorCtx.fillRect(x, band.y - h, w, h);
-        floorCtx.fillStyle = shade(colors.bg, 17);
-        floorCtx.fillRect(x + 5, band.y - h, 5, h);
-        x += w + 14 + (seed % 3) * 10;
-      }
-      floorCtx.save();
-      floorCtx.strokeStyle = shade(colors.bg, 15);
-      floorCtx.lineCap = 'round';
-      [[0.55, 8], [0.78, 5]].forEach(([f, lw]) => {
-        const y = band.y - 130 * f;
-        floorCtx.lineWidth = lw;
-        floorCtx.beginPath();
-        floorCtx.moveTo(band.x0, y);
-        floorCtx.lineTo(band.x1, y);
-        floorCtx.stroke();
-      });
-      floorCtx.restore();
-      hazeOver(colors, band, 320, 0.42);
-
-      // Damp on the floor, catching the little light there is.
-      [[0.08, 0.66], [0.9, 0.44], [0.36, 0.9]].forEach(([fx, fy]) => {
-        const p = offPlanPoint(fx, fy);
-        floorCtx.beginPath();
-        floorCtx.ellipse(p.x, p.y, 54, 21, 0, 0, Math.PI * 2);
-        floorCtx.fillStyle = 'rgba(150,190,225,0.055)';
-        floorCtx.fill();
-      });
-    },
-
-    rooftop: (colors) => {
-      // Sun high over the plan, and a city standing low behind it.
-      const r = planRect();
-      const band = distantBand();
-      const sunX = r.x1 - PLAN_W * 0.18;
-      const sunY = r.y0 - BACKDROP_BLEED * 0.35;
-      const glow = floorCtx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 130);
-      glow.addColorStop(0, 'rgba(255,244,200,0.85)');
-      glow.addColorStop(1, 'rgba(255,244,200,0)');
-      floorCtx.fillStyle = glow;
-      floorCtx.beginPath();
-      floorCtx.arc(sunX, sunY, 130, 0, Math.PI * 2);
-      floorCtx.fill();
-      floorCtx.beginPath();
-      floorCtx.arc(sunX, sunY, 15, 0, Math.PI * 2);
-      floorCtx.fillStyle = '#fff6da';
-      floorCtx.fill();
-
-      let x = band.x0;
-      let seed = 3;
-      while (x < band.x1) {
-        seed = wobble(seed);
-        const w = 22 + (seed % 5) * 9;
-        const h = 60 + (seed % 7) * 22;
-        floorCtx.fillStyle = 'rgba(26,46,66,0.5)';
-        floorCtx.fillRect(x, band.y - h, w, h);
-        floorCtx.fillStyle = 'rgba(255,228,158,0.4)';
-        for (let wy = band.y - h + 12; wy < band.y - 10; wy += 15) {
-          for (let wx = x + 5; wx < x + w - 5; wx += 9) {
-            if (((wx + wy) * 7) % 5 < 2) floorCtx.fillRect(wx, wy, 3, 4);
-          }
-        }
-        x += w + 6 + (seed % 4) * 5;
-      }
-      hazeOver(colors, band, 260, 0.35);
-    },
-  };
-
-  // Erase the ambience towards the edges of the canvas. Without this the
-  // ground would simply stop at the canvas boundary and read as the edge of
-  // a box; faded out, the plan looks like it is standing somewhere that
-  // carries on past what you can see. Called before any room is drawn, so
-  // the rooms themselves are never touched by it.
-  function maskAmbienceEdges() {
-    const r = planRect();
-    const rx = BASE_W / 2;
-    const ry = BASE_H / 2;
-    // Elliptical, not circular: a circle big enough to clear the corners is
-    // still short of the top and bottom edges, which leaves a rim of
-    // un-erased ground there and puts back the very seam this is removing.
-    // Squashing the space to the canvas's own proportions makes the fade
-    // reach every edge at once.
-    const squash = ry / rx;
-    const inner = Math.min(PLAN_W / BASE_W, PLAN_H / BASE_H);
-    const g = floorCtx.createRadialGradient(0, 0, rx * inner, 0, 0, rx);
+  // Darkness closing in at the corners of the view. Where the plan is what
+  // you are meant to be looking at, this is what keeps your eye on it.
+  function drawSiteVignette() {
+    const cx = BLEED_SIDE + PLAN_W / 2;
+    const cy = BLEED_TOP + PLAN_H / 2;
+    const radius = Math.hypot(BASE_W, BASE_H) * 0.62;
+    const g = floorCtx.createRadialGradient(cx, cy, radius * 0.55, cx, cy, radius);
     g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(0.6, 'rgba(0,0,0,0.6)');
-    g.addColorStop(1, 'rgba(0,0,0,1)');
+    g.addColorStop(1, 'rgba(0,0,0,0.4)');
+    floorCtx.fillStyle = g;
+    floorCtx.fillRect(0, 0, BASE_W, BASE_H);
+  }
+
+  // Dissolve the last strip along each edge of the canvas. The site's own
+  // floor and walls are the frame now, but the canvas still has to stop
+  // somewhere, and a cut edge against the stage would be a box outline.
+  function maskAmbienceEdges() {
+    const fade = 46;
+    const edges = [
+      [0, 0, fade, 0, 0, 0, fade, BASE_H],
+      [BASE_W, 0, BASE_W - fade, 0, BASE_W - fade, 0, fade, BASE_H],
+      [0, 0, 0, fade, 0, 0, BASE_W, fade],
+      [0, BASE_H, 0, BASE_H - fade, 0, BASE_H - fade, BASE_W, fade],
+    ];
     floorCtx.save();
     floorCtx.globalCompositeOperation = 'destination-out';
-    floorCtx.translate(r.cx, r.cy);
-    floorCtx.scale(1, squash);
-    floorCtx.fillStyle = g;
-    floorCtx.fillRect(-rx, -rx, rx * 2, rx * 2);
+    edges.forEach(([x0, y0, x1, y1, rx, ry, rw, rh]) => {
+      const g = floorCtx.createLinearGradient(x0, y0, x1, y1);
+      g.addColorStop(0, 'rgba(0,0,0,1)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      floorCtx.fillStyle = g;
+      floorCtx.fillRect(rx, ry, rw, rh);
+    });
     floorCtx.restore();
   }
 
-  function drawAmbience(theme, colors) {
-    drawGroundLattice(colors);
-    drawAmbientWash(colors, AMBIENT_WASH[theme] || AMBIENT_WASH.garage);
-    const scenery = AMBIENCE[theme];
-    if (scenery) scenery(colors);
+  function drawAmbience(theme) {
+    const site = SITE_COLORS[theme] || SITE_COLORS.garage;
+    (SITE[theme] || SITE.garage)(site);
+    drawSiteWash(AMBIENT_WASH[theme] || AMBIENT_WASH.garage);
+    drawSiteVignette();
     maskAmbienceEdges();
   }
 
@@ -2106,7 +2541,7 @@
     // window carries the ground colour, the canvas fades to transparent at
     // its edges, and the two meet with no seam to see.
     if (stageScrollEl) stageScrollEl.style.background = colors.bg;
-    drawAmbience(state.activeTheme, colors);
+    drawAmbience(state.activeTheme);
 
     // Rooms and hallways go down in one back-to-front pass, ordered by how far
     // back their rear corner sits. Drawing all the hallways first instead
