@@ -152,6 +152,13 @@
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  /* The ambient ground is drawn wider than the plan, so there is now always
+     something to scroll to and a classic desktop scrollbar would sit down
+     two edges of the view permanently -- a frame around the very thing that
+     is meant not to have one. Panning is the drag handlers' job; scrolling
+     still works, it just has no chrome. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   /* Centre a plan small enough to fit (zoomed out, it would otherwise sit in
      the top-left with dead space below). "safe" drops back to start-aligned
      once the plan is bigger than the window, so centring never strands the
@@ -159,11 +166,12 @@
   display: flex;
   align-items: safe center;
   justify-content: safe center;
-  /* On a wide window the plan can be smaller than the window; without a
-     ground of its own the gap around it would be the page showing
-     through the frame. */
-  background: #08080b;
+  /* The ground the plan stands on. renderScene() sets this to the active
+     theme's colour, which is also what the canvas fades out to, so the
+     edge of the canvas is invisible and the view has no box around it. */
+  background: #0e1114;
 }
+.tycoon-room-stage::-webkit-scrollbar { display: none; }
 .tycoon-room-zoom-wrap {
   position: relative;
   flex: none;

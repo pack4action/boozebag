@@ -602,7 +602,14 @@
   // chain is a different length.
   let BASE_W = 480;
   let BASE_H = 380;
+  // How tightly the canvas frames the plan, and how much dim ground is drawn
+  // out beyond that frame. The bleed is scenery only: it is deliberately not
+  // part of what the auto-fit zoom measures (see PLAN_W/PLAN_H), or adding
+  // background would shrink the rooms.
   const WORLD_PAD = 34;
+  const BACKDROP_BLEED = 130;
+  let PLAN_W = 480;
+  let PLAN_H = 380;
   let placements = [];
   let corridors = [];
   let preview = null;
@@ -650,10 +657,12 @@
     const xMax = (maxGx - minGy) * halfW + WORLD_PAD;
     const yMin = (minGx + minGy) * halfH - ROOM.wallH - WORLD_PAD;
     const yMax = (maxGx + maxGy) * halfH + WORLD_PAD;
-    worldOrigin.x = -xMin;
-    worldOrigin.y = -yMin;
-    BASE_W = Math.round(xMax - xMin);
-    BASE_H = Math.round(yMax - yMin);
+    PLAN_W = Math.round(xMax - xMin);
+    PLAN_H = Math.round(yMax - yMin);
+    worldOrigin.x = -xMin + BACKDROP_BLEED;
+    worldOrigin.y = -yMin + BACKDROP_BLEED;
+    BASE_W = PLAN_W + BACKDROP_BLEED * 2;
+    BASE_H = PLAN_H + BACKDROP_BLEED * 2;
   }
 
   // Pan is native container scrolling (or the click-and-drag/touch-swipe
@@ -688,7 +697,7 @@
     const availW = stageScrollEl.clientWidth;
     const availH = stageScrollEl.clientHeight;
     if (!availW || !availH) return;
-    const fit = Math.min(availW / BASE_W, availH / BASE_H, FIT_MAX);
+    const fit = Math.min(availW / PLAN_W, availH / PLAN_H, FIT_MAX);
     zoomLevel = Math.max(ZOOM_MIN, Math.round(fit * 100) / 100);
   }
 
@@ -733,15 +742,20 @@
     });
   }
 
-  // Zoom is a CSS transform on the canvas, so zooming past 1x would blow up
-  // a fixed bitmap and go soft. Rendering the backing store at the zoomed
-  // size instead keeps the plan crisp all the way up. Capped so a big plan
-  // on a retina screen cannot ask for an absurd texture.
-  const MAX_BACKING_SCALE = 3;
+  // Zoom is a CSS transform on the canvas, so a fixed bitmap would be blown
+  // up when you zoom in and thrown away when you zoom out. Sizing the
+  // backing store to what the plan actually occupies on screen -- its
+  // logical size, times the zoom, times the device's pixels per CSS pixel
+  // -- is one texel per screen pixel at every zoom level. The bounds stop a
+  // big plan on a retina screen asking for an absurd texture, and stop a
+  // zoomed-out one asking for a mushy little thumbnail.
+  const MAX_BACKING_SCALE = 2.2;
+  const MIN_BACKING_SCALE = 0.5;
 
   function fitCanvasResolution() {
     const dpr = window.devicePixelRatio || 1;
-    const scale = Math.min(MAX_BACKING_SCALE, dpr * Math.max(1, zoomLevel));
+    const scale = Math.max(MIN_BACKING_SCALE,
+      Math.min(MAX_BACKING_SCALE, dpr * zoomLevel));
     const targetW = Math.round(BASE_W * scale);
     const targetH = Math.round(BASE_H * scale);
     if (floorCanvas.width !== targetW || floorCanvas.height !== targetH) {
@@ -756,6 +770,14 @@
     basement: { floorA: '#33404a', floorB: '#28333c', wallL: '#1c242c', wallR: '#161b21', bgTop: '#171b1f', bg: '#0e1114' },
     rooftop: { floorA: '#5a89ad', floorB: '#4a7594', wallL: '#3f6f94', wallR: '#2f5673', bgTop: '#3f6f94', bg: '#1c3348' },
   };
+  // The colour the ground around the plan is washed with -- the theme's own
+  // light spilling out past the rooms.
+  const AMBIENT_WASH = {
+    garage: 'rgba(120, 82, 40, 0.5)',
+    basement: 'rgba(58, 82, 104, 0.5)',
+    rooftop: 'rgba(96, 148, 190, 0.55)',
+  };
+
   // Per-theme ceiling fixture + ambient glow pool. Rooftop has no fixture
   // (it's open to the sky) but still gets a warm sun-glow on the floor.
   const LIGHT_COLORS = {
@@ -1213,113 +1235,268 @@
   // stacked tires for garage, exposed ductwork for basement. Drawn before
   // the walls, so the walls correctly cover whatever part would fall
   // behind them.
-  function drawBackdrop(theme, W, H) {
-    // The scenery below was composed against a single 480x340 room. The
-    // canvas is now as big as the whole floor plan, so vertical positions
-    // scale with it -- otherwise the props bunch up along the top edge and
-    // float in dead space away from any room.
-    const sy = H / 340;
-    if (theme === 'rooftop') {
-      const sunX = W - 68;
-      const sunY = 54;
-      const sunGlow = floorCtx.createRadialGradient(sunX, sunY, 2, sunX, sunY, 48);
-      sunGlow.addColorStop(0, 'rgba(255,244,200,0.9)');
-      sunGlow.addColorStop(1, 'rgba(255,244,200,0)');
-      floorCtx.fillStyle = sunGlow;
-      floorCtx.beginPath();
-      floorCtx.arc(sunX, sunY, 48, 0, Math.PI * 2);
-      floorCtx.fill();
-      floorCtx.beginPath();
-      floorCtx.arc(sunX, sunY, 13, 0, Math.PI * 2);
-      floorCtx.fillStyle = '#fff6da';
-      floorCtx.fill();
+  // ---- Ambience ----
+  // What sits around the plan. It used to be scenery pinned to the canvas
+  // edges -- rafters converging on the top corners, a tool rack at x = W - 48
+  // -- which framed the rooms in a hard rectangle and left lines running off
+  // the sides. Everything here is positioned against the PLAN instead, over a
+  // ground that carries on past it and is then erased towards the canvas edge
+  // (see maskAmbienceEdges), so the view has no border to find.
 
-      floorCtx.fillStyle = 'rgba(255,255,255,0.32)';
-      [[46, 38 * sy, 22], [118, 64 * sy, 15], [W - 140, 88 * sy, 17]].forEach(([cx, cy, r]) => {
-        floorCtx.beginPath();
-        floorCtx.ellipse(cx, cy, r * 1.6, r * 0.65, 0, 0, Math.PI * 2);
-        floorCtx.fill();
-      });
+  function planRect() {
+    return {
+      x0: BACKDROP_BLEED,
+      y0: BACKDROP_BLEED,
+      x1: BACKDROP_BLEED + PLAN_W,
+      y1: BACKDROP_BLEED + PLAN_H,
+      cx: BACKDROP_BLEED + PLAN_W / 2,
+      cy: BACKDROP_BLEED + PLAN_H / 2,
+    };
+  }
 
-      const skylineY = 300 * sy;
-      const buildings = [
-        { x: 0, w: 26, h: 120 }, { x: 24, w: 20, h: 82 }, { x: 42, w: 30, h: 152 },
-        { x: W - 30, w: 30, h: 132 }, { x: W - 55, w: 22, h: 92 }, { x: W - 78, w: 24, h: 162 },
-      ];
-      buildings.forEach((b) => {
-        floorCtx.fillStyle = 'rgba(26,46,66,0.6)';
-        floorCtx.fillRect(b.x, skylineY - b.h, b.w, b.h);
-        floorCtx.fillStyle = 'rgba(255,228,158,0.55)';
-        for (let wy = skylineY - b.h + 10; wy < skylineY - 8; wy += 13) {
-          for (let wx = b.x + 4; wx < b.x + b.w - 4; wx += 8) {
-            if (((wx + wy) * 7) % 5 < 2) floorCtx.fillRect(wx, wy, 3, 4);
-          }
+  // The floor the whole site stands on: isometric lines on the same lattice
+  // as the rooms, running well past them. Rooms read as built on something
+  // rather than cut out and pasted onto a backing colour.
+  function drawGroundLattice(colors) {
+    const step = 2;
+    const halfW = ROOM.tileW / 2;
+    const halfH = ROOM.tileH / 2;
+    // How many lattice steps it takes to cross the canvas diagonally, which
+    // is the most either axis can need.
+    const reach = Math.ceil((BASE_W / halfW + BASE_H / halfH) / 2) + step * 2;
+    const span = reach * 2;
+
+    floorCtx.save();
+    floorCtx.strokeStyle = shade(colors.bg, 16);
+    floorCtx.lineWidth = 1;
+    for (let i = -reach; i <= reach; i += step) {
+      const a = isoPoint(i, -span);
+      const b = isoPoint(i, span);
+      floorCtx.beginPath();
+      floorCtx.moveTo(a.x, a.y);
+      floorCtx.lineTo(b.x, b.y);
+      floorCtx.stroke();
+
+      const c = isoPoint(-span, i);
+      const d = isoPoint(span, i);
+      floorCtx.beginPath();
+      floorCtx.moveTo(c.x, c.y);
+      floorCtx.lineTo(d.x, d.y);
+      floorCtx.stroke();
+    }
+    floorCtx.restore();
+  }
+
+  // A wash of the theme's own light pooled over the plan, brightest where the
+  // rooms are and gone by the time it reaches open ground.
+  function drawAmbientWash(colors, tint) {
+    const r = planRect();
+    const radius = Math.max(PLAN_W, PLAN_H) * 0.72;
+    floorCtx.save();
+    floorCtx.translate(r.cx, r.cy);
+    // Squashed towards the isometric, so the pool lies on the ground plane
+    // instead of hanging in front of it as a circle.
+    floorCtx.scale(1, ROOM.tileH / ROOM.tileW * 1.5);
+    const g = floorCtx.createRadialGradient(0, 0, radius * 0.1, 0, 0, radius);
+    g.addColorStop(0, tint);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    floorCtx.fillStyle = g;
+    floorCtx.beginPath();
+    floorCtx.arc(0, 0, radius, 0, Math.PI * 2);
+    floorCtx.fill();
+    floorCtx.restore();
+  }
+
+  // Scenery sits at fractions of the plan's own box, so it keeps its
+  // distance from the rooms however the chain grows. Values outside 0..1
+  // land in the bleed band, which is where most of it belongs.
+  function offPlanPoint(fx, fy) {
+    const r = planRect();
+    return { x: r.x0 + PLAN_W * fx, y: r.y0 + PLAN_H * fy };
+  }
+
+  // A band of silhouettes standing behind the plan and hazing out with
+  // distance. This is what makes a view read as somewhere -- a roof with a
+  // city behind it, a unit with its far wall a long way off -- rather than
+  // as a rectangle with things drawn on it.
+  function distantBand() {
+    const r = planRect();
+    return { y: r.y0 + PLAN_H * 0.12, x0: -BACKDROP_BLEED, x1: BASE_W + BACKDROP_BLEED };
+  }
+
+  // Wash the theme's own darkness back over the band so the silhouettes sit
+  // behind the air rather than in front of it.
+  function hazeOver(colors, band, height, alpha) {
+    floorCtx.save();
+    floorCtx.globalAlpha = alpha;
+    floorCtx.fillStyle = colors.bg;
+    floorCtx.fillRect(0, band.y - height, BASE_W, height);
+    floorCtx.restore();
+  }
+
+  // Deterministic per-position jitter, so a skyline or a row of doors is
+  // uneven but does not reshuffle itself on every repaint.
+  function wobble(seed) {
+    return (seed * 37 + 11) % 97;
+  }
+
+  const AMBIENCE = {
+    garage: (colors) => {
+      // The far wall of the unit: a run of roller shutters, receding.
+      const band = distantBand();
+      let x = band.x0;
+      let seed = 7;
+      while (x < band.x1) {
+        seed = wobble(seed);
+        const w = 76 + (seed % 4) * 18;
+        const h = 92 + (seed % 5) * 16;
+        floorCtx.fillStyle = shade(colors.bg, 15);
+        floorCtx.fillRect(x, band.y - h, w, h);
+        floorCtx.fillStyle = shade(colors.bg, 25);
+        for (let sy = band.y - h + 9; sy < band.y - 7; sy += 12) {
+          floorCtx.fillRect(x + 6, sy, w - 12, 3);
         }
-      });
-    } else if (theme === 'garage') {
-      floorCtx.strokeStyle = shade(THEME_COLORS.garage.bg, 40);
-      floorCtx.lineWidth = 4;
-      floorCtx.lineCap = 'round';
-      [[0, 26 * sy], [0, 88 * sy], [W, 26 * sy], [W, 88 * sy]].forEach(([x, y]) => {
-        floorCtx.beginPath();
-        floorCtx.moveTo(x, y);
-        floorCtx.lineTo(W / 2, -8);
-        floorCtx.stroke();
-      });
+        x += w + 18 + (seed % 3) * 12;
+      }
+      hazeOver(colors, band, 320, 0.4);
 
-      [[32, 256 * sy, 24], [32, 212 * sy, 20]].forEach(([x, y, r]) => {
+      // Ground clutter, well clear of the rooms: tyres stacked against the
+      // wall, and old oil soaked into the concrete.
+      [[0.06, 0.56], [0.10, 0.67]].forEach(([fx, fy], i) => {
+        const p = offPlanPoint(fx, fy);
         floorCtx.beginPath();
-        floorCtx.arc(x, y, r, 0, Math.PI * 2);
-        floorCtx.fillStyle = '#100f0d';
+        floorCtx.ellipse(p.x, p.y, 27, 13, 0, 0, Math.PI * 2);
+        floorCtx.fillStyle = shade(colors.bg, 6);
         floorCtx.fill();
-        floorCtx.strokeStyle = '#4a453e';
+        floorCtx.strokeStyle = shade(colors.bg, 22);
         floorCtx.lineWidth = 1.5;
         floorCtx.stroke();
         floorCtx.beginPath();
-        floorCtx.arc(x, y, r * 0.45, 0, Math.PI * 2);
-        floorCtx.fillStyle = '#4a453e';
+        floorCtx.ellipse(p.x, p.y - 1 - i, 11, 5.5, 0, 0, Math.PI * 2);
+        floorCtx.fillStyle = shade(colors.bg, 20);
         floorCtx.fill();
       });
+      [[0.9, 0.36], [0.44, 0.9]].forEach(([fx, fy]) => {
+        const p = offPlanPoint(fx, fy);
+        floorCtx.beginPath();
+        floorCtx.ellipse(p.x, p.y, 62, 25, 0, 0, Math.PI * 2);
+        floorCtx.fillStyle = 'rgba(0,0,0,0.22)';
+        floorCtx.fill();
+      });
+    },
 
-      [150 * sy, 190 * sy, 230 * sy].forEach((y) => {
-        floorCtx.fillStyle = 'rgba(0,0,0,0.4)';
-        floorCtx.fillRect(W - 48, y, 32, 6);
-        floorCtx.fillStyle = 'rgba(255,255,255,0.08)';
-        floorCtx.fillRect(W - 48, y, 32, 1.5);
-      });
-      floorCtx.fillStyle = '#c0483a';
-      floorCtx.fillRect(W - 40, 160 * sy, 10, 24);
-      floorCtx.fillStyle = '#3fa8a0';
-      floorCtx.fillRect(W - 26, 200 * sy, 8, 26);
-    } else if (theme === 'basement') {
-      floorCtx.strokeStyle = '#3a4650';
-      floorCtx.lineWidth = 5;
-      floorCtx.beginPath();
-      floorCtx.moveTo(0, 20);
-      floorCtx.lineTo(W, 20);
-      floorCtx.stroke();
-      floorCtx.fillStyle = '#4a5862';
-      for (let x = 10; x < W; x += 55) {
-        floorCtx.beginPath();
-        floorCtx.arc(x, 20, 5, 0, Math.PI * 2);
-        floorCtx.fill();
+    basement: (colors) => {
+      // The far end of the boiler room: tanks and standpipes.
+      const band = distantBand();
+      let x = band.x0;
+      let seed = 5;
+      while (x < band.x1) {
+        seed = wobble(seed);
+        const w = 30 + (seed % 4) * 12;
+        const h = 58 + (seed % 6) * 20;
+        floorCtx.fillStyle = shade(colors.bg, 9);
+        floorCtx.fillRect(x, band.y - h, w, h);
+        floorCtx.fillStyle = shade(colors.bg, 17);
+        floorCtx.fillRect(x + 5, band.y - h, 5, h);
+        x += w + 14 + (seed % 3) * 10;
       }
-      floorCtx.strokeStyle = '#3a4650';
-      floorCtx.lineWidth = 4;
-      [28, W - 28].forEach((x) => {
+      floorCtx.save();
+      floorCtx.strokeStyle = shade(colors.bg, 15);
+      floorCtx.lineCap = 'round';
+      [[0.55, 8], [0.78, 5]].forEach(([f, lw]) => {
+        const y = band.y - 130 * f;
+        floorCtx.lineWidth = lw;
         floorCtx.beginPath();
-        floorCtx.moveTo(x, 20);
-        floorCtx.lineTo(x, 262 * sy);
+        floorCtx.moveTo(band.x0, y);
+        floorCtx.lineTo(band.x1, y);
         floorCtx.stroke();
       });
-      floorCtx.fillStyle = 'rgba(180,210,230,0.14)';
+      floorCtx.restore();
+      hazeOver(colors, band, 320, 0.42);
+
+      // Damp on the floor, catching the little light there is.
+      [[0.08, 0.66], [0.9, 0.44], [0.36, 0.9]].forEach(([fx, fy]) => {
+        const p = offPlanPoint(fx, fy);
+        floorCtx.beginPath();
+        floorCtx.ellipse(p.x, p.y, 54, 21, 0, 0, Math.PI * 2);
+        floorCtx.fillStyle = 'rgba(150,190,225,0.055)';
+        floorCtx.fill();
+      });
+    },
+
+    rooftop: (colors) => {
+      // Sun high over the plan, and a city standing low behind it.
+      const r = planRect();
+      const band = distantBand();
+      const sunX = r.x1 - PLAN_W * 0.18;
+      const sunY = r.y0 - BACKDROP_BLEED * 0.35;
+      const glow = floorCtx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 130);
+      glow.addColorStop(0, 'rgba(255,244,200,0.85)');
+      glow.addColorStop(1, 'rgba(255,244,200,0)');
+      floorCtx.fillStyle = glow;
       floorCtx.beginPath();
-      floorCtx.moveTo(30, 100 * sy);
-      floorCtx.lineTo(90, 260 * sy);
-      floorCtx.lineTo(30, 260 * sy);
-      floorCtx.closePath();
+      floorCtx.arc(sunX, sunY, 130, 0, Math.PI * 2);
       floorCtx.fill();
-    }
+      floorCtx.beginPath();
+      floorCtx.arc(sunX, sunY, 15, 0, Math.PI * 2);
+      floorCtx.fillStyle = '#fff6da';
+      floorCtx.fill();
+
+      let x = band.x0;
+      let seed = 3;
+      while (x < band.x1) {
+        seed = wobble(seed);
+        const w = 22 + (seed % 5) * 9;
+        const h = 60 + (seed % 7) * 22;
+        floorCtx.fillStyle = 'rgba(26,46,66,0.5)';
+        floorCtx.fillRect(x, band.y - h, w, h);
+        floorCtx.fillStyle = 'rgba(255,228,158,0.4)';
+        for (let wy = band.y - h + 12; wy < band.y - 10; wy += 15) {
+          for (let wx = x + 5; wx < x + w - 5; wx += 9) {
+            if (((wx + wy) * 7) % 5 < 2) floorCtx.fillRect(wx, wy, 3, 4);
+          }
+        }
+        x += w + 6 + (seed % 4) * 5;
+      }
+      hazeOver(colors, band, 260, 0.35);
+    },
+  };
+
+  // Erase the ambience towards the edges of the canvas. Without this the
+  // ground would simply stop at the canvas boundary and read as the edge of
+  // a box; faded out, the plan looks like it is standing somewhere that
+  // carries on past what you can see. Called before any room is drawn, so
+  // the rooms themselves are never touched by it.
+  function maskAmbienceEdges() {
+    const r = planRect();
+    const rx = BASE_W / 2;
+    const ry = BASE_H / 2;
+    // Elliptical, not circular: a circle big enough to clear the corners is
+    // still short of the top and bottom edges, which leaves a rim of
+    // un-erased ground there and puts back the very seam this is removing.
+    // Squashing the space to the canvas's own proportions makes the fade
+    // reach every edge at once.
+    const squash = ry / rx;
+    const inner = Math.min(PLAN_W / BASE_W, PLAN_H / BASE_H);
+    const g = floorCtx.createRadialGradient(0, 0, rx * inner, 0, 0, rx);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(0.6, 'rgba(0,0,0,0.6)');
+    g.addColorStop(1, 'rgba(0,0,0,1)');
+    floorCtx.save();
+    floorCtx.globalCompositeOperation = 'destination-out';
+    floorCtx.translate(r.cx, r.cy);
+    floorCtx.scale(1, squash);
+    floorCtx.fillStyle = g;
+    floorCtx.fillRect(-rx, -rx, rx * 2, rx * 2);
+    floorCtx.restore();
+  }
+
+  function drawAmbience(theme, colors) {
+    drawGroundLattice(colors);
+    drawAmbientWash(colors, AMBIENT_WASH[theme] || AMBIENT_WASH.garage);
+    const scenery = AMBIENCE[theme];
+    if (scenery) scenery(colors);
+    maskAmbienceEdges();
   }
 
   // Point on a wall: t is fraction along the wall (0 = the near/floor
@@ -1925,12 +2102,11 @@
     const H = BASE_H;
     floorCtx.clearRect(0, 0, W, H);
 
-    const bgGrad = floorCtx.createLinearGradient(0, 0, 0, H);
-    bgGrad.addColorStop(0, colors.bgTop);
-    bgGrad.addColorStop(1, colors.bg);
-    floorCtx.fillStyle = bgGrad;
-    floorCtx.fillRect(0, 0, W, H);
-    drawBackdrop(state.activeTheme, W, H);
+    // The canvas no longer paints its own full-bleed rectangle: the stage
+    // window carries the ground colour, the canvas fades to transparent at
+    // its edges, and the two meet with no seam to see.
+    if (stageScrollEl) stageScrollEl.style.background = colors.bg;
+    drawAmbience(state.activeTheme, colors);
 
     // Rooms and hallways go down in one back-to-front pass, ordered by how far
     // back their rear corner sits. Drawing all the hallways first instead
