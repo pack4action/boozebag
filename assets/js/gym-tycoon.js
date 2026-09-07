@@ -2485,20 +2485,20 @@
   // A pale casing standing across the corridor mouth: two jambs and a lintel
   // around an unlit opening. Drawn as a frame rather than a filled slab so
   // the doorway reads as something you look through, not a black panel.
-  function drawCorridorDoor(p0, p1, colors) {
+  function drawCorridorDoor(p0, p1, colors, wallColor) {
     const h = ROOM.wallH * 0.56;
     // Narrow it to the middle of the hallway -- a door, not the whole end
     // wall gone missing.
     const a = lerpPt(p0, p1, 0.18);
     const b = lerpPt(p0, p1, 0.82);
-    const casing = shade(colors.wallL, 112);
+    const casing = shade(wallColor, 112);
     const edge = 'rgba(0,0,0,0.5)';
     const jamb = 0.12;
     const lintel = 10;
 
     // Dim depth behind the opening -- shadowed, not a void.
     const depth = floorCtx.createLinearGradient(0, a.y - h, 0, a.y);
-    depth.addColorStop(0, shade(colors.wallR, -14));
+    depth.addColorStop(0, shade(wallColor, -14));
     depth.addColorStop(1, shade(colors.floorB, -24));
     paintQuad([a, b, liftPt(b, h), liftPt(a, h)], depth, null);
 
@@ -2631,7 +2631,11 @@
     const near = corridorEnd(c, false);
     const far = corridorEnd(c, true);
     drawThreshold(near[0], near[1], colors);
-    drawCorridorDoor(far[0], far[1], colors);
+    // The far end cuts into the door room's north wall for a north-south
+    // corridor, or its west wall for an east-west one -- wallR and wallL
+    // respectively, same as the room itself paints those two walls.
+    const wallColor = c.axis === 'gy' ? colors.wallR : colors.wallL;
+    drawCorridorDoor(far[0], far[1], colors, wallColor);
   }
 
   function renderScene() {
