@@ -480,6 +480,37 @@
   function rushMultiplier() {
     return 1 + RUSH_BONUS * rushFactor();
   }
+  // The light outside, by the hour. A room is lit by its own fittings, so
+  // this is a wash laid over the finished plan rather than a change to any
+  // material in it -- cold and dim in the small hours, warm at the ends of
+  // the day, and nothing at all at midday when the light is just light.
+  const SKY_BY_HOUR = [
+    [30, 48, 96, 0.34], [30, 48, 96, 0.34], [30, 48, 96, 0.34],  // 00-02
+    [30, 48, 96, 0.32], [36, 54, 100, 0.28], [90, 74, 108, 0.20], // 03-05
+    [180, 118, 86, 0.15], [214, 150, 96, 0.10], [220, 176, 120, 0.05], // 06-08
+    [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],                     // 09-11
+    [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],                     // 12-14
+    [0, 0, 0, 0], [216, 168, 112, 0.06], [214, 138, 88, 0.13],    // 15-17
+    [176, 102, 84, 0.16], [110, 78, 112, 0.20], [58, 62, 112, 0.26], // 18-20
+    [38, 52, 100, 0.30], [30, 48, 96, 0.33], [30, 48, 96, 0.34],  // 21-23
+  ];
+  function skyWash(now) {
+    const d = now || new Date();
+    const at = d.getHours() + d.getMinutes() / 60;
+    const lo = Math.floor(at) % 24;
+    const hi = (lo + 1) % 24;
+    const t = at - Math.floor(at);
+    const a = SKY_BY_HOUR[lo];
+    const b = SKY_BY_HOUR[hi];
+    const mix = (i) => a[i] * (1 - t) + b[i] * t;
+    return { r: Math.round(mix(0)), g: Math.round(mix(1)), b: Math.round(mix(2)), a: mix(3) };
+  }
+  // How much the fittings have to do. Their glow is turned up after dark and
+  // down in the middle of the day, which is the other half of the same idea.
+  function lampBoost() {
+    return 0.75 + 0.55 * (skyWash().a / 0.34);
+  }
+
   function rushLabel() {
     const f = rushFactor();
     if (f >= 0.8) return 'Peak hours';
@@ -1718,6 +1749,17 @@
     return `rgb(${clamp(r)},${clamp(g)},${clamp(b)})`;
   }
 
+  // The same colour at a different opacity, for an rgba() string whose base
+  // opacity is already part of the design.
+  function scaleAlpha(rgba, factor) {
+    const m = /^rgba?\(([^)]+)\)$/.exec(String(rgba).trim());
+    if (!m) return rgba;
+    const parts = m[1].split(',').map((v) => parseFloat(v));
+    const a = parts.length > 3 ? parts[3] : 1;
+    return 'rgba(' + parts[0] + ',' + parts[1] + ',' + parts[2] + ','
+      + Math.max(0, Math.min(1, a * factor)).toFixed(3) + ')';
+  }
+
   function hexA(color, alpha) {
     const { r, g, b } = toRgb(color);
     return `rgba(${r},${g},${b},${alpha})`;
@@ -2221,7 +2263,8 @@
   // rather than flatly covering it.
   function drawLightPool(center, glowColor) {
     const grad = floorCtx.createRadialGradient(center.x, center.y, 4, center.x, center.y, ROOM.tileW * 1.9);
-    grad.addColorStop(0, glowColor);
+    // The lights work harder after dark and are barely noticed at midday.
+    grad.addColorStop(0, scaleAlpha(glowColor, lampBoost()));
     grad.addColorStop(1, 'rgba(0,0,0,0)');
     floorCtx.save();
     floorCtx.globalCompositeOperation = 'lighter';
@@ -3280,6 +3323,13 @@
     // Door casings go on last so they read as standing in the wall the room
     // just painted over the hallway's end, rather than behind it.
     corridors.forEach((c) => drawCorridorDoors(c, colors));
+
+    // The hour of the day, laid over everything but under the vignette.
+    const sky = skyWash();
+    if (sky.a > 0.002) {
+      floorCtx.fillStyle = 'rgba(' + sky.r + ',' + sky.g + ',' + sky.b + ',' + sky.a.toFixed(3) + ')';
+      floorCtx.fillRect(0, 0, W, H);
+    }
 
     const vignette = floorCtx.createRadialGradient(W / 2, H * 0.42, H * 0.25, W / 2, H * 0.42, H * 0.72);
     vignette.addColorStop(0, 'rgba(0,0,0,0)');
