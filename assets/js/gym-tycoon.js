@@ -446,6 +446,84 @@
   // a same-category match.
 
 
+  // ---- Staff ----
+  // Everything in this game only ever went up: gear earns, fittings
+  // multiply, rushes add. Nothing cost anything to keep. Staff are the other
+  // side of that -- hired for cash, then paid a share of what the gym takes,
+  // for as long as they work there.
+  //
+  // Each extra hire in a role is worth less than the one before while their
+  // wage is exactly the same as the one before, so there is a point past
+  // which the next hire costs more than they bring in. Finding it is the
+  // decision; the panel shows both numbers so it is findable rather than
+  // guessed at.
+  const WAGE_SHARE_EACH = 0.03;
+  // High enough that a badly overstaffed gym really is worse off than a
+  // well-staffed one -- capped at 45% the wages could never catch the
+  // bonuses, so hiring everybody was strictly correct and there was no
+  // decision in it. Not 100%, because a gym earning literally nothing is a
+  // dead end rather than a mistake, and staff can be let go anyway.
+  const WAGE_SHARE_MAX = 0.8;
+  const STAFF_FALLOFF = 0.75;
+  const STAFF_ROLES = [
+    {
+      id: 'cleaner',
+      name: 'Cleaner',
+      baseCost: 60000,
+      unlockLevel: 3,
+      // Keeps every room nicer than it would otherwise be: vibe points on
+      // top of the fittings, and so subject to the same ceiling.
+      first: 2,
+      note: (n) => '+' + staffEffect('cleaner', n).toFixed(1) + ' vibe in every room',
+    },
+    {
+      id: 'receptionist',
+      name: 'Receptionist',
+      baseCost: 120000,
+      unlockLevel: 5,
+      // Works the front desk, so more of the rush actually gets through the
+      // door: the peak bonus itself is bigger.
+      first: 0.3,
+      note: (n) => 'rush bonus +' + Math.round(staffEffect('receptionist', n) * 100) + '% bigger',
+    },
+    {
+      id: 'manager',
+      name: 'Floor Manager',
+      baseCost: 250000,
+      unlockLevel: 7,
+      first: 0.18,
+      note: (n) => '+' + Math.round(staffEffect('manager', n) * 100) + '% on everything',
+    },
+  ];
+  function staffRole(id) {
+    return STAFF_ROLES.find((r) => r.id === id);
+  }
+  function staffCount(id) {
+    return (state.staff && state.staff[id]) || 0;
+  }
+  function staffTotal() {
+    return STAFF_ROLES.reduce((sum, r) => sum + staffCount(r.id), 0);
+  }
+  // What n of a role are worth together: the first is worth `first`, and each
+  // one after that three quarters of the one before.
+  function staffEffect(id, n) {
+    const role = staffRole(id);
+    const count = n === undefined ? staffCount(id) : n;
+    let total = 0;
+    for (let i = 0; i < count; i++) total += role.first * Math.pow(STAFF_FALLOFF, i);
+    return total;
+  }
+  function staffHireCost(id) {
+    const role = staffRole(id);
+    return Math.ceil(role.baseCost * Math.pow(1.6, staffCount(id)));
+  }
+  // The whole wage bill as a share of what the gym takes. Capped, so however
+  // badly a gym is overstaffed it still earns something -- a tycoon game that
+  // can be driven to zero income by buying things is a trap, not a decision.
+  function wageShare() {
+    return Math.min(WAGE_SHARE_MAX, staffTotal() * WAGE_SHARE_EACH);
+  }
+
   // ---- Rush hours ----
   // A gym is heaving at eight in the morning and at six in the evening, and
   // empty at three. The clock the curve reads is the player's own, so the
@@ -478,7 +556,7 @@
     return RUSH_BY_HOUR[lo] * (1 - t) + RUSH_BY_HOUR[hi] * t;
   }
   function rushMultiplier() {
-    return 1 + RUSH_BONUS * rushFactor();
+    return 1 + RUSH_BONUS * (1 + staffEffect('receptionist')) * rushFactor();
   }
   // The light outside, by the hour. A room is lit by its own fittings, so
   // this is a wash laid over the finished plan rather than a change to any
@@ -533,7 +611,8 @@
     }, 0);
   }
   function vibeMultiplier(room) {
-    return 1 + Math.min(VIBE_MAX_POINTS, roomVibe(room)) * VIBE_PER_POINT;
+    const points = roomVibe(room) + staffEffect('cleaner');
+    return 1 + Math.min(VIBE_MAX_POINTS, points) * VIBE_PER_POINT;
   }
 
   // Gains/sec now comes entirely from what's placed in the room, not from
@@ -548,7 +627,10 @@
       if (!item) return;
       total += item.gps * mult[index];
     });
-    return total * vibeMultiplier(room) * rushMultiplier();
+    // Net, not gross: the wage bill comes off every figure the game shows,
+    // so the rate in the HUD is the rate the balance actually climbs at.
+    return total * vibeMultiplier(room) * rushMultiplier()
+      * (1 + staffEffect('manager')) * (1 - wageShare());
   }
 
   // Total across every room in every theme's chain -- gear earns
@@ -626,6 +708,7 @@
       lifetime: 0,
       xp: 0,
       jobs: [],
+      staff: {},
       owned: {},
       themeRooms: defaultThemeRooms(),
       activeTheme: 'garage',
@@ -963,7 +1046,13 @@
     return Math.max(lo, Math.min(hi, v));
   }
 
-  function spawnMember(room, place) {
+  // Staff on the floor wear the same shirt as each other, so a room full of
+  // members reads as members with a couple of staff in it rather than as a
+  // crowd of strangers.
+  const STAFF_SHIRT = '#1f2a44';
+  const STAFF_TRIM = '#e8c46a';
+
+  function spawnMember(room, place, staffRoleId) {
     return {
       // Where a member is, is a point on the world lattice, not a point in
       // some room -- they walk out of one room, down a hallway and into the
@@ -977,10 +1066,11 @@
       timer: 0,
       phase: Math.random() * Math.PI * 2,
       facing: 1,
-      shirt: pickOf(MEMBER_SHIRTS),
+      staffRole: staffRoleId || null,
+      shirt: staffRoleId ? STAFF_SHIRT : pickOf(MEMBER_SHIRTS),
       skin: pickOf(MEMBER_SKINS),
       hair: pickOf(MEMBER_HAIR),
-      speed: MEMBER_WALK * (0.85 + Math.random() * 0.35),
+      speed: MEMBER_WALK * (staffRoleId ? 0.75 : 0.85 + Math.random() * 0.35),
     };
   }
 
@@ -990,7 +1080,7 @@
   // does not teleport everybody in the others.
   function rebuildMembers() {
     const rooms = activeRooms();
-    const key = wantsStillness() ? 'still' : state.activeTheme + '|'
+    const key = wantsStillness() ? 'still' : state.activeTheme + '|' + staffTotal() + '|'
       + rooms.map((r) => r.layout.filter(Boolean).length + '.' + roomVibe(r)).join(',');
     if (key === membersKey) return;
     membersKey = key;
@@ -1009,9 +1099,23 @@
         * (0.55 + 0.75 * rushFactor());
       const want = placed === 0 ? 0
         : Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM, Math.round(draw)));
-      const here = members.filter((m) => m.room === roomIndex).slice(0, want);
+      const here = members.filter((m) => m.room === roomIndex && !m.staffRole).slice(0, want);
       while (here.length < want) here.push(spawnMember(roomIndex, place));
       next.push(...here);
+    });
+
+    // Staff are spread across the rooms that are actually open, one room at
+    // a time, so a gym with three rooms and two staff has one of them in two
+    // of the rooms rather than both stood in the first.
+    const open = rooms.map((r, i) => i).filter((i) => placements[i]);
+    let slot = 0;
+    STAFF_ROLES.forEach((role) => {
+      const kept = members.filter((m) => m.staffRole === role.id);
+      for (let k = 0; k < staffCount(role.id); k++) {
+        const roomIndex = open[slot++ % Math.max(1, open.length)];
+        if (placements[roomIndex] === undefined) continue;
+        next.push(kept[k] || spawnMember(roomIndex, placements[roomIndex], role.id));
+      }
     });
     members = next;
   }
@@ -1289,6 +1393,107 @@
     refreshThemeRow();
     refreshJobsUI();
     updateLeaderboardEntry();
+    save();
+  }
+
+  const staffListEl = document.getElementById('staff-list');
+  const staffWagesEl = document.getElementById('staff-wages');
+  const hireEls = {};
+  function buildStaffUI() {
+    if (!staffListEl) return;
+    staffListEl.innerHTML = '';
+    STAFF_ROLES.forEach((role) => {
+      const row = document.createElement('div');
+      row.className = 'tycoon-hire';
+      row.innerHTML =
+        '<span class="tycoon-hire-who">'
+          + '<span class="tycoon-hire-name">' + role.name
+            + '<span class="tycoon-hire-count"></span></span>'
+          + '<span class="tycoon-hire-note"></span>'
+        + '</span>'
+        + '<span class="tycoon-hire-actions">'
+          + '<button class="tycoon-hire-let-go" type="button" hidden>Let go</button>'
+          + '<button class="tycoon-hire-btn" type="button">Hire</button>'
+        + '</span>';
+      const btn = row.querySelector('.tycoon-hire-btn');
+      const letGo = row.querySelector('.tycoon-hire-let-go');
+      btn.addEventListener('click', () => hireStaff(role.id));
+      letGo.addEventListener('click', () => letStaffGo(role.id));
+      staffListEl.appendChild(row);
+      hireEls[role.id] = {
+        root: row,
+        count: row.querySelector('.tycoon-hire-count'),
+        note: row.querySelector('.tycoon-hire-note'),
+        btn,
+        letGo,
+      };
+    });
+  }
+
+  function refreshStaffUI() {
+    if (!staffListEl) return;
+    STAFF_ROLES.forEach((role) => {
+      const els = hireEls[role.id];
+      if (!els) return;
+      const unlocked = unlockedFor(role);
+      const have = staffCount(role.id);
+      const cost = staffHireCost(role.id);
+      els.root.classList.toggle('is-locked', !unlocked);
+      els.count.textContent = have ? ' x' + have : '';
+      els.letGo.hidden = !have;
+      if (!unlocked) {
+        els.note.textContent = 'Unlocks at level ' + role.unlockLevel;
+        els.btn.textContent = 'Locked';
+        els.btn.disabled = true;
+        return;
+      }
+      // What they are worth now, and what one more would add on top.
+      const next = staffEffect(role.id, have + 1) - staffEffect(role.id, have);
+      els.note.textContent = (have ? role.note(have) + ' -- ' : '')
+        + 'next adds ' + (role.id === 'cleaner'
+          ? next.toFixed(1) + ' vibe' : Math.round(next * 100) + '%')
+        + ' for ' + Math.round(WAGE_SHARE_EACH * 100) + '% of takings';
+      els.btn.textContent = 'Hire -- $' + formatNum(cost);
+      els.btn.disabled = state.balance < cost;
+    });
+    const share = wageShare();
+    staffWagesEl.textContent = share > 0
+      ? staffTotal() + ' on the books -- ' + Math.round(share * 100) + '% of takings in wages'
+        + (share >= WAGE_SHARE_MAX ? ' (capped)' : '')
+      : 'no wages to pay';
+  }
+
+  // Free to do, and no severance: over-hiring should be a mistake you can
+  // see in the numbers and then undo, not one you are stuck with.
+  function letStaffGo(id) {
+    if (staffCount(id) <= 0) return;
+    state.staff[id] = staffCount(id) - 1;
+    membersKey = '';
+    recomputeStats();
+    refreshStaffUI();
+    renderScene();
+    toast(staffRole(id).name + ' let go', '');
+    save();
+  }
+
+  function hireStaff(id) {
+    const role = staffRole(id);
+    if (!role || !unlockedFor(role)) return;
+    const cost = staffHireCost(id);
+    if (state.balance < cost) return;
+    const before = currentLevel();
+    state.balance -= cost;
+    if (!state.staff) state.staff = {};
+    state.staff[id] = staffCount(id) + 1;
+    state.xp = (state.xp || 0) + xpForSpend(cost);
+    if (currentLevel() > before) announceLevel(currentLevel());
+    else toast(role.name + ' hired', 'good');
+    membersKey = '';
+    recomputeStats();
+    refreshLevelUI();
+    refreshStaffUI();
+    refreshShopUI();
+    renderScene();
     save();
   }
 
@@ -3549,6 +3754,12 @@
 
     bar(0.125 - t * 0.05, 0.80, 0.545, 0.052, m.skin);
 
+    // Staff wear a marked shirt, so who works here is readable at a glance.
+    if (m.staffRole) {
+      bar(0, 0.855, 0.815, 0.20, STAFF_TRIM);
+      bar(-0.055, 0.70, 0.655, 0.038, STAFF_TRIM);
+    }
+
     // Neck, head, then hair sitting on top of it.
     bar(0.006, 0.885, 0.83, 0.05, shade(m.skin, -18));
     ctx.beginPath();
@@ -4208,8 +4419,10 @@
 
   // ---- Init ----
   buildShop();
+  buildStaffUI();
   refillJobs();
   refreshRushUI();
+  refreshStaffUI();
   refreshHud();
   refreshLevelUI();
   refreshJobsUI();
@@ -4260,6 +4473,7 @@
     refreshHud();
     refreshJobsUI();
     refreshShopUI();
+    refreshStaffUI();
     refreshThemeRow();
     refreshRoomActions();
 

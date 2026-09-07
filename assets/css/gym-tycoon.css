@@ -726,3 +726,72 @@
 @media (prefers-reduced-motion: reduce) {
   .tycoon-rush-fill { transition: none; }
 }
+
+/* ---- Staff ----
+   Same shell as the jobs board above it; a hire is a row with what they are
+   worth on the left and what they cost on the right. */
+.tycoon-staff {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 12px 12px 10px;
+  margin-bottom: 14px;
+}
+.tycoon-staff-list { display: flex; flex-direction: column; gap: 8px; }
+.tycoon-hire {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 8px 10px;
+}
+.tycoon-hire.is-locked { opacity: 0.5; }
+.tycoon-hire-who { min-width: 0; }
+.tycoon-hire-name { display: block; font-size: 12px; font-weight: 700; }
+.tycoon-hire-note {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-hire-btn {
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 11px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #06231a;
+  background: linear-gradient(180deg, #8fe9be, #5ec9a0);
+}
+.tycoon-hire-btn[disabled] {
+  cursor: default;
+  color: var(--muted, #8b8b93);
+  background: rgba(255, 255, 255, 0.06);
+}
+.tycoon-hire-count {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--muted, #8b8b93);
+}
+
+.tycoon-hire-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.tycoon-hire-let-go {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  color: var(--muted, #8b8b93);
+  background: transparent;
+}
+.tycoon-hire-let-go:hover { color: #e8837a; border-color: rgba(232, 131, 122, 0.5); }
