@@ -1,24 +1,40 @@
-// Loads assets/js/gym-plan.js into plain Node.
+// Loads the site's plain-global game modules into plain Node.
 //
 // The site's scripts are plain browser globals -- no modules, no build step
-// -- so the file is run in a throwaway context holding nothing but a fake
+// -- so a file is run in a throwaway context holding nothing but a fake
 // `window`, and whatever it hangs there is handed back. That keeps the
 // tested code the exact same file the page loads, rather than a copy that
 // drifts from it.
+//
+// Several files can be loaded into ONE fake window, in order, because they
+// depend on each other the same way the page's <script> tags do:
+// gym-walk.js reads window.BoozebagGymPlan at call time.
 
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const PLAN_SRC = path.join(__dirname, '..', '..', 'assets', 'js', 'gym-plan.js');
+const JS_DIR = path.join(__dirname, '..', '..', 'assets', 'js');
 
-function loadPlan() {
+function loadSite(files) {
   const window = {};
-  vm.runInNewContext(fs.readFileSync(PLAN_SRC, 'utf8'), { window }, { filename: PLAN_SRC });
-  if (!window.BoozebagGymPlan) {
-    throw new Error(`${PLAN_SRC} did not define window.BoozebagGymPlan`);
-  }
-  return window.BoozebagGymPlan;
+  files.forEach((name) => {
+    const file = path.join(JS_DIR, name);
+    vm.runInNewContext(fs.readFileSync(file, 'utf8'), { window }, { filename: file });
+  });
+  return window;
 }
 
-module.exports = { loadPlan };
+function loadPlan() {
+  const { BoozebagGymPlan } = loadSite(['gym-plan.js']);
+  if (!BoozebagGymPlan) throw new Error('gym-plan.js did not define window.BoozebagGymPlan');
+  return BoozebagGymPlan;
+}
+
+function loadWalk() {
+  const { BoozebagGymPlan, BoozebagGymWalk } = loadSite(['gym-plan.js', 'gym-walk.js']);
+  if (!BoozebagGymWalk) throw new Error('gym-walk.js did not define window.BoozebagGymWalk');
+  return { plan: BoozebagGymPlan, walk: BoozebagGymWalk };
+}
+
+module.exports = { loadSite, loadPlan, loadWalk };
