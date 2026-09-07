@@ -459,9 +459,13 @@
   function refreshSynergyText() {
     if (!synergyEl) return;
     const layout = activeRoom().layout;
+    // Without the tabs, this line is where you read which room the numbers
+    // below are describing.
+    const roomLabel = () => 'Room ' + (state.activeRoomIndex + 1);
     const placed = layout.filter(Boolean).length;
     if (placed === 0) {
-      synergyEl.textContent = "This room is empty = $0/s from here. Arm a piece of gear below and click a tile to start earning.";
+      synergyEl.textContent = roomLabel() + ' is empty = $0/s from here. '
+        + 'Arm a piece of gear below and click a tile to start earning.';
       return;
     }
     const baseSum = layout.reduce((sum, id) => {
@@ -470,7 +474,8 @@
     }, 0);
     const roomGps = computeGps(layout, roomShapeFor(state.activeRoomIndex));
     const bonusPct = baseSum > 0 ? Math.round((roomGps / baseSum - 1) * 100) : 0;
-    synergyEl.textContent = placed + '/' + layout.length + ' slots filled -- base ' + formatNum(baseSum) + '/s'
+    synergyEl.textContent = roomLabel() + ': ' + placed + '/' + layout.length
+      + ' slots filled -- base ' + formatNum(baseSum) + '/s'
       + (bonusPct > 0 ? ', +' + bonusPct + '% from arrangement synergy' : ', no synergy bonus yet')
       + ' = ' + formatNum(roomGps) + '/s from this room.';
   }
@@ -577,7 +582,7 @@
     recomputeStats();
     refreshShopUI();
     renderInventory();
-    refreshRoomTabs();
+    refreshRoomActions();
     updateLeaderboardEntry();
     save();
   }
@@ -2925,7 +2930,11 @@
     if (!hit) return;
     if (hit.laneIndex !== state.activeRoomIndex) {
       state.activeRoomIndex = hit.laneIndex;
-      refreshRoomTabs();
+      refreshRoomActions();
+      // The status line is the only thing that names the room you are in now
+      // that the tabs are gone, so it has to follow the click even when the
+      // click itself does nothing (an empty tile with no gear armed).
+      refreshSynergyText();
     }
     onFloorCellClick(hit.cellIndex);
   });
@@ -2953,7 +2962,7 @@
       renderScene();
       renderInventory();
       recomputeStats();
-      refreshRoomTabs();
+      refreshRoomActions();
       save();
       return;
     }
@@ -2963,7 +2972,7 @@
       renderScene();
       renderInventory();
       recomputeStats();
-      refreshRoomTabs();
+      refreshRoomActions();
       save();
     }
   }
@@ -3029,7 +3038,7 @@
         renderInventory();
         refreshThemeRow();
         refreshSynergyText();
-        refreshRoomTabs();
+        refreshRoomActions();
         save();
       });
       themeRowEl.appendChild(btn);
@@ -3041,57 +3050,41 @@
   // Gains/sec always adds up across every unlocked room in every theme,
   // whichever you're looking at -- switching rooms is just about where
   // you place gear next.
-  const roomTabsEl = document.getElementById('room-tabs');
-  function refreshRoomTabs() {
-    if (!roomTabsEl) return;
-    roomTabsEl.innerHTML = '';
+  // There used to be a tab per room here, to pick which one you were looking
+  // at. Panning and pinching does that job better -- the whole chain is one
+  // plan you move around, and clicking any room's floor makes it the active
+  // one -- so all that is left is the control for buying the next room.
+  const roomActionsEl = document.getElementById('room-actions');
+  function refreshRoomActions() {
+    if (!roomActionsEl) return;
+    roomActionsEl.innerHTML = '';
     const rooms = activeRooms();
-    rooms.forEach((room, i) => {
-      const placed = room.layout.filter(Boolean).length;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'tycoon-room-tab' + (state.activeRoomIndex === i ? ' is-active' : '');
-      btn.textContent = 'Room ' + (i + 1) + ' (' + placed + '/' + room.layout.length + ')';
-      btn.addEventListener('click', () => {
-        if (state.activeRoomIndex === i) return;
-        state.activeRoomIndex = i;
-        renderScene();
-        renderInventory();
-        refreshThemeRow();
-        refreshSynergyText();
-        refreshRoomTabs();
-        scrollToRoom(i);
-        save();
-      });
-      roomTabsEl.appendChild(btn);
-    });
+    if (rooms.length >= MAX_ROOMS_PER_THEME) return;
 
-    if (rooms.length < MAX_ROOMS_PER_THEME) {
-      const cost = ROOM_UNLOCK_COSTS[rooms.length];
-      const affordable = state.balance >= cost;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'tycoon-room-tab tycoon-room-add' + (affordable ? '' : ' is-locked');
-      btn.textContent = '+ Add Room (' + slotCountFor(rooms.length) + ' slots) — $' + formatNum(cost);
-      btn.disabled = !affordable;
-      btn.addEventListener('click', () => {
-        if (state.balance < cost) return;
-        state.balance -= cost;
-        rooms.push(emptyGymRoom(rooms.length));
-        state.activeRoomIndex = rooms.length - 1;
-        rebuildPlan();
-        refreshHud();
-        refreshShopUI();
-        renderScene();
-        renderInventory();
-        refreshThemeRow();
-        refreshSynergyText();
-        refreshRoomTabs();
-        scrollToRoom(state.activeRoomIndex);
-        save();
-      });
-      roomTabsEl.appendChild(btn);
-    }
+    const cost = ROOM_UNLOCK_COSTS[rooms.length];
+    const affordable = state.balance >= cost;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tycoon-add-room' + (affordable ? '' : ' is-locked');
+    btn.textContent = '+ Add Room (' + slotCountFor(rooms.length) + ' slots) — $' + formatNum(cost);
+    btn.disabled = !affordable;
+    btn.addEventListener('click', () => {
+      if (state.balance < cost) return;
+      state.balance -= cost;
+      rooms.push(emptyGymRoom(rooms.length));
+      state.activeRoomIndex = rooms.length - 1;
+      rebuildPlan();
+      refreshHud();
+      refreshShopUI();
+      renderScene();
+      renderInventory();
+      refreshThemeRow();
+      refreshSynergyText();
+      refreshRoomActions();
+      scrollToRoom(state.activeRoomIndex);
+      save();
+    });
+    roomActionsEl.appendChild(btn);
   }
 
   // ---- Lift button ----
@@ -3116,7 +3109,7 @@
     renderScene();
     renderInventory();
     refreshThemeRow();
-    refreshRoomTabs();
+    refreshRoomActions();
     save();
   });
 
@@ -3134,7 +3127,7 @@
   renderScene();
   renderInventory();
   refreshThemeRow();
-  refreshRoomTabs();
+  refreshRoomActions();
 
   // The plot sign for the next room lights up once you can afford it, so the
   // scene has to be redrawn on the tick that crosses the price -- the loop
@@ -3165,7 +3158,7 @@
     refreshHud();
     refreshShopUI();
     refreshThemeRow();
-    refreshRoomTabs();
+    refreshRoomActions();
 
     const affordable = nextRoomAffordable();
     if (affordable !== couldAffordNextRoom) {

@@ -23,7 +23,7 @@
    zoom the page, even with the viewport's user-scalable=no as a first
    line of defense -- this is the per-element belt-and-suspenders fix. */
 .tycoon-theme-btn,
-.tycoon-room-tab,
+.tycoon-add-room,
 .tycoon-inv-arm,
 .tycoon-inv-sell,
 .shop-buy-btn,
@@ -33,41 +33,35 @@
   -webkit-user-select: none;
 }
 
-/* ---- Room switcher: which physical room you're viewing/editing ---- */
-.tycoon-room-tabs {
+/* ---- Add Room ----
+   All that remains of the old per-room tab row. Picking which room you are
+   looking at is panning and zooming now, so the only control left here is
+   the one that buys the next one. */
+.tycoon-room-actions {
   display: flex;
   justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
   margin: 0 auto 10px;
+  min-height: 30px;
 }
-.tycoon-room-tab {
+.tycoon-add-room {
   font-family: inherit;
   font-weight: 800;
   font-size: 12px;
   padding: 7px 16px;
   border-radius: 999px;
-  border: 1px solid var(--panel-border);
+  border: 1px dashed var(--amber);
   background: var(--panel);
-  color: var(--muted);
+  color: var(--amber);
   cursor: pointer;
 }
-.tycoon-room-tab:hover { color: var(--text); border-color: var(--blue); }
-.tycoon-room-tab.is-active {
-  background: var(--blue);
-  color: #001318;
-  border-color: #000;
-}
-.tycoon-room-tab.tycoon-room-add {
-  border-style: dashed;
-  border-color: var(--amber);
-  color: var(--amber);
-}
-.tycoon-room-tab.tycoon-room-add:hover { color: var(--text); }
-.tycoon-room-tab.is-locked {
+.tycoon-add-room:hover { color: var(--text); border-color: var(--amber); }
+.tycoon-add-room.is-locked {
   opacity: 0.5;
   cursor: not-allowed;
-  border-style: dashed;
+  color: var(--muted);
+  border-color: var(--panel-border);
 }
 
 /* ---- Room theme selector ---- */
