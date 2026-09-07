@@ -23,7 +23,25 @@
     { id: 'desk', name: 'Reception Desk', baseCost: 10000000, gps: 100000, unlockLevel: 6 },
     { id: 'cubicle', name: 'Sales Cubicle', baseCost: 40000000, gps: 400000, unlockLevel: 8 },
     { id: 'officepod', name: 'Corner Office Pod', baseCost: 160000000, gps: 1600000, unlockLevel: 10 },
+
+    // Fittings. These earn nothing on their own -- what they do is make the
+    // room somewhere people want to be, and a room people want to be in
+    // works harder. Every one of them takes a slot a machine could have had,
+    // which is the decision: floor space for a multiplier on the space that
+    // is left.
+    { id: 'palm', name: 'Potted Palm', baseCost: 900, vibe: 1, unlockLevel: 2 },
+    { id: 'cooler', name: 'Water Cooler', baseCost: 7500, vibe: 2, unlockLevel: 3 },
+    { id: 'mirrorwall', name: 'Mirror Wall', baseCost: 90000, vibe: 3, unlockLevel: 5 },
+    { id: 'neon', name: 'Neon Sign', baseCost: 1200000, vibe: 5, unlockLevel: 7 },
   ];
+  // Gains per second is the headline number on every piece of gear, and a
+  // fitting has none. Rather than scatter `item.gps || 0` through the
+  // earnings, the shop and the jobs, they are given a zero here.
+  ITEMS.forEach((item) => { if (typeof item.gps !== 'number') item.gps = 0; });
+  function isDecor(id) {
+    const item = itemById(id);
+    return !!(item && item.vibe);
+  }
 
   // Three items used to be things you cannot actually stand on a gym floor:
   // a 10cm vial ("Steroid Cycle"), an entire second building ("Second
@@ -56,6 +74,10 @@
     desk: '<rect x="3" y="13.4" width="18" height="2.8" rx="1"/><rect x="5" y="16.2" width="2" height="5.4" rx="0.6"/><rect x="17" y="16.2" width="2" height="5.4" rx="0.6"/><rect x="9" y="5.4" width="6.4" height="6" rx="1"/><rect x="11.2" y="11.4" width="2" height="2.2"/>',
     cubicle: '<rect x="3" y="4" width="3" height="16.5" rx="0.8"/><rect x="3" y="4" width="14.5" height="3" rx="0.8"/><rect x="6" y="14.5" width="14.5" height="3" rx="1"/><rect x="15.3" y="8.2" width="5.2" height="5.2" rx="1"/>',
     officepod: '<rect x="3" y="4.2" width="18" height="15.6" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.9"/><rect x="12.6" y="6.8" width="6" height="10.4" rx="1.2"/><rect x="5.6" y="12.2" width="5.4" height="2" rx="0.7"/><rect x="6.4" y="14.2" width="1.5" height="3.2" rx="0.6"/>',
+    palm: '<path d="M12 21V11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 11C9 11 6.4 9.2 5.2 6.4 8.2 5.6 11 7.2 12 10c1-2.8 3.8-4.4 6.8-3.6C17.6 9.2 15 11 12 11Z"/><path d="M7.5 21h9l-1 -4h-7Z"/>',
+    cooler: '<rect x="8.2" y="1.6" width="7.6" height="7.4" rx="1.6"/><rect x="7" y="9" width="10" height="9.6" rx="1.4"/><rect x="8.6" y="18.6" width="6.8" height="3.4" rx="1"/><rect x="14.4" y="12.4" width="2.6" height="2.6" rx="0.7" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+    mirrorwall: '<rect x="3.4" y="2.6" width="7.2" height="18.8" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13.4" y="2.6" width="7.2" height="18.8" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5.4 17.4 8.8 6.2M15.4 17.4 18.8 6.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+    neon: '<rect x="2.2" y="5" width="19.6" height="12.4" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 14V9.4l3.4 4.6V9.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="15.6" cy="11.6" r="1.5"/><path d="M18.4 9.4v4.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>',
     lock: '<path d="M7 10.4V7.2a5 5 0 0 1 10 0v3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5" y="10.4" width="14" height="10" rx="2.2"/>',
   };
   function iconMarkup(id, sizePx) {
@@ -262,6 +284,7 @@
     mat: 'recovery', sauna: 'recovery',
     trainer: 'booster', gearfridge: 'booster', soundsystem: 'booster',
     desk: 'office', cubicle: 'office', officepod: 'office',
+    palm: 'decor', cooler: 'decor', mirrorwall: 'decor', neon: 'decor',
   };
   const CATEGORY_META = {
     strength: { name: 'Strength', color: '#c0483a' },
@@ -269,6 +292,7 @@
     recovery: { name: 'Recovery', color: '#3fa87e' },
     booster: { name: 'Booster', color: '#d9a53f' },
     office: { name: 'Office', color: '#8a6fd1' },
+    decor: { name: 'Fittings', color: '#4fc38a' },
   };
   const SAME_CATEGORY_BONUS = 0.12;
   const BOOSTER_NEARBY_BONUS = 0.20;
@@ -422,6 +446,23 @@
   // a same-category match.
 
 
+  // ---- Vibe ----
+  // What the fittings in a room add up to, and what that is worth. Each
+  // point is a few percent on everything the room earns, up to a ceiling --
+  // without one the best floor plan would be a room of plants around a
+  // single treadmill, which is not a gym.
+  const VIBE_PER_POINT = 0.03;
+  const VIBE_MAX_POINTS = 12;
+  function roomVibe(room) {
+    return room.layout.reduce((sum, id) => {
+      const item = id && itemById(id);
+      return sum + (item && item.vibe ? item.vibe : 0);
+    }, 0);
+  }
+  function vibeMultiplier(room) {
+    return 1 + Math.min(VIBE_MAX_POINTS, roomVibe(room)) * VIBE_PER_POINT;
+  }
+
   // Gains/sec now comes entirely from what's placed in the room, not from
   // raw ownership -- gear sitting unplaced in inventory earns nothing.
   // Synergy is computed per-room: adjacency only matters within the same
@@ -434,7 +475,7 @@
       if (!item) return;
       total += item.gps * mult[index];
     });
-    return total;
+    return total * vibeMultiplier(room);
   }
 
   // Total across every room in every theme's chain -- gear earns
@@ -667,6 +708,7 @@
     let placed = 0;
     let fullRoom = 0;
     let bestSynergy = 1;
+    let bestVibe = 0;
     THEMES.forEach((t) => {
       (state.themeRooms[t.id] || []).forEach((room, i) => {
         const shape = roomShapeFor(t.id, i);
@@ -681,9 +723,10 @@
           if (mult[k] > bestSynergy) bestSynergy = mult[k];
         });
         if (here > 0 && here === room.layout.length) fullRoom = 1;
+        bestVibe = Math.max(bestVibe, Math.round((vibeMultiplier(room) - 1) * 100));
       });
     });
-    return { byItem, byCat, placed, fullRoom, bestSynergy };
+    return { byItem, byCat, placed, fullRoom, bestSynergy, bestVibe };
   }
 
   // Each kind knows how to phrase itself, how far along it is, and what
@@ -731,6 +774,16 @@
       text: () => 'Fill every slot in one room',
       done: (j, tally) => tally.fullRoom,
     },
+    vibe: {
+      pick(ctx) {
+        const now = ctx.tally.bestVibe;
+        const step = Math.round(VIBE_PER_POINT * 100) * 2;
+        return { target: Math.min(Math.round(VIBE_MAX_POINTS * VIBE_PER_POINT * 100),
+          Math.max(step, Math.ceil((now + step) / step) * step)) };
+      },
+      text: (j) => 'Fit out one room to a +' + j.target + '% vibe',
+      done: (j, tally) => tally.bestVibe,
+    },
     synergy: {
       pick(ctx) {
         const now = Math.round((ctx.tally.bestSynergy - 1) * 100);
@@ -748,6 +801,8 @@
     const kinds = ['ownItem', 'gps'];
     if (tally.placed > 0) kinds.push('placeItem', 'placeCategory');
     if (tally.placed >= 4) kinds.push('synergy');
+    // Only worth asking once there is a fitting to buy that would move it.
+    if (ITEMS.some((i) => i.vibe && unlockedFor(i))) kinds.push('vibe');
     if (tally.placed >= 6 && !tally.fullRoom) kinds.push('fillRoom');
     return kinds;
   }
@@ -861,7 +916,7 @@
   function rebuildMembers() {
     const rooms = activeRooms();
     const key = wantsStillness() ? 'still' : state.activeTheme + '|'
-      + rooms.map((r) => r.layout.filter(Boolean).length).join(',');
+      + rooms.map((r) => r.layout.filter(Boolean).length + '.' + roomVibe(r)).join(',');
     if (key === membersKey) return;
     membersKey = key;
     if (key === 'still') {
@@ -872,8 +927,11 @@
     rooms.forEach((room, roomIndex) => {
       const shape = roomShapeFor(state.activeTheme, roomIndex);
       const placed = room.layout.filter(Boolean).length;
+      // A room people want to be in has more people in it, so the fittings
+      // show up in the crowd as well as in the takings.
+      const draw = placed * MEMBERS_PER_PIECE * vibeMultiplier(room);
       const want = placed === 0 ? 0
-        : Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM, Math.round(placed * MEMBERS_PER_PIECE)));
+        : Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM, Math.round(draw)));
       const here = members.filter((m) => m.roomIndex === roomIndex).slice(0, want);
       while (here.length < want) here.push(spawnMember(roomIndex, shape));
       next.push(...here);
@@ -1131,11 +1189,21 @@
       const item = id && itemById(id);
       return sum + (item ? item.gps : 0);
     }, 0);
-    const roomGps = computeGps(activeRoom(), roomShapeFor(state.activeTheme, state.activeRoomIndex));
-    const bonusPct = baseSum > 0 ? Math.round((roomGps / baseSum - 1) * 100) : 0;
+    const room = activeRoom();
+    const shape = roomShapeFor(state.activeTheme, state.activeRoomIndex);
+    const roomGps = computeGps(room, shape);
+    const vibe = roomVibe(room);
+    const vibePct = Math.round((vibeMultiplier(room) - 1) * 100);
+    // The vibe is reported separately from the arrangement bonus: they are
+    // two different things you can do to a room, and rolling them into one
+    // percentage hides which of them is doing the work.
+    const arrangedGps = roomGps / vibeMultiplier(room);
+    const bonusPct = baseSum > 0 ? Math.round((arrangedGps / baseSum - 1) * 100) : 0;
     synergyEl.textContent = roomLabel() + ': ' + placed + '/' + layout.length
       + ' slots filled -- base ' + formatNum(baseSum) + '/s'
       + (bonusPct > 0 ? ', +' + bonusPct + '% from arrangement synergy' : ', no synergy bonus yet')
+      + (vibe > 0 ? ', +' + vibePct + '% vibe from the fittings'
+        + (vibe > VIBE_MAX_POINTS ? ' (capped)' : '') : '')
       + ' = ' + formatNum(roomGps) + '/s from this room.';
   }
 
@@ -1188,7 +1256,9 @@
           '<span class="shop-item-owned">x0</span>' +
         '</div>' +
         '<span class="shop-item-cat" style="color:' + cat.color + '">' + cat.name + '</span>' +
-        '<span class="shop-item-gps">+' + formatNum(item.gps) + ' gains/sec when placed</span>' +
+        '<span class="shop-item-gps">' + (item.vibe
+          ? '+' + Math.round(item.vibe * VIBE_PER_POINT * 100) + '% to everything its room earns'
+          : '+' + formatNum(item.gps) + ' gains/sec when placed') + '</span>' +
         '<button class="shop-buy-btn" type="button">Buy</button>';
       const buyBtn = el.querySelector('.shop-buy-btn');
       buyBtn.addEventListener('click', () => buyItem(item.id));
@@ -1712,6 +1782,10 @@
     desk: 2.0,
     cubicle: 2.0,
     officepod: 1.7,
+    palm: 0.8,
+    cooler: 0.6,
+    mirrorwall: 1.7,
+    neon: 1.6,
   };
   const DEFAULT_FOOTPRINT = 1.4;
 
@@ -1889,6 +1963,86 @@
       drawIsoBox(ctx, b, 0.06, -0.08, 0.20, 0.14, 9, '#6b4a30', 0);
       drawIsoBox(ctx, b, 0.06, -0.18, 0.045, 0.03, 8, '#26262a', 9);
       drawIsoBox(ctx, b, 0.06, -0.18, 0.10, 0.02, 6, '#3fa0c9', 15);
+    },
+    // A palm in a pot: fronds arcing out of a trunk, drawn as tapered blades
+    // rather than boxes, because nothing about a plant is rectangular.
+    // F = 0.8.
+    palm: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0, 0.30, 0.28, 13, '#8a5a3a', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.26, 0.24, 3, '#5f3d27', 13);
+      drawIsoBox(ctx, b, 0, 0, 0.05, 0.05, 26, '#6f5a38', 15);
+      const top = isoScreenPoint(b, 0, 0, 41);
+      [[-1, -0.15], [-0.72, 0.5], [0.05, 0.85], [0.8, 0.45], [1, -0.2], [-0.3, -0.6], [0.4, -0.7]]
+        .forEach(([dx, dy], i) => {
+          const len = 22 + (i % 3) * 5;
+          ctx.beginPath();
+          ctx.moveTo(top.x, top.y);
+          ctx.quadraticCurveTo(top.x + dx * len * 0.6, top.y + dy * len * 0.5 - 9,
+            top.x + dx * len, top.y + dy * len * 0.55);
+          ctx.lineWidth = 5.5;
+          ctx.lineCap = 'round';
+          ctx.strokeStyle = i % 2 ? '#3f9a63' : '#2f7d4e';
+          ctx.stroke();
+        });
+      drawIsoDisc(ctx, top, 4, 3, '#4fb173');
+    },
+    // A bottled cooler: base unit, a cup dispenser on its side, and the
+    // bottle upended on top of it. F = 0.6.
+    cooler: (ctx, b) => {
+      // 0.95m of cabinet with a 0.45m bottle upended on it: at 40 pixels to
+      // the metre for a piece this size, that is 38 and 18.
+      drawIsoBox(ctx, b, 0, 0, 0.40, 0.36, 38, '#dfe6ee', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.36, 0.32, 3, '#aab6c4', 38);
+      drawFacePanel(ctx, b, { u: 0.41, v: -0.22 }, { u: 0.41, v: 0.22 }, 12, 26, '#5a6673', 2);
+      drawFacePanel(ctx, b, { u: 0.42, v: -0.10 }, { u: 0.42, v: 0.10 }, 15, 23, '#7fd6e8', 1.5);
+      drawFacePanel(ctx, b, { u: 0.43, v: 0.24 }, { u: 0.43, v: 0.33 }, 7, 19, '#cfd6de', 1.5);
+      drawIsoBox(ctx, b, 0, 0, 0.27, 0.25, 18, 'rgba(120,200,225,0.85)', 41);
+      drawIsoBox(ctx, b, 0, 0, 0.10, 0.10, 4, '#4a7fa8', 59);
+    },
+    // A run of mirrored panel on a stand -- the thing that turns a bare room
+    // into a gym. F = 2.4.
+    mirrorwall: (ctx, b) => {
+      // 1.5m of mirror, 1.85m tall, on a shallow foot. A wide flat thing
+      // seen in this projection reads taller than it is -- its top face adds
+      // most of a metre of apparent height on its own -- so it is drawn to
+      // its real size and left to look as big as a real one does.
+      drawIsoBox(ctx, b, 0, 0, 0.055, 0.507, 1.6, '#3a3f48', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.034, 0.492, 26, '#2b343d', 1.6);
+      drawFacePanel(ctx, b, { u: 0.038, v: -0.465 }, { u: 0.038, v: 0.465 }, 3.4, 26.4, '#4c6373', 1.2);
+      // Two panes with a joint between them, and slanted highlights so it
+      // reads as glass rather than a grey board.
+      drawFacePanel(ctx, b, { u: 0.042, v: -0.42 }, { u: 0.042, v: -0.17 }, 5, 24.5, 'rgba(255,255,255,0.16)', 0.9);
+      drawFacePanel(ctx, b, { u: 0.042, v: 0.03 }, { u: 0.042, v: 0.18 }, 5, 24.5, 'rgba(255,255,255,0.09)', 0.9);
+      drawFacePanel(ctx, b, { u: 0.046, v: -0.015 }, { u: 0.046, v: 0.01 }, 3.4, 26.4, 'rgba(0,0,0,0.45)', 0.3);
+      drawIsoBox(ctx, b, 0, -0.48, 0.13, 0.045, 1.4, '#3a3f48', 0);
+      drawIsoBox(ctx, b, 0, 0.48, 0.13, 0.045, 1.4, '#3a3f48', 0);
+    },
+    // A neon sign on a pole. The glow is the point, so it is drawn as a
+    // shadowed stroke rather than a filled shape. F = 1.6.
+    neon: (ctx, b) => {
+      // A 0.75m sign on a 1.5m pole: 15 pixels to the metre at this size.
+      drawIsoBox(ctx, b, 0, 0, 0.162, 0.150, 2, '#2b2f36', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.029, 0.029, 22, '#4a4f58', 2);
+      drawIsoBox(ctx, b, 0, 0, 0.043, 0.539, 11.5, '#1d2128', 24);
+      const glow = (from, to, color) => {
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.lineWidth = 1.9;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 5;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      };
+      const at = (v, z) => isoScreenPoint(b, 0.05, v, z);
+      glow(at(-0.40, 26.5), at(-0.40, 33), '#ff5c8a');
+      glow(at(-0.40, 33), at(-0.24, 26.5), '#ff5c8a');
+      glow(at(-0.24, 26.5), at(-0.24, 33), '#ff5c8a');
+      glow(at(-0.05, 33), at(-0.05, 26.5), '#5ec4c9');
+      glow(at(-0.05, 26.5), at(0.09, 26.5), '#5ec4c9');
+      glow(at(0.30, 26.5), at(0.30, 33), '#ffd45c');
     },
     officepod: (ctx, b) => {
       // A one-person glass office booth -- 1.6m square and 2.1m tall, the
