@@ -589,3 +589,98 @@
   .tycoon-page .hud-xp-fill { transition: none; }
   .tycoon-page .hud-level.is-up .hud-value { animation: none; }
 }
+
+/* ---- Jobs board ----
+   Sits above the shop, because a job is usually answered by buying
+   something and the two want to be read together. */
+.tycoon-jobs {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 12px 12px 10px;
+  margin-bottom: 14px;
+}
+.tycoon-jobs-title {
+  margin: 0 0 9px;
+  font-size: 13px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.tycoon-jobs-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+  text-transform: none;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-jobs-list { display: flex; flex-direction: column; gap: 8px; }
+
+.tycoon-job {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 9px 10px;
+  /* The sidebar centres its contents; a list of tasks reads better ranged
+     left, where every line starts in the same place. */
+  text-align: left;
+}
+.tycoon-job.is-ready {
+  border-color: rgba(126, 224, 176, 0.55);
+  background: rgba(126, 224, 176, 0.07);
+}
+.tycoon-job-text {
+  display: block;
+  font-size: 12px;
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+.tycoon-job-bar {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+.tycoon-job-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #5ec4c9, #7ee0b0);
+  transition: width 200ms ease-out;
+}
+.tycoon-job-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+.tycoon-job-meta {
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-job-reward { color: #e8c46a; }
+.tycoon-job-claim {
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  color: #06231a;
+  background: linear-gradient(180deg, #8fe9be, #5ec9a0);
+}
+.tycoon-job-claim[disabled] {
+  cursor: default;
+  color: var(--muted, #8b8b93);
+  background: rgba(255, 255, 255, 0.06);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tycoon-job-fill { transition: none; }
+}

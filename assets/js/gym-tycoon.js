@@ -511,6 +511,7 @@
       balance: 0,
       lifetime: 0,
       xp: 0,
+      jobs: [],
       owned: {},
       themeRooms: defaultThemeRooms(),
       activeTheme: 'garage',
@@ -644,6 +645,155 @@
   }
   let gps = computeTotalGps(state.themeRooms);
   let clickAmount = 1 + gps * 0.05;
+
+  // ---- Jobs ----
+  // Three standing requests at a time, each one a thing the gym could be
+  // doing better, with the money and experience for doing it stated up
+  // front. An idle game without them is a game about waiting; with them
+  // there is always something specific to go and do, and the something is
+  // usually the thing that teaches how the game works -- arrange for
+  // synergy, fill a room, get a category onto the floor.
+  const JOBS_ON_BOARD = 3;
+
+  function allRoomsEverywhere() {
+    return THEMES.reduce((list, t) => list.concat(state.themeRooms[t.id] || []), []);
+  }
+
+  // One pass over every room in every theme: what is standing on the floors,
+  // by piece and by category, and the best synergy multiplier going.
+  function floorTally() {
+    const byItem = {};
+    const byCat = {};
+    let placed = 0;
+    let fullRoom = 0;
+    let bestSynergy = 1;
+    THEMES.forEach((t) => {
+      (state.themeRooms[t.id] || []).forEach((room, i) => {
+        const shape = roomShapeFor(t.id, i);
+        const mult = synergyMultipliers(room, shape);
+        let here = 0;
+        room.layout.forEach((id, k) => {
+          if (!id) return;
+          here++;
+          placed++;
+          byItem[id] = (byItem[id] || 0) + 1;
+          byCat[CATEGORY[id]] = (byCat[CATEGORY[id]] || 0) + 1;
+          if (mult[k] > bestSynergy) bestSynergy = mult[k];
+        });
+        if (here > 0 && here === room.layout.length) fullRoom = 1;
+      });
+    });
+    return { byItem, byCat, placed, fullRoom, bestSynergy };
+  }
+
+  // Each kind knows how to phrase itself, how far along it is, and what
+  // counts as done. Targets are worked out against the gym as it stands when
+  // the job is written, so a job is always a step past where you already are.
+  const JOB_KINDS = {
+    placeItem: {
+      pick(ctx) {
+        const item = pickOf(ctx.pool);
+        const now = ctx.tally.byItem[item.id] || 0;
+        return { item: item.id, target: now + 1 + Math.floor(Math.random() * 2) };
+      },
+      text: (j) => 'Get ' + j.target + ' x ' + itemById(j.item).name + ' onto the floor',
+      done: (j, tally) => tally.byItem[j.item] || 0,
+    },
+    ownItem: {
+      pick(ctx) {
+        const item = pickOf(ctx.pool);
+        const now = state.owned[item.id] || 0;
+        return { item: item.id, target: now + 2 + Math.floor(Math.random() * 3) };
+      },
+      text: (j) => 'Own ' + j.target + ' x ' + itemById(j.item).name,
+      done: (j) => state.owned[j.item] || 0,
+    },
+    placeCategory: {
+      pick(ctx) {
+        const cat = pickOf(ctx.cats);
+        const now = ctx.tally.byCat[cat] || 0;
+        return { cat, target: now + 2 + Math.floor(Math.random() * 3) };
+      },
+      text: (j) => 'Have ' + j.target + ' ' + CATEGORY_META[j.cat].name.toLowerCase()
+        + ' pieces on the floor at once',
+      done: (j, tally) => tally.byCat[j.cat] || 0,
+    },
+    gps: {
+      pick() {
+        const now = Math.max(1, gps);
+        return { target: Math.ceil(now * (1.5 + Math.random() * 0.8)) };
+      },
+      text: (j) => 'Reach ' + formatNum(j.target) + ' gains/sec',
+      done: () => gps,
+    },
+    fillRoom: {
+      pick: () => ({ target: 1 }),
+      text: () => 'Fill every slot in one room',
+      done: (j, tally) => tally.fullRoom,
+    },
+    synergy: {
+      pick(ctx) {
+        const now = Math.round((ctx.tally.bestSynergy - 1) * 100);
+        return { target: Math.max(24, Math.round((now + 12) / 12) * 12) };
+      },
+      text: (j) => 'Get one piece earning a +' + j.target + '% synergy bonus',
+      done: (j, tally) => Math.round((tally.bestSynergy - 1) * 100),
+    },
+  };
+
+  // Which kinds are worth asking for right now. There is no point asking a
+  // player with one empty starter room to fill a room, or asking for synergy
+  // before there are two pieces to stand next to each other.
+  function jobKindsAvailable(tally) {
+    const kinds = ['ownItem', 'gps'];
+    if (tally.placed > 0) kinds.push('placeItem', 'placeCategory');
+    if (tally.placed >= 4) kinds.push('synergy');
+    if (tally.placed >= 6 && !tally.fullRoom) kinds.push('fillRoom');
+    return kinds;
+  }
+
+  function makeJob(mult, avoidKinds) {
+    const tally = floorTally();
+    const level = currentLevel();
+    const affordable = ITEMS.filter((i) => unlockedFor(i));
+    const owned = affordable.filter((i) => (state.owned[i.id] || 0) > 0);
+    // Weighted to the better half of what they own -- ITEMS runs cheapest
+    // first, so this is the dearer end. Otherwise a gym full of saunas keeps
+    // being asked to buy two more dumbbells, which is no kind of job.
+    const pool = owned.length
+      ? owned.slice(-Math.max(1, Math.ceil(owned.length / 2)))
+      : affordable.slice(0, 3);
+    const ctx = {
+      tally,
+      pool,
+      cats: [...new Set(pool.map((i) => CATEGORY[i.id]))],
+    };
+    let choices = jobKindsAvailable(tally).filter((k) => avoidKinds.indexOf(k) === -1);
+    if (!choices.length) choices = jobKindsAvailable(tally);
+    const kind = pickOf(choices);
+    const job = Object.assign({ kind }, JOB_KINDS[kind].pick(ctx));
+    // Stated when the job is written, not when it is handed in, so the board
+    // can say what a job is worth before you decide to go and do it.
+    job.cash = Math.max(150, Math.round(gps * 45 * mult));
+    job.xp = Math.round(16 * mult * (1 + level * 0.12));
+    return job;
+  }
+
+  function refillJobs() {
+    if (!Array.isArray(state.jobs)) state.jobs = [];
+    state.jobs = state.jobs.filter((j) => j && JOB_KINDS[j.kind]);
+    const weights = [1, 1.7, 2.6];
+    while (state.jobs.length < JOBS_ON_BOARD) {
+      state.jobs.push(makeJob(weights[state.jobs.length] || 1,
+        state.jobs.map((j) => j.kind)));
+    }
+  }
+
+  function jobProgress(job, tally) {
+    const kind = JOB_KINDS[job.kind];
+    const at = Math.max(0, kind.done(job, tally));
+    return { at, target: job.target, ready: at >= job.target };
+  }
 
   // ---- Members ----
   // The people using the place. They earn nothing -- what a room makes is
@@ -855,6 +1005,88 @@
     // being skipped as a class that never actually changed.
     void levelWrapEl.offsetWidth;
     levelWrapEl.classList.add('is-up');
+  }
+
+  // ---- The board ----
+  // Rebuilt from scratch only when the set of jobs changes; the progress on
+  // them is written straight into the existing rows, because that is updated
+  // several times a second and rebuilding three rows of DOM that often is
+  // both wasteful and enough to kill a click landing on a Claim button.
+  const jobsListEl = document.getElementById('jobs-list');
+  let jobRowEls = [];
+  let jobsSignature = '';
+
+  function buildJobsUI() {
+    if (!jobsListEl) return;
+    jobsListEl.innerHTML = '';
+    jobRowEls = state.jobs.map((job, index) => {
+      const row = document.createElement('div');
+      row.className = 'tycoon-job';
+      row.innerHTML =
+        '<span class="tycoon-job-text"></span>'
+        + '<span class="tycoon-job-bar"><span class="tycoon-job-fill"></span></span>'
+        + '<span class="tycoon-job-foot">'
+          + '<span class="tycoon-job-meta"></span>'
+          + '<button class="tycoon-job-claim" type="button" disabled>Claim</button>'
+        + '</span>';
+      const claim = row.querySelector('.tycoon-job-claim');
+      claim.addEventListener('click', () => claimJob(index));
+      jobsListEl.appendChild(row);
+      return {
+        root: row,
+        text: row.querySelector('.tycoon-job-text'),
+        fill: row.querySelector('.tycoon-job-fill'),
+        meta: row.querySelector('.tycoon-job-meta'),
+        claim,
+        last: null,
+      };
+    });
+  }
+
+  function refreshJobsUI() {
+    if (!jobsListEl) return;
+    const signature = state.jobs.map((j) => j.kind + ':' + j.target + ':' + (j.item || j.cat || '')).join('|');
+    if (signature !== jobsSignature) {
+      jobsSignature = signature;
+      buildJobsUI();
+    }
+    const tally = floorTally();
+    state.jobs.forEach((job, i) => {
+      const els = jobRowEls[i];
+      if (!els) return;
+      const p = jobProgress(job, tally);
+      const shown = Math.min(p.at, p.target);
+      const stamp = shown + '/' + p.target + (p.ready ? '!' : '');
+      if (els.last === stamp) return;
+      els.last = stamp;
+      els.text.textContent = JOB_KINDS[job.kind].text(job);
+      els.fill.style.width = ((shown / Math.max(1, p.target)) * 100).toFixed(1) + '%';
+      els.meta.innerHTML = '<span class="tycoon-job-reward">$' + formatNum(job.cash)
+        + ' + ' + job.xp + ' XP</span> &middot; ' + formatNum(shown) + ' / ' + formatNum(p.target);
+      els.claim.disabled = !p.ready;
+      els.root.classList.toggle('is-ready', p.ready);
+    });
+  }
+
+  function claimJob(index) {
+    const job = state.jobs[index];
+    if (!job) return;
+    if (!jobProgress(job, floorTally()).ready) return;
+    const before = currentLevel();
+    state.balance += job.cash;
+    state.lifetime += job.cash;
+    state.xp = (state.xp || 0) + job.xp;
+    state.jobs.splice(index, 1);
+    refillJobs();
+    if (currentLevel() > before) announceLevel(currentLevel());
+    else toast('Job done -- $' + formatNum(job.cash) + ' and ' + job.xp + ' XP', 'good');
+    refreshHud();
+    refreshLevelUI();
+    refreshShopUI();
+    refreshThemeRow();
+    refreshJobsUI();
+    updateLeaderboardEntry();
+    save();
   }
 
   const toastEl = document.getElementById('game-toast');
@@ -3548,8 +3780,10 @@
 
   // ---- Init ----
   buildShop();
+  refillJobs();
   refreshHud();
   refreshLevelUI();
+  refreshJobsUI();
   refreshSynergyText();
   refreshShopUI();
   renderScene();
@@ -3584,6 +3818,7 @@
     state.balance += gps * dt;
     state.lifetime += gps * dt;
     refreshHud();
+    refreshJobsUI();
     refreshShopUI();
     refreshThemeRow();
     refreshRoomActions();
