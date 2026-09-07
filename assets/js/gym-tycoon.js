@@ -4,7 +4,6 @@
 
   const SAVE_KEY = 'gymTycoonSave';
   const COST_GROWTH = 1.15;
-  const OFFLINE_CAP_SECONDS = 8 * 3600;
   const TICK_MS = 100;
 
   const ITEMS = [
@@ -379,15 +378,9 @@
       toPlace.slice(0, firstLayout.length).forEach((id, i) => { firstLayout[i] = id; });
     }
 
-    const elapsed = Math.max(0, (Date.now() - (saved.lastSaved || Date.now())) / 1000);
-    const cappedElapsed = Math.min(elapsed, OFFLINE_CAP_SECONDS);
-    const gpsAtSave = computeTotalGps(s.themeRooms);
-    const offlineEarnings = cappedElapsed * gpsAtSave;
-    if (offlineEarnings > 1) {
-      s.balance += offlineEarnings;
-      s.lifetime += offlineEarnings;
-      setTimeout(() => toast('WELCOME BACK +$' + formatNum(offlineEarnings), 'legend-moon'), 400);
-    }
+    // Nothing is credited for the time the tab was gone: gear earns while
+    // you are watching it and not otherwise. lastSaved is still written --
+    // it dates the save -- it just no longer buys anything.
     return s;
   }
 
@@ -3153,9 +3146,22 @@
     return state.balance >= ROOM_UNLOCK_COSTS[rooms.length];
   }
 
+  // Earnings come off the wall clock rather than off a tick count, because
+  // a background tab does not get the ticks it was promised: browsers
+  // throttle setInterval there to about one a second, or one a minute, so
+  // counting ticks would quietly pay out at the wrong rate. Measuring the
+  // real gap pays exactly the time that passed -- and a hidden tab is paid
+  // for none of it.
+  let lastTickAt = Date.now();
+
   setInterval(() => {
-    state.balance += gps / (1000 / TICK_MS);
-    state.lifetime += gps / (1000 / TICK_MS);
+    const now = Date.now();
+    const dt = (now - lastTickAt) / 1000;
+    lastTickAt = now;
+    if (document.hidden) return;
+
+    state.balance += gps * dt;
+    state.lifetime += gps * dt;
     refreshHud();
     refreshShopUI();
     refreshThemeRow();
@@ -3186,6 +3192,13 @@
 
   window.addEventListener('beforeunload', save);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') save();
+    if (document.visibilityState === 'hidden') {
+      save();
+      return;
+    }
+    // Back on screen: restart the clock here. The last tick while hidden
+    // could have been a minute ago, and without this the first tick back
+    // would pay out that whole minute away.
+    lastTickAt = Date.now();
   });
 })();
