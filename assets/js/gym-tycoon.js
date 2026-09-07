@@ -1613,6 +1613,19 @@
   // corner given as fromP, 1 = toP), hFrac is fraction up from the floor
   // (0 = floor line, 1 = ceiling). Decor drawn from this stays anchored to
   // the wall as the room re-renders, without needing full quad-skew math.
+  // A little coordinate frame lying in a wall's own plane: (along, up) in
+  // pixels from a point on the wall, mapped to the screen. Anything flat
+  // stuck on a wall is drawn through this, because a wall recedes -- a
+  // rectangle painted square to the screen on one reads as a sticker
+  // floating in front of the wall rather than something hanging on it.
+  function wallFrame(fromP, toP, t, hFrac) {
+    const origin = wallPoint(fromP, toP, t, hFrac);
+    const len = Math.hypot(toP.x - fromP.x, toP.y - fromP.y) || 1;
+    const ux = (toP.x - fromP.x) / len;
+    const uy = (toP.y - fromP.y) / len;
+    return (along, up) => ({ x: origin.x + ux * along, y: origin.y + uy * along - up });
+  }
+
   function wallPoint(fromP, toP, t, hFrac) {
     return {
       x: fromP.x + (toP.x - fromP.x) * t,
@@ -1850,49 +1863,41 @@
       // Mid-wall unless a doorway is there, in which case step along it.
       const t = pickWallSpot(doors.ne, [], [0.56, 0.34, 0.76, 0.16], 0.14);
       if (t === null) return;
-      const p = wallPoint(north, east, t, 0.62);
-      floorCtx.fillStyle = 'rgba(0,0,0,0.22)';
-      floorCtx.fillRect(p.x - 32, p.y - 24, 64, 44);
+      const at = wallFrame(north, east, t, 0.62);
+      paintQuad([at(-32, 24), at(32, 24), at(32, -20), at(-32, -20)],
+        'rgba(0,0,0,0.22)', null);
       floorCtx.strokeStyle = 'rgba(255,255,255,0.10)';
       floorCtx.lineWidth = 1;
       for (let row = 0; row < 4; row++) {
         for (let col = 0; col < 6; col++) {
+          const hole = at(-26 + col * 11, 17 - row * 11);
           floorCtx.beginPath();
-          floorCtx.arc(p.x - 26 + col * 11, p.y - 17 + row * 11, 1.3, 0, Math.PI * 2);
+          floorCtx.arc(hole.x, hole.y, 1.3, 0, Math.PI * 2);
           floorCtx.stroke();
         }
       }
-      floorCtx.strokeStyle = '#c94f3a';
-      floorCtx.lineWidth = 2.5;
       floorCtx.lineCap = 'round';
+      strokePolyline([at(-14, -12), at(-14, 8)], '#c94f3a', 2.5);
+      strokePolyline([at(-19, 8), at(-9, 8)], '#c94f3a', 2.5);
+      strokePolyline([at(10, -14), at(10, 10)], '#9aa0a8', 2.5);
+      const eye = at(10, 10);
       floorCtx.beginPath();
-      floorCtx.moveTo(p.x - 14, p.y + 12);
-      floorCtx.lineTo(p.x - 14, p.y - 8);
-      floorCtx.moveTo(p.x - 19, p.y - 8);
-      floorCtx.lineTo(p.x - 9, p.y - 8);
-      floorCtx.stroke();
+      floorCtx.arc(eye.x, eye.y, 4, 0.3, Math.PI * 1.4);
       floorCtx.strokeStyle = '#9aa0a8';
-      floorCtx.beginPath();
-      floorCtx.moveTo(p.x + 10, p.y + 14);
-      floorCtx.lineTo(p.x + 10, p.y - 10);
-      floorCtx.stroke();
-      floorCtx.beginPath();
-      floorCtx.arc(p.x + 10, p.y - 10, 4, 0.3, Math.PI * 1.4);
+      floorCtx.lineWidth = 2.5;
       floorCtx.stroke();
     } else if (theme === 'basement') {
       const t = pickWallSpot(doors.nw, [], [0.5, 0.28, 0.74, 0.14], 0.14);
       if (t === null) return;
-      const p = wallPoint(north, west, t, 0.6);
-      floorCtx.fillStyle = '#1a1512';
-      floorCtx.fillRect(p.x - 26, p.y - 32, 52, 40);
-      floorCtx.fillStyle = '#dcd0b8';
-      floorCtx.fillRect(p.x - 22, p.y - 28, 44, 32);
-      floorCtx.fillStyle = 'rgba(0,0,0,0.55)';
-      floorCtx.fillRect(p.x - 17, p.y - 22, 34, 3);
-      floorCtx.fillRect(p.x - 17, p.y - 15, 22, 3);
-      floorCtx.fillRect(p.x - 17, p.y - 8, 26, 3);
-      floorCtx.fillStyle = '#c0483a';
-      floorCtx.fillRect(p.x - 17, p.y - 1, 12, 3);
+      const at = wallFrame(north, west, t, 0.6);
+      const sheet = (a0, a1, u0, u1, fill) => paintQuad(
+        [at(a0, u0), at(a1, u0), at(a1, u1), at(a0, u1)], fill, null);
+      sheet(-26, 26, 32, -8, '#1a1512');
+      sheet(-22, 22, 28, -4, '#dcd0b8');
+      sheet(-17, 17, 22, 19, 'rgba(0,0,0,0.55)');
+      sheet(-17, 5, 15, 12, 'rgba(0,0,0,0.55)');
+      sheet(-17, 9, 8, 5, 'rgba(0,0,0,0.55)');
+      sheet(-17, -5, 1, -2, '#c0483a');
     } else if (theme === 'rooftop') {
       const wallTopColor = 'rgba(255, 236, 190, 0.9)';
       [
@@ -1945,6 +1950,50 @@
     return placements.some(inside) || corridors.some(inside);
   }
 
+  // The lattice is far finer than a floor tile -- it is what gear is
+  // positioned on, not what the floor is paved with -- so the paving goes
+  // down in plates a few lattice tiles across, which is about the size a real
+  // floor tile would be. Rooms and hallways are paved by the same routine so
+  // one does not come out tiled three times finer than the other; `dim` is
+  // how much darker a hallway's floor sits than a room's.
+  const PLATE = 3;
+  function drawPaving(rect, colors, dim) {
+    for (let ry = 0; ry < rect.rows; ry += PLATE) {
+      for (let rx = 0; rx < rect.cols; rx += PLATE) {
+        const gx = rect.gx0 + rx;
+        const gy = rect.gy0 + ry;
+        const w = Math.min(PLATE, rect.cols - rx);
+        const h = Math.min(PLATE, rect.rows - ry);
+        const p0 = isoPoint(gx, gy);
+        const p1 = isoPoint(gx + w, gy);
+        const p2 = isoPoint(gx + w, gy + h);
+        const p3 = isoPoint(gx, gy + h);
+        const tileColor = shade(((rx / PLATE | 0) + (ry / PLATE | 0)) % 2 === 0
+          ? colors.floorA : colors.floorB, dim || 0);
+        paintQuad([p0, p1, p2, p3], tileColor, 'rgba(0,0,0,0.25)', 1);
+
+        // A light seam along the two edges facing the light source and a dark
+        // one along the two facing away, so a plate reads as a slab with an
+        // edge rather than a flat fill.
+        floorCtx.beginPath();
+        floorCtx.moveTo(p0.x, p0.y);
+        floorCtx.lineTo(p1.x, p1.y);
+        floorCtx.moveTo(p0.x, p0.y);
+        floorCtx.lineTo(p3.x, p3.y);
+        floorCtx.strokeStyle = shade(tileColor, 16);
+        floorCtx.lineWidth = 1;
+        floorCtx.stroke();
+        floorCtx.beginPath();
+        floorCtx.moveTo(p2.x, p2.y);
+        floorCtx.lineTo(p1.x, p1.y);
+        floorCtx.moveTo(p2.x, p2.y);
+        floorCtx.lineTo(p3.x, p3.y);
+        floorCtx.strokeStyle = shade(tileColor, -18);
+        floorCtx.stroke();
+      }
+    }
+  }
+
   // The lip under a floor plate's two front edges. Without it every space
   // runs into the next as one flat sheet; with it each room and hallway
   // reads as a slab of its own, which is most of what separates them.
@@ -1959,17 +2008,30 @@
       [a, b, { x: b.x, y: b.y + h }, { x: a.x, y: a.y + h }], fill, outline, 1,
     );
 
+    // One quad per unbroken stretch of exposed edge, not one per lattice
+    // tile. The lattice is three times finer than a floor tile now, so a
+    // quad each -- outlined, as every quad here is -- ruled a dark line
+    // every few pixels along the whole front of every room, which is the
+    // floor's version of the seam the walls used to have.
+    const runEdge = (from, to, exposed, corner, fill) => {
+      let start = null;
+      for (let i = from; i <= to; i++) {
+        const open = i < to && exposed(i);
+        if (open && start === null) start = i;
+        if (!open && start !== null) {
+          drop(corner(start), corner(i), fill);
+          start = null;
+        }
+      }
+    };
+
     const gxEdge = rect.gx0 + rect.cols;
-    for (let gy = rect.gy0; gy < rect.gy0 + rect.rows; gy++) {
-      if (tileIsFloor(gxEdge, gy)) continue;
-      drop(isoPoint(gxEdge, gy), isoPoint(gxEdge, gy + 1), right);
-    }
+    runEdge(rect.gy0, rect.gy0 + rect.rows,
+      (gy) => !tileIsFloor(gxEdge, gy), (gy) => isoPoint(gxEdge, gy), right);
 
     const gyEdge = rect.gy0 + rect.rows;
-    for (let gx = rect.gx0; gx < rect.gx0 + rect.cols; gx++) {
-      if (tileIsFloor(gx, gyEdge)) continue;
-      drop(isoPoint(gx, gyEdge), isoPoint(gx + 1, gyEdge), left);
-    }
+    runEdge(rect.gx0, rect.gx0 + rect.cols,
+      (gx) => !tileIsFloor(gx, gyEdge), (gx) => isoPoint(gx, gyEdge), left);
   }
 
   // ---- Walls ----
@@ -1987,38 +2049,138 @@
     return axis === 'gx' ? isoVecRaw(0, -WALL_THICK) : isoVecRaw(-WALL_THICK, 0);
   }
 
-  // A wall as an actual solid: the face you look at, the top surface that
-  // gives it thickness, and a cap on the far end. The cap belongs on the far
-  // end only -- that is the end whose cut face turns toward the viewer, for
-  // both axes, given a always starts at the shared back corner.
-  function drawWallSlab(a, b, h, depth, baseColor) {
-    const off = (p, lift) => ({ x: p.x + depth.x, y: p.y + depth.y - (lift || 0) });
-
-    paintQuad(
-      [b, off(b), off(b, h), liftPt(b, h)],
-      shade(baseColor, -20), 'rgba(0,0,0,0.5)', 1,
-    );
-
-    paintQuad(
-      [liftPt(a, h), liftPt(b, h), off(b, h), off(a, h)],
-      shade(baseColor, 46), 'rgba(0,0,0,0.42)', 1,
-    );
-
-    const grad = floorCtx.createLinearGradient(0, a.y - h, 0, a.y);
-    grad.addColorStop(0, shade(baseColor, 16));
-    grad.addColorStop(1, shade(baseColor, -12));
-    paintQuad([a, b, liftPt(b, h), liftPt(a, h)], grad, 'rgba(0,0,0,0.45)', 1);
+  // An open polyline, stroked once. Wall edges are drawn this way rather than
+  // as the outlines of the quads that meet along them, because an edge two
+  // faces share gets stroked twice that way -- which is exactly what made
+  // every joint in a wall show up as a line darker than the wall's own
+  // corners.
+  function strokePolyline(pts, color, width) {
+    if (pts.length < 2) return;
+    floorCtx.beginPath();
+    floorCtx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) floorCtx.lineTo(pts[i].x, pts[i].y);
+    floorCtx.strokeStyle = color;
+    floorCtx.lineWidth = width || 1;
+    floorCtx.lineJoin = 'round';
+    floorCtx.stroke();
   }
 
-  // The square of ceiling left between two walls meeting at a back corner --
-  // without it the two top faces stop short and leave a notch in the corner.
-  function drawWallCorner(corner, depthA, depthB, h, baseColor) {
-    paintQuad([
-      liftPt(corner, h),
-      { x: corner.x + depthA.x, y: corner.y + depthA.y - h },
-      { x: corner.x + depthA.x + depthB.x, y: corner.y + depthA.y + depthB.y - h },
-      { x: corner.x + depthB.x, y: corner.y + depthB.y - h },
-    ], shade(baseColor, 46), 'rgba(0,0,0,0.42)', 1);
+  function sameVec(a, b) {
+    return !!a && !!b && a.x === b.x && a.y === b.y;
+  }
+
+  // How far an end that runs into another wall is pushed past the join. Two
+  // fills that only just touch leave an antialiased hairline between them,
+  // which on a wall that is meant to be continuous reads as exactly the seam
+  // this whole thing is here to get rid of; a run drawn later overlaps the
+  // one it continues instead.
+  const WALL_JOIN_OVERLAP = 1.5;
+  function pushPast(p, towards) {
+    const dx = p.x - towards.x;
+    const dy = p.y - towards.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return {
+      x: p.x + (dx / len) * WALL_JOIN_OVERLAP,
+      y: p.y + (dy / len) * WALL_JOIN_OVERLAP,
+    };
+  }
+
+  // What a room's wall does where it reaches one of the room's open corners.
+  // A hallway flush with the backs of both rooms starts its wall on this very
+  // corner and carries straight on along the same line, so there is nothing
+  // there to cut and capping it put a cut face in the middle of a wall that
+  // runs on unbroken -- which was the seam you could see at every hallway.
+  // A hallway stepped back from the room's wall reaches this corner by a
+  // return that hangs off the wall's inner side instead, and there the wall
+  // really does end, so it keeps its cap.
+  function roomWallEnd(place, corner) {
+    return corridors.some((c) => c.nearRoom === place
+      && c.gx0 === corner.gx && c.gy0 === corner.gy) ? 'open' : 'cap';
+  }
+
+  // A whole run of wall as one solid: `pts` is its centre-line corner to
+  // corner and `axes` says which lattice axis each segment runs along, which
+  // decides both its shading and which way its thickness backs off. `ends`
+  // says what happens at each end -- 'cap' for a cut end you can see the
+  // thickness of, 'open' for one that runs into the next wall along.
+  //
+  // Drawing a run in one go is the whole point. Built out of one slab per
+  // segment, every joint showed as a seam -- each slab outlining an edge its
+  // neighbour had already outlined -- and every turn had to be patched with a
+  // separate square of ceiling that left a notch where it met them. Here the
+  // faces are filled with no outlines of their own, the top is one unbroken
+  // band with the turn mitred into it, and the finished solid is outlined
+  // once, so a wall that turns a corner reads as one wall that turns a
+  // corner.
+  function drawWallRun(centreLine, axes, h, colors, ends) {
+    const n = axes.length;
+    const dep = axes.map(wallDepth);
+    const pts = centreLine.slice();
+    if (ends[0] !== 'cap') pts[0] = pushPast(pts[0], pts[1]);
+    if (ends[1] !== 'cap') pts[n] = pushPast(pts[n], pts[n - 1]);
+    const lift = (p) => ({ x: p.x, y: p.y - h });
+    const shift = (p, d, up) => ({ x: p.x + d.x, y: p.y + d.y - (up ? h : 0) });
+    const faceOf = (axis) => (axis === 'gx' ? colors.wallR : colors.wallL);
+    const faceFill = (axis, atY) => {
+      const base = faceOf(axis);
+      const grad = floorCtx.createLinearGradient(0, atY - h, 0, atY);
+      grad.addColorStop(0, shade(base, 16));
+      grad.addColorStop(1, shade(base, -12));
+      return grad;
+    };
+
+    // Where the outside of the top band sits above each centre-line point:
+    // one segment's offset at an end, and both segments' offsets added at a
+    // turn, which is the mitre that used to need its own patch.
+    const outer = pts.map((p, i) => {
+      const before = dep[i - 1];
+      const after = dep[i];
+      if (!before) return shift(p, after, true);
+      if (!after) return shift(p, before, true);
+      if (sameVec(before, after)) return shift(p, after, true);
+      return shift(p, { x: before.x + after.x, y: before.y + after.y }, true);
+    });
+
+    // Cut ends first: whatever stands in front of them is drawn after.
+    const endIndex = [0, n];
+    endIndex.forEach((i, which) => {
+      if (ends[which] !== 'cap') return;
+      const d = dep[i === 0 ? 0 : n - 1];
+      paintQuad([pts[i], shift(pts[i], d), outer[i], lift(pts[i])],
+        shade(faceOf(axes[i === 0 ? 0 : n - 1]), -20), null);
+    });
+
+    // The top, as one unbroken band around the whole run -- no seam at the
+    // turns because there is nothing there to seam.
+    paintQuad(pts.map(lift).concat(outer.slice().reverse()),
+      shade(colors.wallL, 46), null);
+
+    // The faces you look at. The whole ribbon is laid down in the first
+    // segment's shade and each later segment painted over it, so the change
+    // of shade at a turn lands as one clean edge instead of an antialiased
+    // gap between two fills that only just touch.
+    paintQuad(pts.concat(pts.slice().reverse().map(lift)),
+      faceFill(axes[0], pts[0].y), null);
+    for (let i = 1; i < n; i++) {
+      if (axes[i] === axes[i - 1]) continue;
+      paintQuad([pts[i], pts[i + 1], lift(pts[i + 1]), lift(pts[i])],
+        faceFill(axes[i], pts[i].y), null);
+    }
+
+    // One line per edge the solid actually has.
+    strokePolyline(pts, 'rgba(0,0,0,0.45)', 1);
+    strokePolyline(pts.map(lift), 'rgba(0,0,0,0.42)', 1);
+    strokePolyline(outer, 'rgba(0,0,0,0.34)', 1);
+    for (let i = 1; i < n; i++) {
+      if (sameVec(dep[i - 1], dep[i])) continue;
+      strokePolyline([pts[i], lift(pts[i])], 'rgba(0,0,0,0.26)', 1);
+    }
+    endIndex.forEach((i, which) => {
+      if (ends[which] !== 'cap') return;
+      const d = dep[i === 0 ? 0 : n - 1];
+      strokePolyline([lift(pts[i]), pts[i], shift(pts[i], d), outer[i]],
+        'rgba(0,0,0,0.5)', 1);
+    });
   }
 
   // The two floor corners spanning a corridor's end, in the order that keeps
@@ -2033,18 +2195,7 @@
   }
 
   function drawCorridorShell(c, colors) {
-    for (let ry = 0; ry < c.rows; ry++) {
-      for (let rx = 0; rx < c.cols; rx++) {
-        const gx = c.gx0 + rx;
-        const gy = c.gy0 + ry;
-        const tile = (gx + gy) % 2 === 0 ? colors.floorA : colors.floorB;
-        paintQuad([
-          isoPoint(gx, gy), isoPoint(gx + 1, gy),
-          isoPoint(gx + 1, gy + 1), isoPoint(gx, gy + 1),
-        ], shade(tile, -8), 'rgba(0,0,0,0.28)', 1);
-      }
-    }
-
+    drawPaving(c, colors, -8);
     drawSlabEdges(c, colors);
 
     // Full room height, not a shorter parapet: the hallway wall runs into a
@@ -2057,41 +2208,30 @@
     // hallway wall would otherwise begin in mid-air, a few tiles adrift of
     // where the room's own wall stopped. The return below is the piece of the
     // room's side wall above the doorway that carries one into the other.
-    const along = c.axis === 'gx';
+    // The return and the hallway's own wall are one run that turns the corner
+    // between them. Neither end is a cut end: the far end butts into the far
+    // room's wall, and the near end either carries straight on out of the near
+    // room's wall (a hallway flush with the backs of both rooms) or turns out
+    // of the end of it by a return.
     const near = c.nearRoom;
-    if (along) {
+    const corner = isoPoint(c.gx0, c.gy0);
+    if (c.axis === 'gx') {
       // Running east along the gy0 edge; thickness backs off up and right.
-      drawWallSlab(
-        isoPoint(c.gx0, c.gy0), isoPoint(c.gx0 + c.cols, c.gy0),
-        ROOM.wallH, wallDepth('gx'), colors.wallR,
-      );
+      const far = isoPoint(c.gx0 + c.cols, c.gy0);
       if (near && c.gy0 > near.gy0) {
-        drawWallSlab(
-          isoPoint(c.gx0, near.gy0), isoPoint(c.gx0, c.gy0),
-          ROOM.wallH, wallDepth('gy'), colors.wallL,
-        );
-        // Mitre both ends of the return: into the room's back wall at the top,
-        // into the hallway's own wall at the bottom.
-        drawWallCorner(isoPoint(c.gx0, near.gy0), wallDepth('gx'), wallDepth('gy'),
-          ROOM.wallH, colors.wallL);
-        drawWallCorner(isoPoint(c.gx0, c.gy0), wallDepth('gx'), wallDepth('gy'),
-          ROOM.wallH, colors.wallL);
+        drawWallRun([isoPoint(c.gx0, near.gy0), corner, far], ['gy', 'gx'],
+          ROOM.wallH, colors, ['open', 'open']);
+      } else {
+        drawWallRun([corner, far], ['gx'], ROOM.wallH, colors, ['open', 'open']);
       }
     } else {
       // Running south along the gx0 edge; thickness backs off up and left.
-      drawWallSlab(
-        isoPoint(c.gx0, c.gy0), isoPoint(c.gx0, c.gy0 + c.rows),
-        ROOM.wallH, wallDepth('gy'), colors.wallL,
-      );
+      const far = isoPoint(c.gx0, c.gy0 + c.rows);
       if (near && c.gx0 > near.gx0) {
-        drawWallSlab(
-          isoPoint(near.gx0, c.gy0), isoPoint(c.gx0, c.gy0),
-          ROOM.wallH, wallDepth('gx'), colors.wallR,
-        );
-        drawWallCorner(isoPoint(near.gx0, c.gy0), wallDepth('gx'), wallDepth('gy'),
-          ROOM.wallH, colors.wallL);
-        drawWallCorner(isoPoint(c.gx0, c.gy0), wallDepth('gx'), wallDepth('gy'),
-          ROOM.wallH, colors.wallL);
+        drawWallRun([isoPoint(near.gx0, c.gy0), corner, far], ['gx', 'gy'],
+          ROOM.wallH, colors, ['open', 'open']);
+      } else {
+        drawWallRun([corner, far], ['gy'], ROOM.wallH, colors, ['open', 'open']);
       }
     }
   }
@@ -2313,15 +2453,13 @@
     const east = isoPoint(place.gx0 + place.cols, place.gy0);
     const west = isoPoint(place.gx0, place.gy0 + place.rows);
 
-    // Both back walls, as solids. The north corner they share gets its own
-    // patch of ceiling so the two top faces mitre instead of leaving a notch,
-    // and each wall caps off at the room's open corner, which is where you
-    // see how thick it is.
-    const depthNE = wallDepth('gx');
-    const depthNW = wallDepth('gy');
-    drawWallSlab(north, east, ROOM.wallH, depthNE, colors.wallR);
-    drawWallSlab(north, west, ROOM.wallH, depthNW, colors.wallL);
-    drawWallCorner(north, depthNE, depthNW, ROOM.wallH, colors.wallL);
+    // Both back walls are one solid that turns the north corner, not two
+    // that meet there, and each end either caps off at the room's open corner
+    // or carries straight on into the hallway that leaves from it.
+    drawWallRun([east, north, west], ['gx', 'gy'], ROOM.wallH, colors, [
+      roomWallEnd(place, { gx: place.gx0 + place.cols, gy: place.gy0 }),
+      roomWallEnd(place, { gx: place.gx0, gy: place.gy0 + place.rows }),
+    ]);
 
     drawBaseboard(east, north);
     drawBaseboard(north, west);
@@ -2329,45 +2467,7 @@
     drawWallDecor(theme, north, east, west, doors);
     drawRoomFittings(roomFitFor(roomIndex), north, east, west, doors);
 
-    // The lattice is far finer than a floor tile now -- it is what gear is
-    // positioned on, not what the floor is paved with -- so the paving is
-    // drawn in plates a few lattice tiles across, which is about the size a
-    // real floor tile would be.
-    const PLATE = 3;
-    for (let ry = 0; ry < shape.rows; ry += PLATE) {
-      for (let rx = 0; rx < shape.cols; rx += PLATE) {
-        const gx = place.gx0 + rx;
-        const gy = place.gy0 + ry;
-        const w = Math.min(PLATE, shape.cols - rx);
-        const h = Math.min(PLATE, shape.rows - ry);
-        const p0 = isoPoint(gx, gy);
-        const p1 = isoPoint(gx + w, gy);
-        const p2 = isoPoint(gx + w, gy + h);
-        const p3 = isoPoint(gx, gy + h);
-        const tileColor = ((rx / PLATE | 0) + (ry / PLATE | 0)) % 2 === 0
-          ? colors.floorA : colors.floorB;
-        paintQuad([p0, p1, p2, p3], tileColor, 'rgba(0,0,0,0.25)', 1);
-
-        // A light seam along the two edges facing the room's light source
-        // and a dark one along the two facing away, so a plate reads as a
-        // slab with an edge rather than a flat fill.
-        floorCtx.beginPath();
-        floorCtx.moveTo(p0.x, p0.y);
-        floorCtx.lineTo(p1.x, p1.y);
-        floorCtx.moveTo(p0.x, p0.y);
-        floorCtx.lineTo(p3.x, p3.y);
-        floorCtx.strokeStyle = shade(tileColor, 16);
-        floorCtx.lineWidth = 1;
-        floorCtx.stroke();
-        floorCtx.beginPath();
-        floorCtx.moveTo(p2.x, p2.y);
-        floorCtx.lineTo(p1.x, p1.y);
-        floorCtx.moveTo(p2.x, p2.y);
-        floorCtx.lineTo(p3.x, p3.y);
-        floorCtx.strokeStyle = shade(tileColor, -18);
-        floorCtx.stroke();
-      }
-    }
+    drawPaving(place, colors, 0);
 
     drawSlabEdges(place, colors);
 
