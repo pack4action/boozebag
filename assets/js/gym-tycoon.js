@@ -187,6 +187,11 @@
       const hi = Math.min(a.gy0 + a.rows, b.gy0 + b.rows);
       const gy0 = Math.min(lo, hi - width);
       return {
+        // Which way the hallway runs. This used to be read back off the
+        // rectangle as cols > rows, which is only true while a hallway is
+        // longer than it is wide -- the garage's are 2x2 and the rooftop's
+        // 3x3, and both were being drawn as though they ran the other way.
+        axis: 'gx',
         gx0: left.gx0 + left.cols,
         gy0,
         cols: right.gx0 - (left.gx0 + left.cols),
@@ -202,6 +207,7 @@
     const hi = Math.min(a.gx0 + a.cols, b.gx0 + b.cols);
     const gx0 = Math.min(lo, hi - width);
     return {
+      axis: 'gy',
       gx0,
       gy0: top.gy0 + top.rows,
       cols: width,
@@ -2164,27 +2170,73 @@
     },
   };
 
-  function drawRoomFittings(fit, north, east, west) {
-    // Spread the pieces across both walls so nothing stacks on the theme's
-    // own decor, which always sits mid-wall.
-    // Kept clear of mid-wall, which is where each theme hangs its own decor.
-    const slots = [
-      { wall: [north, east], t: 0.22 },
-      { wall: [north, west], t: 0.75 },
-      { wall: [north, east], t: 0.81 },
-      { wall: [north, west], t: 0.24 },
-      { wall: [north, east], t: 0.38 },
+  // A doorway is a hole in a wall, so nothing can hang across it -- and with
+  // three themes growing in three directions, which wall a room's doorways
+  // land on is no longer something that can be assumed. These are the spans
+  // the hallways take out of a room's two back walls, as fractions along
+  // them, with a little clearance either side of the casing.
+  function wallDoorSpans(roomIndex) {
+    const r = placements[roomIndex];
+    const ne = [];  // the north->east wall, running along +gx
+    const nw = [];  // the north->west wall, running along +gy
+    if (!r) return { ne, nw };
+    const pad = 0.05;
+    corridors.forEach((c) => {
+      if (c.doorRoom !== r) return;
+      if (c.axis === 'gy') {
+        ne.push([(c.gx0 - r.gx0) / r.cols - pad, (c.gx0 + c.cols - r.gx0) / r.cols + pad]);
+      } else {
+        nw.push([(c.gy0 - r.gy0) / r.rows - pad, (c.gy0 + c.rows - r.gy0) / r.rows + pad]);
+      }
+    });
+    return { ne, nw };
+  }
+
+  // The first of the offered positions that clears every doorway on that
+  // wall (and anything already hung there), or null if the wall is full.
+  function pickWallSpot(spans, taken, candidates, half) {
+    for (let i = 0; i < candidates.length; i++) {
+      const t = candidates[i];
+      if (t - half < 0 || t + half > 1) continue;
+      const clearOfDoors = spans.every(([lo, hi]) => t + half <= lo || t - half >= hi);
+      const clearOfKit = taken.every((u) => Math.abs(u - t) >= half * 2);
+      if (clearOfDoors && clearOfKit) return t;
+    }
+    return null;
+  }
+
+  function drawRoomFittings(fit, north, east, west, doors) {
+    // Alternating walls, each piece taking the first free position on its
+    // wall. Fixed positions were fine while every room had its doorway in
+    // the same place; now a piece that would land on a doorway steps along
+    // the wall to the next opening instead, and is dropped if there is none.
+    const order = [
+      { key: 'ne', wall: [north, east], from: [0.22, 0.38, 0.81, 0.62, 0.1] },
+      { key: 'nw', wall: [north, west], from: [0.75, 0.24, 0.55, 0.88, 0.12] },
     ];
+    const taken = { ne: [], nw: [] };
+    const half = 0.075;
     fit.decor.forEach((name, i) => {
       const draw = WALL_FITTINGS[name];
-      const slot = slots[i % slots.length];
-      if (draw) draw(slot.wall[0], slot.wall[1], slot.t);
+      if (!draw) return;
+      // Try its own wall first, then the other one.
+      for (let k = 0; k < order.length; k++) {
+        const side = order[(i + k) % order.length];
+        const t = pickWallSpot(doors[side.key], taken[side.key], side.from, half);
+        if (t === null) continue;
+        taken[side.key].push(t);
+        draw(side.wall[0], side.wall[1], t);
+        return;
+      }
     });
   }
 
-  function drawWallDecor(theme, north, east, west) {
+  function drawWallDecor(theme, north, east, west, doors) {
     if (theme === 'garage') {
-      const p = wallPoint(north, east, 0.56, 0.62);
+      // Mid-wall unless a doorway is there, in which case step along it.
+      const t = pickWallSpot(doors.ne, [], [0.56, 0.34, 0.76, 0.16], 0.14);
+      if (t === null) return;
+      const p = wallPoint(north, east, t, 0.62);
       floorCtx.fillStyle = 'rgba(0,0,0,0.22)';
       floorCtx.fillRect(p.x - 32, p.y - 24, 64, 44);
       floorCtx.strokeStyle = 'rgba(255,255,255,0.10)';
@@ -2214,7 +2266,9 @@
       floorCtx.arc(p.x + 10, p.y - 10, 4, 0.3, Math.PI * 1.4);
       floorCtx.stroke();
     } else if (theme === 'basement') {
-      const p = wallPoint(north, west, 0.5, 0.6);
+      const t = pickWallSpot(doors.nw, [], [0.5, 0.28, 0.74, 0.14], 0.14);
+      if (t === null) return;
+      const p = wallPoint(north, west, t, 0.6);
       floorCtx.fillStyle = '#1a1512';
       floorCtx.fillRect(p.x - 26, p.y - 32, 52, 40);
       floorCtx.fillStyle = '#dcd0b8';
@@ -2356,8 +2410,7 @@
   // The two floor corners spanning a corridor's end, in the order that keeps
   // the frame facing the viewer.
   function corridorEnd(c, far) {
-    const along = c.cols > c.rows;
-    if (along) {
+    if (c.axis === 'gx') {
       const gx = far ? c.gx0 + c.cols : c.gx0;
       return [isoPoint(gx, c.gy0), isoPoint(gx, c.gy0 + c.rows)];
     }
@@ -2390,7 +2443,7 @@
     // hallway wall would otherwise begin in mid-air, a few tiles adrift of
     // where the room's own wall stopped. The return below is the piece of the
     // room's side wall above the doorway that carries one into the other.
-    const along = c.cols > c.rows;
+    const along = c.axis === 'gx';
     const near = c.nearRoom;
     if (along) {
       // Running east along the gy0 edge; thickness backs off up and right.
@@ -2677,8 +2730,9 @@
 
     drawBaseboard(east, north);
     drawBaseboard(north, west);
-    drawWallDecor(theme, north, east, west);
-    drawRoomFittings(roomFitFor(roomIndex), north, east, west);
+    const doors = wallDoorSpans(roomIndex);
+    drawWallDecor(theme, north, east, west, doors);
+    drawRoomFittings(roomFitFor(roomIndex), north, east, west, doors);
 
     const cells = cellsBackToFront(place);
 
