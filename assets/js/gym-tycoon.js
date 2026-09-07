@@ -924,10 +924,41 @@
   const itemSprites = {};
   Object.keys(ITEM_SPRITE_SRC).forEach((id) => {
     const img = new Image();
-    img.onload = () => renderScene();
+    img.onload = () => {
+      delete spriteCache[id];
+      renderScene();
+    };
     img.src = ITEM_SPRITE_SRC[id];
     itemSprites[id] = img;
   });
+
+  // The equipment art ships at 1254x1254 (a couple at 1536x1024) and is drawn
+  // about 90px wide. Asking drawImage to resample a 1.5-megapixel photo down
+  // to a tile, sixty-odd times per repaint, cost more than everything else in
+  // the scene put together: a full gym took 437ms to paint, which is two
+  // frames a second. Scaling each sprite once into a small canvas and
+  // stamping THAT takes the same scene to 7ms.
+  //
+  // The cache is built at CACHE_SCALE times the size the sprite is drawn at,
+  // because the canvas backing store is itself scaled by device pixel ratio
+  // times zoom (fitCanvasResolution, capped at MAX_BACKING_SCALE) -- caching
+  // at the logical size would go soft the moment anyone zoomed in.
+  const spriteCache = {};
+  const SPRITE_CACHE_SCALE = MAX_BACKING_SCALE;
+
+  function cachedSprite(itemId, img, w, h) {
+    const wantW = Math.ceil(w * SPRITE_CACHE_SCALE);
+    const hit = spriteCache[itemId];
+    if (hit && hit.width >= wantW) return hit;
+    const c = document.createElement('canvas');
+    c.width = wantW;
+    c.height = Math.ceil(h * SPRITE_CACHE_SCALE);
+    const cctx = c.getContext('2d');
+    cctx.imageSmoothingQuality = 'high';
+    cctx.drawImage(img, 0, 0, c.width, c.height);
+    spriteCache[itemId] = c;
+    return c;
+  }
 
   // Per-item overrides: `scale` shrinks a sprite that reads too large for
   // its tile (a flat, wide object like a mat photographed on a diagonal
@@ -955,8 +986,30 @@
       w = maxW;
       h = w / aspect;
     }
-    ctx.drawImage(img, center.x - w / 2, center.y - h + h * tuning.anchor, w, h);
+    ctx.drawImage(cachedSprite(itemId, img, w, h), center.x - w / 2, center.y - h + h * tuning.anchor, w, h);
     return true;
+  }
+
+  // A soft contact shadow, as a radial gradient rather than a blurred fill.
+  // `ctx.filter = 'blur(3px)'` around each ellipse is what made a full gym
+  // unpaintable (see the note on the sprite cache above): setting a filter
+  // makes the browser composite the drawing through a separate layer, and
+  // doing that once per item swamped the frame. A gradient fades the same
+  // way for free. Circular gradients only, so the context is squashed to
+  // turn the circle into the ellipse the floor wants.
+  function drawContactShadow(ctx, cx, cy, rx, ry) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(1, ry / rx);
+    const grad = ctx.createRadialGradient(0, 0, rx * 0.3, 0, 0, rx);
+    grad.addColorStop(0, 'rgba(0,0,0,0.42)');
+    grad.addColorStop(0.55, 'rgba(0,0,0,0.34)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, rx, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.restore();
   }
 
   // Each piece of equipment is built from a couple of shaded boxes rather
@@ -2678,16 +2731,10 @@
         floorCtx.shadowBlur = 0;
       }
 
-      // Soft blurred contact shadow underneath, plus the crisper
-      // category-tinted pool on top -- reads as the item actually
-      // sitting on the floor instead of a flat sticker.
-      floorCtx.save();
-      floorCtx.filter = 'blur(3px)';
-      floorCtx.beginPath();
-      floorCtx.ellipse(c.x, c.y + 4, ROOM.tileW * 0.30, ROOM.tileH * 0.26, 0, 0, Math.PI * 2);
-      floorCtx.fillStyle = 'rgba(0,0,0,0.4)';
-      floorCtx.fill();
-      floorCtx.restore();
+      // Soft contact shadow underneath, plus the crisper category-tinted
+      // pool on top -- reads as the item actually sitting on the floor
+      // instead of a flat sticker.
+      drawContactShadow(floorCtx, c.x, c.y + 4, ROOM.tileW * 0.32, ROOM.tileH * 0.28);
 
       floorCtx.beginPath();
       floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * 0.28, ROOM.tileH * 0.24, 0, 0, Math.PI * 2);
