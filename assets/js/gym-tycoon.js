@@ -579,6 +579,158 @@
   let gps = computeTotalGps(state.themeRooms);
   let clickAmount = 1 + gps * 0.05;
 
+  // ---- Members ----
+  // The people using the place. They earn nothing -- what a room makes is
+  // decided entirely by the gear standing in it -- they are what makes a gym
+  // read as a gym rather than a showroom of equipment nobody has touched.
+  // Each one walks to a piece of kit, uses it for a while, and moves on.
+  const MEMBER_SHIRTS = ['#4a5ec8', '#c0483a', '#3fa87e', '#c98a4a', '#7a5ac9', '#3f9ec9'];
+  const MEMBER_SKINS = ['#efc39c', '#d59a6c', '#a06a44', '#7a4a2c', '#f3d3b4'];
+  const MEMBER_HAIR = ['#2b2119', '#4a3524', '#8a6a3a', '#1c1c20', '#6b3a24'];
+  const MEMBER_WALK = 1.15 * TILES_PER_METRE;   // tiles a second, a gym walk
+  // Roughly two members for every three pieces of kit, so a room fills up as
+  // it is fitted out, with a ceiling so a big room does not turn into a
+  // crowd scene that costs more to draw than it is worth.
+  const MEMBERS_PER_PIECE = 0.66;
+  const MAX_MEMBERS_PER_ROOM = 6;
+
+  let members = [];
+  let membersKey = '';
+
+  // The crowd is decoration, and it is decoration made entirely of movement,
+  // so someone who has asked their system for less of that gets the gym
+  // without it rather than a room of people frozen mid-stride.
+  const stillness = window.matchMedia
+    ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  function wantsStillness() {
+    return !!(stillness && stillness.matches);
+  }
+  if (stillness && stillness.addEventListener) {
+    stillness.addEventListener('change', () => {
+      membersKey = '';
+      renderScene();
+    });
+  }
+
+  function pickOf(list) {
+    return list[Math.floor(Math.random() * list.length)];
+  }
+  function clampTo(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
+  }
+
+  function spawnMember(roomIndex, shape) {
+    return {
+      roomIndex,
+      u: 0.8 + Math.random() * Math.max(0.1, shape.cols - 1.6),
+      v: 0.8 + Math.random() * Math.max(0.1, shape.rows - 1.6),
+      tu: 0,
+      tv: 0,
+      gear: null,
+      state: 'idle',
+      timer: 0,
+      phase: Math.random() * Math.PI * 2,
+      facing: 1,
+      shirt: pickOf(MEMBER_SHIRTS),
+      skin: pickOf(MEMBER_SKINS),
+      hair: pickOf(MEMBER_HAIR),
+      speed: MEMBER_WALK * (0.85 + Math.random() * 0.35),
+    };
+  }
+
+  // Rebuilt only when the crowd it was built for has changed -- a different
+  // theme, or a room that has gained or lost a piece of gear. Members already
+  // in a room are kept exactly where they are, so buying something in one
+  // room does not teleport everybody in the others.
+  function rebuildMembers() {
+    const rooms = activeRooms();
+    const key = wantsStillness() ? 'still' : state.activeTheme + '|'
+      + rooms.map((r) => r.layout.filter(Boolean).length).join(',');
+    if (key === membersKey) return;
+    membersKey = key;
+    if (key === 'still') {
+      members = [];
+      return;
+    }
+    const next = [];
+    rooms.forEach((room, roomIndex) => {
+      const shape = roomShapeFor(state.activeTheme, roomIndex);
+      const placed = room.layout.filter(Boolean).length;
+      const want = placed === 0 ? 0
+        : Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM, Math.round(placed * MEMBERS_PER_PIECE)));
+      const here = members.filter((m) => m.roomIndex === roomIndex).slice(0, want);
+      while (here.length < want) here.push(spawnMember(roomIndex, shape));
+      next.push(...here);
+    });
+    members = next;
+  }
+
+  // Where a member goes next: a free piece of gear most of the time, and now
+  // and then just somewhere else on the floor, so the room does not look like
+  // a queueing system.
+  function chooseTarget(m, room, shape) {
+    const free = [];
+    room.layout.forEach((id, i) => {
+      if (!id) return;
+      const taken = members.some((o) => o !== m && o.roomIndex === m.roomIndex && o.gear === i);
+      if (!taken) free.push(i);
+    });
+    if (free.length && Math.random() < 0.82) {
+      const i = pickOf(free);
+      const spot = spotOf(room, i, shape);
+      // Stand in front of the piece rather than inside it: clear of its own
+      // footprint, and toward the viewer so the gear is not hidden.
+      const clear = (footprintOf(room.layout[i]) / 2 + 0.4) * TILES_PER_METRE;
+      m.gear = i;
+      m.tu = clampTo(spot.u + clear * 0.5, 0.6, Math.max(0.6, shape.cols - 0.6));
+      m.tv = clampTo(spot.v + clear * 0.8, 0.6, Math.max(0.6, shape.rows - 0.6));
+    } else {
+      m.gear = null;
+      m.tu = 0.8 + Math.random() * Math.max(0.1, shape.cols - 1.6);
+      m.tv = 0.8 + Math.random() * Math.max(0.1, shape.rows - 1.6);
+    }
+    m.state = 'walking';
+  }
+
+  function stepMembers(dt) {
+    const rooms = activeRooms();
+    members.forEach((m) => {
+      const room = rooms[m.roomIndex];
+      if (!room) return;
+      const shape = roomShapeFor(state.activeTheme, m.roomIndex);
+
+      if (m.state === 'using') {
+        m.timer -= dt;
+        m.phase += dt * 5.5;
+        // The piece they were using can be picked up out from under them.
+        if (m.timer <= 0 || !room.layout[m.gear]) m.state = 'idle';
+        return;
+      }
+      if (m.state === 'idle') {
+        chooseTarget(m, room, shape);
+        return;
+      }
+
+      const dx = m.tu - m.u;
+      const dv = m.tv - m.v;
+      const dist = Math.hypot(dx, dv);
+      const step = m.speed * dt;
+      m.phase += dt * 7.5;
+      if (dist <= step || dist === 0) {
+        m.u = m.tu;
+        m.v = m.tv;
+        m.state = m.gear === null ? 'idle' : 'using';
+        m.timer = 3.5 + Math.random() * 7;
+        return;
+      }
+      m.u += (dx / dist) * step;
+      m.v += (dv / dist) * step;
+      // Which way they face on screen: +u and -v both read as rightward.
+      const screenward = dx - dv;
+      if (Math.abs(screenward) > 0.0001) m.facing = screenward > 0 ? 1 : -1;
+    });
+  }
+
   // ---- Wallet-gated local leaderboard ----
   const leaderboard = window.BoozebagLeaderboard.makeLeaderboard('gymTycoonLeaderboard');
   const leaderboardList = document.getElementById('leaderboard-list');
@@ -1247,6 +1399,12 @@
   function propScaleFor(itemId) {
     return (drawSizeOf(itemId) * PX_PER_METRE) / SPRITE_BASE_W;
   }
+
+  // What one metre of *height* comes out as on the floor. A sprite is drawn
+  // ROOM.tileH * 1.45 tall before its own scaling, so this is the number to
+  // build anything by hand against if it is to stand the same height as the
+  // art does -- a person next to a squat rack, say.
+  const PX_PER_METRE_TALL = (ROOM.tileH * 1.45) * (PX_PER_METRE / SPRITE_BASE_W);
 
   // `anchor` shifts how far the image's bottom edge sits below the middle of
   // its footprint -- an object whose visual weight isn't near the bottom of
@@ -2390,9 +2548,19 @@
 
   function renderScene() {
     rebuildPlan();
+    rebuildMembers();
     fitZoomToStage();
     fitCanvasResolution();
     applyStageSizing();
+    paintScene();
+  }
+
+  // Repainting only: no plan rebuild, no measuring the stage window back out
+  // of the DOM. The members walking around run the canvas many times a
+  // second, and asking the browser to re-lay-out the page that often -- which
+  // is what reading the stage's size does -- would cost far more than the
+  // drawing itself.
+  function paintScene() {
     const colors = THEME_COLORS[state.activeTheme] || THEME_COLORS.garage;
     const light = LIGHT_COLORS[state.activeTheme] || LIGHT_COLORS.garage;
     const W = BASE_W;
@@ -2487,15 +2655,25 @@
     // piece behind another would paint over it.
     const room = activeRooms()[roomIndex];
     const mult = synergyMultipliers(room, shape);
+    // Gear and members go down in one sorted pass, so a member walking
+    // behind a machine is hidden by it and one walking in front covers it.
     const standing = [];
     layout.forEach((itemId, index) => {
       if (!itemId) return;
       const spot = spotOf(room, index, shape);
       standing.push({ index, itemId, spot });
     });
+    members.forEach((m) => {
+      if (m.roomIndex !== roomIndex) return;
+      standing.push({ member: m, spot: { u: m.u, v: m.v } });
+    });
     standing.sort((a, b) => (a.spot.u + a.spot.v) - (b.spot.u + b.spot.v));
 
-    standing.forEach(({ index, itemId, spot }) => {
+    standing.forEach(({ index, itemId, spot, member }) => {
+      if (member) {
+        drawMember(isoPoint(place.gx0 + spot.u, place.gy0 + spot.v), member);
+        return;
+      }
       const item = itemById(itemId);
       if (!item) return;
       const c = isoPoint(place.gx0 + spot.u, place.gy0 + spot.v);
@@ -2548,6 +2726,105 @@
   // native size inside a transform that scales about the piece's own base,
   // so a single number changes how big gear is relative to the room without
   // touching a line of the artwork.
+  // A rounded rectangle as a path. Members are built out of these rather
+  // than boxes skewed into the projection: a person is drawn as a flat
+  // billboard standing on the floor, the same way the equipment art is.
+  function roundRectPath(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  // A member, flat-shaded to sit alongside the equipment art. Everything is
+  // a proportion of body height, so a member stands the right height next to
+  // a squat rack whatever the room's scale, and arms and legs swing opposite
+  // each other over a slight bob so a busy room reads as moving rather than
+  // as a row of standing dolls.
+  function drawMember(c, m) {
+    const ctx = floorCtx;
+    const H = 1.72 * PX_PER_METRE_TALL;
+    // Working a machine is a smaller, quicker movement than walking to it.
+    const busy = m.state === 'using';
+    const swing = busy ? 0.22 : 1;
+    const t = Math.sin(m.phase) * swing;
+    const f = m.facing;
+    const y = c.y - Math.abs(Math.cos(m.phase)) * H * 0.014 * swing;
+    const X = (v) => c.x + v * H * f;
+    const Y = (v) => y - v * H;
+    const line = 'rgba(0,0,0,0.38)';
+    const pen = Math.max(0.5, H * 0.008);
+
+    const outline = () => {
+      ctx.strokeStyle = line;
+      ctx.lineWidth = pen;
+      ctx.stroke();
+    };
+    // A limb or a block: centred on cx, running from `top` down to `bottom`.
+    const bar = (cx, top, bottom, w, color) => {
+      roundRectPath(ctx, X(cx) - (w * H) / 2, Y(top), w * H, (top - bottom) * H, w * H * 0.42);
+      ctx.fillStyle = color;
+      ctx.fill();
+      outline();
+    };
+
+    ctx.beginPath();
+    ctx.ellipse(c.x, c.y + 2, H * 0.10, H * 0.043, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    ctx.fill();
+
+    const legFront = '#454b57';
+    const legBack = '#333842';
+    const shorts = shade(m.shirt, -58);
+
+    // Back limbs first, darkened, so the figure has some depth to it.
+    bar(-0.125 + t * 0.05, 0.80, 0.545, 0.052, shade(m.skin, -38));
+    bar(-0.052 - t * 0.08, 0.435, 0.045, 0.078, legBack);
+    bar(-0.052 - t * 0.08, 0.062, 0.006, 0.098, '#b9c2cc');
+
+    // Front leg and its shoe.
+    bar(0.052 + t * 0.08, 0.435, 0.045, 0.078, legFront);
+    bar(0.052 + t * 0.08, 0.062, 0.006, 0.098, '#e9edf2');
+
+    bar(0, 0.545, 0.40, 0.215, shorts);
+
+    // Torso, tapered shoulder to waist rather than a straight block.
+    const shoulder = 0.118;
+    const waist = 0.092;
+    ctx.beginPath();
+    roundedQuadPath(ctx,
+      { x: X(-shoulder), y: Y(0.845) }, { x: X(shoulder), y: Y(0.845) },
+      { x: X(waist), y: Y(0.515) }, { x: X(-waist), y: Y(0.515) }, H * 0.035);
+    ctx.fillStyle = m.shirt;
+    ctx.fill();
+    outline();
+    // A lit edge down the side the room's lights come from.
+    ctx.beginPath();
+    roundedQuadPath(ctx,
+      { x: X(0.045), y: Y(0.83) }, { x: X(0.105), y: Y(0.83) },
+      { x: X(0.082), y: Y(0.53) }, { x: X(0.03), y: Y(0.53) }, H * 0.02);
+    ctx.fillStyle = shade(m.shirt, 30);
+    ctx.fill();
+
+    bar(0.125 - t * 0.05, 0.80, 0.545, 0.052, m.skin);
+
+    // Neck, head, then hair sitting on top of it.
+    bar(0.006, 0.885, 0.83, 0.05, shade(m.skin, -18));
+    ctx.beginPath();
+    ctx.arc(X(0.008), Y(0.915), H * 0.078, 0, Math.PI * 2);
+    ctx.fillStyle = m.skin;
+    ctx.fill();
+    outline();
+    ctx.beginPath();
+    ctx.arc(X(0.008), Y(0.928), H * 0.078, Math.PI * 1.02, Math.PI * 2.12);
+    ctx.fillStyle = m.hair;
+    ctx.fill();
+  }
+
   function drawProp(itemId, c, mult, scale) {
     const catColor = CATEGORY_META[CATEGORY[itemId]].color;
     floorCtx.save();
@@ -2568,16 +2845,21 @@
       floorCtx.shadowBlur = 0;
     }
 
-    // Soft blurred contact shadow underneath, plus the crisper
-    // category-tinted pool on top -- reads as the item actually sitting on
-    // the floor instead of a flat sticker.
-    floorCtx.save();
-    floorCtx.filter = 'blur(3px)';
+    // Soft contact shadow underneath, plus the crisper category-tinted pool
+    // on top -- reads as the item actually sitting on the floor instead of a
+    // flat sticker. The softness is a gradient that fades to nothing at the
+    // rim, not an ellipse run through a blur filter: a canvas filter
+    // re-rasterises the region it touches, and with one under every piece of
+    // gear that single call cost nine tenths of the entire frame.
+    const shadowR = ROOM.tileW * 0.34;
+    const soft = floorCtx.createRadialGradient(c.x, c.y + 4, shadowR * 0.15, c.x, c.y + 4, shadowR);
+    soft.addColorStop(0, 'rgba(0,0,0,0.42)');
+    soft.addColorStop(0.55, 'rgba(0,0,0,0.28)');
+    soft.addColorStop(1, 'rgba(0,0,0,0)');
     floorCtx.beginPath();
-    floorCtx.ellipse(c.x, c.y + 4, ROOM.tileW * 0.30, ROOM.tileH * 0.26, 0, 0, Math.PI * 2);
-    floorCtx.fillStyle = 'rgba(0,0,0,0.4)';
+    floorCtx.ellipse(c.x, c.y + 4, shadowR, ROOM.tileH * 0.30, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = soft;
     floorCtx.fill();
-    floorCtx.restore();
 
     floorCtx.beginPath();
     floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * 0.28, ROOM.tileH * 0.24, 0, 0, Math.PI * 2);
@@ -3219,6 +3501,41 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(renderScene, 120);
   });
+
+  // ---- The place in motion ----
+  // Members are stepped on a capped frame rate rather than every animation
+  // frame: a walk reads fine at twenty a second and costs a third of what
+  // sixty would on a phone. An empty gym repaints not at all, and nothing
+  // runs at all while the tab is hidden -- the same rule the earnings follow.
+  const MEMBER_FPS = 20;
+  let lastFrameAt = 0;
+  // Scrolled past the plan, there is nothing to animate for. The observer is
+  // a cheap way to know that without asking the browser for the stage's
+  // position every frame.
+  let stageOnScreen = true;
+  if (stageScrollEl && window.IntersectionObserver) {
+    new IntersectionObserver((entries) => {
+      stageOnScreen = entries[entries.length - 1].isIntersecting;
+    }, { rootMargin: '80px' }).observe(stageScrollEl);
+  }
+  function animateMembers(now) {
+    requestAnimationFrame(animateMembers);
+    if (document.hidden || !stageOnScreen) {
+      lastFrameAt = 0;
+      return;
+    }
+    if (!lastFrameAt) {
+      lastFrameAt = now;
+      return;
+    }
+    if (now - lastFrameAt < 1000 / MEMBER_FPS) return;
+    const dt = Math.min(0.25, (now - lastFrameAt) / 1000);
+    lastFrameAt = now;
+    if (!members.length) return;
+    stepMembers(dt);
+    paintScene();
+  }
+  requestAnimationFrame(animateMembers);
 
   window.addEventListener('beforeunload', save);
   document.addEventListener('visibilitychange', () => {
