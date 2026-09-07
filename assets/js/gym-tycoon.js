@@ -71,53 +71,97 @@
   // read as planks bridging a gap rather than hallways.)
   const ROOM = { tileW: 96, tileH: 48, wallH: 110 };
 
-  // Rooms are not one bay stamped out N times: each position in a chain has
-  // its own footprint, so a plan reads as an actual building. Bigger rooms
-  // hold more gear, which is most of what the later ones are bought for.
-  const ROOM_SHAPES = [
-    { cols: 4, rows: 3 }, // 12 slots -- the starter bay
-    { cols: 5, rows: 3 }, // 15 slots -- long and wide
-    { cols: 4, rows: 4 }, // 16 slots -- square hall
-    { cols: 5, rows: 4 }, // 20 slots -- the big floor
-  ];
+  // Each theme builds to its own floor plan, because a unit, a cellar and a
+  // roof are not the same shape of place. Rooms are not one bay stamped out
+  // N times either: every position in a chain has its own footprint, and the
+  // later ones are bigger, which is most of what they are bought for.
+  //
+  // The three chains come to 63, 63 and 65 slots, so no theme is a better
+  // buy than another for the same run of prices -- what differs is the shape
+  // of the space you are arranging gear in.
+  const ROOM_PLANS = {
+    // A row of vehicle bays down one unit: wide, shallow, side by side, with
+    // just enough between them to walk through.
+    garage: {
+      shapes: [
+        { cols: 6, rows: 2 }, // 12 -- the starter bay
+        { cols: 7, rows: 2 }, // 14
+        { cols: 8, rows: 2 }, // 16 -- the long bay
+        { cols: 7, rows: 3 }, // 21 -- deep enough for two rows of kit
+      ],
+      dirs: ['east', 'east', 'south'],
+      corridorLen: 2,
+      corridorWidth: 2,
+    },
+    // Cellar rooms: narrow, deep, and strung together by real tunnels that
+    // turn corners rather than opening straight onto each other.
+    basement: {
+      shapes: [
+        { cols: 3, rows: 4 }, // 12
+        { cols: 3, rows: 5 }, // 15 -- the long cell
+        { cols: 4, rows: 4 }, // 16
+        { cols: 4, rows: 5 }, // 20
+      ],
+      dirs: ['south', 'east', 'south'],
+      corridorLen: 4,
+      corridorWidth: 2,
+    },
+    // Open deck: broad platforms that spread across the roof, joined by
+    // walkways wide enough to read as outdoors.
+    rooftop: {
+      shapes: [
+        { cols: 4, rows: 3 }, // 12
+        { cols: 5, rows: 3 }, // 15
+        { cols: 6, rows: 3 }, // 18 -- the wide deck
+        { cols: 5, rows: 4 }, // 20
+      ],
+      dirs: ['east', 'south', 'west'],
+      corridorLen: 3,
+      corridorWidth: 3,
+    },
+  };
 
-  // Which way the plan grows at each step. Turning instead of running in one
-  // line is what folds it into the L a real floor plan makes.
-  const ROOM_DIRS = ['east', 'south', 'west'];
-  const CORRIDOR_LEN = 3; // tiles of hallway between two rooms
-  const CORRIDOR_WIDTH = 2;
-
-  function roomShapeFor(index) {
-    return ROOM_SHAPES[index % ROOM_SHAPES.length];
+  function planFor(themeId) {
+    return ROOM_PLANS[themeId] || ROOM_PLANS.garage;
   }
-  function slotCountFor(index) {
-    const s = roomShapeFor(index);
+  function roomShapeFor(themeId, index) {
+    const shapes = planFor(themeId).shapes;
+    return shapes[index % shapes.length];
+  }
+  function slotCountFor(themeId, index) {
+    const s = roomShapeFor(themeId, index);
     return s.cols * s.rows;
   }
 
   // Tile rectangles for a chain of `count` rooms, each butted up against the
   // previous one with a corridor's worth of space between them and centred on
   // the shared edge.
-  function roomPlacements(count) {
+  function roomDirFor(themeId, step) {
+    const dirs = planFor(themeId).dirs;
+    return dirs[step % dirs.length];
+  }
+
+  function roomPlacements(themeId, count) {
+    const plan = planFor(themeId);
     const out = [];
     for (let i = 0; i < count; i++) {
-      const shape = roomShapeFor(i);
+      const shape = roomShapeFor(themeId, i);
       if (i === 0) {
         out.push({ gx0: 0, gy0: 0, cols: shape.cols, rows: shape.rows });
         continue;
       }
       const prev = out[i - 1];
-      const dir = ROOM_DIRS[(i - 1) % ROOM_DIRS.length];
+      const dir = roomDirFor(themeId, i - 1);
       let gx0;
       let gy0;
       if (dir === 'east') {
-        gx0 = prev.gx0 + prev.cols + CORRIDOR_LEN;
+        gx0 = prev.gx0 + prev.cols + plan.corridorLen;
         gy0 = prev.gy0 + Math.round((prev.rows - shape.rows) / 2);
       } else if (dir === 'west') {
-        gx0 = prev.gx0 - CORRIDOR_LEN - shape.cols;
+        gx0 = prev.gx0 - plan.corridorLen - shape.cols;
         gy0 = prev.gy0 + Math.round((prev.rows - shape.rows) / 2);
       } else {
-        gy0 = prev.gy0 + prev.rows + CORRIDOR_LEN;
+        gy0 = prev.gy0 + prev.rows + plan.corridorLen;
         gx0 = prev.gx0 + Math.round((prev.cols - shape.cols) / 2);
       }
       out.push({ gx0, gy0, cols: shape.cols, rows: shape.rows });
@@ -130,7 +174,8 @@
   // room's back-left wall; one running along +gy pierces the southern room's
   // back-right wall. The other end comes out of a room's open front, where
   // there is no wall to cut a door into.
-  function corridorBetween(a, b, dir) {
+  function corridorBetween(themeId, a, b, dir) {
+    const width = planFor(themeId).corridorWidth;
     if (dir === 'east' || dir === 'west') {
       const left = dir === 'east' ? a : b;
       const right = dir === 'east' ? b : a;
@@ -140,12 +185,12 @@
       // simply continues the room wall in one straight line.
       const lo = Math.max(a.gy0, b.gy0);
       const hi = Math.min(a.gy0 + a.rows, b.gy0 + b.rows);
-      const gy0 = Math.min(lo, hi - CORRIDOR_WIDTH);
+      const gy0 = Math.min(lo, hi - width);
       return {
         gx0: left.gx0 + left.cols,
         gy0,
         cols: right.gx0 - (left.gx0 + left.cols),
-        rows: CORRIDOR_WIDTH,
+        rows: width,
         doorRoom: right,
         doorWall: 'west',
         nearRoom: left,
@@ -155,11 +200,11 @@
     const bottom = dir === 'south' ? b : a;
     const lo = Math.max(a.gx0, b.gx0);
     const hi = Math.min(a.gx0 + a.cols, b.gx0 + b.cols);
-    const gx0 = Math.min(lo, hi - CORRIDOR_WIDTH);
+    const gx0 = Math.min(lo, hi - width);
     return {
       gx0,
       gy0: top.gy0 + top.rows,
-      cols: CORRIDOR_WIDTH,
+      cols: width,
       rows: bottom.gy0 - (top.gy0 + top.rows),
       doorRoom: bottom,
       doorWall: 'north',
@@ -248,7 +293,7 @@
   function computeTotalGps(themeRooms) {
     return THEMES.reduce((sum, t) => (
       sum + (themeRooms[t.id] || []).reduce(
-        (s2, room, i) => s2 + computeGps(room.layout, roomShapeFor(i)), 0)
+        (s2, room, i) => s2 + computeGps(room.layout, roomShapeFor(t.id, i)), 0)
     ), 0);
   }
 
@@ -273,13 +318,13 @@
   const ROOM_UNLOCK_COSTS = [0, 10000, 500000, 25000000];
   const MAX_ROOMS_PER_THEME = ROOM_UNLOCK_COSTS.length;
 
-  function emptyGymRoom(index) {
-    return { layout: new Array(slotCountFor(index)).fill(null) };
+  function emptyGymRoom(themeId, index) {
+    return { layout: new Array(slotCountFor(themeId, index)).fill(null) };
   }
 
   function defaultThemeRooms() {
     const byTheme = {};
-    THEMES.forEach((t) => { byTheme[t.id] = [emptyGymRoom(0)]; });
+    THEMES.forEach((t) => { byTheme[t.id] = [emptyGymRoom(t.id, 0)]; });
     return byTheme;
   }
 
@@ -287,13 +332,13 @@
   // Every footprint holds at least the 12 slots rooms used to have, so a save
   // written before rooms varied in size only ever gains slots, never drops
   // gear off the end.
-  function normalizedRoomChain(source) {
+  function normalizedRoomChain(themeId, source) {
     const arr = Array.isArray(source) ? source : [];
     const rooms = arr.slice(0, MAX_ROOMS_PER_THEME).map((r, i) => {
       const old = Array.isArray(r && r.layout) ? r.layout : [];
-      return { layout: new Array(slotCountFor(i)).fill(null).map((_, s) => old[s] || null) };
+      return { layout: new Array(slotCountFor(themeId, i)).fill(null).map((_, s) => old[s] || null) };
     });
-    return rooms.length ? rooms : [emptyGymRoom(0)];
+    return rooms.length ? rooms : [emptyGymRoom(themeId, 0)];
   }
 
   // ---- Persistence ----
@@ -334,7 +379,7 @@
       // chain, in the same slot order, so nothing placed anywhere is lost.
       const byTheme = {};
       THEMES.forEach((t) => {
-        byTheme[t.id] = normalizedRoomChain(saved.rooms.map((r) => ({
+        byTheme[t.id] = normalizedRoomChain(t.id, saved.rooms.map((r) => ({
           layout: (r && r.layouts && r.layouts[t.id]) || (r && r.layout) || [],
         })));
       });
@@ -346,14 +391,14 @@
       // Migrate from the original single top-level layout/theme shape.
       const theme = saved.theme || 'garage';
       const byTheme = defaultThemeRooms();
-      byTheme[theme] = [{ layout: new Array(slotCountFor(0)).fill(null).map((_, i) => saved.layout[i] || null) }];
+      byTheme[theme] = [{ layout: new Array(slotCountFor(theme, 0)).fill(null).map((_, i) => saved.layout[i] || null) }];
       s.themeRooms = byTheme;
       s.activeTheme = theme;
       s.activeRoomIndex = 0;
     } else {
       const byTheme = {};
       THEMES.forEach((t) => {
-        byTheme[t.id] = normalizedRoomChain(saved.themeRooms && saved.themeRooms[t.id]);
+        byTheme[t.id] = normalizedRoomChain(t.id, saved.themeRooms && saved.themeRooms[t.id]);
       });
       s.themeRooms = byTheme;
     }
@@ -472,7 +517,7 @@
       const item = id && itemById(id);
       return sum + (item ? item.gps : 0);
     }, 0);
-    const roomGps = computeGps(layout, roomShapeFor(state.activeRoomIndex));
+    const roomGps = computeGps(layout, roomShapeFor(state.activeTheme, state.activeRoomIndex));
     const bonusPct = baseSum > 0 ? Math.round((roomGps / baseSum - 1) * 100) : 0;
     synergyEl.textContent = roomLabel() + ': ' + placed + '/' + layout.length
       + ' slots filled -- base ' + formatNum(baseSum) + '/s'
@@ -621,12 +666,14 @@
   let previewCorridor = null;
 
   function rebuildPlan() {
+    const theme = state.activeTheme;
     const count = activeRooms().length;
-    placements = roomPlacements(count);
+    placements = roomPlacements(theme, count);
     corridors = [];
     for (let i = 0; i < count - 1; i++) {
-      const dir = ROOM_DIRS[i % ROOM_DIRS.length];
-      corridors.push(corridorBetween(placements[i], placements[i + 1], dir));
+      corridors.push(corridorBetween(
+        theme, placements[i], placements[i + 1], roomDirFor(theme, i),
+      ));
     }
 
     // The plot the next room will stand on, worked out one room ahead. It is
@@ -636,10 +683,10 @@
     preview = null;
     previewCorridor = null;
     if (count < MAX_ROOMS_PER_THEME) {
-      const withNext = roomPlacements(count + 1);
+      const withNext = roomPlacements(theme, count + 1);
       preview = withNext[count];
       previewCorridor = corridorBetween(
-        placements[count - 1], preview, ROOM_DIRS[(count - 1) % ROOM_DIRS.length],
+        theme, placements[count - 1], preview, roomDirFor(theme, count - 1),
       );
     }
 
@@ -682,7 +729,9 @@
   // scroll position and the zoom transform, so it needs no special-casing
   // for either.
   let zoomLevel = 1;
-  const ZOOM_MIN = 0.3;
+  // Low enough that the longest plan -- the garage's row of bays, which runs
+  // 25 tiles end to end -- still frames whole on a phone.
+  const ZOOM_MIN = 0.2;
   const ZOOM_MAX = 1.6;
   const zoomWrapEl = document.getElementById('room-zoom-wrap');
   const stageScrollEl = document.getElementById('room-stage-scroll');
@@ -2475,7 +2524,7 @@
     floorCtx.fillText('ROOM ' + (index + 1), top.x, top.y + 13);
     floorCtx.fillStyle = 'rgba(244,240,234,0.72)';
     floorCtx.font = '700 10px Inter, system-ui, sans-serif';
-    floorCtx.fillText(slotCountFor(index) + ' SLOTS', top.x, top.y + 27);
+    floorCtx.fillText(slotCountFor(state.activeTheme, index) + ' SLOTS', top.x, top.y + 27);
     floorCtx.fillStyle = affordable ? '#ffd66b' : 'rgba(244,240,234,0.5)';
     floorCtx.font = '800 12px Inter, system-ui, sans-serif';
     floorCtx.fillText('$' + formatNum(cost), top.x, top.y + 41);
@@ -3079,12 +3128,13 @@
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'tycoon-add-room' + (affordable ? '' : ' is-locked');
-    btn.textContent = '+ Add Room (' + slotCountFor(rooms.length) + ' slots) — $' + formatNum(cost);
+    btn.textContent = '+ Add Room (' + slotCountFor(state.activeTheme, rooms.length)
+      + ' slots) — $' + formatNum(cost);
     btn.disabled = !affordable;
     btn.addEventListener('click', () => {
       if (state.balance < cost) return;
       state.balance -= cost;
-      rooms.push(emptyGymRoom(rooms.length));
+      rooms.push(emptyGymRoom(state.activeTheme, rooms.length));
       state.activeRoomIndex = rooms.length - 1;
       rebuildPlan();
       refreshHud();
