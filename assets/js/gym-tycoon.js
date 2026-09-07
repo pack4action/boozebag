@@ -2829,7 +2829,39 @@
   // band with the turn mitred into it, and the finished solid is outlined
   // once, so a wall that turns a corner reads as one wall that turns a
   // corner.
-  function drawWallRun(centreLine, axes, h, colors, ends) {
+  // How much of the wall's height a doorway takes out of it, and how wide
+  // the opening is as a fraction of the hallway mouth it stands in -- the
+  // same numbers drawCorridorDoor builds its casing from, so the hole and
+  // the frame around it line up exactly.
+  const DOOR_HEAD = ROOM.wallH * 0.56 - 10;
+  const DOOR_JAMB = 0.12;
+  const DOOR_FROM = 0.18 + DOOR_JAMB * (0.82 - 0.18);
+  const DOOR_TO = 0.82 - DOOR_JAMB * (0.82 - 0.18);
+
+  // Where this room's walls have holes in them, as fractions along each wall
+  // in the direction that wall is measured: north->east for the one running
+  // along +gx, north->west for the one running along +gy.
+  function wallApertures(roomIndex) {
+    const r = placements[roomIndex];
+    const ne = [];
+    const nw = [];
+    if (!r) return { ne, nw };
+    corridors.forEach((c) => {
+      if (c.doorRoom !== r) return;
+      if (c.axis === 'gy') {
+        const lo = (c.gx0 - r.gx0) / r.cols;
+        const span = c.cols / r.cols;
+        ne.push([lo + span * DOOR_FROM, lo + span * DOOR_TO]);
+      } else {
+        const lo = (c.gy0 - r.gy0) / r.rows;
+        const span = c.rows / r.rows;
+        nw.push([lo + span * DOOR_FROM, lo + span * DOOR_TO]);
+      }
+    });
+    return { ne, nw };
+  }
+
+  function drawWallRun(centreLine, axes, h, colors, ends, apertures) {
     const n = axes.length;
     const dep = axes.map(wallDepth);
     const pts = centreLine.slice();
@@ -2872,20 +2904,51 @@
     paintQuad(pts.map(lift).concat(outer.slice().reverse()),
       shade(colors.wallL, 46), null);
 
-    // The faces you look at. The whole ribbon is laid down in the first
-    // segment's shade and each later segment painted over it, so the change
-    // of shade at a turn lands as one clean edge instead of an antialiased
-    // gap between two fills that only just touch.
-    paintQuad(pts.concat(pts.slice().reverse().map(lift)),
-      faceFill(axes[0], pts[0].y), null);
-    for (let i = 1; i < n; i++) {
-      if (axes[i] === axes[i - 1]) continue;
-      paintQuad([pts[i], pts[i + 1], lift(pts[i + 1]), lift(pts[i])],
-        faceFill(axes[i], pts[i].y), null);
+    // The faces you look at, a segment at a time so a doorway can be left
+    // out of one. A hole is a real hole: the strip of wall below the lintel
+    // simply is not painted, so the hallway and whoever is walking through it
+    // show through the opening instead of being covered by a panel painted to
+    // look like one.
+    for (let i = 0; i < n; i++) {
+      const a = pts[i];
+      const b = pts[i + 1];
+      const fill = faceFill(axes[i], a.y);
+      const holes = ((apertures && apertures[i]) || [])
+        .map(([t0, t1]) => [Math.max(0, t0), Math.min(1, t1)])
+        .filter(([t0, t1]) => t1 > t0)
+        .sort((x, y) => x[0] - y[0]);
+      // Everything either side of the holes, full height. The first piece of
+      // each segment after the first starts a hair inside the segment before
+      // it, so two fills that only just touch cannot leave a hairline between
+      // them where the wall turns.
+      let at = 0;
+      const solid = [];
+      holes.forEach(([t0, t1]) => {
+        if (t0 > at) solid.push([at, t0]);
+        at = t1;
+      });
+      if (at < 1) solid.push([at, 1]);
+      solid.forEach(([t0, t1], k) => {
+        let p0 = lerpPt(a, b, t0);
+        const p1 = lerpPt(a, b, t1);
+        if (k === 0 && t0 === 0 && i > 0) p0 = pushPast(p0, p1);
+        paintQuad([p0, p1, lift(p1), lift(p0)], fill, null);
+      });
+      // And the wall above each opening.
+      holes.forEach(([t0, t1]) => {
+        const p0 = lerpPt(a, b, t0);
+        const p1 = lerpPt(a, b, t1);
+        paintQuad([liftPt(p0, DOOR_HEAD), liftPt(p1, DOOR_HEAD), lift(p1), lift(p0)], fill, null);
+      });
+      // The line where this stretch of wall meets the floor, broken by the
+      // openings -- a doorway has no wall standing on it.
+      solid.forEach(([t0, t1]) => {
+        strokePolyline([lerpPt(a, b, t0), lerpPt(a, b, t1)], 'rgba(0,0,0,0.45)', 1);
+      });
     }
 
-    // One line per edge the solid actually has.
-    strokePolyline(pts, 'rgba(0,0,0,0.45)', 1);
+    // One line per edge the solid actually has. The bottom is drawn with the
+    // faces above, because the openings break it.
     strokePolyline(pts.map(lift), 'rgba(0,0,0,0.42)', 1);
     strokePolyline(outer, 'rgba(0,0,0,0.34)', 1);
     for (let i = 1; i < n; i++) {
@@ -2971,15 +3034,13 @@
     const b = lerpPt(p0, p1, 0.82);
     const casing = shade(colors.wallL, 112);
     const edge = 'rgba(0,0,0,0.5)';
-    const jamb = 0.12;
+    const jamb = DOOR_JAMB;
     const lintel = 10;
 
-    // Dim depth behind the opening -- shadowed, not a void.
-    const depth = floorCtx.createLinearGradient(0, a.y - h, 0, a.y);
-    depth.addColorStop(0, shade(colors.wallR, -14));
-    depth.addColorStop(1, shade(colors.floorB, -24));
-    paintQuad([a, b, liftPt(b, h), liftPt(a, h)], depth, null);
-
+    // Nothing is painted across the opening any more: the wall it stands in
+    // has a real hole cut in it, so what shows through is the hallway on the
+    // other side and whoever is walking down it. A panel here would put the
+    // wall back and cut them off at the waist.
     const aj = lerpPt(a, b, jamb);
     const bj = lerpPt(a, b, 1 - jamb);
     paintQuad([a, aj, liftPt(aj, h), liftPt(a, h)], casing, edge, 1.2);
@@ -3190,10 +3251,13 @@
     // Both back walls are one solid that turns the north corner, not two
     // that meet there, and each end either caps off at the room's open corner
     // or carries straight on into the hallway that leaves from it.
+    // The run goes east -> north -> west, so the north wall is walked
+    // backwards relative to the direction its doorways are measured in.
+    const holes = wallApertures(roomIndex);
     drawWallRun([east, north, west], ['gx', 'gy'], ROOM.wallH, colors, [
       roomWallEnd(place, { gx: place.gx0 + place.cols, gy: place.gy0 }),
       roomWallEnd(place, { gx: place.gx0, gy: place.gy0 + place.rows }),
-    ]);
+    ], [holes.ne.map(([t0, t1]) => [1 - t1, 1 - t0]), holes.nw]);
 
     drawBaseboard(east, north);
     drawBaseboard(north, west);
