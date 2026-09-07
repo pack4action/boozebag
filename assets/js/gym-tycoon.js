@@ -18,12 +18,11 @@
     { id: 'sauna', name: 'Sauna', baseCost: 150000, gps: 1500 },
     { id: 'gearfridge', name: 'Gear Fridge', baseCost: 600000, gps: 6000 },
     { id: 'soundsystem', name: 'Hype Sound System', baseCost: 2500000, gps: 25000 },
-    // Office tier: hidden in the shop until you've built the gym up past HQ
-    // level (see unlockAt) -- the "then you build a desk for employees"
-    // progression stage that comes after the core gym equipment.
-    { id: 'desk', name: 'Reception Desk', baseCost: 10000000, gps: 100000, unlockAt: 2500000 },
-    { id: 'cubicle', name: 'Sales Cubicle', baseCost: 40000000, gps: 400000, unlockAt: 10000000 },
-    { id: 'officepod', name: 'Corner Office Pod', baseCost: 160000000, gps: 1600000, unlockAt: 40000000 },
+    // Office tier: hidden in the shop until the gym is established enough to
+    // need one -- the "then you hire people" stage after the core equipment.
+    { id: 'desk', name: 'Reception Desk', baseCost: 10000000, gps: 100000, unlockLevel: 6 },
+    { id: 'cubicle', name: 'Sales Cubicle', baseCost: 40000000, gps: 400000, unlockLevel: 8 },
+    { id: 'officepod', name: 'Corner Office Pod', baseCost: 160000000, gps: 1600000, unlockLevel: 10 },
   ];
 
   // Three items used to be things you cannot actually stand on a gym floor:
@@ -66,9 +65,9 @@
   }
 
   const THEMES = [
-    { id: 'garage', name: 'Garage', unlockAt: 0 },
-    { id: 'basement', name: 'Basement', unlockAt: 1000 },
-    { id: 'rooftop', name: 'Rooftop', unlockAt: 50000 },
+    { id: 'garage', name: 'Garage', unlockLevel: 1 },
+    { id: 'basement', name: 'Basement', unlockLevel: 2 },
+    { id: 'rooftop', name: 'Rooftop', unlockLevel: 4 },
   ];
 
   // Grid the rooms are laid out on. Moved up here (rather than living with
@@ -278,6 +277,55 @@
     return ITEMS.find((i) => i.id === id);
   }
 
+  // ---- Levels ----
+  // What the gym has been *built up to*, as opposed to what it happens to
+  // have in the till. Money comes and goes -- you spend it the moment you
+  // have it -- so gating anything on the balance meant the shop unlocked and
+  // relocked as you bought things. Levels only ever go up, and they come from
+  // the one thing that is unambiguously progress: kit bought and paid for.
+  //
+  // Each purchase is worth roughly the cube root of what it cost, so a tier
+  // of gear ten times the price is worth about twice the experience -- enough
+  // that better kit is the faster way up, not so much that the early game is
+  // worth nothing.
+  function xpForSpend(cost) {
+    return Math.max(1, Math.round(Math.pow(Math.max(1, cost), 0.34)));
+  }
+
+  // Experience needed to have reached a level. Deliberately steep: the first
+  // few come inside a couple of minutes, and the office tier is a session's
+  // work away rather than a purchase away.
+  function xpForLevel(level) {
+    return level <= 1 ? 0 : Math.round(60 * Math.pow(level - 1, 1.85));
+  }
+  const MAX_LEVEL = 40;
+  function levelFromXp(xp) {
+    let level = 1;
+    while (level < MAX_LEVEL && xp >= xpForLevel(level + 1)) level++;
+    return level;
+  }
+  function currentLevel() {
+    return levelFromXp(state.xp || 0);
+  }
+  // How far into the current level, 0..1, and the two ends of it -- what the
+  // bar under the level badge is drawn from.
+  function levelProgress() {
+    const level = currentLevel();
+    if (level >= MAX_LEVEL) return { level, from: 0, to: 0, frac: 1, capped: true };
+    const from = xpForLevel(level);
+    const to = xpForLevel(level + 1);
+    return {
+      level,
+      from,
+      to,
+      frac: Math.max(0, Math.min(1, ((state.xp || 0) - from) / Math.max(1, to - from))),
+      capped: false,
+    };
+  }
+  function unlockedFor(thing) {
+    return currentLevel() >= (thing.unlockLevel || 1);
+  }
+
   // How much floor a piece takes up along its longest side, in metres, and
   // how big to draw it. They are the same number for a machine; they part
   // company for anything whose art is taller than the floor it stands on.
@@ -462,6 +510,7 @@
     return {
       balance: 0,
       lifetime: 0,
+      xp: 0,
       owned: {},
       themeRooms: defaultThemeRooms(),
       activeTheme: 'garage',
@@ -524,6 +573,23 @@
     s.activeRoomIndex = Number.isInteger(s.activeRoomIndex) && s.activeRoomIndex >= 0 && s.activeRoomIndex < activeChain.length
       ? s.activeRoomIndex
       : 0;
+
+    // A save from before levels existed has no experience on it, and
+    // starting everyone back at level one would take the themes and the
+    // office tier off people who had already earned them. So it is worked
+    // out from what they have: every piece they own is worth what buying it
+    // was worth, and as a floor, whatever their lifetime earnings would have
+    // unlocked under the old money gates -- an idler who banked rather than
+    // spent keeps what they had.
+    // Asked of the save as it was read, not of `s`: defaultState has already
+    // put a zero there, so `s.xp` is a number either way and cannot tell a
+    // save from before levels apart from one that has genuinely earned none.
+    if (typeof saved.xp !== 'number' || !isFinite(saved.xp)) {
+      const fromOwned = ITEMS.reduce(
+        (sum, item) => sum + (s.owned[item.id] || 0) * xpForSpend(item.baseCost), 0);
+      const fromLifetime = Math.round(16.5 * Math.pow(Math.max(0, s.lifetime), 0.306));
+      s.xp = Math.max(fromOwned, fromLifetime);
+    }
 
     // Carry saves across the item swap (see RENAMED_ITEMS): a Steroid Cycle
     // in the inventory becomes a Gear Fridge, one standing in a room becomes
@@ -760,6 +826,37 @@
   }
 
   // ---- Toast ----
+  const levelWrapEl = document.querySelector('.hud-level');
+  const levelValueEl = document.getElementById('hud-level');
+  const xpFillEl = document.getElementById('hud-xp-fill');
+  const xpTextEl = document.getElementById('hud-xp-text');
+  function refreshLevelUI() {
+    if (!levelValueEl) return;
+    const p = levelProgress();
+    levelValueEl.textContent = p.level;
+    levelWrapEl.classList.toggle('is-capped', p.capped);
+    xpFillEl.style.width = (p.frac * 100).toFixed(1) + '%';
+    xpTextEl.textContent = p.capped
+      ? formatNum(Math.floor(state.xp || 0)) + ' XP'
+      : formatNum(Math.floor((state.xp || 0) - p.from)) + ' / ' + formatNum(p.to - p.from) + ' XP';
+  }
+
+  // What this level just opened up, so a level-up says something more useful
+  // than a bigger number.
+  function announceLevel(level) {
+    const opened = ITEMS.filter((i) => i.unlockLevel === level).map((i) => i.name)
+      .concat(THEMES.filter((t) => t.unlockLevel === level).map((t) => t.name));
+    toast(opened.length
+      ? 'Level ' + level + ' -- ' + opened.join(' and ') + ' unlocked'
+      : 'Level ' + level, 'good');
+    if (!levelWrapEl) return;
+    levelWrapEl.classList.remove('is-up');
+    // Reading the layout back forces the animation to start over rather than
+    // being skipped as a class that never actually changed.
+    void levelWrapEl.offsetWidth;
+    levelWrapEl.classList.add('is-up');
+  }
+
   const toastEl = document.getElementById('game-toast');
   function toast(msg, cls) {
     toastEl.textContent = msg;
@@ -871,12 +968,11 @@
   function refreshShopUI() {
     ITEMS.forEach((item) => {
       const els = shopEls[item.id];
-      const unlockAt = item.unlockAt || 0;
-      const unlocked = state.lifetime >= unlockAt;
+      const unlocked = unlockedFor(item);
       els.root.classList.toggle('is-locked', !unlocked);
       if (!unlocked) {
         els.ownedEl.textContent = '';
-        els.buyBtn.innerHTML = '<span class="btn-lock-icon">' + iconMarkup('lock', 13) + '</span> Unlocks at $' + formatNum(unlockAt) + ' lifetime';
+        els.buyBtn.innerHTML = '<span class="btn-lock-icon">' + iconMarkup('lock', 13) + '</span> Unlocks at level ' + item.unlockLevel;
         els.buyBtn.disabled = true;
         els.root.classList.remove('is-affordable');
         return;
@@ -893,11 +989,15 @@
 
   function buyItem(id) {
     const item = ITEMS.find((i) => i.id === id);
-    if (state.lifetime < (item.unlockAt || 0)) return;
+    if (!unlockedFor(item)) return;
     const cost = costFor(item);
     if (state.balance < cost) return;
+    const before = currentLevel();
     state.balance -= cost;
     state.owned[id] = (state.owned[id] || 0) + 1;
+    state.xp = (state.xp || 0) + xpForSpend(cost);
+    const after = currentLevel();
+    if (after > before) announceLevel(after);
     // Auto-drop new gear into an open slot in the room+theme currently in
     // view so it starts earning right away. Once that's full, further
     // purchases sit in inventory until you free up a slot somewhere --
@@ -914,6 +1014,8 @@
     }
     recomputeStats();
     refreshShopUI();
+    refreshLevelUI();
+    refreshThemeRow();
     renderInventory();
     refreshRoomActions();
     updateLeaderboardEntry();
@@ -3302,11 +3404,12 @@
   function refreshThemeRow() {
     themeRowEl.innerHTML = '';
     THEMES.forEach((t) => {
-      const unlocked = state.lifetime >= t.unlockAt;
+      const unlocked = unlockedFor(t);
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'tycoon-theme-btn' + (state.activeTheme === t.id ? ' is-active' : '') + (unlocked ? '' : ' is-locked');
-      btn.innerHTML = unlocked ? t.name : t.name + ' <span class="btn-lock-icon">' + iconMarkup('lock', 11) + '</span> $' + formatNum(t.unlockAt);
+      btn.innerHTML = unlocked ? t.name
+        : t.name + ' <span class="btn-lock-icon">' + iconMarkup('lock', 11) + '</span> Lv ' + t.unlockLevel;
       btn.disabled = !unlocked;
       btn.addEventListener('click', () => {
         if (state.activeTheme === t.id) return;
@@ -3350,11 +3453,16 @@
     btn.disabled = !affordable;
     btn.addEventListener('click', () => {
       if (state.balance < cost) return;
+      const before = currentLevel();
       state.balance -= cost;
+      // Taking on a room is progress like any other purchase, and a big one.
+      state.xp = (state.xp || 0) + xpForSpend(cost);
       rooms.push(emptyGymRoom(state.activeTheme, rooms.length));
       state.activeRoomIndex = rooms.length - 1;
+      if (currentLevel() > before) announceLevel(currentLevel());
       rebuildPlan();
       refreshHud();
+      refreshLevelUI();
       refreshShopUI();
       renderScene();
       renderInventory();
@@ -3441,6 +3549,7 @@
   // ---- Init ----
   buildShop();
   refreshHud();
+  refreshLevelUI();
   refreshSynergyText();
   refreshShopUI();
   renderScene();
