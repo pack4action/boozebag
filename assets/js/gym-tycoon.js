@@ -684,7 +684,6 @@
   let zoomLevel = 1;
   const ZOOM_MIN = 0.3;
   const ZOOM_MAX = 1.6;
-  const ZOOM_STEP = 0.2;
   const zoomWrapEl = document.getElementById('room-zoom-wrap');
   const stageScrollEl = document.getElementById('room-stage-scroll');
 
@@ -699,14 +698,23 @@
   // allowed past 1x rather than leaving the room marooned in the middle of a
   // large empty frame -- fitCanvasResolution() below redraws the backing
   // store at the zoomed size, so filling the window costs no sharpness.
-  const FIT_MAX = 1.4;
+  const FIT_MAX = 1.25;
 
   function fitZoomToStage() {
     if (!stageScrollEl || userSetZoom) return;
     const availW = stageScrollEl.clientWidth;
     const availH = stageScrollEl.clientHeight;
     if (!availW || !availH) return;
-    const fit = Math.min(availW / PLAN_W, availH / PLAN_H, FIT_MAX);
+    // Frame the plan with a little of what it stands in, rather than butting
+    // it against the edges: the site around it is drawn now, and a plan
+    // fitted edge to edge hides all of it. The margin scales with the window
+    // so a phone, where every pixel of plan counts, gives up almost none.
+    const margin = Math.min(70, availW * 0.08);
+    const fit = Math.min(
+      availW / (PLAN_W + margin * 2),
+      availH / (PLAN_H + margin * 2),
+      FIT_MAX,
+    );
     zoomLevel = Math.max(ZOOM_MIN, Math.round(fit * 100) / 100);
   }
 
@@ -2939,12 +2947,17 @@
     onFloorCellClick(hit.cellIndex);
   });
 
-  // A trackpad pinch arrives as a wheel event with ctrlKey set; a plain wheel
-  // is left alone so the page still scrolls normally over the canvas.
+  // A trackpad pinch arrives as a wheel event with ctrlKey set, and ctrl with
+  // a mouse wheel is the same gesture by hand -- with the +/- buttons gone
+  // this is the whole zoom story for a pointer, so the rate is exponential
+  // (every notch the same proportional step, in or out) and gentle enough
+  // that one notch is a nudge rather than a jump. A plain wheel is left
+  // alone, so the page still scrolls normally over the canvas.
+  const WHEEL_ZOOM_RATE = 0.002;
   gestureEl.addEventListener('wheel', (e) => {
     if (!e.ctrlKey) return;
     e.preventDefault();
-    zoomAround(zoomLevel * (1 - e.deltaY * 0.01), e.clientX, e.clientY);
+    zoomAround(zoomLevel * Math.exp(-e.deltaY * WHEEL_ZOOM_RATE), e.clientX, e.clientY);
   }, { passive: false });
 
   gestureEl.addEventListener('pointercancel', (e) => {
@@ -3114,10 +3127,6 @@
   });
 
   // ---- Zoom buttons ----
-  const zoomInBtn = document.getElementById('btn-zoom-in');
-  const zoomOutBtn = document.getElementById('btn-zoom-out');
-  if (zoomInBtn) zoomInBtn.addEventListener('click', () => setZoom(zoomLevel + ZOOM_STEP));
-  if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => setZoom(zoomLevel - ZOOM_STEP));
 
   // ---- Init ----
   buildShop();

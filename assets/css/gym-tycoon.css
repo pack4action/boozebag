@@ -95,30 +95,6 @@
 }
 .tycoon-theme-btn.is-locked:hover { color: var(--muted); border-color: var(--panel-border); }
 
-/* ---- Zoom controls: shrink/grow the room stage to see more of a
-   theme's connected room chain at once ---- */
-.tycoon-zoom-controls {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin: 0 auto 10px;
-}
-.tycoon-zoom-btn {
-  font-family: inherit;
-  font-weight: 800;
-  font-size: 16px;
-  line-height: 1;
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  border: 1px solid var(--panel-border);
-  background: var(--panel);
-  color: var(--text);
-  cursor: pointer;
-}
-.tycoon-zoom-btn:hover { color: var(--text); border-color: var(--blue); }
-.tycoon-zoom-btn:active { transform: translate(1px, 1px); }
-
 /* ---- Isometric gym floor plan ----
    A theme's rooms are laid out on one isometric lattice, joined by hallways
    and turning a corner as the chain grows, so the stage is a fixed-size
@@ -128,8 +104,11 @@
    JS, plus the pan/pinch handlers that drive both). */
 .tycoon-room-stage {
   width: 100%;
-  max-width: 480px;
-  height: 340px;
+  max-width: 560px;
+  /* Sized off the viewport rather than pinned at one height: a tall phone
+     gets a taller window, a short one is not left with a letterbox, and
+     both are capped so the shop below stays within reach of a scroll. */
+  height: clamp(320px, 54vh, 460px);
   margin: 0 auto 14px;
   border-radius: 18px;
   border: 3px solid #000;
@@ -363,9 +342,6 @@
   }
   .tycoon-page .hud-label { font-size: 9px; letter-spacing: 0.4px; }
   .tycoon-page .hud-value { font-size: 19px; }
-
-  /* Comfortable thumb targets for the pan/zoom controls. */
-  .tycoon-zoom-btn { width: 40px; height: 40px; font-size: 18px; }
 }
 
 /* ---- Desktop ---------------------------------------------------------
@@ -411,15 +387,6 @@
   }
   .tycoon-page .wallet-picker { left: auto; right: 0; }
 
-  /* Same reasoning for the zoom pair: level with the room tabs at the far
-     end of the designer rather than on a line of its own. */
-  .tycoon-designer { position: relative; }
-  .tycoon-page .tycoon-zoom-controls {
-    position: absolute;
-    top: 0;
-    right: 0;
-    margin: 0;
-  }
 
   /* The bar spans the grid, so it has to bleed out to the page padding
      rather than the 6vw the phone rule assumes. */
@@ -467,7 +434,9 @@
      window, so a bigger window simply frames the plan larger. */
   .tycoon-room-stage {
     max-width: none;
-    height: clamp(400px, calc(100vh - 400px), 680px);
+    /* The sticky stat bar and the nav above it come to about 154px, so the
+       cap is what still fits under them once the header has scrolled away. */
+    height: clamp(440px, calc(100vh - 330px), 780px);
     margin-bottom: 16px;
   }
   .tycoon-synergy { max-width: none; }
