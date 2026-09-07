@@ -16,15 +16,27 @@
     { id: 'treadmill', name: 'Treadmill', baseCost: 10000, gps: 100 },
     { id: 'trainer', name: 'Personal Trainer', baseCost: 40000, gps: 400 },
     { id: 'sauna', name: 'Sauna', baseCost: 150000, gps: 1500 },
-    { id: 'gear', name: 'Steroid Cycle', baseCost: 600000, gps: 6000 },
-    { id: 'hq', name: 'Second Location', baseCost: 2500000, gps: 25000 },
+    { id: 'gearfridge', name: 'Gear Fridge', baseCost: 600000, gps: 6000 },
+    { id: 'soundsystem', name: 'Hype Sound System', baseCost: 2500000, gps: 25000 },
     // Office tier: hidden in the shop until you've built the gym up past HQ
     // level (see unlockAt) -- the "then you build a desk for employees"
     // progression stage that comes after the core gym equipment.
     { id: 'desk', name: 'Reception Desk', baseCost: 10000000, gps: 100000, unlockAt: 2500000 },
     { id: 'cubicle', name: 'Sales Cubicle', baseCost: 40000000, gps: 400000, unlockAt: 10000000 },
-    { id: 'manager', name: "Manager's Office", baseCost: 160000000, gps: 1600000, unlockAt: 40000000 },
+    { id: 'officepod', name: 'Corner Office Pod', baseCost: 160000000, gps: 1600000, unlockAt: 40000000 },
   ];
+
+  // Three items used to be things you cannot actually stand on a gym floor:
+  // a 10cm vial ("Steroid Cycle"), an entire second building ("Second
+  // Location") and a whole room ("Manager's Office"). Each was swapped for a
+  // real piece of furniture at the same price, gains/sec and category, and a
+  // save from before the swap keeps the piece -- it just becomes the thing
+  // that replaced it.
+  const RENAMED_ITEMS = {
+    gear: 'gearfridge',
+    hq: 'soundsystem',
+    manager: 'officepod',
+  };
 
   // Flat-shape line/solid icons (24x24) standing in for every item's old
   // emoji, plus a lock glyph for locked shop rows and theme buttons --
@@ -40,11 +52,11 @@
     treadmill: '<rect x="3" y="15.2" width="15" height="3.6" rx="1.4"/><rect x="15" y="4" width="3" height="12.5" rx="1"/><rect x="13.6" y="2.6" width="6" height="2.4" rx="1"/>',
     trainer: '<circle cx="12" cy="6.2" r="3.1"/><rect x="8" y="10.2" width="8" height="9.6" rx="3.2"/>',
     sauna: '<path d="M12 2.2c-1.2 3-4.6 4.7-4.6 9a4.6 4.6 0 0 0 9.2 0c0-2.1-1-3.3-2-4.6.1 1.7-1 2.9-2 2.9-1.2 0-1.7-1.2-1-2.4C13 5.6 13 4 12 2.2Z"/>',
-    gear: '<rect x="1.2" y="10.9" width="3.4" height="2.2" rx="0.6"/><rect x="4.4" y="9.8" width="11" height="4.4" rx="1.2"/><rect x="15" y="10.6" width="6.4" height="2.8" rx="0.8"/>',
-    hq: '<path d="M4 5 L12 1.4 L20 5 Z"/><rect x="5" y="5" width="14" height="17.4" rx="1"/>',
+    gearfridge: '<rect x="5.5" y="2" width="13" height="8.6" rx="1.6"/><rect x="5.5" y="12" width="13" height="10" rx="1.6"/><rect x="3.4" y="4.6" width="1.8" height="4" rx="0.9"/><rect x="3.4" y="14.4" width="1.8" height="4.6" rx="0.9"/>',
+    soundsystem: '<rect x="5.5" y="2" width="13" height="20" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="8.6" r="3.1"/><circle cx="12" cy="16.8" r="2"/>',
     desk: '<rect x="3" y="13.4" width="18" height="2.8" rx="1"/><rect x="5" y="16.2" width="2" height="5.4" rx="0.6"/><rect x="17" y="16.2" width="2" height="5.4" rx="0.6"/><rect x="9" y="5.4" width="6.4" height="6" rx="1"/><rect x="11.2" y="11.4" width="2" height="2.2"/>',
     cubicle: '<rect x="3" y="4" width="3" height="16.5" rx="0.8"/><rect x="3" y="4" width="14.5" height="3" rx="0.8"/><rect x="6" y="14.5" width="14.5" height="3" rx="1"/><rect x="15.3" y="8.2" width="5.2" height="5.2" rx="1"/>',
-    manager: '<path d="M9 9V6.4a3 3 0 0 1 6 0V9" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><rect x="3" y="9" width="18" height="11.4" rx="2"/>',
+    officepod: '<rect x="3" y="4.2" width="18" height="15.6" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.9"/><rect x="12.6" y="6.8" width="6" height="10.4" rx="1.2"/><rect x="5.6" y="12.2" width="5.4" height="2" rx="0.7"/><rect x="6.4" y="14.2" width="1.5" height="3.2" rx="0.6"/>',
     lock: '<path d="M7 10.4V7.2a5 5 0 0 1 10 0v3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5" y="10.4" width="14" height="10" rx="2.2"/>',
   };
   function iconMarkup(id, sizePx) {
@@ -78,9 +90,10 @@
 
   // Gear is drawn against this reference tile size, so its size on screen is
   // fixed no matter how fine the lattice under it gets. Shrinking the tile
-  // to fit a bigger room must not shrink the equipment standing in it.
+  // to fit a bigger room must not shrink the equipment standing in it. What
+  // each piece is scaled to from there is its own footprint -- see
+  // propScaleFor.
   const PROP_TILE = 96;
-  const PROP_SCALE = PROP_TILE / ROOM.tileW;
 
   // Each theme builds to its own floor plan, because a unit, a cellar and a
   // roof are not the same shape of place. Rooms are not one bay stamped out
@@ -248,8 +261,8 @@
     dumbbell: 'strength', dumbbellrack: 'strength', bench: 'strength', rack: 'strength', cable: 'strength',
     treadmill: 'cardio',
     mat: 'recovery', sauna: 'recovery',
-    trainer: 'booster', gear: 'booster', hq: 'booster',
-    desk: 'office', cubicle: 'office', manager: 'office',
+    trainer: 'booster', gearfridge: 'booster', soundsystem: 'booster',
+    desk: 'office', cubicle: 'office', officepod: 'office',
   };
   const CATEGORY_META = {
     strength: { name: 'Strength', color: '#c0483a' },
@@ -265,6 +278,18 @@
     return ITEMS.find((i) => i.id === id);
   }
 
+  // How much floor a piece takes up along its longest side, in metres, and
+  // how big to draw it. They are the same number for a machine; they part
+  // company for anything whose art is taller than the floor it stands on.
+  // Both tables live with the rest of the drawing tables further down; these
+  // are the readers everything else goes through.
+  function footprintOf(id) {
+    return ITEM_FOOTPRINT[id] || DEFAULT_FOOTPRINT;
+  }
+  function drawSizeOf(id) {
+    return ITEM_DRAW_SIZE[id] || footprintOf(id);
+  }
+
   // How finely a piece can be positioned. Five screen pixels, expressed in
   // tile units so it stays five pixels whatever the lattice is.
   const SPOT_STEP = 5 / ROOM.tileW;
@@ -276,14 +301,19 @@
     };
   }
 
-  // Keep a piece inside its room, allowing for the space it takes up -- that
-  // is a property of the gear, not of the lattice, so it is measured against
-  // the reference tile.
-  const SPOT_INSET = 0.45 * PROP_SCALE;
-  function clampSpot(spot, shape) {
+  // A lattice tile is a third of a metre, so this converts the sizes that are
+  // properly measured in metres -- how much room a piece needs, how close is
+  // "next to", how near a tap has to land -- into lattice units.
+  const TILES_PER_METRE = 3;
+
+  // Keep a piece inside its room, clear of the walls by half its own width.
+  function clampSpot(spot, shape, itemId) {
+    const inset = (footprintOf(itemId) / 2) * TILES_PER_METRE;
+    const lo = Math.min(inset, shape.cols / 2);
+    const loV = Math.min(inset, shape.rows / 2);
     return {
-      u: Math.max(SPOT_INSET, Math.min(shape.cols - SPOT_INSET, spot.u)),
-      v: Math.max(SPOT_INSET, Math.min(shape.rows - SPOT_INSET, spot.v)),
+      u: Math.max(lo, Math.min(shape.cols - lo, spot.u)),
+      v: Math.max(loV, Math.min(shape.rows - loV, spot.v)),
     };
   }
 
@@ -312,10 +342,9 @@
     return defaultSpot(shape, index, room.layout.length);
   }
 
-  // "Next to" is a distance now. Two pieces help each other when they stand
-  // within about a piece-and-a-half of one another -- again a distance in
-  // gear, not in lattice tiles.
-  const SYNERGY_REACH = 1.4 * PROP_SCALE;
+  // "Next to" is a distance now: close enough to be part of the same set-up,
+  // about two metres between centres.
+  const SYNERGY_REACH = 2.0 * TILES_PER_METRE;
 
   // Every piece's synergy multiplier in one pass, so neither the earnings
   // sum nor the draw loop has to re-walk the room for each piece.
@@ -496,6 +525,23 @@
       ? s.activeRoomIndex
       : 0;
 
+    // Carry saves across the item swap (see RENAMED_ITEMS): a Steroid Cycle
+    // in the inventory becomes a Gear Fridge, one standing in a room becomes
+    // a Gear Fridge standing in the same spot. Counts are added rather than
+    // overwritten, in case a save somehow holds both the old id and its
+    // replacement.
+    const ownedById = {};
+    Object.keys(s.owned).forEach((id) => {
+      const to = RENAMED_ITEMS[id] || id;
+      ownedById[to] = (ownedById[to] || 0) + (s.owned[id] || 0);
+    });
+    s.owned = ownedById;
+    THEMES.forEach((t) => {
+      (s.themeRooms[t.id] || []).forEach((room) => {
+        room.layout = room.layout.map((id) => (id && RENAMED_ITEMS[id]) || id);
+      });
+    });
+
     // Migration for saves from before placement mattered: if every room in
     // every theme is empty but the player owns gear, auto-fill the first
     // garage room so returning players don't come back to a sudden $0/s.
@@ -597,7 +643,7 @@
     const placed = layout.filter(Boolean).length;
     if (placed === 0) {
       synergyEl.textContent = roomLabel() + ' is empty = $0/s from here. '
-        + 'Arm a piece of gear below and click a tile to start earning.';
+        + 'Pick a piece of gear below, drag it where you want it, and hit the tick.';
       return;
     }
     const baseSum = layout.reduce((sum, id) => {
@@ -1048,6 +1094,22 @@
     ctx.closePath();
   }
 
+  // A flat panel lying in one vertical face of a prop: p0 and p1 are the two
+  // ends of its ground edge in tile-units, z0/z1 how far up that face it runs
+  // in pixels. A door, screen or pane of glass drawn this way sits *in* the
+  // face it belongs to, instead of reading as yet another box stuck on the
+  // side of the one underneath it.
+  function drawFacePanel(ctx, base, p0, p1, z0, z1, color, radius) {
+    const a = isoScreenPoint(base, p0.u, p0.v, z0);
+    const b = isoScreenPoint(base, p1.u, p1.v, z0);
+    const c = isoScreenPoint(base, p1.u, p1.v, z1);
+    const d = isoScreenPoint(base, p0.u, p0.v, z1);
+    ctx.beginPath();
+    roundedQuadPath(ctx, a, b, c, d, radius == null ? 1.5 : radius);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
   // Draws one shaded isometric box: (offU, offV) is its center relative to
   // the base point in tile-units, (halfA, halfB) its footprint half-extents
   // (also tile-units), height and lift in pixels (lift raises it off the
@@ -1134,7 +1196,6 @@
     bench: 'assets/img/equipment/bench.png',
     trainer: 'assets/img/equipment/trainer.png',
     sauna: 'assets/img/equipment/sauna.png',
-    gear: 'assets/img/equipment/gear.png',
     desk: 'assets/img/equipment/desk.png',
     cubicle: 'assets/img/equipment/cubicle.png',
   };
@@ -1146,25 +1207,63 @@
     itemSprites[id] = img;
   });
 
-  // Per-item overrides: `scale` shrinks a sprite that reads too large for
-  // its tile (a flat, wide object like a mat photographed on a diagonal
-  // needs to be sized down more than a naturally tall/narrow one), and
-  // `anchor` shifts how far the image's bottom edge sits below the tile
-  // center -- an object whose visual "weight" isn't near the bottom of
+  // How much floor each piece actually takes up, along its longest side, in
+  // metres. Everything used to be drawn at one size, which is why a pair of
+  // dumbbells came out as big as a squat rack; sized off this, a dumbbell is
+  // knee-high clutter and a treadmill is a machine you walk around.
+  const ITEM_FOOTPRINT = {
+    dumbbell: 0.7,       // a pair on the floor
+    dumbbellrack: 1.7,
+    mat: 1.8,            // rolled out flat
+    bench: 1.8,
+    rack: 1.6,
+    cable: 1.7,
+    treadmill: 2.0,
+    trainer: 0.7,        // the floor a person stands on, not their height
+    sauna: 2.2,
+    gearfridge: 0.9,
+    soundsystem: 1.4,
+    desk: 2.0,
+    cubicle: 2.0,
+    officepod: 1.7,
+  };
+  const DEFAULT_FOOTPRINT = 1.4;
+
+  // The size to *draw* a piece at, along its longest side, for the few whose
+  // art is not proportioned like their footprint. A Personal Trainer is a
+  // standing person: scaled by the half-metre of floor they occupy they come
+  // out knee-high next to the gear, so they are drawn at their own height
+  // instead. How much room a piece needs to clear a wall still comes from
+  // ITEM_FOOTPRINT.
+  const ITEM_DRAW_SIZE = {
+    trainer: 1.75,
+  };
+
+  // A lattice tile is a third of a metre, and drawItemSprite draws an
+  // untouched sprite about 1.15 tiles wide -- so this is what one metre of
+  // real gear has to be scaled by to come out a metre wide on the floor.
+  const PX_PER_METRE = ROOM.tileW * 3;
+  const SPRITE_BASE_W = ROOM.tileW * 1.15;
+  function propScaleFor(itemId) {
+    return (drawSizeOf(itemId) * PX_PER_METRE) / SPRITE_BASE_W;
+  }
+
+  // `anchor` shifts how far the image's bottom edge sits below the middle of
+  // its footprint -- an object whose visual weight isn't near the bottom of
   // its own bounding box (a dumbbell shot at an angle, a mat lying flat)
   // needs a bigger push down or it reads as floating above its shadow.
   const ITEM_SPRITE_TUNING = {
-    dumbbell: { scale: 0.48, anchor: 0.34 },
-    mat: { scale: 0.58, anchor: 0.36 },
+    dumbbell: { anchor: 0.34 },
+    mat: { anchor: 0.36 },
   };
-  const DEFAULT_SPRITE_TUNING = { scale: 1, anchor: 0.16 };
+  const DEFAULT_SPRITE_TUNING = { anchor: 0.16 };
 
   function drawItemSprite(ctx, center, img, itemId) {
     const ready = img.complete && img.naturalWidth > 0;
     if (!ready) return false;
     const tuning = ITEM_SPRITE_TUNING[itemId] || DEFAULT_SPRITE_TUNING;
-    const maxH = ROOM.tileH * 1.45 * tuning.scale;
-    const maxW = ROOM.tileW * 1.15 * tuning.scale;
+    const maxH = ROOM.tileH * 1.45;
+    const maxW = ROOM.tileW * 1.15;
     const aspect = img.naturalWidth / img.naturalHeight;
     let h = maxH;
     let w = h * aspect;
@@ -1251,24 +1350,41 @@
       drawIsoBox(ctx, b, 0, 0, 0.10, 0.10, 10, '#e8b04a', 44);
       drawIsoBox(ctx, b, 0, 0, 0.05, 0.05, 5, '#ffe0a0', 54);
     },
-    gear: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0, 0.09, 0.09, 22, '#c0483a', 0);
-      drawIsoDisc(ctx, isoScreenPoint(b, 0, 0, 22), 6.5, 4.2, '#8a2e24');
-      drawIsoBox(ctx, b, 0, 0, 0.03, 0.03, 9, '#e8e8ea', 22);
-      drawIsoBox(ctx, b, 0, 0, 0.012, 0.012, 11, '#c8c8ce', 31);
-    },
-    hq: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0, 0.36, 0.32, 4, '#2e3844', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.34, 0.30, 60, '#4a5a6a', 4);
-      drawIsoBox(ctx, b, 0, 0, 0.20, 0.18, 14, '#c0483a', 64);
-      ctx.fillStyle = '#e8d98a';
-      [-0.14, 0.14].forEach((v) => {
-        const w = isoScreenPoint(b, 0.34, v, 44);
-        ctx.fillRect(w.x - 4, w.y - 5, 8, 8);
+    // Every builder below is drawn at its own item's scale (drawProp scales
+    // the whole context by propScaleFor), so all three are dimensioned off
+    // their ITEM_FOOTPRINT F: one real metre is 1.15/F tile-units across the
+    // floor and about 24/F pixels up. That is what lets a 1.85m fridge and a
+    // 2.1m office pod come out the right heights relative to each other on
+    // screen while their floor footprints stay 0.9m and 1.7m apart.
+    gearfridge: (ctx, b) => {
+      // Glass-fronted fridge, shelves stocked with vials. F = 0.9.
+      drawIsoBox(ctx, b, 0, 0, 0.46, 0.42, 49, '#59636f', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.42, 0.38, 4, '#39414a', 49);
+      drawFacePanel(ctx, b, { u: 0.465, v: -0.34 }, { u: 0.465, v: 0.34 }, 5, 44, '#16232b', 3);
+      [12, 23, 34].forEach((z) => {
+        drawFacePanel(ctx, b, { u: 0.47, v: -0.30 }, { u: 0.47, v: 0.30 }, z, z + 1.5, '#e8a04a', 1);
+        for (let k = -2; k <= 2; k++) {
+          const v = k * 0.125;
+          drawFacePanel(ctx, b, { u: 0.475, v: v - 0.045 }, { u: 0.475, v: v + 0.045 }, z + 1.5, z + 6.5, '#6fd6e8', 1);
+        }
       });
-      ctx.fillStyle = '#241a10';
-      const door = isoScreenPoint(b, 0.34, 0, 18);
-      ctx.fillRect(door.x - 5, door.y - 14, 10, 14);
+      drawFacePanel(ctx, b, { u: 0.49, v: 0.26 }, { u: 0.49, v: 0.30 }, 12, 38, '#cfd6de', 2);
+    },
+    soundsystem: (ctx, b) => {
+      // A pair of PA stacks -- a sub on the floor with a column speaker
+      // standing on it -- and the thing that makes the whole room train
+      // harder. F = 1.4.
+      [-0.30, 0.30].forEach((v) => {
+        drawIsoBox(ctx, b, 0, v, 0.226, 0.226, 10.3, '#464c56', 0);
+        drawFacePanel(ctx, b, { u: 0.231, v: v - 0.185 }, { u: 0.231, v: v + 0.185 }, 1.2, 9.1, '#22252b', 1.4);
+        drawIsoDisc(ctx, isoScreenPoint(b, 0.236, v, 5.2), 3.4, 4.1, '#6a717d');
+        drawIsoBox(ctx, b, 0, v, 0.148, 0.148, 19.7, '#525965', 10.3);
+        drawFacePanel(ctx, b, { u: 0.153, v: v - 0.115 }, { u: 0.153, v: v + 0.115 }, 11.6, 28.6, '#22252b', 1.2);
+        [15.2, 20.1, 25.0].forEach((z) => {
+          drawIsoDisc(ctx, isoScreenPoint(b, 0.158, v, z), 1.9, 2.3, '#6a717d');
+        });
+        drawFacePanel(ctx, b, { u: 0.160, v: v - 0.05 }, { u: 0.160, v: v + 0.05 }, 12.2, 13.1, '#5ec4c9', 0.5);
+      });
     },
     desk: (ctx, b) => {
       drawIsoBox(ctx, b, 0, 0.02, 0.30, 0.20, 11, '#6b4a30', 0);
@@ -1282,12 +1398,26 @@
       drawIsoBox(ctx, b, 0.06, -0.18, 0.045, 0.03, 8, '#26262a', 9);
       drawIsoBox(ctx, b, 0.06, -0.18, 0.10, 0.02, 6, '#3fa0c9', 15);
     },
-    manager: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0.06, 0.30, 0.22, 12, '#3a2c22', 0);
-      drawIsoBox(ctx, b, 0.10, -0.10, 0.03, 0.03, 10, '#26262a', 12);
-      drawIsoBox(ctx, b, 0, -0.22, 0.11, 0.09, 20, '#241a10', 0);
-      drawIsoBox(ctx, b, -0.22, 0.20, 0.07, 0.07, 4, '#8a5a34', 0);
-      drawIsoBox(ctx, b, -0.22, 0.20, 0.05, 0.05, 15, '#3fa87e', 4);
+    officepod: (ctx, b) => {
+      // A one-person glass office booth -- 1.6m square and 2.1m tall, the
+      // kind you drop on a floor, not a room. Drawn inside-out: plinth, then
+      // the furniture standing in it, then the glass in front of that, so
+      // you read the inside through the walls. F = 1.7.
+      drawIsoBox(ctx, b, 0, 0, 0.541, 0.474, 1.2, '#2f3a45', 0);
+      drawIsoBox(ctx, b, -0.24, 0.02, 0.203, 0.338, 10.6, '#6b4a30', 1.2);
+      drawIsoBox(ctx, b, -0.24, -0.13, 0.028, 0.028, 4.4, '#26262a', 11.8);
+      drawIsoBox(ctx, b, -0.24, -0.13, 0.115, 0.02, 5.6, '#3fa0c9', 16.2);
+      drawIsoBox(ctx, b, 0.08, 0.04, 0.16, 0.16, 6.4, '#33383f', 1.2);
+      drawIsoBox(ctx, b, 0.16, 0.04, 0.04, 0.15, 8.5, '#3f454e', 7.6);
+      drawIsoDisc(ctx, isoScreenPoint(b, -0.22, 0.06, 24), 5, 3.2, 'rgba(240,200,120,0.28)');
+      drawFacePanel(ctx, b, { u: -0.507, v: 0.443 }, { u: 0.507, v: 0.443 }, 1.2, 30, 'rgba(140,200,220,0.13)', 1);
+      drawFacePanel(ctx, b, { u: 0.505, v: -0.443 }, { u: 0.505, v: 0.443 }, 1.2, 30, 'rgba(155,210,230,0.20)', 1);
+      drawFacePanel(ctx, b, { u: 0.512, v: 0.03 }, { u: 0.512, v: 0.055 }, 1.2, 30, 'rgba(200,230,240,0.42)', 0.6);
+      drawFacePanel(ctx, b, { u: 0.518, v: 0.11 }, { u: 0.518, v: 0.145 }, 12, 17, '#cfd6de', 1);
+      [[-0.507, -0.443], [0.507, -0.443], [-0.507, 0.443], [0.507, 0.443]].forEach(([u, v]) => {
+        drawIsoBox(ctx, b, u, v, 0.024, 0.024, 30, '#98a1ac', 0);
+      });
+      drawIsoBox(ctx, b, 0, 0, 0.548, 0.480, 2.5, '#59636f', 30);
     },
   };
 
@@ -2278,7 +2408,7 @@
         floorCtx.stroke();
         floorCtx.restore();
       }
-      drawProp(itemId, c, mult[index], PROP_SCALE);
+      drawProp(itemId, c, mult[index], propScaleFor(itemId));
     });
 
     if (editing && editing.roomIndex === roomIndex) {
@@ -2291,8 +2421,9 @@
   // little and lightened so it reads as held rather than placed.
   function drawHeldPiece(place, held) {
     const c = isoPoint(place.gx0 + held.spot.u, place.gy0 + held.spot.v);
-    const rx = ROOM.tileW * 0.3 * PROP_SCALE * 1.6;
-    const ry = ROOM.tileH * 0.3 * PROP_SCALE * 1.6;
+    const s = propScaleFor(held.itemId);
+    const rx = ROOM.tileW * 0.3 * s * 1.5;
+    const ry = ROOM.tileH * 0.3 * s * 1.5;
 
     floorCtx.save();
     floorCtx.beginPath();
@@ -2308,7 +2439,7 @@
 
     floorCtx.save();
     floorCtx.globalAlpha = 0.82;
-    drawProp(held.itemId, { x: c.x, y: c.y - 10 }, 1, PROP_SCALE);
+    drawProp(held.itemId, { x: c.x, y: c.y - 10 }, 1, propScaleFor(held.itemId));
     floorCtx.restore();
   }
 
@@ -2586,7 +2717,7 @@
 
   function beginEdit(itemId, roomIndex, spot, fromIndex) {
     const shape = roomShapeFor(state.activeTheme, roomIndex);
-    const at = clampSpot(snapSpot(spot.u, spot.v), shape);
+    const at = clampSpot(snapSpot(spot.u, spot.v), shape, itemId);
     editing = {
       itemId,
       roomIndex,
@@ -2621,7 +2752,7 @@
 
   function moveEditTo(u, v) {
     if (!editing) return;
-    editing.spot = clampSpot(snapSpot(u, v), editShape());
+    editing.spot = clampSpot(snapSpot(u, v), editShape(), editing.itemId);
     renderScene();
   }
 
@@ -2692,11 +2823,12 @@
     return null;
   }
 
-  // How close a tap has to land to count as grabbing a piece rather than
-  // pointing at the floor beside it. Measured against the gear, not the
-  // lattice -- half a lattice tile is sixteen pixels, which would mean
-  // hitting the exact middle of a machine three times that wide.
-  const PICK_REACH = 0.45 * PROP_SCALE;
+  // How close a tap has to land to count as grabbing a piece: within the
+  // piece as drawn, give or take. A dumbbell is a small target and a
+  // treadmill is a big one, which is exactly right.
+  function pickReachFor(itemId) {
+    return Math.max(0.9, (drawSizeOf(itemId) / 2) * TILES_PER_METRE);
+  }
 
   function pieceAtPoint(px, py) {
     const hit = spotFromPoint(px, py);
@@ -2709,7 +2841,7 @@
       if (!id) return;
       const sp = spotOf(room, i, shape);
       const d = Math.hypot(sp.u - hit.u, sp.v - hit.v);
-      if (d <= PICK_REACH && (!best || d < best.d)) best = { index: i, d };
+      if (d <= pickReachFor(id) && (!best || d < best.d)) best = { index: i, d };
     });
     return best ? { roomIndex: hit.roomIndex, index: best.index } : null;
   }
