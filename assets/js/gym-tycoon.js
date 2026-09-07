@@ -446,6 +446,48 @@
   // a same-category match.
 
 
+  // ---- Rush hours ----
+  // A gym is heaving at eight in the morning and at six in the evening, and
+  // empty at three. The clock the curve reads is the player's own, so the
+  // place is busy when their gym would be.
+  //
+  // A rush is a bonus and never a penalty: a quiet hour earns exactly what
+  // the gym has always earned, and peak earns more. Punishing somebody for
+  // playing at midnight would be a strange thing to build.
+  //
+  // Crucially the economy reads this curve and not the figures walking
+  // around, which are switched off entirely for anyone who has asked for
+  // less motion. Earnings cannot depend on something that is not always
+  // there.
+  const RUSH_BONUS = 0.35;
+  // How busy each hour of the day is, 0 to 1, read at the hour and
+  // interpolated between -- so the gym fills up and empties out rather than
+  // stepping between states on the hour.
+  const RUSH_BY_HOUR = [
+    0.05, 0.02, 0.00, 0.00, 0.02, 0.15,   // 00-05 dead
+    0.55, 0.90, 1.00, 0.70, 0.40, 0.35,   // 06-11 the morning rush
+    0.50, 0.45, 0.35, 0.40, 0.65, 0.95,   // 12-17 lunch, then it builds
+    1.00, 0.85, 0.60, 0.40, 0.25, 0.12,   // 18-23 the evening rush
+  ];
+  function rushFactor(now) {
+    const d = now || new Date();
+    const at = d.getHours() + d.getMinutes() / 60;
+    const lo = Math.floor(at) % 24;
+    const hi = (lo + 1) % 24;
+    const t = at - Math.floor(at);
+    return RUSH_BY_HOUR[lo] * (1 - t) + RUSH_BY_HOUR[hi] * t;
+  }
+  function rushMultiplier() {
+    return 1 + RUSH_BONUS * rushFactor();
+  }
+  function rushLabel() {
+    const f = rushFactor();
+    if (f >= 0.8) return 'Peak hours';
+    if (f >= 0.45) return 'Busy';
+    if (f >= 0.18) return 'Ticking over';
+    return 'Quiet';
+  }
+
   // ---- Vibe ----
   // What the fittings in a room add up to, and what that is worth. Each
   // point is a few percent on everything the room earns, up to a ceiling --
@@ -475,7 +517,7 @@
       if (!item) return;
       total += item.gps * mult[index];
     });
-    return total * vibeMultiplier(room);
+    return total * vibeMultiplier(room) * rushMultiplier();
   }
 
   // Total across every room in every theme's chain -- gear earns
@@ -932,7 +974,8 @@
       const placed = room.layout.filter(Boolean).length;
       // A room people want to be in has more people in it, so the fittings
       // show up in the crowd as well as in the takings.
-      const draw = placed * MEMBERS_PER_PIECE * vibeMultiplier(room);
+      const draw = placed * MEMBERS_PER_PIECE * vibeMultiplier(room)
+        * (0.55 + 0.75 * rushFactor());
       const want = placed === 0 ? 0
         : Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM, Math.round(draw)));
       const here = members.filter((m) => m.room === roomIndex).slice(0, want);
@@ -1218,6 +1261,18 @@
     save();
   }
 
+  const rushEl = document.getElementById('rush-badge');
+  function refreshRushUI() {
+    if (!rushEl) return;
+    const f = rushFactor();
+    const bonus = Math.round(RUSH_BONUS * f * 100);
+    rushEl.innerHTML = '<span class="tycoon-rush-when">' + rushLabel() + '</span>'
+      + '<span class="tycoon-rush-meter"><span class="tycoon-rush-fill" style="width:'
+      + (f * 100).toFixed(0) + '%"></span></span>'
+      + '<span class="tycoon-rush-bonus' + (bonus > 0 ? '' : ' is-none') + '">'
+      + (bonus > 0 ? '+' + bonus + '% while it lasts' : 'no rush bonus right now') + '</span>';
+  }
+
   const toastEl = document.getElementById('game-toast');
   function toast(msg, cls) {
     toastEl.textContent = msg;
@@ -1268,13 +1323,15 @@
     // The vibe is reported separately from the arrangement bonus: they are
     // two different things you can do to a room, and rolling them into one
     // percentage hides which of them is doing the work.
-    const arrangedGps = roomGps / vibeMultiplier(room);
+    const rushPct = Math.round((rushMultiplier() - 1) * 100);
+    const arrangedGps = roomGps / vibeMultiplier(room) / rushMultiplier();
     const bonusPct = baseSum > 0 ? Math.round((arrangedGps / baseSum - 1) * 100) : 0;
     synergyEl.textContent = roomLabel() + ': ' + placed + '/' + layout.length
       + ' slots filled -- base ' + formatNum(baseSum) + '/s'
       + (bonusPct > 0 ? ', +' + bonusPct + '% from arrangement synergy' : ', no synergy bonus yet')
       + (vibe > 0 ? ', +' + vibePct + '% vibe from the fittings'
         + (vibe > VIBE_MAX_POINTS ? ' (capped)' : '') : '')
+      + (rushPct > 0 ? ', +' + rushPct + '% for the ' + rushLabel().toLowerCase() : '')
       + ' = ' + formatNum(roomGps) + '/s from this room.';
   }
 
@@ -4102,6 +4159,7 @@
   // ---- Init ----
   buildShop();
   refillJobs();
+  refreshRushUI();
   refreshHud();
   refreshLevelUI();
   refreshJobsUI();
@@ -4129,12 +4187,23 @@
   // real gap pays exactly the time that passed -- and a hidden tab is paid
   // for none of it.
   let lastTickAt = Date.now();
+  let lastRush = -1;
 
   setInterval(() => {
     const now = Date.now();
     const dt = (now - lastTickAt) / 1000;
     lastTickAt = now;
     if (document.hidden) return;
+
+    // The rush moves on its own, so the rate has to be recomputed as it
+    // does -- but only when it has actually shifted, not ten times a second.
+    const rush = rushFactor();
+    if (Math.abs(rush - lastRush) > 0.004) {
+      lastRush = rush;
+      recomputeStats();
+      refreshRushUI();
+      membersKey = '';
+    }
 
     state.balance += gps * dt;
     state.lifetime += gps * dt;

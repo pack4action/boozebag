@@ -684,3 +684,45 @@
 @media (prefers-reduced-motion: reduce) {
   .tycoon-job-fill { transition: none; }
 }
+
+/* ---- Rush hours ----
+   A pill above the plan saying how busy the place is right now and what
+   that is worth, with a bar that fills as the gym fills up. */
+.tycoon-rush {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin: 0 auto 10px;
+  padding: 6px 13px;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+}
+.tycoon-rush-when { font-weight: 700; }
+.tycoon-rush-meter {
+  display: block;
+  width: 74px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+  overflow: hidden;
+}
+.tycoon-rush-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #5ec4c9, #e8c46a);
+  transition: width 900ms linear;
+}
+.tycoon-rush-bonus { color: #e8c46a; font-weight: 700; }
+.tycoon-rush-bonus.is-none { color: var(--muted, #8b8b93); font-weight: 400; }
+@media (prefers-reduced-motion: reduce) {
+  .tycoon-rush-fill { transition: none; }
+}
