@@ -890,13 +890,15 @@
     return Math.max(lo, Math.min(hi, v));
   }
 
-  function spawnMember(roomIndex, shape) {
+  function spawnMember(room, place) {
     return {
-      roomIndex,
-      u: 0.8 + Math.random() * Math.max(0.1, shape.cols - 1.6),
-      v: 0.8 + Math.random() * Math.max(0.1, shape.rows - 1.6),
-      tu: 0,
-      tv: 0,
+      // Where a member is, is a point on the world lattice, not a point in
+      // some room -- they walk out of one room, down a hallway and into the
+      // next, and none of that has room-local coordinates that mean anything.
+      room,
+      gx: place.gx0 + 0.8 + Math.random() * Math.max(0.1, place.cols - 1.6),
+      gy: place.gy0 + 0.8 + Math.random() * Math.max(0.1, place.rows - 1.6),
+      path: [],
       gear: null,
       state: 'idle',
       timer: 0,
@@ -910,9 +912,9 @@
   }
 
   // Rebuilt only when the crowd it was built for has changed -- a different
-  // theme, or a room that has gained or lost a piece of gear. Members already
-  // in a room are kept exactly where they are, so buying something in one
-  // room does not teleport everybody in the others.
+  // theme, or a room that has gained or lost something. Members already in a
+  // room are kept exactly where they are, so buying something in one room
+  // does not teleport everybody in the others.
   function rebuildMembers() {
     const rooms = activeRooms();
     const key = wantsStillness() ? 'still' : state.activeTheme + '|'
@@ -925,43 +927,99 @@
     }
     const next = [];
     rooms.forEach((room, roomIndex) => {
-      const shape = roomShapeFor(state.activeTheme, roomIndex);
+      const place = placements[roomIndex];
+      if (!place) return;
       const placed = room.layout.filter(Boolean).length;
       // A room people want to be in has more people in it, so the fittings
       // show up in the crowd as well as in the takings.
       const draw = placed * MEMBERS_PER_PIECE * vibeMultiplier(room);
       const want = placed === 0 ? 0
         : Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM, Math.round(draw)));
-      const here = members.filter((m) => m.roomIndex === roomIndex).slice(0, want);
-      while (here.length < want) here.push(spawnMember(roomIndex, shape));
+      const here = members.filter((m) => m.room === roomIndex).slice(0, want);
+      while (here.length < want) here.push(spawnMember(roomIndex, place));
       next.push(...here);
     });
     members = next;
   }
 
-  // Where a member goes next: a free piece of gear most of the time, and now
-  // and then just somewhere else on the floor, so the room does not look like
-  // a queueing system.
-  function chooseTarget(m, room, shape) {
+  // The two ends of a hallway, a little way inside it, in the order they are
+  // walked. Down the middle, because that is where the doorway at each end
+  // is: the casing is drawn across the middle of the mouth, not the whole of
+  // it, so anything walking along an edge would go through the wall beside it.
+  function corridorWaypoints(c, forward) {
+    if (c.axis === 'gx') {
+      const midGy = c.gy0 + c.rows / 2;
+      const near = { gx: c.gx0 + 0.5, gy: midGy };
+      const far = { gx: c.gx0 + c.cols - 0.5, gy: midGy };
+      return forward ? [near, far] : [far, near];
+    }
+    const midGx = c.gx0 + c.cols / 2;
+    const near = { gx: midGx, gy: c.gy0 + 0.5 };
+    const far = { gx: midGx, gy: c.gy0 + c.rows - 0.5 };
+    return forward ? [near, far] : [far, near];
+  }
+
+  // Where a member goes next: a free piece of gear most of the time, now and
+  // then somewhere else on the floor so the room is not a queueing system,
+  // and now and then the room next door, which means a walk down the hallway
+  // to get there.
+  const MEMBER_ROAM_CHANCE = 0.16;
+  function chooseTarget(m) {
+    const rooms = activeRooms();
+    let dest = m.room;
+    if (rooms.length > 1 && Math.random() < MEMBER_ROAM_CHANCE) {
+      const step = Math.random() < 0.5 ? -1 : 1;
+      const tryRoom = m.room + step;
+      if (tryRoom >= 0 && tryRoom < rooms.length) dest = tryRoom;
+    }
+    const room = rooms[dest];
+    const place = placements[dest];
+    if (!room || !place) {
+      m.state = 'idle';
+      return;
+    }
+
     const free = [];
     room.layout.forEach((id, i) => {
-      if (!id) return;
-      const taken = members.some((o) => o !== m && o.roomIndex === m.roomIndex && o.gear === i);
+      // Fittings are scenery: nobody queues to use a pot plant.
+      if (!id || isDecor(id)) return;
+      const taken = members.some((o) => o !== m && o.room === dest && o.gear === i);
       if (!taken) free.push(i);
     });
+
+    let goal;
     if (free.length && Math.random() < 0.82) {
       const i = pickOf(free);
-      const spot = spotOf(room, i, shape);
+      const spot = spotOf(room, i, { cols: place.cols, rows: place.rows });
       // Stand in front of the piece rather than inside it: clear of its own
       // footprint, and toward the viewer so the gear is not hidden.
       const clear = (footprintOf(room.layout[i]) / 2 + 0.4) * TILES_PER_METRE;
       m.gear = i;
-      m.tu = clampTo(spot.u + clear * 0.5, 0.6, Math.max(0.6, shape.cols - 0.6));
-      m.tv = clampTo(spot.v + clear * 0.8, 0.6, Math.max(0.6, shape.rows - 0.6));
+      goal = {
+        gx: place.gx0 + clampTo(spot.u + clear * 0.5, 0.6, Math.max(0.6, place.cols - 0.6)),
+        gy: place.gy0 + clampTo(spot.v + clear * 0.8, 0.6, Math.max(0.6, place.rows - 0.6)),
+      };
     } else {
       m.gear = null;
-      m.tu = 0.8 + Math.random() * Math.max(0.1, shape.cols - 1.6);
-      m.tv = 0.8 + Math.random() * Math.max(0.1, shape.rows - 1.6);
+      goal = {
+        gx: place.gx0 + 0.8 + Math.random() * Math.max(0.1, place.cols - 1.6),
+        gy: place.gy0 + 0.8 + Math.random() * Math.max(0.1, place.rows - 1.6),
+      };
+    }
+
+    if (dest === m.room) {
+      m.path = [goal];
+    } else {
+      // corridors[i] joins rooms i and i+1, and always runs from its nearRoom
+      // to its doorRoom -- which of those is the room being left decides
+      // which way down it this member is walking.
+      const c = corridors[Math.min(m.room, dest)];
+      if (!c) {
+        m.path = [goal];
+      } else {
+        m.path = corridorWaypoints(c, placements[m.room] === c.nearRoom).concat([goal]);
+        m.room = dest;
+      }
     }
     m.state = 'walking';
   }
@@ -969,9 +1027,8 @@
   function stepMembers(dt) {
     const rooms = activeRooms();
     members.forEach((m) => {
-      const room = rooms[m.roomIndex];
+      const room = rooms[m.room];
       if (!room) return;
-      const shape = roomShapeFor(state.activeTheme, m.roomIndex);
 
       if (m.state === 'using') {
         m.timer -= dt;
@@ -981,28 +1038,42 @@
         return;
       }
       if (m.state === 'idle') {
-        chooseTarget(m, room, shape);
+        chooseTarget(m);
         return;
       }
 
-      const dx = m.tu - m.u;
-      const dv = m.tv - m.v;
-      const dist = Math.hypot(dx, dv);
+      const goal = m.path[0];
+      if (!goal) {
+        m.state = 'idle';
+        return;
+      }
+      const dx = goal.gx - m.gx;
+      const dy = goal.gy - m.gy;
+      const dist = Math.hypot(dx, dy);
       const step = m.speed * dt;
       m.phase += dt * 7.5;
       if (dist <= step || dist === 0) {
-        m.u = m.tu;
-        m.v = m.tv;
+        m.gx = goal.gx;
+        m.gy = goal.gy;
+        m.path.shift();
+        if (m.path.length) return;
         m.state = m.gear === null ? 'idle' : 'using';
         m.timer = 3.5 + Math.random() * 7;
         return;
       }
-      m.u += (dx / dist) * step;
-      m.v += (dv / dist) * step;
-      // Which way they face on screen: +u and -v both read as rightward.
-      const screenward = dx - dv;
+      m.gx += (dx / dist) * step;
+      m.gy += (dy / dist) * step;
+      // Which way they face on screen: +gx and -gy both read as rightward.
+      const screenward = dx - dy;
       if (Math.abs(screenward) > 0.0001) m.facing = screenward > 0 ? 1 : -1;
     });
+  }
+
+  // Whoever is standing inside this rectangle right now, wherever they call
+  // home -- a member halfway down a hallway is drawn by the hallway.
+  function membersInside(rect) {
+    return members.filter((m) => m.gx >= rect.gx0 && m.gx < rect.gx0 + rect.cols
+      && m.gy >= rect.gy0 && m.gy < rect.gy0 + rect.rows);
   }
 
   // ---- Wallet-gated local leaderboard ----
@@ -2880,6 +2951,13 @@
         drawWallRun([corner, far], ['gy'], ROOM.wallH, colors, ['open', 'open']);
       }
     }
+
+    // Anyone walking between rooms is drawn by the hallway they are in, back
+    // to front like everything else, so they pass behind its far wall and in
+    // front of its near one.
+    membersInside(c)
+      .sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy))
+      .forEach((m) => drawMember(isoPoint(m.gx, m.gy), m));
   }
 
   // A pale casing standing across the corridor mouth: two jambs and a lintel
@@ -3151,9 +3229,8 @@
       const spot = spotOf(room, index, shape);
       standing.push({ index, itemId, spot });
     });
-    members.forEach((m) => {
-      if (m.roomIndex !== roomIndex) return;
-      standing.push({ member: m, spot: { u: m.u, v: m.v } });
+    membersInside(place).forEach((m) => {
+      standing.push({ member: m, spot: { u: m.gx - place.gx0, v: m.gy - place.gy0 } });
     });
     standing.sort((a, b) => (a.spot.u + a.spot.v) - (b.spot.u + b.spot.v));
 
@@ -3174,7 +3251,8 @@
         floorCtx.stroke();
         floorCtx.restore();
       }
-      drawProp(itemId, c, mult[index], propScaleFor(itemId));
+      drawProp(itemId, c, mult[index], propScaleFor(itemId),
+        gearInUse.has(roomIndex + ':' + index));
     });
 
     if (editing && editing.roomIndex === roomIndex) {
@@ -3313,7 +3391,19 @@
     ctx.fill();
   }
 
-  function drawProp(itemId, c, mult, scale) {
+  // Which pieces have somebody on them right now, keyed room and slot. Kept
+  // as a set built once a frame rather than searched per piece, because the
+  // draw loop asks about every piece on every floor.
+  let gearInUse = new Set();
+  function refreshGearInUse() {
+    const next = new Set();
+    members.forEach((m) => {
+      if (m.state === 'using' && m.gear !== null) next.add(m.room + ':' + m.gear);
+    });
+    gearInUse = next;
+  }
+
+  function drawProp(itemId, c, mult, scale, busy) {
     const catColor = CATEGORY_META[CATEGORY[itemId]].color;
     floorCtx.save();
     floorCtx.translate(c.x, c.y);
@@ -3349,10 +3439,23 @@
     floorCtx.fillStyle = soft;
     floorCtx.fill();
 
+    // A piece with somebody working it lights up under them and breathes,
+    // so a busy gym reads as busy at a glance -- and so that a member
+    // standing at a machine looks different from one standing beside it.
+    const pulse = busy ? 0.5 + 0.5 * Math.sin(performance.now() / 380) : 0;
     floorCtx.beginPath();
-    floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * 0.28, ROOM.tileH * 0.24, 0, 0, Math.PI * 2);
-    floorCtx.fillStyle = hexA(catColor, 0.34);
+    floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * (0.28 + pulse * 0.05),
+      ROOM.tileH * (0.24 + pulse * 0.05), 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = hexA(catColor, 0.34 + (busy ? 0.20 + pulse * 0.16 : 0));
     floorCtx.fill();
+    if (busy) {
+      floorCtx.beginPath();
+      floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * (0.33 + pulse * 0.06),
+        ROOM.tileH * (0.28 + pulse * 0.06), 0, 0, Math.PI * 2);
+      floorCtx.strokeStyle = hexA(catColor, 0.5 - pulse * 0.28);
+      floorCtx.lineWidth = 1.2;
+      floorCtx.stroke();
+    }
 
     const sprite = itemSprites[itemId];
     const drewSprite = sprite && drawItemSprite(floorCtx, c, sprite, itemId);
@@ -4031,6 +4134,7 @@
     lastFrameAt = now;
     if (!members.length) return;
     stepMembers(dt);
+    refreshGearInUse();
     paintScene();
   }
   requestAnimationFrame(animateMembers);
