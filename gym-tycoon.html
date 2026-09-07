@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=9" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=5" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=21" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=22" />
 </head>
 <body class="game-body">
 
@@ -80,9 +80,36 @@
   <div class="tycoon-designer">
     <div class="tycoon-room-actions" id="room-actions"></div>
     <div class="tycoon-theme-row" id="theme-row"></div>
-    <div class="tycoon-room-stage" id="room-stage-scroll">
-      <div class="tycoon-room-zoom-wrap" id="room-zoom-wrap">
-        <canvas id="tycoon-floor" width="480" height="340" aria-label="Your gym, isometric view"></canvas>
+    <div class="tycoon-stage-wrap">
+      <div class="tycoon-room-stage" id="room-stage-scroll">
+        <div class="tycoon-room-zoom-wrap" id="room-zoom-wrap">
+          <canvas id="tycoon-floor" width="480" height="340" aria-label="Your gym, isometric view"></canvas>
+        </div>
+      </div>
+
+      <div class="tycoon-place-hud" id="place-hud" hidden>
+        <p class="tycoon-place-label" id="place-label"></p>
+        <div class="tycoon-place-row">
+          <div class="tycoon-pad">
+            <button class="tycoon-pad-btn is-up" type="button" data-nudge="up" aria-label="Move back">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6l7 9H5z"/></svg>
+            </button>
+            <button class="tycoon-pad-btn is-left" type="button" data-nudge="left" aria-label="Move left">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12l9-7v14z"/></svg>
+            </button>
+            <button class="tycoon-pad-btn is-right" type="button" data-nudge="right" aria-label="Move right">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 12L7 19V5z"/></svg>
+            </button>
+            <button class="tycoon-pad-btn is-down" type="button" data-nudge="down" aria-label="Move forward">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18l-7-9h14z"/></svg>
+            </button>
+          </div>
+          <div class="tycoon-place-actions">
+            <button class="tycoon-place-btn is-confirm" id="btn-place-confirm" type="button">Place</button>
+            <button class="tycoon-place-btn" id="btn-place-store" type="button" hidden>Store</button>
+            <button class="tycoon-place-btn is-cancel" id="btn-place-cancel" type="button">Cancel</button>
+          </div>
+        </div>
       </div>
     </div>
     <p class="tycoon-synergy" id="tycoon-synergy"></p>
@@ -122,6 +149,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=41"></script>
+<script src="assets/js/gym-tycoon.js?v=42"></script>
 </body>
 </html>

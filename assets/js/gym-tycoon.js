@@ -69,7 +69,18 @@
   // (An earlier version parked each room in its own screen-space cell, which
   // meant corridors between them could never line up with the tile grid and
   // read as planks bridging a gap rather than hallways.)
-  const ROOM = { tileW: 96, tileH: 48, wallH: 110 };
+  // The lattice is a fine grid the room is measured in, not the size of a
+  // piece of gear. A tile is roughly a third of a metre, so a treadmill is
+  // three tiles long and a room is dozens across -- which is what makes a
+  // gym floor read as a floor with equipment standing about on it, rather
+  // than a shelf with one item per compartment.
+  const ROOM = { tileW: 32, tileH: 16, wallH: 100 };
+
+  // Gear is drawn against this reference tile size, so its size on screen is
+  // fixed no matter how fine the lattice under it gets. Shrinking the tile
+  // to fit a bigger room must not shrink the equipment standing in it.
+  const PROP_TILE = 96;
+  const PROP_SCALE = PROP_TILE / ROOM.tileW;
 
   // Each theme builds to its own floor plan, because a unit, a cellar and a
   // roof are not the same shape of place. Rooms are not one bay stamped out
@@ -84,40 +95,43 @@
     // just enough between them to walk through.
     garage: {
       shapes: [
-        { cols: 6, rows: 2 }, // 12 -- the starter bay
-        { cols: 7, rows: 2 }, // 14
-        { cols: 8, rows: 2 }, // 16 -- the long bay
-        { cols: 7, rows: 3 }, // 21 -- deep enough for two rows of kit
+        { cols: 18, rows: 7 },  // 12 pieces of gear -- the starter bay
+        { cols: 21, rows: 7 },  // 14
+        { cols: 24, rows: 7 },  // 16 -- the long bay
+        { cols: 21, rows: 10 }, // 21 -- deep enough for two rows of kit
       ],
+      caps: [12, 14, 16, 21],
       dirs: ['east', 'east', 'south'],
-      corridorLen: 2,
-      corridorWidth: 2,
+      corridorLen: 6,
+      corridorWidth: 6,
     },
     // Cellar rooms: narrow, deep, and strung together by real tunnels that
     // turn corners rather than opening straight onto each other.
     basement: {
       shapes: [
-        { cols: 3, rows: 4 }, // 12
-        { cols: 3, rows: 5 }, // 15 -- the long cell
-        { cols: 4, rows: 4 }, // 16
-        { cols: 4, rows: 5 }, // 20
+        { cols: 10, rows: 13 }, // 12
+        { cols: 10, rows: 16 }, // 15 -- the long cell
+        { cols: 13, rows: 13 }, // 16
+        { cols: 13, rows: 16 }, // 20
       ],
+      caps: [12, 15, 16, 20],
       dirs: ['south', 'east', 'south'],
-      corridorLen: 4,
-      corridorWidth: 2,
+      corridorLen: 12,
+      corridorWidth: 6,
     },
     // Open deck: broad platforms that spread across the roof, joined by
     // walkways wide enough to read as outdoors.
     rooftop: {
       shapes: [
-        { cols: 4, rows: 3 }, // 12
-        { cols: 5, rows: 3 }, // 15
-        { cols: 6, rows: 3 }, // 18 -- the wide deck
-        { cols: 5, rows: 4 }, // 20
+        { cols: 13, rows: 10 }, // 12
+        { cols: 16, rows: 10 }, // 15
+        { cols: 19, rows: 10 }, // 18 -- the wide deck
+        { cols: 16, rows: 13 }, // 20
       ],
+      caps: [12, 15, 18, 20],
       dirs: ['east', 'south', 'west'],
-      corridorLen: 3,
-      corridorWidth: 3,
+      corridorLen: 9,
+      corridorWidth: 9,
     },
   };
 
@@ -128,9 +142,11 @@
     const shapes = planFor(themeId).shapes;
     return shapes[index % shapes.length];
   }
+  // How much a room holds, which is no longer the same question as how big
+  // its floor is.
   function slotCountFor(themeId, index) {
-    const s = roomShapeFor(themeId, index);
-    return s.cols * s.rows;
+    const caps = planFor(themeId).caps;
+    return caps[index % caps.length];
   }
 
   // Tile rectangles for a chain of `count` rooms, each butted up against the
@@ -249,46 +265,97 @@
     return ITEMS.find((i) => i.id === id);
   }
 
-  function neighborIndexes(index, shape) {
-    const gx = index % shape.cols;
-    const gy = Math.floor(index / shape.cols);
-    const out = [];
-    if (gx > 0) out.push(index - 1);
-    if (gx < shape.cols - 1) out.push(index + 1);
-    if (gy > 0) out.push(index - shape.cols);
-    if (gy < shape.rows - 1) out.push(index + shape.cols);
-    return out;
+  // How finely a piece can be positioned. Five screen pixels, expressed in
+  // tile units so it stays five pixels whatever the lattice is.
+  const SPOT_STEP = 5 / ROOM.tileW;
+
+  function snapSpot(u, v) {
+    return {
+      u: Math.round(u / SPOT_STEP) * SPOT_STEP,
+      v: Math.round(v / SPOT_STEP) * SPOT_STEP,
+    };
+  }
+
+  // Keep a piece inside its room, allowing for the space it takes up -- that
+  // is a property of the gear, not of the lattice, so it is measured against
+  // the reference tile.
+  const SPOT_INSET = 0.45 * PROP_SCALE;
+  function clampSpot(spot, shape) {
+    return {
+      u: Math.max(SPOT_INSET, Math.min(shape.cols - SPOT_INSET, spot.u)),
+      v: Math.max(SPOT_INSET, Math.min(shape.rows - SPOT_INSET, spot.v)),
+    };
+  }
+
+  // Where a piece stands, in tile units from its room's back corner. Gear is
+  // positioned freely now rather than dropped into a grid cell, so a room's
+  // layout array says WHAT is in it and its spots array says WHERE.
+  // Where a piece goes when nothing has said otherwise: laid out evenly
+  // across the floor. This is what a save from before free placement gets,
+  // and what newly bought gear gets -- the old rule put a piece in the
+  // middle of the grid cell its slot index named, which on a floor three
+  // times the size would file everything along the back wall.
+  function defaultSpot(shape, index, cap) {
+    const perRow = Math.max(1, Math.round(Math.sqrt(cap * shape.cols / shape.rows)));
+    const rows = Math.max(1, Math.ceil(cap / perRow));
+    const col = index % perRow;
+    const row = Math.floor(index / perRow) % rows;
+    return {
+      u: ((col + 0.5) * shape.cols) / perRow,
+      v: ((row + 0.5) * shape.rows) / rows,
+    };
+  }
+
+  function spotOf(room, index, shape) {
+    const s = room.spots && room.spots[index];
+    if (s) return s;
+    return defaultSpot(shape, index, room.layout.length);
+  }
+
+  // "Next to" is a distance now. Two pieces help each other when they stand
+  // within about a piece-and-a-half of one another -- again a distance in
+  // gear, not in lattice tiles.
+  const SYNERGY_REACH = 1.4 * PROP_SCALE;
+
+  // Every piece's synergy multiplier in one pass, so neither the earnings
+  // sum nor the draw loop has to re-walk the room for each piece.
+  function synergyMultipliers(room, shape) {
+    const layout = room.layout;
+    const n = layout.length;
+    const mult = new Array(n).fill(1);
+    const at = new Array(n).fill(null);
+    for (let i = 0; i < n; i++) if (layout[i]) at[i] = spotOf(room, i, shape);
+    for (let i = 0; i < n; i++) {
+      if (!layout[i]) continue;
+      const cat = CATEGORY[layout[i]];
+      for (let j = 0; j < n; j++) {
+        if (j === i || !layout[j]) continue;
+        if (Math.hypot(at[i].u - at[j].u, at[i].v - at[j].v) > SYNERGY_REACH) continue;
+        const nCat = CATEGORY[layout[j]];
+        if (nCat === cat) mult[i] += SAME_CATEGORY_BONUS;
+        else if (nCat === 'booster') mult[i] += BOOSTER_NEARBY_BONUS;
+      }
+    }
+    return mult;
   }
 
   // Per-slot multiplier from adjacent gear: +12% for each neighbor of the
   // same category, +20% for each neighboring booster (trainer/gear/hq) of
   // a *different* category. Two boosters next to each other just count as
   // a same-category match.
-  function itemSynergyMultiplier(layout, index, shape) {
-    const itemId = layout[index];
-    if (!itemId) return 1;
-    const cat = CATEGORY[itemId];
-    let mult = 1;
-    neighborIndexes(index, shape).forEach((nIdx) => {
-      const nId = layout[nIdx];
-      if (!nId) return;
-      const nCat = CATEGORY[nId];
-      if (nCat === cat) mult += SAME_CATEGORY_BONUS;
-      else if (nCat === 'booster') mult += BOOSTER_NEARBY_BONUS;
-    });
-    return mult;
-  }
+
 
   // Gains/sec now comes entirely from what's placed in the room, not from
   // raw ownership -- gear sitting unplaced in inventory earns nothing.
   // Synergy is computed per-room: adjacency only matters within the same
   // grid, so equipment in different rooms never interacts.
-  function computeGps(layout, shape) {
+  function computeGps(room, shape) {
+    const mult = synergyMultipliers(room, shape);
     let total = 0;
-    layout.forEach((itemId, index) => {
+    room.layout.forEach((itemId, index) => {
       const item = itemId && itemById(itemId);
       if (!item) return;
-      total += item.gps * itemSynergyMultiplier(layout, index, shape);
+      total += item.gps * mult[index];
     });
     return total;
   }
@@ -299,7 +366,7 @@
   function computeTotalGps(themeRooms) {
     return THEMES.reduce((sum, t) => (
       sum + (themeRooms[t.id] || []).reduce(
-        (s2, room, i) => s2 + computeGps(room.layout, roomShapeFor(t.id, i)), 0)
+        (s2, room, i) => s2 + computeGps(room, roomShapeFor(t.id, i)), 0)
     ), 0);
   }
 
@@ -325,7 +392,8 @@
   const MAX_ROOMS_PER_THEME = ROOM_UNLOCK_COSTS.length;
 
   function emptyGymRoom(themeId, index) {
-    return { layout: new Array(slotCountFor(themeId, index)).fill(null) };
+    const n = slotCountFor(themeId, index);
+    return { layout: new Array(n).fill(null), spots: new Array(n).fill(null) };
   }
 
   function defaultThemeRooms() {
@@ -342,7 +410,20 @@
     const arr = Array.isArray(source) ? source : [];
     const rooms = arr.slice(0, MAX_ROOMS_PER_THEME).map((r, i) => {
       const old = Array.isArray(r && r.layout) ? r.layout : [];
-      return { layout: new Array(slotCountFor(themeId, i)).fill(null).map((_, s) => old[s] || null) };
+      const oldSpots = Array.isArray(r && r.spots) ? r.spots : [];
+      const n = slotCountFor(themeId, i);
+      return {
+        layout: new Array(n).fill(null).map((_, k) => old[k] || null),
+        // Positions travel with the pieces. A save from before free
+        // placement has none, and spotOf falls back to the middle of the
+        // grid cell the slot index used to mean -- which is exactly where
+        // that piece was standing.
+        spots: new Array(n).fill(null).map((_, k) => {
+          const sp = oldSpots[k];
+          return sp && typeof sp.u === 'number' && typeof sp.v === 'number'
+            ? { u: sp.u, v: sp.v } : null;
+        }),
+      };
     });
     return rooms.length ? rooms : [emptyGymRoom(themeId, 0)];
   }
@@ -523,7 +604,7 @@
       const item = id && itemById(id);
       return sum + (item ? item.gps : 0);
     }, 0);
-    const roomGps = computeGps(layout, roomShapeFor(state.activeTheme, state.activeRoomIndex));
+    const roomGps = computeGps(activeRoom(), roomShapeFor(state.activeTheme, state.activeRoomIndex));
     const bonusPct = baseSum > 0 ? Math.round((roomGps / baseSum - 1) * 100) : 0;
     synergyEl.textContent = roomLabel() + ': ' + placed + '/' + layout.length
       + ' slots filled -- base ' + formatNum(baseSum) + '/s'
@@ -624,10 +705,13 @@
     // purchases sit in inventory until you free up a slot somewhere --
     // that's the point where arranging what to keep on the floor (or
     // switching theme, or buying another room) actually becomes a decision.
-    const layout = activeRoom().layout;
-    const emptyIndex = layout.indexOf(null);
+    const room = activeRoom();
+    const emptyIndex = room.layout.indexOf(null);
     if (emptyIndex !== -1) {
-      layout[emptyIndex] = id;
+      const shape = roomShapeFor(state.activeTheme, state.activeRoomIndex);
+      room.layout[emptyIndex] = id;
+      if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
+      room.spots[emptyIndex] = defaultSpot(shape, emptyIndex, room.layout.length);
       renderScene();
     }
     recomputeStats();
@@ -880,18 +964,6 @@
   }
   function cellCenter(gx, gy) {
     return isoPoint(gx + 0.5, gy + 0.5);
-  }
-  // A room's tiles, furthest-back first, so nearer gear paints over what is
-  // behind it.
-  function cellsBackToFront(place) {
-    const cells = [];
-    for (let ry = 0; ry < place.rows; ry++) {
-      for (let rx = 0; rx < place.cols; rx++) {
-        cells.push({ rx, ry, gx: place.gx0 + rx, gy: place.gy0 + ry });
-      }
-    }
-    cells.sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));
-    return cells;
   }
 
   // Accepts "#rgb", "#rrggbb" or the "rgb(r,g,b)" that shade() itself
@@ -1313,627 +1385,42 @@
   // stacked tires for garage, exposed ductwork for basement. Drawn before
   // the walls, so the walls correctly cover whatever part would fall
   // behind them.
-  // ---- The site ----
-  // What the plan stands in. Not a backdrop pinned to the canvas: an actual
-  // space built on the same isometric lattice as the rooms, with a floor
-  // running off three edges and its own back walls rising above -- a unit,
-  // a boiler room, a roof. The plan is a building inside it.
-  // The site has its own palette. Deriving it from the room colours produced
-  // a black hole to stand the plan in: those values are a room's shadowed
-  // inside, not a poured floor with lights on it.
-  const SITE_COLORS = {
-    garage: { floor: '#3b332a', wall: '#2b241d', trim: '#4b4136' },
-    basement: { floor: '#37424a', wall: '#28313a', trim: '#46525c' },
-    rooftop: { floor: '#333f4c', wall: '#2b3644', trim: '#44515f' },
-  };
+  // ---- Ground ----
+  // The rooms used to stand inside a bigger themed room -- a unit, a boiler
+  // room, a roof -- which read as a room inside a room and fought with the
+  // rooms themselves for attention. Now that a room is a room-sized space,
+  // it does not need a building drawn around it: it stands on open ground
+  // that carries the theme's colour and falls away into the dark.
 
-  const SITE_MARGIN = 3;        // tiles of floor beyond the plan, on the back sides
-  const SITE_FRONT_MARGIN = 5;  // and on the near sides, where it runs off screen
-  const SITE_WALL_H = 250;
-  const SITE_WALL_THICK = 0.5;  // tiles
+  function drawGroundLattice(colors) {
+    const step = 6;   // lattice tiles between lines
+    const halfW = ROOM.tileW / 2;
+    const halfH = ROOM.tileH / 2;
+    const reach = Math.ceil((BASE_W / halfW + BASE_H / halfH) / 2) + step * 2;
+    const span = reach * 2;
 
-  function siteRect() {
-    return {
-      gx0: planBounds.gx0 - SITE_MARGIN,
-      gy0: planBounds.gy0 - SITE_MARGIN,
-      gx1: planBounds.gx1 + SITE_FRONT_MARGIN,
-      gy1: planBounds.gy1 + SITE_FRONT_MARGIN,
-    };
-  }
-
-  function siteCorners() {
-    const r = siteRect();
-    return {
-      north: isoPoint(r.gx0, r.gy0),
-      east: isoPoint(r.gx1, r.gy0),
-      west: isoPoint(r.gx0, r.gy1),
-      south: isoPoint(r.gx1, r.gy1),
-      rect: r,
-    };
-  }
-
-  // Same idea as wallPoint, against the site's taller walls.
-  function sitePoint(from, to, t, hFrac) {
-    return {
-      x: from.x + (to.x - from.x) * t,
-      y: from.y + (to.y - from.y) * t - hFrac * SITE_WALL_H,
-    };
-  }
-  function siteQuad(from, to, t0, t1, h0, h1) {
-    return [
-      sitePoint(from, to, t0, h0), sitePoint(from, to, t1, h0),
-      sitePoint(from, to, t1, h1), sitePoint(from, to, t0, h1),
-    ];
-  }
-
-  // ---- Floor ----
-  // Big poured slabs, four lattice tiles to a bay, so the ground under the
-  // plan reads as a different, rougher surface than the rooms' own tiling.
-  function drawSiteFloor(site) {
-    const r = siteRect();
-    const base = site.floor;
-    const seam = 'rgba(0,0,0,0.4)';
-    for (let gy = r.gy0; gy < r.gy1; gy += 2) {
-      for (let gx = r.gx0; gx < r.gx1; gx += 2) {
-        const n = Math.abs((gx * 7 + gy * 13) % 5);
-        paintQuad([
-          isoPoint(gx, gy), isoPoint(gx + 2, gy),
-          isoPoint(gx + 2, gy + 2), isoPoint(gx, gy + 2),
-        ], shade(base, n * 2 - 4), seam, 1);
-      }
-    }
-    // Grime worked into the slab. One patch per cell would land on the
-    // lattice and read as polka dots, so these are a handful of big soft
-    // pools at scattered spots, sized off a hash of where they land.
-    for (let gy = r.gy0; gy < r.gy1; gy += 3) {
-      for (let gx = r.gx0; gx < r.gx1; gx += 3) {
-        const h = Math.abs((gx * 73 + gy * 149) % 11);
-        if (h > 4) continue;
-        const c = cellCenter(gx + (h % 3) * 0.7, gy + (h % 2) * 0.9);
-        const rad = ROOM.tileW * (0.9 + h * 0.28);
-        const g = floorCtx.createRadialGradient(c.x, c.y, rad * 0.1, c.x, c.y, rad);
-        g.addColorStop(0, 'rgba(0,0,0,0.16)');
-        g.addColorStop(1, 'rgba(0,0,0,0)');
-        floorCtx.save();
-        floorCtx.translate(c.x, c.y);
-        floorCtx.scale(1, ROOM.tileH / ROOM.tileW);
-        floorCtx.fillStyle = g;
-        floorCtx.beginPath();
-        floorCtx.arc(0, 0, rad, 0, Math.PI * 2);
-        floorCtx.fill();
-        floorCtx.restore();
-      }
-    }
-  }
-
-  // A puddle: a shallow pool with a colour-cast sheen, which is most of what
-  // makes a concrete floor look like it belongs somewhere real.
-  function drawPuddle(gx, gy, rx, sheen) {
-    const c = cellCenter(gx, gy);
-    floorCtx.beginPath();
-    floorCtx.ellipse(c.x, c.y, rx, rx * 0.42, 0, 0, Math.PI * 2);
-    floorCtx.fillStyle = 'rgba(0,0,0,0.34)';
-    floorCtx.fill();
-    floorCtx.beginPath();
-    floorCtx.ellipse(c.x - rx * 0.1, c.y - rx * 0.05, rx * 0.72, rx * 0.26, 0, 0, Math.PI * 2);
-    floorCtx.fillStyle = sheen;
-    floorCtx.fill();
-  }
-
-  // A drain set flush into the slab.
-  function drawFloorDrain(gx, gy, site) {
-    const c = cellCenter(gx, gy);
-    const half = 0.3;
-    paintQuad([
-      isoPoint(gx + 0.5 - half, gy + 0.5 - half), isoPoint(gx + 0.5 + half, gy + 0.5 - half),
-      isoPoint(gx + 0.5 + half, gy + 0.5 + half), isoPoint(gx + 0.5 - half, gy + 0.5 + half),
-    ], shade(site.floor, -22), 'rgba(0,0,0,0.6)', 1.4);
-    floorCtx.strokeStyle = shade(site.floor, 14);
-    floorCtx.lineWidth = 1.4;
-    for (let i = 1; i < 5; i++) {
-      const t = -half + (half * 2 * i) / 5;
-      const a = isoPoint(gx + 0.5 + t, gy + 0.5 - half);
-      const b = isoPoint(gx + 0.5 + t, gy + 0.5 + half);
+    floorCtx.save();
+    floorCtx.strokeStyle = shade(colors.bg, 12);
+    floorCtx.lineWidth = 1;
+    for (let i = -reach; i <= reach; i += step) {
+      const a = isoPoint(i, -span);
+      const b = isoPoint(i, span);
       floorCtx.beginPath();
       floorCtx.moveTo(a.x, a.y);
       floorCtx.lineTo(b.x, b.y);
       floorCtx.stroke();
-    }
-    floorCtx.fillStyle = 'rgba(255,255,255,0.05)';
-    floorCtx.beginPath();
-    floorCtx.ellipse(c.x, c.y, 26, 11, 0, 0, Math.PI * 2);
-    floorCtx.fill();
-  }
-
-  // Hazard markings painted onto the slab, running along a lattice axis.
-  function drawFloorStripe(gx0, gy0, len, axis, color) {
-    const w = 0.14;
-    const a = axis === 'gx'
-      ? [isoPoint(gx0, gy0 - w), isoPoint(gx0 + len, gy0 - w),
-         isoPoint(gx0 + len, gy0 + w), isoPoint(gx0, gy0 + w)]
-      : [isoPoint(gx0 - w, gy0), isoPoint(gx0 + w, gy0),
-         isoPoint(gx0 + w, gy0 + len), isoPoint(gx0 - w, gy0 + len)];
-    paintQuad(a, color, null, 0);
-  }
-
-  // ---- Wall furniture ----
-  // A lit tube on a wall: the fitting, then the light it throws onto the
-  // wall around it. Cheap, and it is what carries the mood in all three.
-  // Light spilling across a wall. A plain radial gradient in screen space
-  // hangs in front of the wall as a disc, which is what made the big fittings
-  // look stuck on; this lays the glow ON the wall plane instead -- stretched
-  // along the wall's own direction, upright in screen space, because that is
-  // how a wall runs in this projection -- so it washes along the surface the
-  // way light actually does.
-  function wallGlow(from, to, t, hFrac, color, alongR, upR, strength) {
-    const dir = { x: to.x - from.x, y: to.y - from.y };
-    const len = Math.hypot(dir.x, dir.y) || 1;
-    const at = sitePoint(from, to, t, hFrac);
-    floorCtx.save();
-    floorCtx.translate(at.x, at.y);
-    floorCtx.transform((dir.x / len) * alongR, (dir.y / len) * alongR, 0, upR, 0, 0);
-    const g = floorCtx.createRadialGradient(0, 0, 0, 0, 0, 1);
-    g.addColorStop(0, alphaOf(color, strength));
-    g.addColorStop(0.45, alphaOf(color, strength * 0.42));
-    g.addColorStop(1, alphaOf(color, 0));
-    floorCtx.fillStyle = g;
-    floorCtx.beginPath();
-    floorCtx.arc(0, 0, 1, 0, Math.PI * 2);
-    floorCtx.fill();
-    floorCtx.restore();
-  }
-
-  // Re-alpha an "rgb(...)"/"rgba(...)"/hex colour without disturbing its hue.
-  function alphaOf(color, a) {
-    const { r, g, b } = toRgb(color);
-    return `rgba(${r},${g},${b},${a})`;
-  }
-
-  function drawStripLight(from, to, t, hFrac, site, glowColor, len) {
-    const half = (len || 0.075);
-    // The wash first, so the fitting itself sits crisply on top of it.
-    wallGlow(from, to, t, hFrac, glowColor, 300, 150, 0.26);
-    wallGlow(from, to, t, hFrac - 0.06, glowColor, 170, 70, 0.2);
-
-    paintQuad(siteQuad(from, to, t - half, t + half, hFrac - 0.022, hFrac + 0.022),
-      shade(site.wall, 40), 'rgba(0,0,0,0.45)', 1);
-    paintQuad(siteQuad(from, to, t - half * 0.9, t + half * 0.9, hFrac - 0.012, hFrac + 0.012),
-      glowColor, null, 0);
-
-    // And a pool of it on the floor below, squashed onto the ground plane.
-    const foot = sitePoint(from, to, t, 0);
-    floorCtx.save();
-    floorCtx.translate(foot.x, foot.y);
-    const dir = { x: to.x - from.x, y: to.y - from.y };
-    const dl = Math.hypot(dir.x, dir.y) || 1;
-    floorCtx.transform((dir.x / dl) * 200, (dir.y / dl) * 200, 0, 62, 0, 0);
-    const pool = floorCtx.createRadialGradient(0, 0, 0, 0, 0, 1);
-    pool.addColorStop(0, alphaOf(glowColor, 0.1));
-    pool.addColorStop(1, alphaOf(glowColor, 0));
-    floorCtx.fillStyle = pool;
-    floorCtx.beginPath();
-    floorCtx.arc(0, 0, 1, 0, Math.PI * 2);
-    floorCtx.fill();
-    floorCtx.restore();
-  }
-
-  // A louvred vent grille.
-  function drawWallVent(from, to, t, hFrac, site) {
-    const w = 0.05;
-    const h = 0.08;
-    paintQuad(siteQuad(from, to, t - w, t + w, hFrac - h, hFrac + h),
-      shade(site.wall, -8), 'rgba(0,0,0,0.5)', 1.2);
-    for (let i = 1; i < 6; i++) {
-      const hh = hFrac - h + (h * 2 * i) / 6;
-      paintQuad(siteQuad(from, to, t - w * 0.86, t + w * 0.86, hh - 0.006, hh + 0.006),
-        shade(site.wall, 26), null, 0);
-    }
-  }
-
-  // A junction box, with the yellow triangle every one of them carries.
-  function drawWallBox(from, to, t, hFrac, site, warn) {
-    const w = 0.045;
-    const h = 0.11;
-    paintQuad(siteQuad(from, to, t - w, t + w, hFrac - h, hFrac + h),
-      shade(site.wall, 18), 'rgba(0,0,0,0.55)', 1.2);
-    paintQuad(siteQuad(from, to, t - w * 0.8, t + w * 0.8, hFrac - h * 0.8, hFrac + h * 0.8),
-      shade(site.wall, 30), 'rgba(0,0,0,0.3)', 1);
-    if (warn) {
-      const a = sitePoint(from, to, t, hFrac + h * 0.32);
-      const b = sitePoint(from, to, t - w * 0.42, hFrac - h * 0.28);
-      const c = sitePoint(from, to, t + w * 0.42, hFrac - h * 0.28);
-      paintQuad([a, c, b], 'rgba(224,178,54,0.85)', 'rgba(0,0,0,0.4)', 1);
-    }
-  }
-
-  // A pipe run along a wall, with a bracket every so often.
-  function drawWallPipe(from, to, hFrac, site, width) {
-    const a = sitePoint(from, to, -0.02, hFrac);
-    const b = sitePoint(from, to, 1.02, hFrac);
-    floorCtx.save();
-    floorCtx.lineCap = 'round';
-    floorCtx.strokeStyle = shade(site.wall, 20);
-    floorCtx.lineWidth = width;
-    floorCtx.beginPath();
-    floorCtx.moveTo(a.x, a.y);
-    floorCtx.lineTo(b.x, b.y);
-    floorCtx.stroke();
-    floorCtx.strokeStyle = shade(site.wall, 46);
-    floorCtx.lineWidth = width * 0.3;
-    floorCtx.beginPath();
-    floorCtx.moveTo(a.x, a.y - width * 0.28);
-    floorCtx.lineTo(b.x, b.y - width * 0.28);
-    floorCtx.stroke();
-    floorCtx.restore();
-    for (let t = 0.1; t < 1; t += 0.22) {
-      const p = sitePoint(from, to, t, hFrac);
-      paintQuad(siteQuad(from, to, t - 0.012, t + 0.012,
-        hFrac - width / SITE_WALL_H * 0.8, hFrac + width / SITE_WALL_H * 0.8),
-        shade(site.wall, 6), null, 0);
-      void p;
-    }
-  }
-
-  // ---- Floor furniture ----
-  function drawCrate(gx, gy, size, site, lift) {
-    const base = isoPoint(gx, gy);
-    drawIsoBox(floorCtx, base, 0, 0, size, size, size * 150, shade(site.trim, 10), lift || 0);
-  }
-
-  function drawBarrel(gx, gy, site) {
-    const base = isoPoint(gx, gy);
-    const h = 62;
-    const rx = 26;
-    floorCtx.beginPath();
-    floorCtx.moveTo(base.x - rx, base.y - h);
-    floorCtx.lineTo(base.x - rx, base.y);
-    floorCtx.ellipse(base.x, base.y, rx, rx * 0.42, 0, Math.PI, 0, true);
-    floorCtx.lineTo(base.x + rx, base.y - h);
-    floorCtx.closePath();
-    const g = floorCtx.createLinearGradient(base.x - rx, 0, base.x + rx, 0);
-    g.addColorStop(0, shade(site.trim, -22));
-    g.addColorStop(0.45, shade(site.trim, 6));
-    g.addColorStop(1, shade(site.trim, -28));
-    floorCtx.fillStyle = g;
-    floorCtx.fill();
-    floorCtx.strokeStyle = 'rgba(0,0,0,0.5)';
-    floorCtx.lineWidth = 1;
-    floorCtx.stroke();
-    floorCtx.beginPath();
-    floorCtx.ellipse(base.x, base.y - h, rx, rx * 0.42, 0, 0, Math.PI * 2);
-    floorCtx.fillStyle = shade(site.trim, 10);
-    floorCtx.fill();
-    floorCtx.stroke();
-  }
-
-  function drawTyreStack(gx, gy, n, site) {
-    const base = isoPoint(gx, gy);
-    for (let i = 0; i < n; i++) {
-      const y = base.y - i * 15;
+      const c = isoPoint(-span, i);
+      const d = isoPoint(span, i);
       floorCtx.beginPath();
-      floorCtx.ellipse(base.x, y, 30, 14, 0, 0, Math.PI * 2);
-      floorCtx.fillStyle = shade(site.floor, -18 + i * 3);
-      floorCtx.fill();
-      floorCtx.strokeStyle = 'rgba(0,0,0,0.55)';
-      floorCtx.lineWidth = 1;
+      floorCtx.moveTo(c.x, c.y);
+      floorCtx.lineTo(d.x, d.y);
       floorCtx.stroke();
     }
-    floorCtx.beginPath();
-    floorCtx.ellipse(base.x, base.y - (n - 1) * 15, 12, 5.5, 0, 0, Math.PI * 2);
-    floorCtx.fillStyle = 'rgba(0,0,0,0.55)';
-    floorCtx.fill();
-  }
-
-  // Shelving: an open frame of uprights and shelves, with boxes on it.
-  function drawShelving(gx, gy, bays, site) {
-    const base = isoPoint(gx, gy);
-    const w = bays * 0.9;
-    drawIsoBox(floorCtx, base, w / 2, 0, w / 2, 0.16, 8, shade(site.trim, -2), 0);
-    for (let level = 0; level < 3; level++) {
-      const lift = 34 + level * 46;
-      drawIsoBox(floorCtx, base, w / 2, 0, w / 2, 0.16, 6, shade(site.trim, 2), lift);
-      for (let b = 0; b < bays; b++) {
-        if (((b * 7 + level * 5) % 3) === 0) continue;
-        drawIsoBox(floorCtx, base, 0.45 + b * 0.9, 0, 0.24, 0.12, 26,
-          shade(site.trim, 16 + ((b + level) % 3) * 12), lift + 6);
-      }
-    }
-  }
-
-  // ---- Site shells, one per theme ----
-  // Each builds the same three things in the same order -- floor, enclosure,
-  // then what is standing around in it -- but a boiler room, a workshop and
-  // a roof are different enough places that they get their own.
-
-  function drawSiteWalls(site) {
-    const c = siteCorners();
-    const depthE = isoVecRaw(0, -SITE_WALL_THICK);
-    const depthW = isoVecRaw(-SITE_WALL_THICK, 0);
-    drawWallSlab(c.north, c.east, SITE_WALL_H, depthE, site.wall);
-    drawWallSlab(c.north, c.west, SITE_WALL_H, depthW, site.wall);
-    drawWallCorner(c.north, depthE, depthW, SITE_WALL_H, site.wall);
-    drawBaseboard(c.east, c.north);
-    drawBaseboard(c.north, c.west);
-    return c;
-  }
-
-  const SITE = {
-    basement: (site) => {
-      drawSiteFloor(site);
-      const c = drawSiteWalls(site);
-      const cyan = 'rgba(150,240,240,0.9)';
-
-      [c.east, c.west].forEach((far, side) => {
-        // Damp streaking down the concrete, under the pipe run.
-        for (let t = 0.08; t < 1; t += 0.17) {
-          paintQuad(siteQuad(c.north, far, t, t + 0.035, 0.05, 0.86),
-            'rgba(0,0,0,0.13)', null, 0);
-        }
-        drawWallPipe(c.north, far, 0.9, site, 13);
-        drawWallPipe(c.north, far, 0.82, site, 7);
-        drawWallVent(c.north, far, side ? 0.36 : 0.44, 0.6, site);
-        drawWallBox(c.north, far, side ? 0.62 : 0.68, 0.62, site, true);
-        drawWallBox(c.north, far, side ? 0.52 : 0.16, 0.5, site, false);
-        [0.24, 0.64].forEach((t, i) => {
-          if (side === 1 && i === 1) return;
-          drawStripLight(c.north, far, t, 0.72, site, cyan);
-        });
-      });
-
-      const r = siteRect();
-      drawCrate(r.gx0 + 1.0, r.gy0 + 2.6, 0.34, site);
-      drawCrate(r.gx0 + 1.1, r.gy0 + 1.4, 0.28, site);
-      drawBarrel(r.gx0 + 0.8, r.gy0 + 3.9, site);
-      drawCrate(r.gx1 - 1.3, r.gy0 + 1.1, 0.32, site);
-      drawBarrel(r.gx1 - 1.1, r.gy0 + 2.3, site);
-
-      const sheen = 'rgba(150,230,240,0.16)';
-      [[r.gx0 + 3, r.gy0 + 6, 60], [r.gx1 - 3, r.gy0 + 4, 48],
-       [r.gx0 + 5, r.gy1 - 3, 66], [r.gx1 - 5, r.gy1 - 4, 44]]
-        .forEach(([gx, gy, rx]) => drawPuddle(gx, gy, rx, sheen));
-      [[r.gx0 + 2, r.gy0 + 4], [r.gx1 - 4, r.gy1 - 3], [r.gx0 + 6, r.gy1 - 2]]
-        .forEach(([gx, gy]) => drawFloorDrain(gx, gy, site));
-    },
-
-    garage: (site) => {
-      drawSiteFloor(site);
-      const c = drawSiteWalls(site);
-      const amber = 'rgba(255,206,130,0.9)';
-
-      // Timber cladding: vertical boarding down both walls.
-      [c.east, c.west].forEach((far) => {
-        for (let t = 0; t < 1; t += 0.035) {
-          paintQuad(siteQuad(c.north, far, t, t + 0.035, 0, 1),
-            null, 'rgba(0,0,0,0.2)', 1);
-        }
-      });
-
-      // The roller shutter, along the left-hand wall.
-      const sh0 = 0.52;
-      const sh1 = 0.8;
-      paintQuad(siteQuad(c.north, c.west, sh0, sh1, 0, 0.62),
-        shade(site.wall, -10), 'rgba(0,0,0,0.55)', 1.6);
-      for (let h = 0.03; h < 0.6; h += 0.036) {
-        paintQuad(siteQuad(c.north, c.west, sh0 + 0.012, sh1 - 0.012, h, h + 0.021),
-          shade(site.wall, 22), null, 0);
-      }
-      // Cold daylight leaking in under it, and the wedge of it on the floor.
-      paintQuad(siteQuad(c.north, c.west, sh0 + 0.02, sh1 - 0.02, 0, 0.028),
-        'rgba(180,220,255,0.55)', null, 0);
-      const sA = sitePoint(c.north, c.west, sh0 + 0.02, 0);
-      const sB = sitePoint(c.north, c.west, sh1 - 0.02, 0);
-      const reach = isoVecRaw(3.2, 0);
-      const spill = floorCtx.createLinearGradient(sA.x, sA.y, sA.x + reach.x, sA.y + reach.y);
-      spill.addColorStop(0, 'rgba(150,200,255,0.20)');
-      spill.addColorStop(1, 'rgba(150,200,255,0)');
-      paintQuad([sA, sB, { x: sB.x + reach.x, y: sB.y + reach.y },
-        { x: sA.x + reach.x, y: sA.y + reach.y }], spill, null, 0);
-
-      // Pegboard of tools over the bench, on the right-hand wall.
-      const pb0 = 0.44;
-      const pb1 = 0.7;
-      paintQuad(siteQuad(c.north, c.east, pb0, pb1, 0.44, 0.68),
-        shade(site.wall, -12), 'rgba(0,0,0,0.5)', 1.2);
-      for (let i = 0; i < 11; i++) {
-        const t = pb0 + 0.014 + i * 0.0225;
-        if (i % 4 === 3) continue;
-        paintQuad(siteQuad(c.north, c.east, t, t + 0.009, 0.48, 0.64),
-          i % 3 ? 'rgba(206,178,132,0.7)' : 'rgba(176,86,72,0.7)', null, 0);
-      }
-
-      drawStripLight(c.north, c.west, 0.2, 0.8, site, amber, 0.1);
-      drawStripLight(c.north, c.west, 0.92, 0.74, site, amber, 0.08);
-      [0.2, 0.56, 0.88].forEach((t) => drawStripLight(c.north, c.east, t, 0.82, site, amber, 0.09));
-
-      const r = siteRect();
-      // A bench under the pegboard, running along the back-right wall.
-      for (let i = 0; i < 4; i++) {
-        const b = isoPoint(r.gx1 - 5.4 + i * 0.95, r.gy0 + 0.62);
-        drawIsoBox(floorCtx, b, 0, 0, 0.42, 0.2, 44, shade(site.trim, -6), 0);
-        drawIsoBox(floorCtx, b, 0, 0, 0.46, 0.23, 11, shade(site.trim, 22), 46);
-      }
-      drawShelving(r.gx0 + 0.8, r.gy0 + 1.3, 2, site);
-      drawShelving(r.gx1 - 2.8, r.gy0 + 0.7, 2, site);
-      drawTyreStack(r.gx0 + 0.9, r.gy0 + 4.3, 4, site);
-      drawTyreStack(r.gx1 - 1.0, r.gy0 + 3.5, 3, site);
-      drawBarrel(r.gx0 + 2.0, r.gy0 + 0.9, site);
-
-      // Bay markings and the drain channel across the floor.
-      const yellow = 'rgba(206,160,48,0.42)';
-      drawFloorStripe(r.gx0 + 2, r.gy1 - 4, 6, 'gx', yellow);
-      drawFloorStripe(r.gx0 + 2, r.gy1 - 4, 5, 'gy', yellow);
-      drawFloorStripe(r.gx1 - 3, r.gy0 + 3, 5, 'gy', yellow);
-      for (let i = 0; i < 5; i++) drawFloorDrain(r.gx0 + 3 + i, r.gy1 - 2, site);
-      [[r.gx0 + 4, r.gy0 + 5, 54], [r.gx1 - 4, r.gy1 - 5, 44]]
-        .forEach(([gx, gy, rx]) => drawPuddle(gx, gy, rx, 'rgba(255,214,150,0.10)'));
-    },
-
-    rooftop: (site) => {
-      // No enclosure up here: a night sky, a city standing in it, and a low
-      // parapet at the edge of the deck.
-      const c = siteCorners();
-      const horizon = c.north.y;
-      const sky = floorCtx.createLinearGradient(0, 0, 0, horizon + 60);
-      sky.addColorStop(0, '#0b1428');
-      sky.addColorStop(0.55, '#182842');
-      sky.addColorStop(1, '#27405e');
-      floorCtx.fillStyle = sky;
-      floorCtx.fillRect(0, 0, BASE_W, horizon + 60);
-
-      // The city, in two ranks -- the far one hazier and set back. Drawn
-      // either side of the moon and the landmarks, so those stand between
-      // the ranks instead of behind everything.
-      const skylineBase = horizon - 26;
-      const drawRank = (rank) => {
-        let x = -70;
-        let seed = rank.seed;
-        while (x < BASE_W + 70) {
-          seed = wobbleSeed(seed);
-          const w = 46 + (seed % 6) * 17;
-          const h = (95 + (seed % 9) * 36) * rank.tall;
-          const top = skylineBase - rank.set - h;
-          floorCtx.fillStyle = rank.tint;
-          floorCtx.fillRect(x, top, w, h + rank.set + 160);
-          const warm = `rgba(255,204,126,${rank.lit})`;
-          const cool = `rgba(126,214,240,${rank.lit})`;
-          for (let wy = top + 15; wy < top + h - 12; wy += 18) {
-            for (let wx = x + 8; wx < x + w - 10; wx += 14) {
-              if (((wx * 13 + wy * 7) % 5) >= 2) continue;
-              floorCtx.fillStyle = ((wx + wy) % 3) === 0 ? cool : warm;
-              floorCtx.fillRect(wx, wy, 5, 8);
-            }
-          }
-          if ((seed % 4) === 0) {
-            floorCtx.fillStyle = 'rgba(255,86,74,0.9)';
-            floorCtx.fillRect(x + w / 2 - 2, top - 8, 4, 6);
-          }
-          x += w + 9 + (seed % 4) * 8;
-        }
-      };
-
-      drawRank({ set: 90, tint: '#1d2f4e', lit: 0.30, tall: 1.2, seed: 9 });
-
-      // Moon, high enough to clear the towers.
-      const moon = { x: BASE_W * 0.79, y: 92 };
-      const halo = floorCtx.createRadialGradient(moon.x, moon.y, 6, moon.x, moon.y, 170);
-      halo.addColorStop(0, 'rgba(226,236,255,0.5)');
-      halo.addColorStop(1, 'rgba(226,236,255,0)');
-      floorCtx.fillStyle = halo;
-      floorCtx.beginPath();
-      floorCtx.arc(moon.x, moon.y, 170, 0, Math.PI * 2);
-      floorCtx.fill();
-      floorCtx.beginPath();
-      floorCtx.arc(moon.x, moon.y, 36, 0, Math.PI * 2);
-      floorCtx.fillStyle = '#e9efff';
-      floorCtx.fill();
-      floorCtx.beginPath();
-      floorCtx.arc(moon.x - 11, moon.y - 6, 6, 0, Math.PI * 2);
-      floorCtx.arc(moon.x + 9, moon.y + 8, 8, 0, Math.PI * 2);
-      floorCtx.fillStyle = 'rgba(196,208,232,0.55)';
-      floorCtx.fill();
-
-      drawRank({ set: 0, tint: '#131f38', lit: 0.55, tall: 0.9, seed: 23 });
-
-      // Water tower and a comms mast, standing clear in front of the city.
-      const silhouette = '#0e1a2e';
-      const wt = { x: BASE_W * 0.1, y: skylineBase - 30 };
-      floorCtx.fillStyle = silhouette;
-      [-38, -12, 12, 38].forEach((dx) => floorCtx.fillRect(wt.x + dx, wt.y - 66, 6, 70));
-      floorCtx.fillRect(wt.x - 45, wt.y - 128, 90, 64);
-      floorCtx.beginPath();
-      floorCtx.moveTo(wt.x - 52, wt.y - 128);
-      floorCtx.lineTo(wt.x, wt.y - 158);
-      floorCtx.lineTo(wt.x + 52, wt.y - 128);
-      floorCtx.closePath();
-      floorCtx.fill();
-      // A rim of moonlight down one side, or the tower is a black slab.
-      floorCtx.fillStyle = 'rgba(198,216,246,0.18)';
-      floorCtx.fillRect(wt.x + 34, wt.y - 128, 11, 64);
-      floorCtx.fillStyle = 'rgba(198,216,246,0.12)';
-      floorCtx.fillRect(wt.x - 45, wt.y - 130, 90, 4);
-      floorCtx.strokeStyle = 'rgba(198,216,246,0.14)';
-      floorCtx.lineWidth = 2;
-      for (let ry = wt.y - 120; ry < wt.y - 68; ry += 15) {
-        floorCtx.beginPath();
-        floorCtx.moveTo(wt.x - 43, ry);
-        floorCtx.lineTo(wt.x + 43, ry);
-        floorCtx.stroke();
-      }
-
-      const mast = { x: BASE_W * 0.93, y: skylineBase - 22 };
-      floorCtx.fillStyle = silhouette;
-      floorCtx.fillRect(mast.x - 4, mast.y - 152, 8, 156);
-      [-116, -86, -56].forEach((dy) => floorCtx.fillRect(mast.x - 15, mast.y + dy, 30, 5));
-      floorCtx.fillStyle = 'rgba(255,86,74,0.95)';
-      floorCtx.fillRect(mast.x - 4, mast.y - 163, 8, 9);
-
-      drawSiteFloor(site);
-
-      // The parapet: a low wall around the two back edges, lights set in it.
-      const parapetH = 66;
-      const depthE = isoVecRaw(0, -SITE_WALL_THICK);
-      const depthW = isoVecRaw(-SITE_WALL_THICK, 0);
-      drawWallSlab(c.north, c.east, parapetH, depthE, site.wall);
-      drawWallSlab(c.north, c.west, parapetH, depthW, site.wall);
-      drawWallCorner(c.north, depthE, depthW, parapetH, site.wall);
-      [c.east, c.west].forEach((far) => {
-        for (let t = 0.14; t < 1; t += 0.24) {
-          const at = (f) => ({ x: c.north.x + (far.x - c.north.x) * f,
-                               y: c.north.y + (far.y - c.north.y) * f });
-          const a = at(t);
-          const b = at(t + 0.032);
-          // Same reasoning as the strip lights: the wash lies along the
-          // parapet, not as a disc hanging in front of it.
-          wallGlow(c.north, far, t + 0.016, 0.132, 'rgba(255,198,112,1)', 150, 62, 0.22);
-          paintQuad([liftPt(a, 40), liftPt(b, 40), liftPt(b, 26), liftPt(a, 26)],
-            'rgba(255,198,112,0.9)', null, 0);
-        }
-      });
-
-      // Plant on the deck.
-      const r = siteRect();
-      const unit = isoPoint(r.gx0 + 1.2, r.gy0 + 5.2);
-      drawIsoBox(floorCtx, unit, 0, 0, 0.62, 0.46, 74, shade(site.trim, 24), 0);
-      [[-0.24, -0.18], [0.24, 0.18]].forEach(([u, v]) => {
-        const o = isoVecRaw(u, v);
-        const f = { x: unit.x + o.x, y: unit.y + o.y - 76 };
-        floorCtx.beginPath();
-        floorCtx.ellipse(f.x, f.y, 25, 12, 0, 0, Math.PI * 2);
-        floorCtx.fillStyle = shade(site.trim, -2);
-        floorCtx.fill();
-        floorCtx.strokeStyle = shade(site.trim, 44);
-        floorCtx.lineWidth = 1.4;
-        floorCtx.stroke();
-      });
-      drawIsoBox(floorCtx, isoPoint(r.gx1 - 1.6, r.gy0 + 4.6), 0, 0, 0.4, 0.34, 56,
-        shade(site.trim, 20), 0);
-      drawIsoBox(floorCtx, isoPoint(r.gx0 + 2.4, r.gy0 + 7.0), 0, 0, 0.34, 0.3, 40,
-        shade(site.trim, 12), 0);
-      drawIsoBox(floorCtx, isoPoint(r.gx0 + 1.6, r.gy1 - 5.0), 0, 0, 0.3, 0.26, 46,
-        shade(site.trim, 18), 0);
-      const stack = isoPoint(r.gx0 + 3.0, r.gy1 - 6.6);
-      drawIsoBox(floorCtx, stack, 0, 0, 0.16, 0.14, 52, shade(site.trim, 26), 0);
-      const steam = floorCtx.createRadialGradient(stack.x, stack.y - 92, 4, stack.x, stack.y - 92, 74);
-      steam.addColorStop(0, 'rgba(200,220,240,0.18)');
-      steam.addColorStop(1, 'rgba(200,220,240,0)');
-      floorCtx.fillStyle = steam;
-      floorCtx.beginPath();
-      floorCtx.arc(stack.x, stack.y - 92, 74, 0, Math.PI * 2);
-      floorCtx.fill();
-
-      [[r.gx0 + 4, r.gy1 - 4, 62], [r.gx1 - 4, r.gy0 + 5, 48], [r.gx0 + 6, r.gy0 + 6, 40]]
-        .forEach(([gx, gy, rx]) => drawPuddle(gx, gy, rx, 'rgba(180,215,255,0.16)'));
-    },
-  };
-
-  // Deterministic per-position jitter, so a skyline is uneven but does not
-  // reshuffle itself on every repaint.
-  function wobbleSeed(seed) {
-    return (seed * 37 + 11) % 97;
+    floorCtx.restore();
   }
 
   // A pool of the theme's own light over the plan, so the middle of the view
-  // is lit and the far corners of the site fall away.
+  // is lit and the ground falls away at the edges.
   function drawSiteWash(tint) {
     const cx = BLEED_SIDE + PLAN_W / 2;
     const cy = BLEED_TOP + PLAN_H / 2;
@@ -1951,22 +1438,19 @@
     floorCtx.restore();
   }
 
-  // Darkness closing in at the corners of the view. Where the plan is what
-  // you are meant to be looking at, this is what keeps your eye on it.
   function drawSiteVignette() {
     const cx = BLEED_SIDE + PLAN_W / 2;
     const cy = BLEED_TOP + PLAN_H / 2;
     const radius = Math.hypot(BASE_W, BASE_H) * 0.62;
     const g = floorCtx.createRadialGradient(cx, cy, radius * 0.55, cx, cy, radius);
     g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,0.4)');
+    g.addColorStop(1, 'rgba(0,0,0,0.45)');
     floorCtx.fillStyle = g;
     floorCtx.fillRect(0, 0, BASE_W, BASE_H);
   }
 
-  // Dissolve the last strip along each edge of the canvas. The site's own
-  // floor and walls are the frame now, but the canvas still has to stop
-  // somewhere, and a cut edge against the stage would be a box outline.
+  // Dissolve the last strip along each edge, so the ground runs out rather
+  // than stopping at a cut line.
   function maskAmbienceEdges() {
     const fade = 46;
     const edges = [
@@ -1988,8 +1472,8 @@
   }
 
   function drawAmbience(theme) {
-    const site = SITE_COLORS[theme] || SITE_COLORS.garage;
-    (SITE[theme] || SITE.garage)(site);
+    const colors = THEME_COLORS[theme] || THEME_COLORS.garage;
+    drawGroundLattice(colors);
     drawSiteWash(AMBIENT_WASH[theme] || AMBIENT_WASH.garage);
     drawSiteVignette();
     maskAmbienceEdges();
@@ -2689,25 +2173,6 @@
   // arranging a room with a pointer feel deliberate rather than approximate.
   let hoverCell = null;
 
-  function drawHoverTile(quad, occupied) {
-    // Amber to place, red to pack away, plain white when there is nothing
-    // armed and the tile is empty -- the same colours those two actions use
-    // everywhere else on the page.
-    const placing = armedItemId && !occupied;
-    const fill = occupied ? 'rgba(255,80,70,0.16)'
-      : placing ? 'rgba(255,183,3,0.24)' : 'rgba(255,255,255,0.09)';
-    const line = occupied ? 'rgba(255,120,110,0.9)'
-      : placing ? 'rgba(255,183,3,0.95)' : 'rgba(255,255,255,0.55)';
-    floorCtx.beginPath();
-    floorCtx.moveTo(quad[0].x, quad[0].y);
-    for (let i = 1; i < quad.length; i++) floorCtx.lineTo(quad[i].x, quad[i].y);
-    floorCtx.closePath();
-    floorCtx.fillStyle = fill;
-    floorCtx.fill();
-    floorCtx.strokeStyle = line;
-    floorCtx.lineWidth = 1.8;
-    floorCtx.stroke();
-  }
 
   function drawRoom(layout, colors, light, roomIndex) {
     const theme = state.activeTheme;
@@ -2734,54 +2199,45 @@
     drawWallDecor(theme, north, east, west, doors);
     drawRoomFittings(roomFitFor(roomIndex), north, east, west, doors);
 
-    const cells = cellsBackToFront(place);
+    // The lattice is far finer than a floor tile now -- it is what gear is
+    // positioned on, not what the floor is paved with -- so the paving is
+    // drawn in plates a few lattice tiles across, which is about the size a
+    // real floor tile would be.
+    const PLATE = 3;
+    for (let ry = 0; ry < shape.rows; ry += PLATE) {
+      for (let rx = 0; rx < shape.cols; rx += PLATE) {
+        const gx = place.gx0 + rx;
+        const gy = place.gy0 + ry;
+        const w = Math.min(PLATE, shape.cols - rx);
+        const h = Math.min(PLATE, shape.rows - ry);
+        const p0 = isoPoint(gx, gy);
+        const p1 = isoPoint(gx + w, gy);
+        const p2 = isoPoint(gx + w, gy + h);
+        const p3 = isoPoint(gx, gy + h);
+        const tileColor = ((rx / PLATE | 0) + (ry / PLATE | 0)) % 2 === 0
+          ? colors.floorA : colors.floorB;
+        paintQuad([p0, p1, p2, p3], tileColor, 'rgba(0,0,0,0.25)', 1);
 
-    cells.forEach(({ gx, gy, rx, ry }) => {
-      const p0 = isoPoint(gx, gy);
-      const p1 = isoPoint(gx + 1, gy);
-      const p2 = isoPoint(gx + 1, gy + 1);
-      const p3 = isoPoint(gx, gy + 1);
-      const tileColor = (gx + gy) % 2 === 0 ? colors.floorA : colors.floorB;
-      floorCtx.beginPath();
-      floorCtx.moveTo(p0.x, p0.y);
-      floorCtx.lineTo(p1.x, p1.y);
-      floorCtx.lineTo(p2.x, p2.y);
-      floorCtx.lineTo(p3.x, p3.y);
-      floorCtx.closePath();
-      floorCtx.fillStyle = tileColor;
-      floorCtx.fill();
-      floorCtx.strokeStyle = 'rgba(0,0,0,0.25)';
-      floorCtx.lineWidth = 1;
-      floorCtx.stroke();
-
-      // Beveled-tile look: a light seam along the two edges facing the
-      // room's light source (up/left in screen space), a dark seam along
-      // the two facing away, instead of one flat fill.
-      floorCtx.beginPath();
-      floorCtx.moveTo(p0.x, p0.y);
-      floorCtx.lineTo(p1.x, p1.y);
-      floorCtx.strokeStyle = shade(tileColor, 20);
-      floorCtx.lineWidth = 1;
-      floorCtx.stroke();
-      floorCtx.beginPath();
-      floorCtx.moveTo(p0.x, p0.y);
-      floorCtx.lineTo(p3.x, p3.y);
-      floorCtx.stroke();
-      floorCtx.beginPath();
-      floorCtx.moveTo(p2.x, p2.y);
-      floorCtx.lineTo(p1.x, p1.y);
-      floorCtx.strokeStyle = shade(tileColor, -20);
-      floorCtx.stroke();
-      floorCtx.beginPath();
-      floorCtx.moveTo(p2.x, p2.y);
-      floorCtx.lineTo(p3.x, p3.y);
-      floorCtx.stroke();
-
-      if (hoverCell && hoverCell.laneIndex === roomIndex
-          && hoverCell.cellIndex === ry * shape.cols + rx) {
-        drawHoverTile([p0, p1, p2, p3], layout[ry * shape.cols + rx]);
+        // A light seam along the two edges facing the room's light source
+        // and a dark one along the two facing away, so a plate reads as a
+        // slab with an edge rather than a flat fill.
+        floorCtx.beginPath();
+        floorCtx.moveTo(p0.x, p0.y);
+        floorCtx.lineTo(p1.x, p1.y);
+        floorCtx.moveTo(p0.x, p0.y);
+        floorCtx.lineTo(p3.x, p3.y);
+        floorCtx.strokeStyle = shade(tileColor, 16);
+        floorCtx.lineWidth = 1;
+        floorCtx.stroke();
+        floorCtx.beginPath();
+        floorCtx.moveTo(p2.x, p2.y);
+        floorCtx.lineTo(p1.x, p1.y);
+        floorCtx.moveTo(p2.x, p2.y);
+        floorCtx.lineTo(p3.x, p3.y);
+        floorCtx.strokeStyle = shade(tileColor, -18);
+        floorCtx.stroke();
       }
-    });
+    }
 
     drawSlabEdges(place, colors);
 
@@ -2796,59 +2252,120 @@
       drawLampFixture({ x: roomCenterFloor.x, y: roomCenterFloor.y - ROOM.wallH + 6 }, light);
     }
 
-    cells.forEach(({ gx, gy, rx, ry }) => {
-      const index = ry * shape.cols + rx;
-      const itemId = layout[index];
+    // Gear stands wherever it was put, not in a grid cell, so the draw
+    // order comes from the pieces themselves -- furthest back first, or a
+    // piece behind another would paint over it.
+    const room = activeRooms()[roomIndex];
+    const mult = synergyMultipliers(room, shape);
+    const standing = [];
+    layout.forEach((itemId, index) => {
       if (!itemId) return;
+      const spot = spotOf(room, index, shape);
+      standing.push({ index, itemId, spot });
+    });
+    standing.sort((a, b) => (a.spot.u + a.spot.v) - (b.spot.u + b.spot.v));
+
+    standing.forEach(({ index, itemId, spot }) => {
       const item = itemById(itemId);
       if (!item) return;
-      const c = cellCenter(gx, gy);
-      const catColor = CATEGORY_META[CATEGORY[itemId]].color;
-      const mult = itemSynergyMultiplier(layout, index, shape);
-
-      // A glowing ring means this piece is currently getting a synergy
-      // bonus from its neighbors -- direct visual payoff for arrangement.
-      if (mult > 1) {
+      const c = isoPoint(place.gx0 + spot.u, place.gy0 + spot.v);
+      if (hoverCell && hoverCell.roomIndex === roomIndex && hoverCell.index === index) {
+        floorCtx.save();
         floorCtx.beginPath();
-        floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * 0.33, ROOM.tileH * 0.28, 0, 0, Math.PI * 2);
-        floorCtx.strokeStyle = catColor;
-        floorCtx.lineWidth = 2;
-        floorCtx.shadowColor = catColor;
-        floorCtx.shadowBlur = 10;
+        floorCtx.ellipse(c.x, c.y + 2, PROP_TILE * 0.36, PROP_TILE * 0.18, 0, 0, Math.PI * 2);
+        floorCtx.strokeStyle = 'rgba(255,255,255,0.75)';
+        floorCtx.lineWidth = 1.6;
         floorCtx.stroke();
-        floorCtx.shadowBlur = 0;
+        floorCtx.restore();
       }
-
-      // Soft blurred contact shadow underneath, plus the crisper
-      // category-tinted pool on top -- reads as the item actually
-      // sitting on the floor instead of a flat sticker.
-      floorCtx.save();
-      floorCtx.filter = 'blur(3px)';
-      floorCtx.beginPath();
-      floorCtx.ellipse(c.x, c.y + 4, ROOM.tileW * 0.30, ROOM.tileH * 0.26, 0, 0, Math.PI * 2);
-      floorCtx.fillStyle = 'rgba(0,0,0,0.4)';
-      floorCtx.fill();
-      floorCtx.restore();
-
-      floorCtx.beginPath();
-      floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * 0.28, ROOM.tileH * 0.24, 0, 0, Math.PI * 2);
-      floorCtx.fillStyle = hexA(catColor, 0.34);
-      floorCtx.fill();
-
-      const sprite = itemSprites[itemId];
-      const drewSprite = sprite && drawItemSprite(floorCtx, c, sprite, itemId);
-      const build = PROP_BUILDERS[itemId];
-      if (drewSprite) {
-        // real icon art, already drawn above
-      } else if (build) {
-        build(floorCtx, c);
-      } else {
-        // Every current item has a PROP_BUILDER; this is just a safety net
-        // for a future item that doesn't yet, drawn as a plain block
-        // rather than any placeholder glyph.
-        drawIsoBox(floorCtx, c, 0, 0, 0.24, 0.24, 20, catColor, 0);
-      }
+      drawProp(itemId, c, mult[index], PROP_SCALE);
     });
+
+    if (editing && editing.roomIndex === roomIndex) {
+      drawHeldPiece(place, editing);
+    }
+  }
+
+  // The piece in your hands: a marked footprint on the floor so you can see
+  // exactly where it will stand, and the piece itself above it, lifted a
+  // little and lightened so it reads as held rather than placed.
+  function drawHeldPiece(place, held) {
+    const c = isoPoint(place.gx0 + held.spot.u, place.gy0 + held.spot.v);
+    const rx = ROOM.tileW * 0.3 * PROP_SCALE * 1.6;
+    const ry = ROOM.tileH * 0.3 * PROP_SCALE * 1.6;
+
+    floorCtx.save();
+    floorCtx.beginPath();
+    floorCtx.ellipse(c.x, c.y + 2, rx, ry, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = 'rgba(255,183,3,0.16)';
+    floorCtx.fill();
+    floorCtx.strokeStyle = 'rgba(255,183,3,0.95)';
+    floorCtx.lineWidth = 1.8;
+    floorCtx.setLineDash([5, 4]);
+    floorCtx.stroke();
+    floorCtx.setLineDash([]);
+    floorCtx.restore();
+
+    floorCtx.save();
+    floorCtx.globalAlpha = 0.82;
+    drawProp(held.itemId, { x: c.x, y: c.y - 10 }, 1, PROP_SCALE);
+    floorCtx.restore();
+  }
+
+  // One piece of gear, standing at c. Everything it is made of -- sprite or
+  // built shape, shadow, category pool, synergy ring -- is drawn at its
+  // native size inside a transform that scales about the piece's own base,
+  // so a single number changes how big gear is relative to the room without
+  // touching a line of the artwork.
+  function drawProp(itemId, c, mult, scale) {
+    const catColor = CATEGORY_META[CATEGORY[itemId]].color;
+    floorCtx.save();
+    floorCtx.translate(c.x, c.y);
+    floorCtx.scale(scale, scale);
+    floorCtx.translate(-c.x, -c.y);
+
+    // A glowing ring means this piece is currently getting a synergy
+    // bonus from what is standing near it -- the payoff for arrangement.
+    if (mult > 1) {
+      floorCtx.beginPath();
+      floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * 0.30, ROOM.tileH * 0.26, 0, 0, Math.PI * 2);
+      floorCtx.strokeStyle = hexA(catColor, 0.7);
+      floorCtx.lineWidth = 1.1;
+      floorCtx.shadowColor = catColor;
+      floorCtx.shadowBlur = 4;
+      floorCtx.stroke();
+      floorCtx.shadowBlur = 0;
+    }
+
+    // Soft blurred contact shadow underneath, plus the crisper
+    // category-tinted pool on top -- reads as the item actually sitting on
+    // the floor instead of a flat sticker.
+    floorCtx.save();
+    floorCtx.filter = 'blur(3px)';
+    floorCtx.beginPath();
+    floorCtx.ellipse(c.x, c.y + 4, ROOM.tileW * 0.30, ROOM.tileH * 0.26, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = 'rgba(0,0,0,0.4)';
+    floorCtx.fill();
+    floorCtx.restore();
+
+    floorCtx.beginPath();
+    floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * 0.28, ROOM.tileH * 0.24, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = hexA(catColor, 0.34);
+    floorCtx.fill();
+
+    const sprite = itemSprites[itemId];
+    const drewSprite = sprite && drawItemSprite(floorCtx, c, sprite, itemId);
+    const build = PROP_BUILDERS[itemId];
+    if (drewSprite) {
+      // real icon art, already drawn above
+    } else if (build) {
+      build(floorCtx, c);
+    } else {
+      // Every current item has a PROP_BUILDER; this is just a safety net for
+      // a future item that doesn't yet, drawn as a plain block.
+      drawIsoBox(floorCtx, c, 0, 0, 0.24, 0.24, 20, catColor, 0);
+    }
+    floorCtx.restore();
   }
 
   function pointFromEvent(e) {
@@ -2862,25 +2379,6 @@
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   }
 
-  // Every room is on the one lattice, so a click resolves to a single tile
-  // and then to whichever room's rectangle contains it -- no per-room origin
-  // to unwind first.
-  function gridCellFromPoint(px, py) {
-    const dx = px - worldOrigin.x;
-    const dy = py - worldOrigin.y;
-    const a = dx / (ROOM.tileW / 2);
-    const b = dy / (ROOM.tileH / 2);
-    const gx = Math.floor((a + b) / 2);
-    const gy = Math.floor((b - a) / 2);
-
-    for (let i = 0; i < placements.length; i++) {
-      const p = placements[i];
-      if (gx >= p.gx0 && gx < p.gx0 + p.cols && gy >= p.gy0 && gy < p.gy0 + p.rows) {
-        return { laneIndex: i, cellIndex: (gy - p.gy0) * p.cols + (gx - p.gx0) };
-      }
-    }
-    return null;
-  }
 
   // ---- Pan and pinch ----
   // One pointer drags the plan around; two fingers pinch to zoom. The canvas
@@ -2974,8 +2472,11 @@
       startScrollTop: stageScrollEl.scrollTop,
       pageScrolled: 0,
       moved: 0,
+      // Holding a piece turns a drag into carrying it. Panning is still
+      // there -- it is just what a drag does when your hands are empty.
+      carrying: !!editing,
     };
-    gestureEl.style.cursor = 'grabbing';
+    gestureEl.style.cursor = editing ? 'grabbing' : 'grabbing';
   });
 
   gestureEl.addEventListener('pointermove', (e) => {
@@ -2993,18 +2494,24 @@
     const dx = e.clientX - dragState.startClientX;
     const dy = e.clientY - dragState.startClientY;
     dragState.moved = Math.max(dragState.moved, Math.abs(dx), Math.abs(dy));
+    if (dragState.carrying) {
+      const p = pointFromEvent(e);
+      const hit = spotFromPoint(p.x, p.y);
+      if (hit && editing && hit.roomIndex === editing.roomIndex) moveEditTo(hit.u, hit.v);
+      return;
+    }
     panBy(dx, dy);
   });
 
-  function sameCell(a, b) {
+  function samePiece(a, b) {
     return (!a && !b)
-      || (!!a && !!b && a.laneIndex === b.laneIndex && a.cellIndex === b.cellIndex);
+      || (!!a && !!b && a.roomIndex === b.roomIndex && a.index === b.index);
   }
 
   function setHoverCell(next) {
-    if (sameCell(hoverCell, next)) return;
+    if (samePiece(hoverCell, next)) return;
     hoverCell = next;
-    // Only fires when the pointer crosses into a different tile, not on
+    // Only fires when the pointer crosses onto a different piece, not on
     // every mouse move, so this is a handful of repaints a second at most.
     renderScene();
   }
@@ -3015,9 +2522,9 @@
 
   gestureEl.addEventListener('pointermove', (e) => {
     if (e.pointerType !== 'mouse') return;
-    if (dragState || pinchState) { setHoverCell(null); return; }
+    if (dragState || pinchState || editing) { setHoverCell(null); return; }
     const p = pointFromEvent(e);
-    setHoverCell(gridCellFromPoint(p.x, p.y));
+    setHoverCell(pieceAtPoint(p.x, p.y));
     restCursor();
   });
 
@@ -3032,22 +2539,13 @@
 
     if (!dragState || e.pointerId !== dragState.pointerId) return;
     const wasDrag = dragState.moved > DRAG_THRESHOLD;
+    const wasCarry = dragState.carrying;
     dragState = null;
     restCursor();
-    if (wasDrag) return;
+    if (wasDrag || wasCarry) return;
 
     const p = pointFromEvent(e);
-    const hit = gridCellFromPoint(p.x, p.y);
-    if (!hit) return;
-    if (hit.laneIndex !== state.activeRoomIndex) {
-      state.activeRoomIndex = hit.laneIndex;
-      refreshRoomActions();
-      // The status line is the only thing that names the room you are in now
-      // that the tabs are gone, so it has to follow the click even when the
-      // click itself does nothing (an empty tile with no gear armed).
-      refreshSynergyText();
-    }
-    onFloorCellClick(hit.cellIndex);
+    onFloorTap(p.x, p.y);
   });
 
   // A trackpad pinch arrives as a wheel event with ctrlKey set, and ctrl with
@@ -3070,27 +2568,168 @@
     restCursor();
   });
 
-  function onFloorCellClick(index) {
-    const layout = activeRoom().layout;
-    const current = layout[index];
-    if (current) {
-      layout[index] = null;
-      renderScene();
-      renderInventory();
-      recomputeStats();
-      refreshRoomActions();
-      save();
+  // ---- Placing gear ----
+  // Nothing is dropped straight onto the floor any more. Picking a piece --
+  // from the tray, or by tapping one already down -- takes hold of it: it
+  // follows your finger, the pad nudges it a few pixels at a time, and it
+  // only settles where it is when you say so. Cancelling puts it back
+  // exactly where it came from.
+  //
+  // editing = { itemId, roomIndex, spot, fromIndex }
+  //   fromIndex is the slot it was lifted out of, or null if it came from
+  //   the tray -- which is what tells cancel where to put it back.
+  let editing = null;
+
+  function editShape() {
+    return roomShapeFor(state.activeTheme, editing.roomIndex);
+  }
+
+  function beginEdit(itemId, roomIndex, spot, fromIndex) {
+    const shape = roomShapeFor(state.activeTheme, roomIndex);
+    const at = clampSpot(snapSpot(spot.u, spot.v), shape);
+    editing = {
+      itemId,
+      roomIndex,
+      spot: at,
+      // Where it stood when it was picked up -- the position itself, not the
+      // snapped working copy, so cancelling a piece that was sitting between
+      // two steps of the grid puts it back between them.
+      originSpot: { u: spot.u, v: spot.v },
+      fromIndex: fromIndex === undefined ? null : fromIndex,
+    };
+    armedItemId = null;
+    hoverCell = null;
+    refreshPlaceHud();
+    renderScene();
+    renderInventory();
+  }
+
+  // Take a piece already on the floor back into your hands. Its slot is
+  // emptied now so the room reads as it will if you leave the piece
+  // elsewhere; cancel puts it back in the same slot.
+  function liftPiece(roomIndex, index) {
+    const room = activeRooms()[roomIndex];
+    const shape = roomShapeFor(state.activeTheme, roomIndex);
+    const itemId = room.layout[index];
+    if (!itemId) return;
+    const spot = spotOf(room, index, shape);
+    room.layout[index] = null;
+    if (room.spots) room.spots[index] = null;
+    beginEdit(itemId, roomIndex, spot, index);
+    recomputeStats();
+  }
+
+  function moveEditTo(u, v) {
+    if (!editing) return;
+    editing.spot = clampSpot(snapSpot(u, v), editShape());
+    renderScene();
+  }
+
+  function nudgeEdit(du, dv) {
+    if (!editing) return;
+    moveEditTo(editing.spot.u + du * SPOT_STEP, editing.spot.v + dv * SPOT_STEP);
+  }
+
+  function endEdit() {
+    editing = null;
+    refreshPlaceHud();
+    renderScene();
+    renderInventory();
+    recomputeStats();
+    refreshRoomActions();
+    save();
+  }
+
+  function confirmEdit() {
+    if (!editing) return;
+    const room = activeRooms()[editing.roomIndex];
+    // Back into the slot it came from where there is one, so moving a piece
+    // does not quietly reshuffle a full room.
+    let slot = editing.fromIndex;
+    if (slot === null || room.layout[slot]) slot = room.layout.indexOf(null);
+    if (slot === -1) { cancelEdit(); return; }
+    if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
+    room.layout[slot] = editing.itemId;
+    room.spots[slot] = editing.spot;
+    endEdit();
+  }
+
+  function cancelEdit() {
+    if (!editing) return;
+    if (editing.fromIndex !== null) {
+      // It was already on the floor: put it back exactly where it stood.
+      const room = activeRooms()[editing.roomIndex];
+      if (!room.layout[editing.fromIndex]) {
+        room.layout[editing.fromIndex] = editing.itemId;
+        if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
+        room.spots[editing.fromIndex] = editing.originSpot;
+      }
+    }
+    endEdit();
+  }
+
+  // Only offered for a piece lifted off the floor -- a piece from the tray
+  // is already stored.
+  function storeEdit() {
+    if (!editing || editing.fromIndex === null) return;
+    endEdit();
+  }
+
+  // Lattice coordinates of a point, as floats, plus which room it lands in.
+  function spotFromPoint(px, py) {
+    const dx = px - worldOrigin.x;
+    const dy = py - worldOrigin.y;
+    const a = dx / (ROOM.tileW / 2);
+    const b = dy / (ROOM.tileH / 2);
+    const gx = (a + b) / 2;
+    const gy = (b - a) / 2;
+    for (let i = 0; i < placements.length; i++) {
+      const p = placements[i];
+      if (gx >= p.gx0 && gx <= p.gx0 + p.cols && gy >= p.gy0 && gy <= p.gy0 + p.rows) {
+        return { roomIndex: i, u: gx - p.gx0, v: gy - p.gy0 };
+      }
+    }
+    return null;
+  }
+
+  // How close a tap has to land to count as grabbing a piece rather than
+  // pointing at the floor beside it. Measured against the gear, not the
+  // lattice -- half a lattice tile is sixteen pixels, which would mean
+  // hitting the exact middle of a machine three times that wide.
+  const PICK_REACH = 0.45 * PROP_SCALE;
+
+  function pieceAtPoint(px, py) {
+    const hit = spotFromPoint(px, py);
+    if (!hit) return null;
+    const room = activeRooms()[hit.roomIndex];
+    if (!room) return null;
+    const shape = roomShapeFor(state.activeTheme, hit.roomIndex);
+    let best = null;
+    room.layout.forEach((id, i) => {
+      if (!id) return;
+      const sp = spotOf(room, i, shape);
+      const d = Math.hypot(sp.u - hit.u, sp.v - hit.v);
+      if (d <= PICK_REACH && (!best || d < best.d)) best = { index: i, d };
+    });
+    return best ? { roomIndex: hit.roomIndex, index: best.index } : null;
+  }
+
+  // What a tap on the plan does, in order: move the piece you are holding,
+  // pick up the piece you tapped, or just make that room the active one.
+  function onFloorTap(px, py) {
+    const hit = spotFromPoint(px, py);
+    if (editing) {
+      if (hit && hit.roomIndex === editing.roomIndex) moveEditTo(hit.u, hit.v);
       return;
     }
-    if (armedItemId && availableCount(armedItemId) > 0) {
-      layout[index] = armedItemId;
-      if (availableCount(armedItemId) <= 0) armedItemId = null;
-      renderScene();
-      renderInventory();
-      recomputeStats();
+    if (!hit) return;
+    if (hit.roomIndex !== state.activeRoomIndex) {
+      state.activeRoomIndex = hit.roomIndex;
       refreshRoomActions();
-      save();
+      refreshSynergyText();
     }
+    const piece = pieceAtPoint(px, py);
+    if (piece) liftPiece(piece.roomIndex, piece.index);
   }
 
   function renderInventory() {
@@ -3110,7 +2749,8 @@
       // A wrapping div rather than a button, since it holds two separate
       // clickable controls (arm-to-place, and sell) -- buttons can't nest.
       const chip = document.createElement('div');
-      chip.className = 'tycoon-inv-item' + (armedItemId === item.id ? ' is-armed' : '');
+      const held = editing && editing.itemId === item.id && editing.fromIndex === null;
+      chip.className = 'tycoon-inv-item' + (held ? ' is-armed' : '');
 
       const armBtn = document.createElement('button');
       armBtn.type = 'button';
@@ -3119,8 +2759,17 @@
         + '<span class="inv-icon">' + iconMarkup(item.id, 15) + '</span> '
         + item.name + ' <span class="inv-count">x' + availableCount(item.id) + '</span>';
       armBtn.addEventListener('click', () => {
-        armedItemId = armedItemId === item.id ? null : item.id;
-        renderInventory();
+        if (editing && editing.itemId === item.id && editing.fromIndex === null) {
+          cancelEdit();
+          return;
+        }
+        if (availableCount(item.id) <= 0) return;
+        const idx = state.activeRoomIndex;
+        const shape = roomShapeFor(state.activeTheme, idx);
+        // It appears in the middle of the room you are looking at, which is
+        // both visible and somewhere you can drag it from.
+        beginEdit(item.id, idx, { u: shape.cols / 2, v: shape.rows / 2 }, null);
+        scrollToRoom(idx);
       });
       chip.appendChild(armBtn);
 
@@ -3204,6 +2853,48 @@
     roomActionsEl.appendChild(btn);
   }
 
+  // ---- The placement pad ----
+  // Arrows to nudge, and the two decisions. Kept as real buttons over the
+  // stage rather than drawn into the canvas so they are proper tap targets
+  // and can be reached by keyboard.
+  const placeHudEl = document.getElementById('place-hud');
+  const placeLabelEl = document.getElementById('place-label');
+  const placeStoreBtn = document.getElementById('btn-place-store');
+
+  function refreshPlaceHud() {
+    if (!placeHudEl) return;
+    placeHudEl.hidden = !editing;
+    if (!editing) return;
+    const item = itemById(editing.itemId);
+    if (placeLabelEl) {
+      placeLabelEl.textContent = (item ? item.name : 'Gear')
+        + (editing.fromIndex === null ? ' -- drag or nudge, then place' : ' -- moving');
+    }
+    if (placeStoreBtn) placeStoreBtn.hidden = editing.fromIndex === null;
+  }
+
+  if (placeHudEl) {
+    // Screen directions, not lattice ones: up moves the piece away from you
+    // up the floor, which on this projection is a step back along both axes.
+    const NUDGE = { up: [-1, -1], down: [1, 1], left: [-1, 1], right: [1, -1] };
+    placeHudEl.querySelectorAll('[data-nudge]').forEach((btn) => {
+      const [du, dv] = NUDGE[btn.dataset.nudge];
+      const step = () => nudgeEdit(du, dv);
+      btn.addEventListener('click', step);
+      // Press and hold to keep nudging, the way an arrow pad should behave.
+      let hold = null;
+      let repeat = null;
+      const stop = () => { clearTimeout(hold); clearInterval(repeat); hold = null; repeat = null; };
+      btn.addEventListener('pointerdown', () => {
+        hold = setTimeout(() => { repeat = setInterval(step, 60); }, 320);
+      });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => btn.addEventListener(ev, stop));
+    });
+    document.getElementById('btn-place-confirm').addEventListener('click', confirmEdit);
+    document.getElementById('btn-place-cancel').addEventListener('click', cancelEdit);
+    if (placeStoreBtn) placeStoreBtn.addEventListener('click', storeEdit);
+  }
+
   // ---- Lift button ----
   document.getElementById('btn-lift').addEventListener('click', () => {
     state.balance += clickAmount;
@@ -3220,6 +2911,7 @@
     gps = 0;
     clickAmount = 1;
     armedItemId = null;
+    editing = null;
     refreshHud();
     refreshSynergyText();
     refreshShopUI();

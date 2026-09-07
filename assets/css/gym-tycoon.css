@@ -444,3 +444,100 @@
   .tycoon-designer-hint { max-width: 780px; margin-bottom: 0; }
   .tycoon-page .leaderboard-sub { display: inline; }
 }
+
+/* ---- Placing gear ----
+   The pad sits over the stage rather than inside it: the stage scrolls, and
+   controls that scrolled away with the floor would be unusable the moment
+   you dragged the piece anywhere. */
+.tycoon-stage-wrap { position: relative; }
+
+.tycoon-place-hud {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  pointer-events: none;   /* only the controls themselves take taps */
+}
+.tycoon-place-hud[hidden] { display: none; }
+
+.tycoon-place-label {
+  margin: 0;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(10, 10, 13, 0.82);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: auto;
+}
+
+.tycoon-place-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+/* Four arrows around an empty middle -- the piece itself is what sits in
+   the middle, out on the floor. */
+.tycoon-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 34px);
+  grid-template-rows: repeat(3, 34px);
+  pointer-events: auto;
+}
+.tycoon-pad-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: rgba(10, 10, 13, 0.86);
+  color: var(--text);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.tycoon-pad-btn svg { width: 17px; height: 17px; fill: currentColor; }
+.tycoon-pad-btn:hover { border-color: var(--amber); color: var(--amber); }
+.tycoon-pad-btn:active { transform: translate(1px, 1px); }
+.tycoon-pad-btn.is-up { grid-area: 1 / 2; }
+.tycoon-pad-btn.is-left { grid-area: 2 / 1; }
+.tycoon-pad-btn.is-right { grid-area: 2 / 3; }
+.tycoon-pad-btn.is-down { grid-area: 3 / 2; }
+
+.tycoon-place-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+}
+.tycoon-place-btn {
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 12.5px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(10, 10, 13, 0.86);
+  color: var(--text);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tycoon-place-btn[hidden] { display: none; }
+.tycoon-place-btn:hover { border-color: var(--amber); }
+.tycoon-place-btn.is-confirm {
+  background: var(--amber);
+  border-color: #000;
+  color: #1a1200;
+  box-shadow: 3px 3px 0 #000;
+}
+.tycoon-place-btn.is-confirm:active { transform: translate(1px, 1px); box-shadow: 2px 2px 0 #000; }
+.tycoon-place-btn.is-cancel:hover { border-color: var(--red); color: var(--red); }
