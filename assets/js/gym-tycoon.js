@@ -184,123 +184,30 @@
   const ROOM_UNLOCK_COSTS = [0, 10000, 500000, 25000000];
   const MAX_ROOMS_PER_THEME = ROOM_UNLOCK_COSTS.length;
 
-  function emptyGymRoom(themeId, index) {
-    return { layout: new Array(slotCountFor(themeId, index)).fill(null) };
-  }
-
-  function defaultThemeRooms() {
-    const byTheme = {};
-    THEMES.forEach((t) => { byTheme[t.id] = [emptyGymRoom(t.id, 0)]; });
-    return byTheme;
-  }
-
-  // Resizes each saved room to the footprint its position now calls for.
-  // Every footprint holds at least the 12 slots rooms used to have, so a save
-  // written before rooms varied in size only ever gains slots, never drops
-  // gear off the end.
-  function normalizedRoomChain(themeId, source) {
-    const arr = Array.isArray(source) ? source : [];
-    const rooms = arr.slice(0, MAX_ROOMS_PER_THEME).map((r, i) => {
-      const old = Array.isArray(r && r.layout) ? r.layout : [];
-      return { layout: new Array(slotCountFor(themeId, i)).fill(null).map((_, s) => old[s] || null) };
-    });
-    return rooms.length ? rooms : [emptyGymRoom(themeId, 0)];
-  }
-
   // ---- Persistence ----
-  function defaultState() {
-    return {
-      balance: 0,
-      lifetime: 0,
-      owned: {},
-      themeRooms: defaultThemeRooms(),
-      activeTheme: 'garage',
-      activeRoomIndex: 0,
-      lastSaved: Date.now(),
-    };
-  }
-
-  function load() {
-    let saved;
-    try {
-      saved = JSON.parse(localStorage.getItem(SAVE_KEY));
-    } catch (e) {
-      saved = null;
-    }
-    if (!saved) return defaultState();
-
-    const s = Object.assign(defaultState(), saved);
-    s.owned = saved.owned || {};
-    // Object.assign above copies these over verbatim from an old-shape
-    // save -- drop them so the persisted state doesn't carry dead fields
-    // around forever alongside the new `themeRooms` map.
-    delete s.layout;
-    delete s.theme;
-    delete s.rooms;
-    delete s.activeRoom;
-
-    if (Array.isArray(saved.rooms)) {
-      // Migrate from the room-slot-with-a-layout-per-theme shape: each old
-      // slot's layout for theme T becomes one room in theme T's own
-      // chain, in the same slot order, so nothing placed anywhere is lost.
-      const byTheme = {};
-      THEMES.forEach((t) => {
-        byTheme[t.id] = normalizedRoomChain(t.id, saved.rooms.map((r) => ({
-          layout: (r && r.layouts && r.layouts[t.id]) || (r && r.layout) || [],
-        })));
-      });
-      s.themeRooms = byTheme;
-      const oldActiveSlot = saved.rooms[saved.activeRoom];
-      s.activeTheme = (oldActiveSlot && oldActiveSlot.theme) || 'garage';
-      s.activeRoomIndex = Number.isInteger(saved.activeRoom) ? saved.activeRoom : 0;
-    } else if (Array.isArray(saved.layout)) {
-      // Migrate from the original single top-level layout/theme shape.
-      const theme = saved.theme || 'garage';
-      const byTheme = defaultThemeRooms();
-      byTheme[theme] = [{ layout: new Array(slotCountFor(theme, 0)).fill(null).map((_, i) => saved.layout[i] || null) }];
-      s.themeRooms = byTheme;
-      s.activeTheme = theme;
-      s.activeRoomIndex = 0;
-    } else {
-      const byTheme = {};
-      THEMES.forEach((t) => {
-        byTheme[t.id] = normalizedRoomChain(t.id, saved.themeRooms && saved.themeRooms[t.id]);
-      });
-      s.themeRooms = byTheme;
-    }
-
-    if (!THEMES.some((t) => t.id === s.activeTheme)) s.activeTheme = 'garage';
-    const activeChain = s.themeRooms[s.activeTheme] || [];
-    s.activeRoomIndex = Number.isInteger(s.activeRoomIndex) && s.activeRoomIndex >= 0 && s.activeRoomIndex < activeChain.length
-      ? s.activeRoomIndex
-      : 0;
-
-    // Migration for saves from before placement mattered: if every room in
-    // every theme is empty but the player owns gear, auto-fill the first
-    // garage room so returning players don't come back to a sudden $0/s.
-    const allEmpty = THEMES.every((t) => s.themeRooms[t.id].every((r) => r.layout.every((x) => !x)));
-    if (allEmpty) {
-      const toPlace = [];
-      ITEMS.forEach((item) => {
-        const count = s.owned[item.id] || 0;
-        for (let i = 0; i < count; i++) toPlace.push(item.id);
-      });
-      const firstLayout = s.themeRooms.garage[0].layout;
-      toPlace.slice(0, firstLayout.length).forEach((id, i) => { firstLayout[i] = id; });
-    }
-
-    // Nothing is credited for the time the tab was gone: gear earns while
-    // you are watching it and not otherwise. lastSaved is still written --
-    // it dates the save -- it just no longer buys anything.
-    return s;
-  }
+  // Loading a save means deciding what happens to somebody's existing
+  // progress, and there are three historical save shapes still in the wild.
+  // That code lives in gym-save.js so it can be driven by tests with a fake
+  // storage and a save from any era -- it was the riskiest code in the game
+  // and the only code with no way to check it. See the note at the top of
+  // that file.
+  const saveStore = window.BoozebagGymSave.makeStore({
+    themeIds: THEMES.map((t) => t.id),
+    itemIds: ITEMS.map((i) => i.id),
+    slotCountFor,
+    maxRooms: MAX_ROOMS_PER_THEME,
+    defaultTheme: 'garage',
+    storage: localStorage,
+    key: SAVE_KEY,
+  });
+  const defaultState = saveStore.defaultState;
+  const emptyGymRoom = saveStore.emptyRoom;
 
   function save() {
-    state.lastSaved = Date.now();
-    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    saveStore.write(state);
   }
 
-  let state = load();
+  let state = saveStore.load();
   // The current theme's own chain of rooms, and whichever one in it is
   // focused for placement/shop/synergy purposes.
   function activeRooms() {
@@ -3121,7 +3028,7 @@
   // ---- Reset ----
   document.getElementById('btn-reset').addEventListener('click', () => {
     if (!confirm("Reset all Gym Tycoon progress on this browser? This can't be undone.")) return;
-    localStorage.removeItem(SAVE_KEY);
+    saveStore.clear();
     state = defaultState();
     gps = 0;
     clickAmount = 1;
