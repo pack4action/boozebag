@@ -1,1 +1,6 @@
 node_modules/
+
+# Throwaway measurement/debug scripts. Anything that only existed to answer a
+# question once gets the -tmp suffix and stays out of the repo -- the site is
+# served straight from this directory, so stray files here are published.
+*-tmp.js
