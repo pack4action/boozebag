@@ -2453,11 +2453,32 @@
     drawCorridorDoor(far[0], far[1], colors, wallColor);
   }
 
-  function renderScene() {
+  // Painting the gym and working out what the gym IS are two different jobs,
+  // and only one of them belongs in a frame.
+  //
+  // updateWorld() re-derives the whole plan (every room and hallway
+  // rectangle, the next plot, the lattice origin, the canvas size), reads the
+  // stage window's measurements back out of the DOM, and may resize the
+  // backing store. It has to run when the plan changes -- a room bought, a
+  // theme switched, the window resized, the zoom moved -- and it is pointless
+  // any other time. It also forces a layout read followed by a layout write,
+  // which is the one thing you must not do sixty times a second.
+  //
+  // paintFrame() just paints what updateWorld() worked out.
+  //
+  // They were one function, so every repaint -- including moving the mouse
+  // one tile across the floor -- rebuilt the world first. Nothing about
+  // splitting them changes what appears on screen; it is what makes a frame
+  // loop possible at all, since a frame can now paint without re-deriving
+  // the building it is painting.
+  function updateWorld() {
     rebuildPlan();
     fitZoomToStage();
     fitCanvasResolution();
     applyStageSizing();
+  }
+
+  function paintFrame() {
     const colors = THEME_COLORS[state.activeTheme] || THEME_COLORS.garage;
     const light = LIGHT_COLORS[state.activeTheme] || LIGHT_COLORS.garage;
     const W = BASE_W;
@@ -2499,6 +2520,13 @@
     vignette.addColorStop(1, 'rgba(0,0,0,0.45)');
     floorCtx.fillStyle = vignette;
     floorCtx.fillRect(0, 0, W, H);
+  }
+
+  // What every existing caller means: the world may have changed, so work it
+  // out again and then paint it.
+  function renderScene() {
+    updateWorld();
+    paintFrame();
   }
 
   // ---- Hover ----
@@ -2819,7 +2847,9 @@
     hoverCell = next;
     // Only fires when the pointer crosses into a different tile, not on
     // every mouse move, so this is a handful of repaints a second at most.
-    renderScene();
+    // A repaint, though, not a rebuild: moving the mouse does not move any
+    // wall, so there is nothing for updateWorld() to work out again.
+    paintFrame();
   }
 
   function restCursor() {
