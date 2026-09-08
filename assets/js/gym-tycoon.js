@@ -140,19 +140,25 @@
   // plain box, because the first thing a new player does is find their feet
   // in it.
   //
-  // Corners are chosen away from wherever a hallway meets the room: a
-  // hallway leaves a room by its east edge or south edge at the back-left
-  // end of that edge, and arrives through the west or north wall, again at
-  // the back-left end, so the cut corners never take a hallway's floor.
+  // Always the near corner -- the one facing the camera. A corner taken out
+  // of a far side leaves an edge that has to be walled, and a wall standing
+  // inside the room hides the floor behind it and hangs over the hole with
+  // nothing under it. Taken out of the near corner the floor simply steps
+  // back, with the same lip it has along the rest of its front edges, and
+  // every line in the room still meets another line.
+  //
+  // Cuts are kept clear of wherever a hallway meets the room: a hallway
+  // leaves by the east or south edge at the back-left end of it, and
+  // arrives through the west or north wall, again at the back-left end.
   const ROOM_PLANS = {
     // Vehicle bays knocked through into one another: broad rooms, each a
     // little bigger than the last, with a short walk between them.
     garage: {
       shapes: [
         { cols: 20, rows: 15 },                                        // 12 pieces
-        { cols: 22, rows: 17, cut: { corner: 'sw', cols: 8, rows: 6 } }, // 14
+        { cols: 22, rows: 17, cut: { corner: 'se', cols: 8, rows: 6 } }, // 14
         { cols: 24, rows: 18, cut: { corner: 'se', cols: 8, rows: 8 } }, // 16
-        { cols: 26, rows: 21, cut: { corner: 'ne', cols: 9, rows: 6 } }, // 21
+        { cols: 26, rows: 21, cut: { corner: 'se', cols: 9, rows: 6 } }, // 21
       ],
       caps: [12, 14, 16, 21],
       dirs: ['east', 'east', 'south'],
@@ -164,9 +170,9 @@
     basement: {
       shapes: [
         { cols: 17, rows: 18 },                                        // 12
-        { cols: 21, rows: 20, cut: { corner: 'sw', cols: 8, rows: 6 } }, // 15
+        { cols: 21, rows: 20, cut: { corner: 'se', cols: 8, rows: 6 } }, // 15
         { cols: 21, rows: 21, cut: { corner: 'se', cols: 8, rows: 6 } }, // 16
-        { cols: 23, rows: 23, cut: { corner: 'ne', cols: 9, rows: 8 } }, // 20
+        { cols: 23, rows: 23, cut: { corner: 'se', cols: 9, rows: 8 } }, // 20
       ],
       caps: [12, 15, 16, 20],
       dirs: ['south', 'east', 'south'],
@@ -179,7 +185,7 @@
       shapes: [
         { cols: 18, rows: 17 },                                        // 12
         { cols: 21, rows: 18, cut: { corner: 'se', cols: 6, rows: 6 } }, // 15
-        { cols: 23, rows: 21, cut: { corner: 'sw', cols: 8, rows: 6 } }, // 18
+        { cols: 23, rows: 21, cut: { corner: 'se', cols: 8, rows: 6 } }, // 18
         { cols: 24, rows: 21, cut: { corner: 'se', cols: 8, rows: 6 } }, // 20
       ],
       caps: [12, 15, 18, 20],
@@ -192,8 +198,8 @@
       shapes: [
         { cols: 18, rows: 17 },                                        // 12
         { cols: 21, rows: 18, cut: { corner: 'se', cols: 6, rows: 5 } }, // 16
-        { cols: 23, rows: 20, cut: { corner: 'sw', cols: 8, rows: 6 } }, // 17
-        { cols: 24, rows: 21, cut: { corner: 'ne', cols: 9, rows: 6 } }, // 19
+        { cols: 23, rows: 20, cut: { corner: 'se', cols: 8, rows: 6 } }, // 17
+        { cols: 24, rows: 21, cut: { corner: 'se', cols: 9, rows: 6 } }, // 19
       ],
       caps: [12, 16, 17, 19],
       dirs: ['east', 'south', 'east'],
@@ -3917,20 +3923,23 @@
   // Thin trim band along the bottom of a wall, where it meets the floor,
   // so the walls don't just end abruptly -- p0/p1 are the wall's two
   // floor-level corners (in screen space).
+  // Skirting. Kept shallow and faint on purpose: a deep dark band along the
+  // bottom of a wall reads as a step down onto the floor rather than as the
+  // wall meeting it, and the two are meant to meet on one line.
   function drawBaseboard(p0, p1) {
-    const trimH = 9;
+    const trimH = 5;
     floorCtx.beginPath();
     floorCtx.moveTo(p0.x, p0.y);
     floorCtx.lineTo(p1.x, p1.y);
     floorCtx.lineTo(p1.x, p1.y - trimH);
     floorCtx.lineTo(p0.x, p0.y - trimH);
     floorCtx.closePath();
-    floorCtx.fillStyle = 'rgba(0,0,0,0.30)';
+    floorCtx.fillStyle = 'rgba(0,0,0,0.16)';
     floorCtx.fill();
     floorCtx.beginPath();
     floorCtx.moveTo(p0.x, p0.y - trimH);
     floorCtx.lineTo(p1.x, p1.y - trimH);
-    floorCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+    floorCtx.strokeStyle = 'rgba(255,255,255,0.05)';
     floorCtx.lineWidth = 1;
     floorCtx.stroke();
   }
@@ -4603,9 +4612,6 @@
   // meet at the corner. Earlier the rooms drew flat planes while corridors
   // drew slabs, which is why the junctions never lined up.
   const WALL_THICK = 0.3; // in tiles
-  // A metre and a bit: high enough to read as a division of the room, low
-  // enough to see over into the corner behind it.
-  const PARTITION_H = Math.round(1.15 * PX_PER_METRE_TALL);
 
   // Which way a wall's thickness points: away from the space it encloses,
   // along the other tile axis. Walls that run along +gx are backed off in
@@ -4698,11 +4704,7 @@
   // back-right shortens the north wall, one out of the front-left shortens
   // the west wall. Fractions along a wall are measured against these.
   function backWallLengths(r) {
-    const c = r.cut;
-    return {
-      ne: r.cols - (c && c.corner === 'ne' ? c.cols : 0),
-      nw: r.rows - (c && c.corner === 'sw' ? c.rows : 0),
-    };
+    return { ne: r.cols, nw: r.rows };
   }
   function wallApertures(roomIndex) {
     const r = placements[roomIndex];
@@ -4909,7 +4911,7 @@
   }
 
   function drawCorridorShell(c, colors) {
-    drawPaving(c, colors, -8);
+    drawPaving(c, colors, -3);
     drawSlabEdges(c, colors);
     // The step across the mouth this hallway leaves its first room by: a
     // piece of floor, so it goes down with the floor and whoever walks over
@@ -5199,12 +5201,10 @@
     const gx1 = place.gx0 + place.cols;
     const gy1 = place.gy0 + place.rows;
     const cut = place.cut;
-    const cutAtBack = cut && cut.corner === 'ne';
-    const cutAtLeft = cut && cut.corner === 'sw';
-    // Where the two back walls end: at the room's open corners for a box, or
-    // short of them where a corner has been cut out.
-    const eastCorner = { gx: cutAtBack ? gx1 - cut.cols : gx1, gy: place.gy0 };
-    const westCorner = { gx: place.gx0, gy: cutAtLeft ? gy1 - cut.rows : gy1 };
+    // Both back walls run corner to corner: a cut only ever takes the near
+    // corner, which neither wall reaches.
+    const eastCorner = { gx: gx1, gy: place.gy0 };
+    const westCorner = { gx: place.gx0, gy: gy1 };
     const east = isoPoint(eastCorner.gx, eastCorner.gy);
     const west = isoPoint(westCorner.gx, westCorner.gy);
 
@@ -5257,29 +5257,6 @@
     // tall gear like real ceiling hardware instead of floating on top.
     drawCeilingStrip(north, east, west, light);
 
-    // A corner cut out of the back or the left leaves one more side standing
-    // inside the box: the notch's own back-facing edge. It goes down in
-    // depth order with the gear rather than before it, since it stands in
-    // the middle of the floor -- and it is a waist-high partition rather
-    // than a wall, because a full-height wall in the middle of a room hides
-    // the floor behind it and leaves a corner you cannot see into.
-    let innerWall = null;
-    if (cutAtBack) {
-      const gy = place.gy0 + cut.rows;
-      innerWall = {
-        pts: [isoPoint(gx1, gy), isoPoint(gx1 - cut.cols, gy)], axis: 'gx',
-        // Nearest point of the wall to the viewer, on the same scale as a
-        // piece's depth: whatever sits deeper than this is in front of it.
-        depth: (gx1 - cut.cols - place.gx0) + (gy - place.gy0) - 0.001,
-      };
-    } else if (cutAtLeft) {
-      const gx = place.gx0 + cut.cols;
-      innerWall = {
-        pts: [isoPoint(gx, gy1 - cut.rows), isoPoint(gx, gy1)], axis: 'gy',
-        depth: (gx - place.gx0) + (gy1 - cut.rows - place.gy0) - 0.001,
-      };
-    }
-
     // Gear stands wherever it was put, not in a grid cell, so the draw
     // order comes from the pieces themselves -- furthest back first, or a
     // piece behind another would paint over it.
@@ -5295,17 +5272,9 @@
     membersInside(place).forEach((m) => {
       standing.push({ member: m, spot: { u: m.gx - place.gx0, v: m.gy - place.gy0 } });
     });
-    if (innerWall) {
-      standing.push({ wall: innerWall, spot: { u: innerWall.depth, v: 0 } });
-    }
     standing.sort((a, b) => (a.spot.u + a.spot.v) - (b.spot.u + b.spot.v));
 
-    standing.forEach(({ index, itemId, spot, member, wall }) => {
-      if (wall) {
-        drawWallRun(wall.pts, [wall.axis], PARTITION_H, colors, ['cap', 'cap'], [[]]);
-        drawBaseboard(wall.pts[0], wall.pts[1]);
-        return;
-      }
+    standing.forEach(({ index, itemId, spot, member }) => {
       if (member) {
         drawMember(isoPoint(place.gx0 + spot.u, place.gy0 + spot.v), member);
         return;
