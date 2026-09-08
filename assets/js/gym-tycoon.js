@@ -143,56 +143,56 @@
     // little bigger than the last, with a short walk between them.
     garage: {
       shapes: [
-        { cols: 13, rows: 10 },                                        // 12 pieces
-        { cols: 15, rows: 11, cut: { corner: 'sw', cols: 5, rows: 4 } }, // 14
-        { cols: 16, rows: 12, cut: { corner: 'se', cols: 5, rows: 5 } }, // 16
-        { cols: 17, rows: 14, cut: { corner: 'ne', cols: 6, rows: 4 } }, // 21
+        { cols: 20, rows: 15 },                                        // 12 pieces
+        { cols: 22, rows: 17, cut: { corner: 'sw', cols: 8, rows: 6 } }, // 14
+        { cols: 24, rows: 18, cut: { corner: 'se', cols: 8, rows: 8 } }, // 16
+        { cols: 26, rows: 21, cut: { corner: 'ne', cols: 9, rows: 6 } }, // 21
       ],
       caps: [12, 14, 16, 21],
       dirs: ['east', 'east', 'south'],
-      corridorLen: 6,
-      corridorWidth: 6,
+      corridorLen: 9,
+      corridorWidth: 9,
     },
     // Cellar rooms strung together by real tunnels that turn corners rather
     // than opening straight onto each other.
     basement: {
       shapes: [
-        { cols: 11, rows: 12 },                                        // 12
-        { cols: 14, rows: 13, cut: { corner: 'sw', cols: 5, rows: 4 } }, // 15
-        { cols: 14, rows: 14, cut: { corner: 'se', cols: 5, rows: 4 } }, // 16
-        { cols: 15, rows: 15, cut: { corner: 'ne', cols: 6, rows: 5 } }, // 20
+        { cols: 17, rows: 18 },                                        // 12
+        { cols: 21, rows: 20, cut: { corner: 'sw', cols: 8, rows: 6 } }, // 15
+        { cols: 21, rows: 21, cut: { corner: 'se', cols: 8, rows: 6 } }, // 16
+        { cols: 23, rows: 23, cut: { corner: 'ne', cols: 9, rows: 8 } }, // 20
       ],
       caps: [12, 15, 16, 20],
       dirs: ['south', 'east', 'south'],
-      corridorLen: 12,
-      corridorWidth: 6,
+      corridorLen: 18,
+      corridorWidth: 9,
     },
     // Open deck: broad platforms that spread across the roof, joined by
     // walkways wide enough to read as outdoors.
     rooftop: {
       shapes: [
-        { cols: 12, rows: 11 },                                        // 12
-        { cols: 14, rows: 12, cut: { corner: 'se', cols: 4, rows: 4 } }, // 15
-        { cols: 15, rows: 14, cut: { corner: 'sw', cols: 5, rows: 4 } }, // 18
-        { cols: 16, rows: 14, cut: { corner: 'se', cols: 5, rows: 4 } }, // 20
+        { cols: 18, rows: 17 },                                        // 12
+        { cols: 21, rows: 18, cut: { corner: 'se', cols: 6, rows: 6 } }, // 15
+        { cols: 23, rows: 21, cut: { corner: 'sw', cols: 8, rows: 6 } }, // 18
+        { cols: 24, rows: 21, cut: { corner: 'se', cols: 8, rows: 6 } }, // 20
       ],
       caps: [12, 15, 18, 20],
       dirs: ['east', 'south', 'west'],
-      corridorLen: 9,
-      corridorWidth: 9,
+      corridorLen: 14,
+      corridorWidth: 14,
     },
     // Decking out over the water, joined by walkways with room to stop on.
     boardwalk: {
       shapes: [
-        { cols: 12, rows: 11 },                                        // 12
-        { cols: 14, rows: 12, cut: { corner: 'se', cols: 4, rows: 3 } }, // 16
-        { cols: 15, rows: 13, cut: { corner: 'sw', cols: 5, rows: 4 } }, // 17
-        { cols: 16, rows: 14, cut: { corner: 'ne', cols: 6, rows: 4 } }, // 19
+        { cols: 18, rows: 17 },                                        // 12
+        { cols: 21, rows: 18, cut: { corner: 'se', cols: 6, rows: 5 } }, // 16
+        { cols: 23, rows: 20, cut: { corner: 'sw', cols: 8, rows: 6 } }, // 17
+        { cols: 24, rows: 21, cut: { corner: 'ne', cols: 9, rows: 6 } }, // 19
       ],
       caps: [12, 16, 17, 19],
       dirs: ['east', 'south', 'east'],
-      corridorLen: 10,
-      corridorWidth: 7,
+      corridorLen: 15,
+      corridorWidth: 11,
     },
   };
 
@@ -480,6 +480,70 @@
     cubicle: [1.65, 1.40], officepod: [1.60, 1.35], palm: [0.50, 0.50],
     cooler: [0.40, 0.40], mirrorwall: [0.34, 1.70], neon: [0.22, 1.50],
   };
+  // Which side of a piece you get onto it from, and how much clear floor
+  // that takes, in metres. Nothing may stand in that floor: two treadmills
+  // side by side are fine, one nose to tail behind another is not, because
+  // nobody could get on the back one. Sides are in the piece's own frame
+  // before it is turned -- '+u' is its far end along its length, '+v' its
+  // front face -- and mats, speakers and fittings need no run-up at all.
+  const ITEM_ACCESS = {
+    treadmill: ['+u', 0.85], rack: ['+u', 0.90], cable: ['+u', 0.90],
+    bench: ['+v', 0.60], dumbbell: ['+v', 0.70], dumbbellrack: ['+v', 0.80],
+    sauna: ['+v', 0.80], gearfridge: ['+v', 0.70],
+    desk: ['+v', 0.80], cubicle: ['+v', 0.70], officepod: ['+v', 0.80], frontdesk: ['+v', 0.90],
+  };
+  // Which pieces are used from the zone, standing, rather than from on top
+  // of the piece itself.
+  const USED_FROM_ZONE = { cable: true, dumbbell: true, dumbbellrack: true, gearfridge: true,
+    sauna: true, desk: true, cubicle: true, officepod: true, frontdesk: true };
+  // A direction in a piece's own frame, turned the way the piece is: the
+  // same quarter turns turnUV applies to the drawing.
+  function turnDir(du, dv, turn) {
+    const t = (turn || 0) & 3;
+    if (t === 1) return { u: -dv, v: du };
+    if (t === 2) return { u: -du, v: -dv };
+    if (t === 3) return { u: dv, v: -du };
+    return { u: du, v: dv };
+  }
+  // The floor a piece at this spot needs clear in front of its step-on
+  // side, as a rectangle on the room's lattice: from the edge of its box
+  // out by its access depth, the full width of that side. Null for a piece
+  // with no such side.
+  function accessZone(itemId, spot, turn) {
+    const acc = ITEM_ACCESS[itemId];
+    if (!acc) return null;
+    const box = ITEM_BOX[itemId] || [footprintOf(itemId), footprintOf(itemId)];
+    const along = acc[0][1] === 'u';
+    const sign = acc[0][0] === '-' ? -1 : 1;
+    const dir = turnDir(along ? sign : 0, along ? 0 : sign, turn);
+    const h = halfBoxOf(itemId, turn);
+    const depth = acc[1] * TILES_PER_METRE;
+    // Reach along the direction is the box's half-extent that way; the
+    // width across it is the box's extent the other way.
+    const reach = dir.u ? h.u : h.v;
+    const half = dir.u ? h.v : h.u;
+    const cu = spot.u + dir.u * (reach + depth / 2);
+    const cv = spot.v + dir.v * (reach + depth / 2);
+    const hu = dir.u ? depth / 2 : half;
+    const hv = dir.u ? half : depth / 2;
+    return { u0: cu - hu, u1: cu + hu, v0: cv - hv, v1: cv + hv };
+  }
+  function boxRect(spot, h) {
+    return { u0: spot.u - h.u, u1: spot.u + h.u, v0: spot.v - h.v, v1: spot.v + h.v };
+  }
+  function rectsMeet(a, b) {
+    return a.u1 > b.u0 + 0.02 && a.u0 < b.u1 - 0.02 && a.v1 > b.v0 + 0.02 && a.v0 < b.v1 - 0.02;
+  }
+  // Whether the floor a piece needs to be got onto runs off the room, or
+  // into the notch cut out of it.
+  function zoneOffFloor(shape, itemId, spot, turn) {
+    const z = accessZone(itemId, spot, turn);
+    if (!z) return false;
+    if (z.u0 < -0.02 || z.v0 < -0.02 || z.u1 > shape.cols + 0.02 || z.v1 > shape.rows + 0.02) return true;
+    const c = cutRect(shape);
+    return !!c && rectsMeet(z, { u0: c.gx0, u1: c.gx0 + c.cols, v0: c.gy0, v1: c.gy0 + c.rows });
+  }
+
   // Half-extents on the lattice, with the piece's turn applied.
   function halfBoxOf(itemId, turn) {
     const box = ITEM_BOX[itemId] || [footprintOf(itemId), footprintOf(itemId)];
@@ -496,6 +560,18 @@
       u: Math.max(lo, Math.min(shape.cols - lo, spot.u)),
       v: Math.max(loV, Math.min(shape.rows - loV, spot.v)),
     };
+    // Its step-on floor has to be inside the room as well: a treadmill
+    // pushed back against the wall is nudged forward until it can be got
+    // onto.
+    const z = accessZone(itemId, at, turn || 0);
+    if (z) {
+      if (z.u0 < 0) at.u -= z.u0;
+      if (z.u1 > shape.cols) at.u -= z.u1 - shape.cols;
+      if (z.v0 < 0) at.v -= z.v0;
+      if (z.v1 > shape.rows) at.v -= z.v1 - shape.rows;
+      at.u = Math.max(lo, Math.min(shape.cols - lo, at.u));
+      at.v = Math.max(loV, Math.min(shape.rows - loV, at.v));
+    }
     // Out of the notch, if it has landed in one: pushed back onto the floor
     // along whichever axis is the shorter push, then held inside the box
     // again. A piece bigger than the leg it is in can end up still hanging
@@ -527,13 +603,20 @@
   // so two pieces set edge to edge are not counted as touching.
   function overlapsAnother(room, shape, itemId, spot, turn) {
     const h = halfBoxOf(itemId, turn);
+    const mine = boxRect(spot, h);
+    const myZone = accessZone(itemId, spot, turn);
     for (let i = 0; i < room.layout.length; i++) {
       const id = room.layout[i];
       if (!id) continue;
       const sp = spotOf(room, i, shape);
-      const o = halfBoxOf(id, turnAt(room, i));
-      if (Math.abs(sp.u - spot.u) < h.u + o.u - 0.02
-        && Math.abs(sp.v - spot.v) < h.v + o.v - 0.02) return id;
+      const t = turnAt(room, i);
+      const theirs = boxRect(sp, halfBoxOf(id, t));
+      if (rectsMeet(mine, theirs)) return id;
+      // Standing in the floor they need to be got onto, or them in mine.
+      // Two zones may share floor: that is an aisle.
+      const theirZone = accessZone(id, sp, t);
+      if (theirZone && rectsMeet(mine, theirZone)) return id;
+      if (myZone && rectsMeet(myZone, theirs)) return id;
     }
     return null;
   }
@@ -987,7 +1070,8 @@
       // Checked against the others with this one lifted out, so it does not
       // block itself.
       room.layout[k] = null;
-      let clear = !spotInCut(shape, id, at, turn) && !overlapsAnother(room, shape, id, at, turn) ? at : null;
+      let clear = !spotInCut(shape, id, at, turn) && !zoneOffFloor(shape, id, at, turn)
+        && !overlapsAnother(room, shape, id, at, turn) ? at : null;
       if (!clear) clear = findFreeSpot(room, shape, id, turn, at);
       if (clear) {
         room.layout[k] = id;
@@ -1008,6 +1092,7 @@
       for (let u = 0.5; u < shape.cols; u += 0.5) {
         const at = clampSpot({ u, v }, shape, itemId, turn);
         if (spotInCut(shape, itemId, at, turn)) continue;
+        if (zoneOffFloor(shape, itemId, at, turn)) continue;
         if (overlapsAnother(room, shape, itemId, at, turn)) continue;
         const d = Math.hypot(at.u - from.u, at.v - from.v);
         if (!best || d < best.d) best = { u: at.u, v: at.v, d };
@@ -1579,8 +1664,8 @@
   // Roughly two members for every three pieces of kit, so a room fills up as
   // it is fitted out, with a ceiling so a big room does not turn into a
   // crowd scene that costs more to draw than it is worth.
-  const MEMBERS_PER_PIECE = 0.66;
-  const MAX_MEMBERS_PER_ROOM = 6;
+  const MEMBERS_PER_PIECE = 0.45;
+  const MAX_MEMBERS_PER_ROOM = 4;
 
   let members = [];
   let membersKey = '';
@@ -1773,28 +1858,46 @@
     let goal;
     if (free.length && Math.random() < 0.82) {
       const i = pickOf(free);
+      const id = room.layout[i];
       const spot = spotOf(room, i, { cols: place.cols, rows: place.rows });
-      // Stand in front of the piece rather than inside it: clear of its own
-      // footprint, and toward the viewer so the gear is not hidden.
-      const clear = (footprintOf(room.layout[i]) / 2 + 0.4) * TILES_PER_METRE;
+      const zone = accessZone(id, spot, turnAt(room, i));
       m.gear = i;
-      goal = {
-        gx: place.gx0 + clampTo(spot.u + clear * 0.5, 0.6, Math.max(0.6, place.cols - 0.6)),
-        gy: place.gy0 + clampTo(spot.v + clear * 0.8, 0.6, Math.max(0.6, place.rows - 0.6)),
-      };
-      // A piece against the notch has its front over the edge: stand beside
-      // it instead.
-      if (!onFloorOf(place, goal.gx, goal.gy)) {
-        goal = { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v + clear * 0.4 };
-        if (!onFloorOf(place, goal.gx, goal.gy)) goal = { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v };
+      if (zone) {
+        // In through the floor kept clear for getting on, then either stand
+        // there (a cable stack is worked from in front of it) or step onto
+        // the piece (a treadmill is run on, not beside).
+        const inZone = { gx: place.gx0 + (zone.u0 + zone.u1) / 2, gy: place.gy0 + (zone.v0 + zone.v1) / 2 };
+        m.via = inZone;
+        goal = USED_FROM_ZONE[id] ? inZone : { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v };
+      } else {
+        m.via = null;
+        // Stand in front of the piece rather than inside it: clear of its
+        // own footprint, and toward the viewer so the gear is not hidden.
+        const clear = (footprintOf(id) / 2 + 0.4) * TILES_PER_METRE;
+        goal = {
+          gx: place.gx0 + clampTo(spot.u + clear * 0.5, 0.6, Math.max(0.6, place.cols - 0.6)),
+          gy: place.gy0 + clampTo(spot.v + clear * 0.8, 0.6, Math.max(0.6, place.rows - 0.6)),
+        };
+        // A piece against the notch has its front over the edge: stand
+        // beside it instead.
+        if (!onFloorOf(place, goal.gx, goal.gy)) {
+          goal = { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v + clear * 0.4 };
+          if (!onFloorOf(place, goal.gx, goal.gy)) goal = { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v };
+        }
       }
     } else {
+      m.via = null;
       m.gear = null;
       goal = randomFloorSpot(place);
     }
 
+    // The way in to a piece is through its step-on floor, so the last leg
+    // of the walk goes there first.
+    const legs = (from) => (m.via && (m.via.gx !== goal.gx || m.via.gy !== goal.gy)
+      ? routeInRoom(place, from, m.via).concat([goal])
+      : routeInRoom(place, from, goal));
     if (dest === m.room) {
-      m.path = routeInRoom(place, m, goal);
+      m.path = legs(m);
     } else {
       // corridors[i] joins rooms i and i+1, and always runs from its nearRoom
       // to its doorRoom -- which of those is the room being left decides
@@ -1805,7 +1908,7 @@
       } else {
         const hall = corridorWaypoints(c, placements[m.room] === c.nearRoom);
         m.path = routeInRoom(placements[m.room], m, hall[0])
-          .concat(hall.slice(1), routeInRoom(place, hall[hall.length - 1], goal));
+          .concat(hall.slice(1), legs(hall[hall.length - 1]));
         m.room = dest;
       }
     }
@@ -2712,7 +2815,7 @@
   let zoomLevel = 1;
   // Low enough that the longest plan -- the garage's row of bays, which runs
   // 25 tiles end to end -- still frames whole on a phone.
-  const ZOOM_MIN = 0.2;
+  const ZOOM_MIN = 0.12;
   const ZOOM_MAX = 1.6;
   const zoomWrapEl = document.getElementById('room-zoom-wrap');
   const stageScrollEl = document.getElementById('room-stage-scroll');
@@ -4426,6 +4529,11 @@
   function drawCorridorShell(c, colors) {
     drawPaving(c, colors, -8);
     drawSlabEdges(c, colors);
+    // The step across the mouth this hallway leaves its first room by: a
+    // piece of floor, so it goes down with the floor and whoever walks over
+    // it is drawn on top.
+    const nearEnd = corridorEnd(c, false);
+    drawThreshold(nearEnd[0], nearEnd[1], colors);
 
     // Full room height, not a shorter parapet: the hallway wall runs into a
     // room wall at both ends, and any difference in height shows up as a step
@@ -4611,14 +4719,9 @@
   // Only one end of a hallway can meet a wall. Rooms are walled along their
   // two back edges and cut away along the two front ones, so a hallway leaves
   // its first room through that open front -- there is nothing there to hang
-  // a door in -- and arrives at the far room through a real back wall, which
-  // is where the casing belongs.
-  function drawCorridorDoors(c, colors) {
-    const near = corridorEnd(c, false);
-    const far = corridorEnd(c, true);
-    drawThreshold(near[0], near[1], colors);
-    drawCorridorDoor(far[0], far[1], colors);
-  }
+  // a door in, so it gets a threshold, drawn with the hallway's floor -- and
+  // arrives at the far room through a real back wall, which is where the
+  // casing belongs, drawn with that room's walls.
 
   function renderScene() {
     rebuildPlan();
@@ -4666,10 +4769,6 @@
       });
     }
     pieces.sort((a, b) => a.depth - b.depth).forEach((p) => p.draw());
-
-    // Door casings go on last so they read as standing in the wall the room
-    // just painted over the hallway's end, rather than behind it.
-    corridors.forEach((c) => drawCorridorDoors(c, colors));
 
     // The hour of the day, laid over everything but under the vignette.
     const sky = skyWash();
@@ -4727,6 +4826,16 @@
     const doors = wallDoorSpans(roomIndex);
     drawWallDecor(theme, north, east, west, doors);
     drawRoomFittings(roomFitFor(roomIndex), north, east, west, doors);
+    // The casing of every doorway cut in these walls goes on now, so it
+    // stands in the wall: over the hallway showing through the hole and
+    // over anything strung along the wall, and under whatever stands in
+    // the room in front of it. Painted after everything, as it used to be,
+    // it sat on top of the gear and the people beside the door.
+    corridors.forEach((c) => {
+      if (c.doorRoom !== place) return;
+      const far = corridorEnd(c, true);
+      drawCorridorDoor(far[0], far[1], colors);
+    });
 
     // The floor is the L, not the box: paved inside its outline only.
     floorCtx.save();
@@ -4847,6 +4956,29 @@
     floorCtx.stroke();
     floorCtx.setLineDash([]);
     floorCtx.restore();
+
+    // And the floor it needs to be got onto, lighter, so what is being
+    // asked for is visible before something is refused for standing in it.
+    const z = accessZone(held.itemId, held.spot, held.turn);
+    if (z) {
+      const zq = [
+        isoPoint(place.gx0 + z.u0, place.gy0 + z.v0), isoPoint(place.gx0 + z.u1, place.gy0 + z.v0),
+        isoPoint(place.gx0 + z.u1, place.gy0 + z.v1), isoPoint(place.gx0 + z.u0, place.gy0 + z.v1),
+      ];
+      floorCtx.save();
+      floorCtx.beginPath();
+      floorCtx.moveTo(zq[0].x, zq[0].y + 1);
+      for (let i = 1; i < 4; i++) floorCtx.lineTo(zq[i].x, zq[i].y + 1);
+      floorCtx.closePath();
+      floorCtx.fillStyle = blocked ? 'rgba(255,72,56,0.10)' : 'rgba(255,255,255,0.08)';
+      floorCtx.fill();
+      floorCtx.strokeStyle = blocked ? 'rgba(255,90,70,0.6)' : 'rgba(255,255,255,0.55)';
+      floorCtx.lineWidth = 1.2;
+      floorCtx.setLineDash([3, 4]);
+      floorCtx.stroke();
+      floorCtx.setLineDash([]);
+      floorCtx.restore();
+    }
 
     floorCtx.save();
     floorCtx.globalAlpha = 0.82;
@@ -5534,23 +5666,45 @@
     room.layout.forEach((id, i) => {
       if (!id) return;
       const sp = spotOf(room, i, shape);
-      const o = halfBoxOf(id, turnAt(room, i));
-      const sideBySideU = Math.abs(sp.v - spot.v) < h.v + o.v;
-      const sideBySideV = Math.abs(sp.u - spot.u) < h.u + o.u;
-      // Flush on u: the held piece's near edge against this piece's far
-      // edge, whichever side it is on. Same again on v.
+      const t = turnAt(room, i);
+      const o = halfBoxOf(id, t);
+      // Everything of theirs to sit flush against: the piece, and the floor
+      // it needs in front of it. And everything of mine that has to clear
+      // them: my box, and my own step-on floor.
+      const theirs = [boxRect(sp, o)];
+      const zone = accessZone(id, sp, t);
+      if (zone) theirs.push(zone);
+      const myZone = accessZone(itemId, spot, turn);
+      const mine = [boxRect(spot, h)];
+      if (myZone) mine.push(myZone);
       const tries = [];
-      if (sideBySideU) {
-        tries.push({ u: sp.u + o.u + h.u, v: spot.v });
-        tries.push({ u: sp.u - o.u - h.u, v: spot.v });
-      }
-      if (sideBySideV) {
-        tries.push({ u: spot.u, v: sp.v + o.v + h.v });
-        tries.push({ u: spot.u, v: sp.v - o.v - h.v });
-      }
+      theirs.forEach((r) => mine.forEach((m) => {
+        // How far my rectangle's centre sits from the held spot.
+        const du = (m.u0 + m.u1) / 2 - spot.u;
+        const dv = (m.v0 + m.v1) / 2 - spot.v;
+        const mu = (m.u1 - m.u0) / 2;
+        const mv = (m.v1 - m.v0) / 2;
+        const sideBySideU = m.v1 > r.v0 && m.v0 < r.v1;
+        const sideBySideV = m.u1 > r.u0 && m.u0 < r.u1;
+        if (sideBySideU) {
+          tries.push({ u: r.u1 + mu - du, v: spot.v });
+          tries.push({ u: r.u0 - mu - du, v: spot.v });
+        }
+        if (sideBySideV) {
+          tries.push({ u: spot.u, v: r.v1 + mv - dv });
+          tries.push({ u: spot.u, v: r.v0 - mv - dv });
+        }
+      }));
       tries.forEach((t) => {
         const d = Math.hypot(t.u - spot.u, t.v - spot.v);
-        if (d < SNAP_REACH && (!best || d < best.d)) best = { u: t.u, v: t.v, d };
+        if (d >= SNAP_REACH || (best && d >= best.d)) return;
+        // Never snap into a place the piece could not be put down: flush
+        // with a treadmill's side is no use if that puts you in the floor
+        // in front of it, and a snap there would hold the piece in the
+        // very spot it is being nudged out of.
+        if (overlapsAnother(room, shape, itemId, t, turn)) return;
+        if (spotInCut(shape, itemId, t, turn) || zoneOffFloor(shape, itemId, t, turn)) return;
+        best = { u: t.u, v: t.v, d };
       });
     });
     return best ? { u: best.u, v: best.v } : spot;
@@ -5565,6 +5719,7 @@
     if (!room) return null;
     const shape = editShape();
     if (spotInCut(shape, editing.itemId, editing.spot, editing.turn)) return 'edge';
+    if (zoneOffFloor(shape, editing.itemId, editing.spot, editing.turn)) return 'edge';
     return overlapsAnother(room, shape, editing.itemId, editing.spot, editing.turn);
   }
   function blockerName(blocker) {
