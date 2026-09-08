@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=9" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=5" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=38" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=39" />
 </head>
 <body class="game-body">
 
@@ -72,7 +72,7 @@
   <div class="game-hud">
     <div class="hud-stat"><span class="hud-label">Total Gains</span><span class="hud-value" id="hud-total">0</span></div>
     <div class="hud-stat"><span class="hud-label">Per Second</span><span class="hud-value" id="hud-gps">0</span></div>
-    <div class="hud-stat"><span class="hud-label" id="hud-floor-label">On The Floor</span><span class="hud-value" id="hud-floor">$0</span></div>
+    <div class="hud-stat"><span class="hud-label">Uncollected</span><span class="hud-value" id="hud-floor">$0</span></div>
     <div class="hud-stat hud-level">
       <span class="hud-label">Level</span>
       <span class="hud-value" id="hud-level">1</span>
@@ -178,7 +178,7 @@
         <summary>How it works</summary>
         <div class="tycoon-howto-body">
           <p><b>Opening up.</b> You start with a Customer Desk and nothing else. Put it on the floor and the doors open: it takes membership fees by itself, and the shop opens with it. Every location needs a desk of its own before it earns a cent, and a desk is never sold.</p>
-          <p><b>The money.</b> Gear does not pay you directly. What a machine takes collects in a coin bubble above it, and you tap the bubble to pick it up. A bubble holds about two minutes of that machine's takings, and once it is full the machine stops earning until you empty it. Upgrading the Customer Desk raises what every bubble can hold, up to an hour at Mk IV, and hiring Cashiers collects a share for you as it is earned. Three Cashiers and nothing waits on the floor at all.</p>
+          <p><b>The money.</b> Gear does not pay you directly. What a machine takes collects in a coin bubble above it, and you tap the bubble to pick it up. A bubble holds a round figure -- about two minutes of that machine's takings, rounded to something worth reading -- and once it is full the machine stops earning until you empty it. Upgrading the Customer Desk raises what every bubble can hold, up to an hour at Mk IV, and hiring Cashiers collects a share for you as it is earned. Three Cashiers and nothing waits on the floor at all.</p>
           <p><b>Placing gear.</b> Click a piece in storage to pick it up, drag it or nudge it with the arrows, then press Place. It stands wherever you left it rather than in a grid square. Click a piece already down to move it again or put it back in storage. Gear in storage sells for 60% of what it cost.</p>
           <p><b>Room to use it.</b> Every machine keeps a strip of clear floor on the side you step onto it from, drawn as a dashed patch while you hold it. Two treadmills side by side are fine; one parked behind another is not, because nobody could get on the back one.</p>
           <p><b>Arrangement.</b> Two pieces of the same category, which are colour-coded, standing within about two metres of each other are worth +12% each. A Gear Fridge or Hype Sound System next to something from a different category is worth +20%.</p>
@@ -209,6 +209,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=76"></script>
+<script src="assets/js/gym-tycoon.js?v=77"></script>
 </body>
 </html>

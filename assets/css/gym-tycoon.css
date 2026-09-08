@@ -199,7 +199,7 @@
 .tycoon-page .hud-stat { width: 176px; box-sizing: border-box; }
 .tycoon-page .hud-value { white-space: nowrap; }
 .tycoon-page .hud-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hud-label.is-full { color: var(--amber); }
+
 .tycoon-open-hint { margin: 6px 0 4px; padding: 10px 12px; border-radius: 10px; background: rgba(255, 183, 3, 0.12); border: 1px solid rgba(255, 183, 3, 0.45); color: var(--text); font-size: 13px; line-height: 1.45; }
 .tycoon-inv-arm {
   display: flex;

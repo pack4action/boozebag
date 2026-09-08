@@ -1029,6 +1029,22 @@
   function pileCapSeconds() {
     return PILE_CAP_SECONDS[tierOf('frontdesk')] || PILE_CAP_SECONDS[1];
   }
+  // What a machine fills to, rounded to a figure worth reading. Two minutes
+  // of a treadmill's takings is $15,600-and-change, which is a number
+  // nobody wants to look at: the nearest of 10, 20, 50, 100 and so on up is
+  // both close enough and something you can hold in your head.
+  function niceCap(raw) {
+    if (!(raw > 0)) return 0;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const steps = [1, 2, 5, 10];
+    let best = 10 * mag;
+    let bestGap = Infinity;
+    steps.forEach((k) => {
+      const gap = Math.abs(Math.log(k * mag) - Math.log(raw));
+      if (gap < bestGap) { bestGap = gap; best = k * mag; }
+    });
+    return Math.max(10, best);
+  }
   // The share of the takings that never touch the floor: what the Cashiers
   // pick up as it is earned.
   function autoShare() {
@@ -1064,7 +1080,7 @@
           // Membership fees are paid at the desk, straight into the till.
           if (room.layout[k] === 'frontdesk') { direct += r * dt; return; }
           direct += r * auto * dt;
-          const cap = r * capS;
+          const cap = niceCap(r * capS);
           cash[k] = Math.min(cap, cash[k] + r * (1 - auto) * dt);
           key += pileLevel(cash[k], cap);
         });
@@ -1084,26 +1100,12 @@
   // The cap for one piece, in dollars, and the level its pile is at now.
   function pileOf(room, shape, index) {
     const rate = pieceRates(room, shape)[index] || 0;
-    const cap = rate * pileCapSeconds();
+    const cap = niceCap(rate * pileCapSeconds());
     const amount = roomCash(room)[index] || 0;
     return { amount, cap, level: pileLevel(amount, cap) };
   }
   function floorCash() {
     return allRoomsEverywhere().reduce((sum, room) => sum + roomCash(room).reduce((a, b) => a + b, 0), 0);
-  }
-  // How many pieces have stopped earning because nobody has emptied them.
-  // Worth saying out loud: a full pile is money the gym is no longer making.
-  function fullPiles() {
-    let n = 0;
-    THEMES.forEach((t) => {
-      (state.themeRooms[t.id] || []).forEach((room, i) => {
-        const shape = roomShapeFor(t.id, i);
-        room.layout.forEach((id, k) => {
-          if (id && id !== 'frontdesk' && pileOf(room, shape, k).level >= 4) n++;
-        });
-      });
-    });
-    return n;
   }
   function collectPile(roomIndex, index) {
     const room = activeRooms()[roomIndex];
@@ -1115,7 +1117,7 @@
     state.balance += amount;
     state.lifetime += amount;
     refreshHud();
-    toast('+$' + formatNum(amount), 'legend-paper');
+    toast('+$' + formatMoney(amount), 'legend-paper');
     renderScene();
     save();
     return amount;
@@ -1139,6 +1141,24 @@
   // one per address, never a floor of them.
   function deskWanted() {
     return (state.owned.frontdesk || 0) < THEMES.filter(unlockedFor).length;
+  }
+
+  // Money as somebody would say it out loud: whole dollars under a
+  // thousand, and above that as few decimals as still tell you something.
+  // Nobody wants to watch $1,124.43 tick over, and $127.68K is no better.
+  function formatMoney(n) {
+    if (!(n > 0)) return '0';
+    if (n < 1000) return String(Math.floor(n));
+    const units = ['K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp'];
+    let v = n;
+    let u = -1;
+    while (v >= 1000 && u < units.length - 1) {
+      v /= 1000;
+      u++;
+    }
+    const digits = v >= 100 ? 0 : 1;
+    // A trailing ".0" says nothing: $20K, not $20.0K.
+    return v.toFixed(digits).replace(/\.0$/, '') + units[u];
   }
 
   function formatNum(n) {
@@ -2714,24 +2734,13 @@
   // ---- HUD ----
   const hudGps = document.getElementById('hud-gps');
   const hudFloor = document.getElementById('hud-floor');
-  const hudFloorLabel = document.getElementById('hud-floor-label');
   function refreshHud() {
     hudTotal.textContent = '$' + formatNum(state.balance);
     hudGps.textContent = formatNum(gps) + '/s';
-    if (hudFloor) {
-      // The figure alone, and never anything else: this box is a fixed size
-      // and a longer string in it would resize the whole row of stats and
-      // shove the page about. How many pieces have stopped earning goes on
-      // the label above it instead.
-      const full = fullPiles();
-      hudFloor.textContent = '$' + formatNum(floorCash());
-      hudFloor.classList.toggle('is-full', full > 0);
-      if (hudFloorLabel) {
-        const label = full ? 'On The Floor · ' + full + ' full' : 'On The Floor';
-        if (hudFloorLabel.textContent !== label) hudFloorLabel.textContent = label;
-        hudFloorLabel.classList.toggle('is-full', full > 0);
-      }
-    }
+    // The figure alone, and never anything else: this box is a fixed size
+    // and a longer string in it would resize the whole row of stats and
+    // shove the page about.
+    if (hudFloor) hudFloor.textContent = '$' + formatMoney(floorCash());
   }
 
   function recomputeStats() {
@@ -2977,10 +2986,14 @@
   // edges to be cut off rather than to end. None of it counts towards the
   // auto-fit zoom (see PLAN_W/PLAN_H), or adding background would shrink the
   // rooms.
-  const WORLD_PAD = 34;
-  const BLEED_TOP = 250;
-  const BLEED_SIDE = 150;
-  const BLEED_BOTTOM = 120;
+  // How much drawn ground stands around the plan. Generous, because the
+  // plan is what the eye follows and a building with nothing around it
+  // reads as a model on a table: pan or zoom in and there is still site
+  // out there rather than the edge of the world.
+  const WORLD_PAD = 44;
+  const BLEED_TOP = 320;
+  const BLEED_SIDE = 300;
+  const BLEED_BOTTOM = 240;
   let PLAN_W = 480;
   let PLAN_H = 380;
   // The plan's extent in tiles, which is what the site is built around.
@@ -4021,6 +4034,38 @@
     maskAmbienceEdges();
   }
 
+  // The ground the plan stands on never changes while you are looking at
+  // it: same theme, same size, same lattice, every frame. Drawing it again
+  // sixty times a second was the single most expensive thing on the canvas
+  // once there was a decent amount of it, so it is drawn once into its own
+  // bitmap and stamped down after that.
+  let groundBitmap = null;
+  let groundKey = '';
+  function paintGround(theme) {
+    const scale = floorCtx.getTransform().a || 1;
+    const key = theme + '|' + BASE_W + 'x' + BASE_H + '|' + scale.toFixed(3);
+    if (key !== groundKey || !groundBitmap) {
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.ceil(BASE_W * scale));
+      cv.height = Math.max(1, Math.ceil(BASE_H * scale));
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      const live = floorCtx;
+      floorCtx = ctx;
+      try {
+        drawAmbience(theme);
+      } finally {
+        floorCtx = live;
+      }
+      groundBitmap = cv;
+      groundKey = key;
+    }
+    floorCtx.save();
+    floorCtx.setTransform(1, 0, 0, 1, 0, 0);
+    floorCtx.drawImage(groundBitmap, 0, 0);
+    floorCtx.restore();
+  }
+
   // Point on a wall: t is fraction along the wall (0 = the near/floor
   // corner given as fromP, 1 = toP), hFrac is fraction up from the floor
   // (0 = floor line, 1 = ceiling). Decor drawn from this stays anchored to
@@ -5010,6 +5055,8 @@
   // second, and asking the browser to re-lay-out the page that often -- which
   // is what reading the stage's size does -- would cost far more than the
   // drawing itself.
+  let sceneVignette = null;
+  let vignetteKey = '';
   function paintScene() {
     const colors = THEME_COLORS[state.activeTheme] || THEME_COLORS.garage;
     const light = LIGHT_COLORS[state.activeTheme] || LIGHT_COLORS.garage;
@@ -5024,7 +5071,7 @@
     // window carries the ground colour, the canvas fades to transparent at
     // its edges, and the two meet with no seam to see.
     if (stageScrollEl) stageScrollEl.style.background = colors.bg;
-    drawAmbience(state.activeTheme);
+    paintGround(state.activeTheme);
 
     // Rooms and hallways go down in one back-to-front pass, ordered by how far
     // back their rear corner sits. Drawing all the hallways first instead
@@ -5061,10 +5108,15 @@
       floorCtx.fillRect(0, 0, W, H);
     }
 
-    const vignette = floorCtx.createRadialGradient(W / 2, H * 0.42, H * 0.25, W / 2, H * 0.42, H * 0.72);
-    vignette.addColorStop(0, 'rgba(0,0,0,0)');
-    vignette.addColorStop(1, 'rgba(0,0,0,0.45)');
-    floorCtx.fillStyle = vignette;
+    // Built once per canvas size rather than per frame: a radial gradient
+    // is not free to make, and this one is always the same.
+    if (!sceneVignette || vignetteKey !== W + 'x' + H) {
+      sceneVignette = floorCtx.createRadialGradient(W / 2, H * 0.42, H * 0.25, W / 2, H * 0.42, H * 0.72);
+      sceneVignette.addColorStop(0, 'rgba(0,0,0,0)');
+      sceneVignette.addColorStop(1, 'rgba(0,0,0,0.45)');
+      vignetteKey = W + 'x' + H;
+    }
+    floorCtx.fillStyle = sceneVignette;
     floorCtx.fillRect(0, 0, W, H);
   }
 
@@ -5250,7 +5302,7 @@
     pileTagRects = [];
     floorCtx.font = 'bold 10px system-ui, sans-serif';
     pileTags.forEach((t) => {
-      const label = '$' + formatNum(t.pile.amount);
+      const label = '$' + formatMoney(t.pile.amount);
       // Room for the coin as well as the figure.
       const w = Math.max(40, floorCtx.measureText(label).width + 26);
       const r = { x: t.x - w / 2, y: t.y - TAG_H, w, h: TAG_H };
@@ -5922,7 +5974,10 @@
     if (dragState.carrying) {
       const p = pointFromEvent(e);
       const hit = spotFromPoint(p.x, p.y);
-      if (hit && editing && hit.roomIndex === editing.roomIndex) moveEditTo(hit.u, hit.v);
+      if (hit && editing) {
+        if (hit.roomIndex !== editing.roomIndex) carryEditTo(hit.roomIndex, hit.u, hit.v);
+        else moveEditTo(hit.u, hit.v);
+      }
       return;
     }
     panBy(dx, dy);
@@ -6021,6 +6076,10 @@
   //   the tray -- which is what tells cancel where to put it back.
   let editing = null;
 
+  function roomLabel(index) {
+    return 'Room ' + (index + 1);
+  }
+
   function editShape() {
     return roomShapeFor(state.activeTheme, editing.roomIndex);
   }
@@ -6032,6 +6091,9 @@
     editing = {
       itemId,
       roomIndex,
+      // The room it was lifted out of, which is where cancelling puts it
+      // back -- not necessarily the room it is being carried around in.
+      fromRoomIndex: fromIndex === undefined || fromIndex === null ? null : roomIndex,
       spot: at,
       // Picked up the way it was standing, so moving a turned piece does
       // not quietly straighten it out.
@@ -6138,6 +6200,16 @@
     return blocker === 'edge' ? 'edge of the floor' : itemById(blocker).name;
   }
 
+  // Carry the held piece into another room: it keeps its turn, and lands
+  // wherever in that room the pointer is, clamped onto its floor.
+  function carryEditTo(roomIndex, u, v) {
+    if (!editing || editing.roomIndex === roomIndex) return false;
+    if (!activeRooms()[roomIndex]) return false;
+    editing.roomIndex = roomIndex;
+    moveEditTo(u, v);
+    return true;
+  }
+
   function moveEditTo(u, v) {
     if (!editing) return;
     const room = activeRooms()[editing.roomIndex];
@@ -6185,10 +6257,15 @@
     }
     const room = activeRooms()[editing.roomIndex];
     // Back into the slot it came from where there is one, so moving a piece
-    // does not quietly reshuffle a full room.
-    let slot = editing.fromIndex;
+    // does not quietly reshuffle a full room -- but a piece carried into
+    // another room takes a free slot there, and only if that room has one.
+    const sameRoom = editing.fromRoomIndex === editing.roomIndex;
+    let slot = sameRoom ? editing.fromIndex : null;
     if (slot === null || room.layout[slot]) slot = room.layout.indexOf(null);
-    if (slot === -1) { cancelEdit(); return; }
+    if (slot === -1) {
+      toast('That room is full -- ' + roomLabel(editing.roomIndex) + ' has no slot free', null);
+      return;
+    }
     if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
     room.layout[slot] = editing.itemId;
     room.spots[slot] = {
@@ -6199,8 +6276,9 @@
   function cancelEdit() {
     if (!editing) return;
     if (editing.fromIndex !== null) {
-      // It was already on the floor: put it back exactly where it stood.
-      const room = activeRooms()[editing.roomIndex];
+      // It was already on the floor: put it back exactly where it stood,
+      // in the room it stood in.
+      const room = activeRooms()[editing.fromRoomIndex];
       if (!room.layout[editing.fromIndex]) {
         room.layout[editing.fromIndex] = editing.itemId;
         if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
@@ -6290,7 +6368,10 @@
   function onFloorTap(px, py) {
     const hit = spotFromPoint(px, py);
     if (editing) {
-      if (hit && hit.roomIndex === editing.roomIndex) moveEditTo(hit.u, hit.v);
+      if (hit) {
+        if (hit.roomIndex !== editing.roomIndex) carryEditTo(hit.roomIndex, hit.u, hit.v);
+        else moveEditTo(hit.u, hit.v);
+      }
       return;
     }
     // Cash first: the bubble over a machine is the thing you are most
@@ -6492,9 +6573,11 @@
     const item = itemById(editing.itemId);
     const blocker = editOverlaps();
     if (placeLabelEl) {
+      const where = activeRooms().length > 1 ? ' in ' + roomLabel(editing.roomIndex) : '';
       placeLabelEl.textContent = (item ? item.name : 'Gear')
         + (blocker ? ' -- overlaps the ' + blockerName(blocker) + ', move it'
-          : editing.fromIndex === null ? ' -- drag or nudge, then place' : ' -- moving');
+          : editing.fromIndex === null ? where + ' -- drag or nudge, then place'
+            : where + ' -- moving');
     }
     if (placeConfirmBtn) placeConfirmBtn.disabled = !!blocker;
     if (placeStoreBtn) placeStoreBtn.hidden = editing.fromIndex === null;
