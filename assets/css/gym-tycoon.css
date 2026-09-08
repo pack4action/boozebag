@@ -1064,3 +1064,28 @@
   border-color: rgba(255, 255, 255, 0.3);
   background: rgba(255, 255, 255, 0.12);
 }
+
+
+/* ---- Rush order ---- */
+/* Sits above the standing jobs in the same shape as one, with a clock on
+   it. Amber, because amber is what the board uses for money, and this is
+   the row that is about money. */
+.tycoon-rush-order { margin-bottom: 8px; }
+.tycoon-job.is-rush {
+  border-color: rgba(255, 205, 90, 0.45);
+  background: linear-gradient(180deg, rgba(255, 205, 90, 0.12), rgba(255, 205, 90, 0.03));
+}
+.tycoon-job.is-rush .tycoon-job-text { color: #ffd97a; }
+.tycoon-rush-clock {
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.72);
+}
+.tycoon-rush-clock.is-late { color: #ff7b6b; font-weight: 800; }
+.tycoon-rush-wait {
+  margin: 0;
+  padding: 7px 10px;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.42);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}

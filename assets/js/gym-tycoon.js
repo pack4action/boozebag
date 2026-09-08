@@ -844,6 +844,8 @@
       tiers: {},
       jobs: [],
       jobsDone: 0,
+      rush: { job: null, deadlineAt: 0, nextAt: 0 },
+      rushDone: 0,
       promoAt: 0,
       trophies: {},
       gymName: '',
@@ -1146,6 +1148,89 @@
     return { at, target: job.target, ready: at >= job.target };
   }
 
+  // ---- Rush orders ----
+  // The standing jobs wait for you. A rush order does not: one at a time,
+  // three times the pay, and eight minutes to do it in, after which it is
+  // gone and the board goes quiet for a while. It is the thing that makes
+  // *now* different from later in a game that is otherwise happy to be left
+  // -- and it only ever asks for something that can be bought or placed on
+  // the spot, never for a room to be filled or an arrangement worked out.
+  const RUSH_ORDER_MIN_LEVEL = 3;
+  const RUSH_ORDER_SECONDS = 8 * 60;
+  const RUSH_ORDER_PAY = 3.0;
+  const RUSH_ORDER_GAP_DONE = 10 * 60;
+  const RUSH_ORDER_GAP_MISSED = 20 * 60;
+  const RUSH_ORDER_KINDS = ['ownItem', 'placeItem', 'placeCategory', 'gps'];
+
+  function rushState() {
+    if (!state.rush || typeof state.rush !== 'object') {
+      state.rush = { job: null, deadlineAt: 0, nextAt: 0 };
+    }
+    return state.rush;
+  }
+  function rushOrder() {
+    const r = rushState();
+    return r.job && JOB_KINDS[r.job.kind] ? r.job : null;
+  }
+  function rushSecondsLeft() {
+    return Math.max(0, (rushState().deadlineAt - Date.now()) / 1000);
+  }
+  function rushNextInSeconds() {
+    return Math.max(0, (rushState().nextAt - Date.now()) / 1000);
+  }
+
+  function writeRushOrder() {
+    const avoid = Object.keys(JOB_KINDS).filter((k) => RUSH_ORDER_KINDS.indexOf(k) === -1);
+    const usable = jobKindsAvailable(floorTally()).filter((k) => avoid.indexOf(k) === -1);
+    if (!usable.length) return;
+    const r = rushState();
+    r.job = makeJob(RUSH_ORDER_PAY, avoid);
+    r.deadlineAt = Date.now() + RUSH_ORDER_SECONDS * 1000;
+  }
+
+  // Off the earnings tick, like everything else with a clock on it: an order
+  // that runs out while the tab is open is taken off the board there and
+  // then, and the next one is written when its time comes.
+  function tickRushOrder() {
+    if (currentLevel() < RUSH_ORDER_MIN_LEVEL) return;
+    const r = rushState();
+    const now = Date.now();
+    if (r.job && now >= r.deadlineAt) {
+      r.job = null;
+      r.nextAt = now + RUSH_ORDER_GAP_MISSED * 1000;
+      toast('Rush order missed -- another in ' + Math.round(RUSH_ORDER_GAP_MISSED / 60) + ' min', null);
+      save();
+    }
+    if (!r.job && now >= r.nextAt) {
+      writeRushOrder();
+      if (r.job) save();
+    }
+  }
+
+  function claimRushOrder() {
+    const job = rushOrder();
+    if (!job) return;
+    if (!jobProgress(job, floorTally()).ready) return;
+    const before = currentLevel();
+    state.balance += job.cash;
+    state.lifetime += job.cash;
+    state.xp = (state.xp || 0) + job.xp;
+    state.jobsDone = (state.jobsDone || 0) + 1;
+    state.rushDone = (state.rushDone || 0) + 1;
+    const r = rushState();
+    r.job = null;
+    r.nextAt = Date.now() + RUSH_ORDER_GAP_DONE * 1000;
+    if (currentLevel() > before) announceLevel(currentLevel());
+    else toast('Rush order done -- $' + formatNum(job.cash) + ' and ' + job.xp + ' XP', 'good');
+    refreshHud();
+    refreshLevelUI();
+    refreshShopUI();
+    refreshThemeRow();
+    refreshRushOrderUI();
+    updateLeaderboardEntry();
+    save();
+  }
+
   // ---- Trophies ----
   // Milestones, in the Township sense: things you were going to do anyway,
   // noticed and paid for. What they are really for is pointing at corners of
@@ -1200,6 +1285,8 @@
       cash: 120000, got: (c) => c.jobsDone >= 10 },
     { id: 'jobs50', name: 'Never Says No', hint: 'Finish fifty jobs',
       cash: 60000000, got: (c) => c.jobsDone >= 50 },
+    { id: 'rush5', name: 'Under Pressure', hint: 'Finish five rush orders before they run out',
+      cash: 2500000, got: (c) => c.rushDone >= 5 },
 
     { id: 'fran1', name: 'Second Location', hint: 'Franchise the gym out once',
       cash: 3000000, got: (c) => c.runs >= 1 },
@@ -1250,6 +1337,7 @@
       roles: STAFF_ROLES.filter((r) => staffCount(r.id) > 0).length,
       topTier,
       jobsDone: state.jobsDone || 0,
+      rushDone: state.rushDone || 0,
       runs: (state.franchise && state.franchise.runs) || 0,
     };
   }
@@ -1688,6 +1776,77 @@
     save();
   }
 
+  // ---- The rush order, on the board ----
+  // One row, built once; what changes on it -- progress, the clock -- is
+  // written into place, for the same reason the standing jobs are.
+  const rushOrderEl = document.getElementById('rush-order');
+  let rushRow = null;
+  let rushSignature = '';
+
+  function buildRushRow() {
+    rushOrderEl.innerHTML =
+      '<div class="tycoon-job is-rush">'
+        + '<span class="tycoon-job-text"></span>'
+        + '<span class="tycoon-job-bar"><span class="tycoon-job-fill"></span></span>'
+        + '<span class="tycoon-job-foot">'
+          + '<span class="tycoon-job-meta"></span>'
+          + '<button class="tycoon-job-claim" type="button" disabled>Claim</button>'
+        + '</span>'
+      + '</div>'
+      + '<p class="tycoon-rush-wait"></p>';
+    const row = rushOrderEl.querySelector('.tycoon-job');
+    const claim = row.querySelector('.tycoon-job-claim');
+    claim.addEventListener('click', claimRushOrder);
+    rushRow = {
+      row,
+      text: row.querySelector('.tycoon-job-text'),
+      fill: row.querySelector('.tycoon-job-fill'),
+      meta: row.querySelector('.tycoon-job-meta'),
+      claim,
+      wait: rushOrderEl.querySelector('.tycoon-rush-wait'),
+      last: null,
+    };
+  }
+
+  function refreshRushOrderUI() {
+    if (!rushOrderEl) return;
+    if (currentLevel() < RUSH_ORDER_MIN_LEVEL) {
+      rushOrderEl.hidden = true;
+      return;
+    }
+    rushOrderEl.hidden = false;
+    if (!rushRow) buildRushRow();
+    const job = rushOrder();
+    if (!job) {
+      rushRow.row.hidden = true;
+      rushRow.wait.hidden = false;
+      rushRow.wait.textContent = 'Next rush order in ' + clockOf(rushNextInSeconds());
+      rushSignature = '';
+      return;
+    }
+    rushRow.wait.hidden = true;
+    rushRow.row.hidden = false;
+    const signature = job.kind + ':' + job.target + ':' + (job.item || job.cat || '');
+    if (signature !== rushSignature) {
+      rushSignature = signature;
+      rushRow.text.textContent = 'RUSH: ' + JOB_KINDS[job.kind].text(job);
+      rushRow.last = null;
+    }
+    const p = jobProgress(job, floorTally());
+    const shown = Math.min(p.at, p.target);
+    const left = Math.ceil(rushSecondsLeft());
+    const stamp = shown + '/' + p.target + '/' + left + (p.ready ? '!' : '');
+    if (rushRow.last === stamp) return;
+    rushRow.last = stamp;
+    rushRow.fill.style.width = ((shown / Math.max(1, p.target)) * 100).toFixed(1) + '%';
+    rushRow.meta.innerHTML = '<span class="tycoon-job-reward">$' + formatNum(job.cash)
+      + ' + ' + job.xp + ' XP</span> &middot; ' + formatNum(shown) + ' / ' + formatNum(p.target)
+      + ' &middot; <span class="tycoon-rush-clock' + (left < 60 ? ' is-late' : '') + '">'
+      + clockOf(left) + '</span>';
+    rushRow.claim.disabled = !p.ready;
+    rushRow.row.classList.toggle('is-ready', p.ready);
+  }
+
   const franchisePanelEl = document.getElementById('franchise-panel');
   const franchiseHeldEl = document.getElementById('franchise-held');
   const franchiseNoteEl = document.getElementById('franchise-note');
@@ -1746,11 +1905,13 @@
     const keptTrophies = state.trophies || {};
     const keptPromoAt = state.promoAt || 0;
     const keptJobsDone = state.jobsDone || 0;
+    const keptRushDone = state.rushDone || 0;
     const keptName = state.gymName || '';
     state = Object.assign(defaultState(), {
       xp: keptXp,
       trophies: keptTrophies,
       jobsDone: keptJobsDone,
+      rushDone: keptRushDone,
       promoAt: keptPromoAt,
       gymName: keptName,
       // Lifetime is what the offer is measured against, so it has to survive
@@ -5440,6 +5601,7 @@
     // The trophy wall only ever gains tiles as they are won, so a reset has
     // to put it back itself or it would keep showing a cleared gym's.
     refreshTrophyUI();
+    refreshRushOrderUI();
     if (gymNameEl) gymNameEl.value = '';
     renderScene();
     renderInventory();
@@ -5469,6 +5631,8 @@
   refreshRoomActions();
   refreshTrophyUI();
   refreshPromoUI();
+  tickRushOrder();
+  refreshRushOrderUI();
   promoWasRunning = promoRunning();
   // Straight away rather than on the first tick, so a save that already
   // qualifies for something opens showing it rather than winning it a
@@ -5530,6 +5694,8 @@
     refreshFranchiseUI();
     refreshThemeRow();
     refreshRoomActions();
+    tickRushOrder();
+    refreshRushOrderUI();
     checkTrophies();
 
     const affordable = nextRoomAffordable();
