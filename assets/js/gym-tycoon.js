@@ -2029,7 +2029,13 @@
     // two different things you can do to a room, and rolling them into one
     // percentage hides which of them is doing the work.
     const rushPct = Math.round((rushMultiplier() - 1) * 100);
-    const arrangedGps = roomGps / vibeMultiplier(room) / rushMultiplier();
+    // Asked of the arrangement itself rather than worked back out of the
+    // room's rate by dividing the other multipliers off it: that only ever
+    // divided off the two it named, so the wage bill, the franchise bonus
+    // and a running open day were all quietly showing up as synergy.
+    const arrangeMult = synergyMultipliers(room, shape);
+    const arrangedGps = layout.reduce(
+      (sum, id, i) => sum + (id ? gpsOf(id) * arrangeMult[i] : 0), 0);
     const bonusPct = baseSum > 0 ? Math.round((arrangedGps / baseSum - 1) * 100) : 0;
     synergyEl.textContent = roomLabel() + ': ' + placed + '/' + layout.length
       + ' slots filled -- base ' + formatNum(baseSum) + '/s'
@@ -4164,7 +4170,6 @@
     // order comes from the pieces themselves -- furthest back first, or a
     // piece behind another would paint over it.
     const room = activeRooms()[roomIndex];
-    const mult = synergyMultipliers(room, shape);
     // Gear and members go down in one sorted pass, so a member walking
     // behind a machine is hidden by it and one walking in front covers it.
     const standing = [];
@@ -4195,8 +4200,7 @@
         floorCtx.stroke();
         floorCtx.restore();
       }
-      drawProp(itemId, c, mult[index], propScaleFor(itemId),
-        gearInUse.has(roomIndex + ':' + index), tierOf(itemId));
+      drawProp(itemId, c, propScaleFor(itemId), tierOf(itemId));
     });
 
     if (editing && editing.roomIndex === roomIndex) {
@@ -4227,7 +4231,7 @@
 
     floorCtx.save();
     floorCtx.globalAlpha = 0.82;
-    drawProp(held.itemId, { x: c.x, y: c.y - 10 }, 1, propScaleFor(held.itemId));
+    drawProp(held.itemId, { x: c.x, y: c.y - 10 }, propScaleFor(held.itemId), 1);
     floorCtx.restore();
   }
 
@@ -4519,82 +4523,54 @@
     }
   }
 
-  // Which pieces have somebody on them right now, keyed room and slot. Kept
-  // as a set built once a frame rather than searched per piece, because the
-  // draw loop asks about every piece on every floor.
-  let gearInUse = new Set();
-  function refreshGearInUse() {
-    const next = new Set();
-    members.forEach((m) => {
-      if (m.state === 'using' && m.gear !== null) next.add(m.room + ':' + m.gear);
-    });
-    gearInUse = next;
-  }
-
-  function drawProp(itemId, c, mult, scale, busy, tier) {
+  function drawProp(itemId, c, scale, tier) {
     const catColor = CATEGORY_META[CATEGORY[itemId]].color;
     floorCtx.save();
     floorCtx.translate(c.x, c.y);
     floorCtx.scale(scale, scale);
     floorCtx.translate(-c.x, -c.y);
 
-    // A glowing ring means this piece is currently getting a synergy
-    // bonus from what is standing near it -- the payoff for arrangement.
-    if (mult > 1) {
-      floorCtx.beginPath();
-      floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * 0.30, ROOM.tileH * 0.26, 0, 0, Math.PI * 2);
-      floorCtx.strokeStyle = hexA(catColor, 0.7);
-      floorCtx.lineWidth = 1.1;
-      floorCtx.shadowColor = catColor;
-      floorCtx.shadowBlur = 4;
-      floorCtx.stroke();
-      floorCtx.shadowBlur = 0;
-    }
-
-    // Soft contact shadow underneath, plus the crisper category-tinted pool
-    // on top -- reads as the item actually sitting on the floor instead of a
-    // flat sticker. The softness is a gradient that fades to nothing at the
-    // rim, not an ellipse run through a blur filter: a canvas filter
-    // re-rasterises the region it touches, and with one under every piece of
-    // gear that single call cost nine tenths of the entire frame.
-    const shadowR = ROOM.tileW * 0.34;
-    const soft = floorCtx.createRadialGradient(c.x, c.y + 4, shadowR * 0.15, c.x, c.y + 4, shadowR);
-    soft.addColorStop(0, 'rgba(0,0,0,0.42)');
-    soft.addColorStop(0.55, 'rgba(0,0,0,0.28)');
+    // The only thing on the floor under a piece is its shadow. It used to
+    // stand on a category-coloured pool with a synergy ring and a pulsing
+    // in-use ring on top of that, and three haloes stacked under an object
+    // do not read as an object standing on a floor -- they read as one
+    // hovering over a sticker. What they were saying is said elsewhere now:
+    // the arrangement bonus by the synergy line under the plan, and who is
+    // using what by the person standing there doing it.
+    //
+    // Tight to the base and darkest directly beneath, because that is what
+    // makes contact read. The softness is a gradient fading to nothing at
+    // the rim rather than an ellipse run through a blur filter: a canvas
+    // filter re-rasterises the region it touches, and with one under every
+    // piece of gear that single call cost nine tenths of the entire frame.
+    // Sized to the sprite, not to the tile. A piece is drawn up to
+    // tileW * 1.15 across, so a shadow a third of a tile wide disappeared
+    // behind it completely and left the gear looking pasted on -- this one
+    // spreads past the base on every side, which is the half of it you can
+    // actually see once the piece is drawn over the top.
+    const shadowRX = ROOM.tileW * 0.66;
+    const shadowRY = ROOM.tileH * 0.34;
+    const shadowY = c.y + 3;
+    const soft = floorCtx.createRadialGradient(c.x, shadowY, shadowRX * 0.08, c.x, shadowY, shadowRX);
+    soft.addColorStop(0, 'rgba(0,0,0,0.55)');
+    soft.addColorStop(0.45, 'rgba(0,0,0,0.34)');
     soft.addColorStop(1, 'rgba(0,0,0,0)');
     floorCtx.beginPath();
-    floorCtx.ellipse(c.x, c.y + 4, shadowR, ROOM.tileH * 0.30, 0, 0, Math.PI * 2);
+    floorCtx.ellipse(c.x, shadowY, shadowRX, shadowRY, 0, 0, Math.PI * 2);
     floorCtx.fillStyle = soft;
     floorCtx.fill();
 
-    // A piece with somebody working it lights up under them and breathes,
-    // so a busy gym reads as busy at a glance -- and so that a member
-    // standing at a machine looks different from one standing beside it.
-    const pulse = busy ? 0.5 + 0.5 * Math.sin(performance.now() / 380) : 0;
-    floorCtx.beginPath();
-    floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * (0.28 + pulse * 0.05),
-      ROOM.tileH * (0.24 + pulse * 0.05), 0, 0, Math.PI * 2);
-    floorCtx.fillStyle = hexA(catColor, 0.34 + (busy ? 0.20 + pulse * 0.16 : 0));
-    floorCtx.fill();
-    if (busy) {
-      floorCtx.beginPath();
-      floorCtx.ellipse(c.x, c.y + 3, ROOM.tileW * (0.33 + pulse * 0.06),
-        ROOM.tileH * (0.28 + pulse * 0.06), 0, 0, Math.PI * 2);
-      floorCtx.strokeStyle = hexA(catColor, 0.5 - pulse * 0.28);
-      floorCtx.lineWidth = 1.2;
-      floorCtx.stroke();
-    }
-
-    // An upgraded piece carries its mark: one pip per tier above the first,
-    // set into the floor in front of it, so a room of Mk III treadmills
-    // reads differently from a room of new ones without having to be told.
+    // An upgraded piece carries its mark: one stripe per tier above the
+    // first, painted on the floor in front of it, so a room of Mk III
+    // treadmills reads differently from a room of new ones without having
+    // to be told. Stripes rather than dots -- a dot under a piece of gear
+    // is the thing this stopped doing.
     if (tier > 1) {
       for (let i = 0; i < tier - 1; i++) {
-        const px = c.x + (i - (tier - 2) / 2) * ROOM.tileW * 0.12;
-        floorCtx.beginPath();
-        floorCtx.ellipse(px, c.y + ROOM.tileH * 0.42, ROOM.tileW * 0.035,
-          ROOM.tileH * 0.035, 0, 0, Math.PI * 2);
-        floorCtx.fillStyle = hexA(catColor, 0.95);
+        const px = c.x + (i - (tier - 2) / 2) * ROOM.tileW * 0.11;
+        roundRectPath(floorCtx, px - ROOM.tileW * 0.022, c.y + ROOM.tileH * 0.40,
+          ROOM.tileW * 0.044, ROOM.tileH * 0.14, ROOM.tileW * 0.018);
+        floorCtx.fillStyle = hexA(catColor, 0.9);
         floorCtx.fill();
       }
     }
@@ -5317,7 +5293,6 @@
     lastFrameAt = now;
     if (!members.length) return;
     stepMembers(dt);
-    refreshGearInUse();
     paintScene();
   }
   requestAnimationFrame(animateMembers);
