@@ -3359,36 +3359,6 @@
     floorCtx.stroke();
   }
 
-  // Soft radial glow pooling on the floor under the ceiling fixture --
-  // drawn with an additive blend so it lightens whatever is underneath
-  // rather than flatly covering it.
-  function drawLightPool(center, glowColor) {
-    const grad = floorCtx.createRadialGradient(center.x, center.y, 4, center.x, center.y, ROOM.tileW * 1.9);
-    // The lights work harder after dark and are barely noticed at midday.
-    grad.addColorStop(0, scaleAlpha(glowColor, lampBoost()));
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    floorCtx.save();
-    floorCtx.globalCompositeOperation = 'lighter';
-    floorCtx.fillStyle = grad;
-    floorCtx.beginPath();
-    floorCtx.ellipse(center.x, center.y, ROOM.tileW * 1.9, ROOM.tileH * 1.9, 0, 0, Math.PI * 2);
-    floorCtx.fill();
-
-    // A tighter, brighter hot spot right under the fixture on top of the
-    // wide ambient pool -- gives the floor a real specular sheen instead
-    // of one flat wash of color.
-    const hot = floorCtx.createRadialGradient(center.x, center.y, 0, center.x, center.y, ROOM.tileW * 0.5);
-    hot.addColorStop(0, 'rgba(255,255,255,0.22)');
-    hot.addColorStop(1, 'rgba(255,255,255,0)');
-    floorCtx.fillStyle = hot;
-    floorCtx.beginPath();
-    floorCtx.ellipse(center.x, center.y, ROOM.tileW * 0.5, ROOM.tileH * 0.5, 0, 0, Math.PI * 2);
-    floorCtx.fill();
-    floorCtx.restore();
-  }
-
-  // Hanging bulb (garage/basement) -- skipped for rooftop, which is lit by
-  // open sky instead of a fixture.
   // The walls/floor only cover the middle ~70% of the canvas width -- the
   // ~70px strips on either side (and the sliver above the wall peak) are
   // plain background. Give each theme something to actually look at back
@@ -4546,11 +4516,11 @@
 
     drawSlabEdges(place, colors);
 
-    const roomCenterFloor = isoPoint(place.gx0 + shape.cols / 2, place.gy0 + shape.rows / 2);
-    drawLightPool(roomCenterFloor, light.glow);
-    // Drawn before the props loop below, not after -- otherwise a fixture
-    // would float on top of tall gear placed in the center-ish slots
-    // instead of being hidden behind it like real ceiling hardware.
+    // The light comes from the rail of downlights along the back walls and
+    // the pools they throw on the floor beneath them -- there is no longer
+    // a fixture in the middle of the room, so nothing pools there either.
+    // Drawn before the props loop below, not after, so the rail sits behind
+    // tall gear like real ceiling hardware instead of floating on top.
     drawCeilingStrip(north, east, west, light);
 
     // Gear stands wherever it was put, not in a grid cell, so the draw
