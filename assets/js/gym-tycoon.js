@@ -5217,17 +5217,25 @@
     onFloorTap(p.x, p.y);
   });
 
-  // A trackpad pinch arrives as a wheel event with ctrlKey set, and ctrl with
-  // a mouse wheel is the same gesture by hand -- with the +/- buttons gone
-  // this is the whole zoom story for a pointer, so the rate is exponential
-  // (every notch the same proportional step, in or out) and gentle enough
-  // that one notch is a nudge rather than a jump. A plain wheel is left
-  // alone, so the page still scrolls normally over the canvas.
-  const WHEEL_ZOOM_RATE = 0.002;
+  // The wheel zooms the plan, no modifier needed: over the stage a scroll
+  // is a zoom, the way it is on every map. Two different things arrive
+  // here as wheel events. A trackpad pinch comes with ctrlKey set and a
+  // stream of small deltas, and gets a gentle exponential rate so the
+  // pinch is smooth. A mouse wheel comes in notches -- a hundred pixels or
+  // a few lines a click -- and gets a fixed step per notch, so one click is
+  // a clear nudge in or out rather than a lurch or a nothing.
+  const PINCH_ZOOM_RATE = 0.002;
+  const NOTCH_ZOOM_STEP = 1.12;
   gestureEl.addEventListener('wheel', (e) => {
-    if (!e.ctrlKey) return;
     e.preventDefault();
-    zoomAround(zoomLevel * Math.exp(-e.deltaY * WHEEL_ZOOM_RATE), e.clientX, e.clientY);
+    let factor;
+    if (e.ctrlKey) {
+      factor = Math.exp(-e.deltaY * PINCH_ZOOM_RATE);
+    } else {
+      const notches = e.deltaMode === 0 ? e.deltaY / 100 : e.deltaY / 3;
+      factor = Math.pow(NOTCH_ZOOM_STEP, -Math.max(-3, Math.min(3, notches)));
+    }
+    zoomAround(zoomLevel * factor, e.clientX, e.clientY);
   }, { passive: false });
 
   gestureEl.addEventListener('pointercancel', (e) => {
