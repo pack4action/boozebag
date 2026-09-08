@@ -446,6 +446,60 @@
   // a same-category match.
 
 
+  // ---- Upgrades ----
+  // A room has a fixed number of slots, so a gym that has filled its rooms
+  // and bought every room it can has nowhere left to go: the shop still
+  // sells things but there is nowhere to stand them. Upgrading fixes that.
+  // It lifts every unit of a type at once, so it is worth more the more of
+  // that type you have -- which makes the real question wide or tall. Wide
+  // is more units and so more neighbours to earn synergy from; tall is
+  // fewer, better ones. Slots are what make it a question at all.
+  const MAX_TIER = 4;
+  const TIER_STEP = 2.2;
+  const TIER_NAMES = ['', 'Mk I', 'Mk II', 'Mk III', 'Mk IV'];
+  const UPGRADE_MIN_LEVEL = 4;
+  const UPGRADE_MIN_OWNED = 3;
+  function tierOf(id) {
+    return (state.tiers && state.tiers[id]) || 1;
+  }
+  function tierMultiplier(id) {
+    return Math.pow(TIER_STEP, tierOf(id) - 1);
+  }
+  // What a piece earns as it stands, tier included. Everything that asks
+  // what an item is worth goes through here rather than reading item.gps.
+  function gpsOf(id) {
+    const item = itemById(id);
+    return item ? item.gps * tierMultiplier(id) : 0;
+  }
+  function upgradeCost(id) {
+    const item = itemById(id);
+    return Math.ceil(item.baseCost * 40 * Math.pow(3.2, tierOf(id) - 1));
+  }
+  function canUpgrade(id) {
+    const item = itemById(id);
+    return !!item && !item.vibe && tierOf(id) < MAX_TIER
+      && currentLevel() >= UPGRADE_MIN_LEVEL
+      && (state.owned[id] || 0) >= UPGRADE_MIN_OWNED;
+  }
+  function upgradeItem(id) {
+    if (!canUpgrade(id)) return;
+    const cost = upgradeCost(id);
+    if (state.balance < cost) return;
+    const before = currentLevel();
+    state.balance -= cost;
+    if (!state.tiers) state.tiers = {};
+    state.tiers[id] = tierOf(id) + 1;
+    state.xp = (state.xp || 0) + xpForSpend(cost);
+    if (currentLevel() > before) announceLevel(currentLevel());
+    else toast(itemById(id).name + ' upgraded to ' + TIER_NAMES[tierOf(id)], 'good');
+    recomputeStats();
+    refreshLevelUI();
+    refreshShopUI();
+    renderInventory();
+    renderScene();
+    save();
+  }
+
   // ---- Franchising ----
   // The shop runs out. Once the office tier is bought there is nothing left
   // to spend money on but more of the same, and no reason to keep the tab
@@ -649,9 +703,8 @@
     const mult = synergyMultipliers(room, shape);
     let total = 0;
     room.layout.forEach((itemId, index) => {
-      const item = itemId && itemById(itemId);
-      if (!item) return;
-      total += item.gps * mult[index];
+      if (!itemId) return;
+      total += gpsOf(itemId) * mult[index];
     });
     // Net, not gross: the wage bill comes off every figure the game shows,
     // so the rate in the HUD is the rate the balance actually climbs at.
@@ -733,6 +786,7 @@
       balance: 0,
       lifetime: 0,
       xp: 0,
+      tiers: {},
       jobs: [],
       staff: {},
       franchise: { points: 0, runs: 0 },
@@ -1663,10 +1717,7 @@
         + 'Pick a piece of gear below, drag it where you want it, and hit the tick.';
       return;
     }
-    const baseSum = layout.reduce((sum, id) => {
-      const item = id && itemById(id);
-      return sum + (item ? item.gps : 0);
-    }, 0);
+    const baseSum = layout.reduce((sum, id) => sum + (id ? gpsOf(id) : 0), 0);
     const room = activeRoom();
     const shape = roomShapeFor(state.activeTheme, state.activeRoomIndex);
     const roomGps = computeGps(room, shape);
@@ -1739,11 +1790,21 @@
         '<span class="shop-item-gps">' + (item.vibe
           ? '+' + Math.round(item.vibe * VIBE_PER_POINT * 100) + '% to everything its room earns'
           : '+' + formatNum(item.gps) + ' gains/sec when placed') + '</span>' +
-        '<button class="shop-buy-btn" type="button">Buy</button>';
+        '<button class="shop-buy-btn" type="button">Buy</button>' +
+        '<button class="shop-upgrade-btn" type="button" hidden></button>';
       const buyBtn = el.querySelector('.shop-buy-btn');
+      const upBtn = el.querySelector('.shop-upgrade-btn');
       buyBtn.addEventListener('click', () => buyItem(item.id));
+      upBtn.addEventListener('click', () => upgradeItem(item.id));
       shopGrid.appendChild(el);
-      shopEls[item.id] = { root: el, ownedEl: el.querySelector('.shop-item-owned'), buyBtn };
+      shopEls[item.id] = {
+        root: el,
+        ownedEl: el.querySelector('.shop-item-owned'),
+        gpsEl: el.querySelector('.shop-item-gps'),
+        tierEl: el.querySelector('.shop-item-name'),
+        buyBtn,
+        upBtn,
+      };
     });
   }
 
@@ -1766,6 +1827,23 @@
       const affordable = state.balance >= cost;
       els.buyBtn.disabled = !affordable;
       els.root.classList.toggle('is-affordable', affordable);
+
+      // What it earns now, which is not what it says on the tin once it has
+      // been upgraded, and the control to take it further.
+      const tier = tierOf(item.id);
+      els.tierEl.textContent = item.name + (tier > 1 ? ' ' + TIER_NAMES[tier] : '');
+      if (!item.vibe) {
+        els.gpsEl.textContent = '+' + formatNum(gpsOf(item.id)) + ' gains/sec when placed'
+          + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '');
+      }
+      const upgradable = canUpgrade(item.id);
+      els.upBtn.hidden = !upgradable;
+      if (upgradable) {
+        const upCost = upgradeCost(item.id);
+        els.upBtn.textContent = 'Upgrade to ' + TIER_NAMES[tier + 1] + ' — $' + formatNum(upCost)
+          + ' (x' + TIER_STEP.toFixed(1) + ')';
+        els.upBtn.disabled = state.balance < upCost;
+      }
     });
   }
 
@@ -3744,7 +3822,7 @@
         floorCtx.restore();
       }
       drawProp(itemId, c, mult[index], propScaleFor(itemId),
-        gearInUse.has(roomIndex + ':' + index));
+        gearInUse.has(roomIndex + ':' + index), tierOf(itemId));
     });
 
     if (editing && editing.roomIndex === roomIndex) {
@@ -3901,7 +3979,7 @@
     gearInUse = next;
   }
 
-  function drawProp(itemId, c, mult, scale, busy) {
+  function drawProp(itemId, c, mult, scale, busy, tier) {
     const catColor = CATEGORY_META[CATEGORY[itemId]].color;
     floorCtx.save();
     floorCtx.translate(c.x, c.y);
@@ -3953,6 +4031,20 @@
       floorCtx.strokeStyle = hexA(catColor, 0.5 - pulse * 0.28);
       floorCtx.lineWidth = 1.2;
       floorCtx.stroke();
+    }
+
+    // An upgraded piece carries its mark: one pip per tier above the first,
+    // set into the floor in front of it, so a room of Mk III treadmills
+    // reads differently from a room of new ones without having to be told.
+    if (tier > 1) {
+      for (let i = 0; i < tier - 1; i++) {
+        const px = c.x + (i - (tier - 2) / 2) * ROOM.tileW * 0.12;
+        floorCtx.beginPath();
+        floorCtx.ellipse(px, c.y + ROOM.tileH * 0.42, ROOM.tileW * 0.035,
+          ROOM.tileH * 0.035, 0, 0, Math.PI * 2);
+        floorCtx.fillStyle = hexA(catColor, 0.95);
+        floorCtx.fill();
+      }
     }
 
     const sprite = itemSprites[itemId];

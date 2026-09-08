@@ -888,3 +888,25 @@
 .tycoon-howto-body p:last-child { margin-bottom: 0; }
 .tycoon-howto-body b { color: var(--text, #e8e8ea); font-weight: 700; }
 
+
+/* An upgrade is a second, quieter control on a shop row: buying is the
+   common action and should stay the loud one. */
+.shop-upgrade-btn {
+  margin-top: 7px;
+  width: 100%;
+  border: 1px solid rgba(126, 224, 176, 0.45);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  color: #8fe9be;
+  background: rgba(126, 224, 176, 0.08);
+}
+.shop-upgrade-btn:hover:not(:disabled) { background: rgba(126, 224, 176, 0.16); }
+.shop-upgrade-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
