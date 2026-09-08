@@ -394,14 +394,52 @@
   const TILES_PER_METRE = 3;
 
   // Keep a piece inside its room, clear of the walls by half its own width.
-  function clampSpot(spot, shape, itemId) {
-    const inset = (footprintOf(itemId) / 2) * TILES_PER_METRE;
-    const lo = Math.min(inset, shape.cols / 2);
-    const loV = Math.min(inset, shape.rows / 2);
+  // What each piece actually takes up on the floor, in metres: along its
+  // own length, then across it. This is the hitbox -- whether two pieces
+  // can stand in the same place, and how close one can stand to a wall --
+  // and it is the piece as drawn, not a circle around its middle: a squat
+  // rack is narrow and wide, a treadmill long and thin, and turning either
+  // swaps which way round that is.
+  const ITEM_BOX = {
+    dumbbell: [0.80, 0.64], dumbbellrack: [1.55, 0.62], mat: [1.80, 0.66],
+    bench: [1.75, 1.50], rack: [0.62, 2.10], cable: [0.52, 1.50],
+    treadmill: [1.90, 0.80], trainer: [0.60, 0.60], sauna: [2.00, 1.50],
+    gearfridge: [0.70, 0.62], soundsystem: [0.62, 1.45], desk: [1.85, 1.20],
+    cubicle: [1.65, 1.40], officepod: [1.60, 1.35], palm: [0.50, 0.50],
+    cooler: [0.40, 0.40], mirrorwall: [0.34, 1.70], neon: [0.22, 1.50],
+  };
+  // Half-extents on the lattice, with the piece's turn applied.
+  function halfBoxOf(itemId, turn) {
+    const box = ITEM_BOX[itemId] || [footprintOf(itemId), footprintOf(itemId)];
+    const a = (box[0] / 2) * TILES_PER_METRE;
+    const b = (box[1] / 2) * TILES_PER_METRE;
+    return (turn & 1) ? { u: b, v: a } : { u: a, v: b };
+  }
+
+  function clampSpot(spot, shape, itemId, turn) {
+    const h = halfBoxOf(itemId, turn || 0);
+    const lo = Math.min(h.u, shape.cols / 2);
+    const loV = Math.min(h.v, shape.rows / 2);
     return {
       u: Math.max(lo, Math.min(shape.cols - lo, spot.u)),
       v: Math.max(loV, Math.min(shape.rows - loV, spot.v)),
     };
+  }
+
+  // The piece already standing where this one would go, if any. Two boxes
+  // on the lattice overlap when they overlap on both axes; a hair of slack
+  // so two pieces set edge to edge are not counted as touching.
+  function overlapsAnother(room, shape, itemId, spot, turn) {
+    const h = halfBoxOf(itemId, turn);
+    for (let i = 0; i < room.layout.length; i++) {
+      const id = room.layout[i];
+      if (!id) continue;
+      const sp = spotOf(room, i, shape);
+      const o = halfBoxOf(id, turnAt(room, i));
+      if (Math.abs(sp.u - spot.u) < h.u + o.u - 0.02
+        && Math.abs(sp.v - spot.v) < h.v + o.v - 0.02) return id;
+    }
+    return null;
   }
 
   // Where a piece stands, in tile units from its room's back corner. Gear is
@@ -4589,17 +4627,21 @@
   // little and lightened so it reads as held rather than placed.
   function drawHeldPiece(place, held) {
     const c = isoPoint(place.gx0 + held.spot.u, place.gy0 + held.spot.v);
-    // The ring is the piece's footprint on the floor, a little generous.
-    const tiles = drawSizeOf(held.itemId) * TILES_PER_METRE;
-    const rx = tiles * ROOM.tileW * 0.30;
-    const ry = tiles * ROOM.tileH * 0.30;
+    // The outline is the piece's actual footprint on the floor, turned the
+    // way the piece is -- and red where it would land on something.
+    const h = halfBoxOf(held.itemId, held.turn);
+    const blocked = !!editOverlaps();
+    const corner = (du, dv) => isoPoint(place.gx0 + held.spot.u + du, place.gy0 + held.spot.v + dv);
+    const q = [corner(-h.u, -h.v), corner(h.u, -h.v), corner(h.u, h.v), corner(-h.u, h.v)];
 
     floorCtx.save();
     floorCtx.beginPath();
-    floorCtx.ellipse(c.x, c.y + 2, rx, ry, 0, 0, Math.PI * 2);
-    floorCtx.fillStyle = 'rgba(255,183,3,0.16)';
+    floorCtx.moveTo(q[0].x, q[0].y + 1);
+    for (let i = 1; i < 4; i++) floorCtx.lineTo(q[i].x, q[i].y + 1);
+    floorCtx.closePath();
+    floorCtx.fillStyle = blocked ? 'rgba(255,72,56,0.22)' : 'rgba(255,183,3,0.16)';
     floorCtx.fill();
-    floorCtx.strokeStyle = 'rgba(255,183,3,0.95)';
+    floorCtx.strokeStyle = blocked ? 'rgba(255,90,70,0.95)' : 'rgba(255,183,3,0.95)';
     floorCtx.lineWidth = 1.8;
     floorCtx.setLineDash([5, 4]);
     floorCtx.stroke();
@@ -5238,7 +5280,8 @@
 
   function beginEdit(itemId, roomIndex, spot, fromIndex) {
     const shape = roomShapeFor(state.activeTheme, roomIndex);
-    const at = clampSpot(snapSpot(spot.u, spot.v), shape, itemId);
+    const turn = spot && spot.r ? (spot.r & 3) : 0;
+    const at = clampSpot(snapSpot(spot.u, spot.v), shape, itemId, turn);
     editing = {
       itemId,
       roomIndex,
@@ -5274,9 +5317,18 @@
     recomputeStats();
   }
 
+  // Whatever the held piece would land on top of, right now.
+  function editOverlaps() {
+    if (!editing) return null;
+    const room = activeRooms()[editing.roomIndex];
+    if (!room) return null;
+    return overlapsAnother(room, editShape(), editing.itemId, editing.spot, editing.turn);
+  }
+
   function moveEditTo(u, v) {
     if (!editing) return;
-    editing.spot = clampSpot(snapSpot(u, v), editShape(), editing.itemId);
+    editing.spot = clampSpot(snapSpot(u, v), editShape(), editing.itemId, editing.turn);
+    refreshPlaceHud();
     renderScene();
   }
 
@@ -5288,6 +5340,10 @@
   function turnEdit() {
     if (!editing) return;
     editing.turn = (editing.turn + 1) & 3;
+    // A turned piece reaches further one way and less the other, so it is
+    // clamped again for the wall it may now be through.
+    editing.spot = clampSpot(editing.spot, editShape(), editing.itemId, editing.turn);
+    refreshPlaceHud();
     renderScene();
   }
 
@@ -5303,6 +5359,11 @@
 
   function confirmEdit() {
     if (!editing) return;
+    const blocker = editOverlaps();
+    if (blocker) {
+      toast("Won't fit -- it would overlap the " + itemById(blocker).name, null);
+      return;
+    }
     const room = activeRooms()[editing.roomIndex];
     // Back into the slot it came from where there is one, so moving a piece
     // does not quietly reshuffle a full room.
@@ -5354,27 +5415,53 @@
     return null;
   }
 
-  // How close a tap has to land to count as grabbing a piece: within the
-  // piece as drawn, give or take. A dumbbell is a small target and a
-  // treadmill is a big one, which is exactly right.
-  function pickReachFor(itemId) {
-    return Math.max(0.9, (drawSizeOf(itemId) / 2) * TILES_PER_METRE);
+  // The bitmap for a piece at a turn, made if it is not there yet -- a tap
+  // can land before the first paint since a change of resolution.
+  function propBitmap(itemId, turn) {
+    const scale = floorCtx.getTransform().a || 1;
+    if (scale !== propCacheScale) {
+      propCache.clear();
+      propCacheScale = scale;
+    }
+    const key = itemId + ':' + turn;
+    let entry = propCache.get(key);
+    if (!entry) {
+      entry = renderPropBitmap(itemId, turn, scale);
+      propCache.set(key, entry);
+    }
+    return entry;
   }
 
+  // Which piece a point on the canvas lands on -- tested against the piece
+  // as drawn, in screen space, rather than as a circle around its middle on
+  // the floor. So a squat rack is grabbed by its uprights and a mat by its
+  // edge, a tall thing whose top stands past the back wall can still be
+  // taken by that top, and where two pieces overlap on screen the one drawn
+  // in front is the one you get.
   function pieceAtPoint(px, py) {
-    const hit = spotFromPoint(px, py);
-    if (!hit) return null;
-    const room = activeRooms()[hit.roomIndex];
-    if (!room) return null;
-    const shape = roomShapeFor(state.activeTheme, hit.roomIndex);
     let best = null;
-    room.layout.forEach((id, i) => {
-      if (!id) return;
-      const sp = spotOf(room, i, shape);
-      const d = Math.hypot(sp.u - hit.u, sp.v - hit.v);
-      if (d <= pickReachFor(id) && (!best || d < best.d)) best = { index: i, d };
+    activeRooms().forEach((room, roomIndex) => {
+      const place = placements[roomIndex];
+      if (!place) return;
+      const shape = roomShapeFor(state.activeTheme, roomIndex);
+      room.layout.forEach((id, i) => {
+        if (!id || !PROP_BUILDERS[id]) return;
+        const sp = spotOf(room, i, shape);
+        const c = isoPoint(place.gx0 + sp.u, place.gy0 + sp.v);
+        const e = propBitmap(id, turnAt(room, i));
+        const lx = px - (c.x - e.ox);
+        const ly = py - (c.y - e.oy);
+        if (lx < 0 || ly < 0 || lx >= e.w || ly >= e.h) return;
+        const sc = propCacheScale;
+        const alpha = e.canvas.getContext('2d')
+          .getImageData(Math.floor(lx * sc), Math.floor(ly * sc), 1, 1).data[3];
+        if (alpha < 40) return;
+        // Later rooms and deeper spots are painted later, so they are in front.
+        const depth = roomIndex * 1e6 + sp.u + sp.v;
+        if (!best || depth >= best.depth) best = { roomIndex, index: i, depth };
+      });
     });
-    return best ? { roomIndex: hit.roomIndex, index: best.index } : null;
+    return best ? { roomIndex: best.roomIndex, index: best.index } : null;
   }
 
   // What a tap on the plan does, in order: move the piece you are holding,
@@ -5385,13 +5472,15 @@
       if (hit && hit.roomIndex === editing.roomIndex) moveEditTo(hit.u, hit.v);
       return;
     }
-    if (!hit) return;
-    if (hit.roomIndex !== state.activeRoomIndex) {
-      state.activeRoomIndex = hit.roomIndex;
+    // A piece first: its top can stand past the floor of any room.
+    const piece = pieceAtPoint(px, py);
+    const roomIndex = piece ? piece.roomIndex : hit ? hit.roomIndex : -1;
+    if (roomIndex < 0) return;
+    if (roomIndex !== state.activeRoomIndex) {
+      state.activeRoomIndex = roomIndex;
       refreshRoomActions();
       refreshSynergyText();
     }
-    const piece = pieceAtPoint(px, py);
     if (piece) liftPiece(piece.roomIndex, piece.index);
   }
 
@@ -5529,16 +5618,20 @@
   const placeHudEl = document.getElementById('place-hud');
   const placeLabelEl = document.getElementById('place-label');
   const placeStoreBtn = document.getElementById('btn-place-store');
+  const placeConfirmBtn = document.getElementById('btn-place-confirm');
 
   function refreshPlaceHud() {
     if (!placeHudEl) return;
     placeHudEl.hidden = !editing;
     if (!editing) return;
     const item = itemById(editing.itemId);
+    const blocker = editOverlaps();
     if (placeLabelEl) {
       placeLabelEl.textContent = (item ? item.name : 'Gear')
-        + (editing.fromIndex === null ? ' -- drag or nudge, then place' : ' -- moving');
+        + (blocker ? ' -- overlaps the ' + itemById(blocker).name + ', move it'
+          : editing.fromIndex === null ? ' -- drag or nudge, then place' : ' -- moving');
     }
+    if (placeConfirmBtn) placeConfirmBtn.disabled = !!blocker;
     if (placeStoreBtn) placeStoreBtn.hidden = editing.fromIndex === null;
   }
 

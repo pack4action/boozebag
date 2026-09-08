@@ -1089,3 +1089,11 @@
   border: 1px dashed rgba(255, 255, 255, 0.1);
   border-radius: 10px;
 }
+
+/* Place, when the piece cannot go where it is: it stays in reach, because
+   moving the piece is what fixes it, but it has to read as not-yet. */
+.tycoon-place-btn.is-confirm[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: saturate(0.4);
+}
