@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=9" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=5" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=40" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=41" />
 </head>
 <body class="game-body">
 
@@ -138,6 +138,7 @@
     <div class="tycoon-tabs" id="panel-tabs" role="tablist">
       <button class="tycoon-tab is-active" type="button" data-panel="shop" role="tab">Shop</button>
       <button class="tycoon-tab" type="button" data-panel="jobs" role="tab">Jobs<span class="tycoon-tab-dot" id="tab-dot-jobs" hidden></span></button>
+      <button class="tycoon-tab" type="button" data-panel="counter" role="tab" hidden>Counter<span class="tycoon-tab-dot" id="tab-dot-counter" hidden></span></button>
       <button class="tycoon-tab" type="button" data-panel="staff" role="tab" hidden>Staff</button>
       <button class="tycoon-tab" type="button" data-panel="gym" role="tab">Gym</button>
     </div>
@@ -151,6 +152,12 @@
       <p class="tycoon-panel-note">Three standing requests, and from level 3 one timed rush order worth triple. The pay and the experience are stated before you start.</p>
       <div class="tycoon-rush-order" id="rush-order" hidden></div>
       <div class="tycoon-jobs-list" id="jobs-list"></div>
+    </section>
+
+    <section class="tycoon-panel tycoon-counter" data-panel="counter" hidden>
+      <p class="tycoon-panel-note">A Juice Bar or Pro Shop on the floor can run three batches back to back. Finished stock keeps in the larder and is what the delivery orders on the Jobs tab are paid for.</p>
+      <div class="tycoon-larder" id="larder"></div>
+      <div class="tycoon-counter-list" id="counter-list"></div>
     </section>
 
     <section class="tycoon-panel tycoon-staff" data-panel="staff" hidden>
@@ -187,6 +194,7 @@
           <p><b>Locations and rooms.</b> The Garage, Basement, Rooftop and Boardwalk are four separate gyms, each growing its own chain of rooms joined by hallways, and each laid out differently. Gear stays where you put it when you switch. Drag to pan, and scroll or pinch to zoom.</p>
           <p><b>Levels.</b> Every piece you buy earns experience, and dearer kit earns more. Levelling up is what opens the other locations, the office tier and the staff roles.</p>
           <p><b>Jobs.</b> Three standing requests on the Jobs tab, with the money and experience stated up front. Finish one and another takes its place. From level 3 there is also one timed rush order at a time, worth three times a standing job, with eight minutes to do it in. Miss one and the board goes quiet for twenty minutes.</p>
+          <p><b>The counter.</b> A Juice Bar or a Pro Shop earns on the floor like anything else, and it also makes stock. Start a batch on the Counter tab and it runs in real time whether you are watching or not, three back to back. The quick recipe is for filling an order now; the slow one is most of an hour of stock for someone closing the tab. Finished batches keep in the larder, up to 25 of each, and the delivery orders on the Jobs tab pay about double what a standing job pays for them.</p>
           <p><b>Staff.</b> Cashiers collect the takings for you, Cleaners lift every room's vibe, Receptionists make the rush bigger, and a Floor Manager adds to everything. Each extra hire in a role is worth less than the one before while the wage stays the same, so there is a point past which the next one costs more than they bring in. Anyone can be let go.</p>
           <p><b>Rush hours.</b> The gym fills up in the morning and again in the evening, on your own clock, and everything earns a bonus while it lasts. A quiet hour is never worse than normal. An open day is the same thing on demand, once a cooldown allows.</p>
           <p><b>Franchising.</b> Once the shop runs out, cash the whole gym in for points that multiply everything from then on. You keep your level and everything it unlocked.</p>
@@ -210,6 +218,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=81"></script>
+<script src="assets/js/gym-tycoon.js?v=82"></script>
 </body>
 </html>

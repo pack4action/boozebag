@@ -19,8 +19,15 @@
     { id: 'rack', name: 'Squat Rack', baseCost: 800, gps: 8 },
     { id: 'cable', name: 'Cable Machine', baseCost: 3000, gps: 30 },
     { id: 'treadmill', name: 'Treadmill', baseCost: 10000, gps: 100 },
+    // The counter. These earn on the floor like anything else, and on top of
+    // that they make stock: you start a batch, it takes real time to run,
+    // and what comes off the counter is what the delivery orders on the Jobs
+    // tab ask for. Everything else in the game is a rate; this is the one
+    // thing that is a queue.
+    { id: 'juicebar', name: 'Juice Bar', baseCost: 25000, gps: 250, unlockLevel: 3 },
     { id: 'sauna', name: 'Sauna', baseCost: 150000, gps: 1500 },
     { id: 'gearfridge', name: 'Gear Fridge', baseCost: 600000, gps: 6000 },
+    { id: 'proshop', name: 'Pro Shop', baseCost: 1500000, gps: 15000, unlockLevel: 7 },
     { id: 'soundsystem', name: 'Hype Sound System', baseCost: 2500000, gps: 25000 },
     // Office tier: hidden in the shop until the gym is established enough to
     // need one -- the "then you hire people" stage after the core equipment.
@@ -71,6 +78,8 @@
     rack: '<rect x="4" y="2" width="2.4" height="20" rx="0.6"/><rect x="17.6" y="2" width="2.4" height="20" rx="0.6"/><rect x="4" y="10" width="16" height="2.2" rx="0.6"/>',
     cable: '<rect x="4" y="3" width="4" height="18" rx="1"/><circle cx="6" cy="6.2" r="2.1" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.6 8.2 L16.5 17.8" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/><circle cx="17" cy="18.2" r="1.9"/>',
     treadmill: '<rect x="3" y="15.2" width="15" height="3.6" rx="1.4"/><rect x="15" y="4" width="3" height="12.5" rx="1"/><rect x="13.6" y="2.6" width="6" height="2.4" rx="1"/>',
+    juicebar: '<rect x="2.6" y="12.4" width="18.8" height="3" rx="1"/><rect x="4.4" y="15.4" width="15.2" height="6.2" rx="1"/><path d="M8.6 2.4h6.8l-1.1 6.4a2.4 2.4 0 0 1-4.6 0Z"/><rect x="11.3" y="9" width="1.4" height="3.4"/>',
+    proshop: '<rect x="2.6" y="13" width="18.8" height="3" rx="1"/><rect x="4.4" y="16" width="15.2" height="5.6" rx="1"/><path d="M9 2.6h6l3 3.2-2 2-1-1v5.2H9V6.8l-1 1-2-2Z"/>',
     trainer: '<circle cx="12" cy="6.2" r="3.1"/><rect x="8" y="10.2" width="8" height="9.6" rx="3.2"/>',
     sauna: '<path d="M12 2.2c-1.2 3-4.6 4.7-4.6 9a4.6 4.6 0 0 0 9.2 0c0-2.1-1-3.3-2-4.6.1 1.7-1 2.9-2 2.9-1.2 0-1.7-1.2-1-2.4C13 5.6 13 4 12 2.2Z"/>',
     gearfridge: '<rect x="5.5" y="2" width="13" height="8.6" rx="1.6"/><rect x="5.5" y="12" width="13" height="10" rx="1.6"/><rect x="3.4" y="4.6" width="1.8" height="4" rx="0.9"/><rect x="3.4" y="14.4" width="1.8" height="4.6" rx="0.9"/>',
@@ -380,6 +389,7 @@
   const CATEGORY = {
     dumbbell: 'strength', dumbbellrack: 'strength', bench: 'strength', rack: 'strength', cable: 'strength',
     treadmill: 'cardio',
+    juicebar: 'counter', proshop: 'counter',
     mat: 'recovery', sauna: 'recovery',
     gearfridge: 'booster', soundsystem: 'booster',
     frontdesk: 'front',
@@ -393,6 +403,7 @@
     booster: { name: 'Booster', color: '#d9a53f' },
     office: { name: 'Office', color: '#8a6fd1' },
     front: { name: 'Front of house', color: '#e8b04b' },
+    counter: { name: 'Counter', color: '#e2724a' },
     decor: { name: 'Fittings', color: '#4fc38a' },
   };
   const SAME_CATEGORY_BONUS = 0.12;
@@ -490,6 +501,7 @@
     dumbbell: [0.80, 0.64], dumbbellrack: [1.55, 0.62], mat: [1.80, 0.66],
     bench: [1.75, 1.50], rack: [0.62, 2.10], cable: [0.52, 1.50],
     treadmill: [1.90, 0.80], sauna: [2.00, 1.50],
+    juicebar: [1.60, 0.72], proshop: [1.70, 0.80],
     gearfridge: [1.40, 0.70], soundsystem: [0.70, 1.60], desk: [1.85, 1.20], frontdesk: [1.80, 0.75],
     cubicle: [1.65, 1.40], officepod: [1.60, 1.35], palm: [0.50, 0.50],
     cooler: [0.40, 0.40], mirrorwall: [0.34, 1.70], neon: [0.22, 1.50],
@@ -504,12 +516,30 @@
     treadmill: ['+u', 0.85], rack: ['+u', 0.90], cable: ['+u', 0.90],
     bench: ['+v', 0.60], dumbbell: ['+v', 0.70], dumbbellrack: ['+v', 0.80],
     sauna: ['+v', 0.80], gearfridge: ['+v', 0.70],
+    juicebar: ['+v', 0.85], proshop: ['+v', 0.85],
     desk: ['+v', 0.80], cubicle: ['+v', 0.70], officepod: ['+v', 0.80], frontdesk: ['+v', 0.90],
   };
   // Which pieces are used from the zone, standing, rather than from on top
   // of the piece itself.
   const USED_FROM_ZONE = { cable: true, dumbbell: true, dumbbellrack: true, gearfridge: true,
-    sauna: true, desk: true, cubicle: true, officepod: true, frontdesk: true };
+    sauna: true, desk: true, cubicle: true, officepod: true, frontdesk: true,
+    juicebar: true, proshop: true };
+
+  // What the two counter pieces make, and how much of it you can keep. The
+  // rest of the counter is further down with the jobs it feeds; this much is
+  // up here because reading a save asks what a product is.
+  const QUEUE_SLOTS = 3;
+  const LARDER_CAP = 25;
+  const PRODUCTS = {
+    shake: { name: 'Protein Shake', from: 'juicebar', seconds: 45, color: '#e2724a' },
+    smoothie: { name: 'Green Smoothie', from: 'juicebar', seconds: 420, color: '#5db56a' },
+    tee: { name: 'Gym Tee', from: 'proshop', seconds: 120, color: '#4f9ad1' },
+    belt: { name: 'Lifting Belt', from: 'proshop', seconds: 900, color: '#b4574a' },
+  };
+  const RECIPES_OF = {
+    juicebar: ['shake', 'smoothie'],
+    proshop: ['tee', 'belt'],
+  };
   // A direction in a piece's own frame, turned the way the piece is: the
   // same quarter turns turnUV applies to the drawing.
   function turnDir(du, dv, turn) {
@@ -1225,6 +1255,19 @@
           const c = Array.isArray(r && r.cash) ? r.cash[k] : 0;
           return typeof c === 'number' && isFinite(c) && c > 0 ? c : 0;
         }),
+        // What each counter has on. Batches are stored as the moment they
+        // finish, so a save that sat overnight comes back with everything
+        // already done, which is what it should be. Dropped on the way
+        // through: a batch of something that no longer exists, and one in a
+        // slot that has no counter in it any more.
+        batches: new Array(n).fill(null).map((_, k) => {
+          const id = old[k] || null;
+          if (!RECIPES_OF[id]) return [];
+          const q = Array.isArray(r && r.batches) ? r.batches[k] : null;
+          if (!Array.isArray(q)) return [];
+          return q.filter((bt) => bt && PRODUCTS[bt.p] && PRODUCTS[bt.p].from === id
+            && typeof bt.at === 'number' && isFinite(bt.at)).slice(0, QUEUE_SLOTS);
+        }),
       };
       settleRoom(themeId, i, room);
       return room;
@@ -1294,6 +1337,7 @@
       trophies: {},
       gymName: '',
       staff: {},
+      larder: {},
       franchise: { points: 0, runs: 0 },
       owned: { frontdesk: 1 },
       themeRooms: defaultThemeRooms(),
@@ -1452,6 +1496,16 @@
     });
     if (!s.owned.frontdesk) s.owned.frontdesk = 1;
 
+    // A save from before the counter existed has no larder, and a hand-edited
+    // one could hold anything. Whatever is there is read back to whole
+    // counts of products that still exist.
+    const stock = {};
+    Object.keys(s.larder && typeof s.larder === 'object' ? s.larder : {}).forEach((p) => {
+      if (!PRODUCTS[p]) return;
+      const n = Math.floor(Number(s.larder[p]) || 0);
+      if (n > 0) stock[p] = Math.min(LARDER_CAP, n);
+    });
+    s.larder = stock;
     // Nothing is credited for the time the tab was gone: gear earns while
     // you are watching it and not otherwise. lastSaved is still written --
     // it dates the save -- it just no longer buys anything.
@@ -1473,6 +1527,148 @@
     return activeRooms()[state.activeRoomIndex];
   }
   let gps = computeTotalGps(state.themeRooms);
+
+  // ---- The counter ----
+  // A gym that is only a set of rates is a game about waiting. The counter
+  // is the one part of it that is a queue: you put a batch on, it takes real
+  // time to run whether you watch it or not, and what comes off is a thing
+  // you hold rather than a number that went up. What it is for is the
+  // delivery orders on the Jobs board, which pay better than anything else
+  // and can only be filled out of the larder.
+  //
+  // Each counter runs up to three batches back to back. The quick recipe is
+  // for someone sitting there filling an order now; the slow one is for
+  // someone closing the tab, since three of them is most of an hour of
+  // stock. Nothing spoils and nothing is lost by leaving it.
+  function makesStock(itemId) {
+    return !!RECIPES_OF[itemId];
+  }
+  function larder() {
+    if (!state.larder || typeof state.larder !== 'object') state.larder = {};
+    return state.larder;
+  }
+  function larderCount(productId) {
+    return Math.max(0, Math.floor(larder()[productId] || 0));
+  }
+  function larderRoom(productId) {
+    return Math.max(0, LARDER_CAP - larderCount(productId));
+  }
+  function addToLarder(productId, n) {
+    const took = Math.min(n, larderRoom(productId));
+    if (took > 0) larder()[productId] = larderCount(productId) + took;
+    return took;
+  }
+  function spendFromLarder(productId, n) {
+    const had = larderCount(productId);
+    if (had < n) return false;
+    larder()[productId] = had - n;
+    return true;
+  }
+
+  // The batches a room's counters have on, one list per slot, in the same
+  // shape as the cash piles: a plain array the length of the layout, made on
+  // demand so an older save grows one the first time it is asked.
+  function roomBatches(room) {
+    if (!Array.isArray(room.batches) || room.batches.length !== room.layout.length) {
+      const was = Array.isArray(room.batches) ? room.batches : [];
+      room.batches = new Array(room.layout.length).fill(null)
+        .map((_, i) => (Array.isArray(was[i]) ? was[i] : []));
+    }
+    return room.batches;
+  }
+  function queueAt(room, index) {
+    const q = roomBatches(room)[index];
+    return Array.isArray(q) ? q : (roomBatches(room)[index] = []);
+  }
+  // A batch runs when the one before it has finished, so a queue is a chain
+  // rather than three timers racing. Stored as the moment each one is done,
+  // which survives a reload and needs no ticking to stay true.
+  function roomIn(themeId, roomIndex) {
+    return (state.themeRooms[themeId] || [])[roomIndex] || null;
+  }
+  function startBatch(themeId, roomIndex, index, productId) {
+    const room = roomIn(themeId, roomIndex);
+    const product = PRODUCTS[productId];
+    if (!room || !product) return false;
+    if (room.layout[index] !== product.from) return false;
+    const q = queueAt(room, index);
+    if (q.length >= QUEUE_SLOTS) return false;
+    const now = Date.now();
+    const startsAt = q.length ? Math.max(now, q[q.length - 1].at) : now;
+    q.push({ p: productId, at: startsAt + product.seconds * 1000 });
+    save();
+    return true;
+  }
+  function readyAt(room, index, now) {
+    const at = now || Date.now();
+    return queueAt(room, index).filter((b) => b.at <= at).length;
+  }
+  // Everything finished on this counter, into the larder in one go. What the
+  // larder has no room for stays on the counter rather than evaporating.
+  function collectBatches(themeId, roomIndex, index) {
+    const room = roomIn(themeId, roomIndex);
+    if (!room) return 0;
+    const now = Date.now();
+    const q = queueAt(room, index);
+    const keep = [];
+    const got = {};
+    let taken = 0;
+    q.forEach((b) => {
+      if (b.at > now) { keep.push(b); return; }
+      if (addToLarder(b.p, 1)) { got[b.p] = (got[b.p] || 0) + 1; taken++; }
+      else keep.push(b);
+    });
+    if (!taken) return 0;
+    roomBatches(room)[index] = keep;
+    const parts = Object.keys(got).map((p) => got[p] + ' x ' + PRODUCTS[p].name);
+    toast('Collected ' + parts.join(', '), 'good');
+    save();
+    return taken;
+  }
+  // Everything off this counter: what is done into the larder, what is not
+  // thrown out. Used when the piece is picked up, which is the one moment a
+  // counter stops being a counter standing in a place.
+  function emptyCounter(themeId, roomIndex, index) {
+    const room = roomIn(themeId, roomIndex);
+    if (!room || !makesStock(room.layout[index])) return;
+    const lost = queueAt(room, index).filter((b) => b.at > Date.now()).length;
+    collectBatches(themeId, roomIndex, index);
+    roomBatches(room)[index] = [];
+    if (lost) {
+      toast(lost === 1 ? 'One batch poured away' : lost + ' batches poured away', null);
+    }
+  }
+
+  // Anything ready anywhere, which is what puts the dot on the tab.
+  function anyQueueHere() {
+    const rooms = state.themeRooms[state.activeTheme] || [];
+    return rooms.some((room) => room.layout.some((id, i) => (
+      makesStock(id) && queueAt(room, i).length > 0
+    )));
+  }
+  function anythingReady() {
+    return THEMES.some((t) => (state.themeRooms[t.id] || []).some((room) => (
+      room.layout.some((id, i) => makesStock(id) && readyAt(room, i) > 0)
+    )));
+  }
+  // Every counter standing on a floor anywhere, which is what the panel
+  // lists and what decides whether a delivery order can be asked for.
+  function countersPlaced() {
+    const out = [];
+    THEMES.forEach((t) => {
+      (state.themeRooms[t.id] || []).forEach((room, roomIndex) => {
+        room.layout.forEach((id, index) => {
+          if (makesStock(id)) out.push({ themeId: t.id, roomIndex, index, itemId: id, room });
+        });
+      });
+    });
+    return out;
+  }
+  function productsMakeable() {
+    const from = {};
+    countersPlaced().forEach((c) => { from[c.itemId] = true; });
+    return Object.keys(PRODUCTS).filter((p) => from[PRODUCTS[p].from]);
+  }
 
   // ---- Jobs ----
   // Three standing requests at a time, each one a thing the gym could be
@@ -1571,6 +1767,21 @@
       text: (j) => 'Fit out one room to a +' + j.target + '% vibe',
       done: (j, tally) => tally.bestVibe,
     },
+    deliver: {
+      pick(ctx) {
+        const p = pickOf(ctx.products);
+        // Never more than the larder can hold, or the order could not be
+        // filled however long you left it running.
+        const most = Math.min(LARDER_CAP, PRODUCTS[p].seconds > 300 ? 4 : 8);
+        return { product: p, target: Math.max(2, 2 + Math.floor(Math.random() * (most - 1))) };
+      },
+      text: (j) => 'Deliver ' + j.target + ' x ' + PRODUCTS[j.product].name,
+      done: (j) => larderCount(j.product),
+      spend: (j) => spendFromLarder(j.product, j.target),
+      // Worth the trouble: a delivery is the only job you have to plan
+      // ahead for, so it pays about double what a standing job pays.
+      pay: 2.2,
+    },
     synergy: {
       pick(ctx) {
         const now = Math.round((ctx.tally.bestSynergy - 1) * 100);
@@ -1591,6 +1802,9 @@
     // Only worth asking once there is a fitting to buy that would move it.
     if (ITEMS.some((i) => i.vibe && unlockedFor(i))) kinds.push('vibe');
     if (tally.placed >= 6 && !tally.fullRoom) kinds.push('fillRoom');
+    // A delivery can only be asked for if there is a counter on a floor
+    // somewhere that makes the thing.
+    if (productsMakeable().length) kinds.push('deliver');
     return kinds;
   }
 
@@ -1609,6 +1823,7 @@
       tally,
       pool,
       cats: [...new Set(pool.map((i) => CATEGORY[i.id]))],
+      products: productsMakeable(),
     };
     let choices = jobKindsAvailable(tally).filter((k) => avoidKinds.indexOf(k) === -1);
     if (!choices.length) choices = jobKindsAvailable(tally);
@@ -1616,8 +1831,9 @@
     const job = Object.assign({ kind }, JOB_KINDS[kind].pick(ctx));
     // Stated when the job is written, not when it is handed in, so the board
     // can say what a job is worth before you decide to go and do it.
-    job.cash = Math.max(150, Math.round(gps * 45 * mult));
-    job.xp = Math.round(16 * mult * (1 + level * 0.12));
+    const pay = mult * (JOB_KINDS[kind].pay || 1);
+    job.cash = Math.max(150, Math.round(gps * 45 * pay));
+    job.xp = Math.round(16 * pay * (1 + level * 0.12));
     return job;
   }
 
@@ -2319,6 +2535,12 @@
     const job = state.jobs[index];
     if (!job) return;
     if (!jobProgress(job, floorTally()).ready) return;
+    // A delivery is handed over, and the stock goes with it -- every other
+    // job is satisfied by the state of the gym and takes nothing away. If
+    // the stock has gone since the board was last drawn the job stays put
+    // rather than paying out for nothing.
+    const kind = JOB_KINDS[job.kind];
+    if (kind.spend && !kind.spend(job)) { refreshJobsUI(); return; }
     const before = currentLevel();
     state.balance += job.cash;
     state.lifetime += job.cash;
@@ -2609,6 +2831,199 @@
         letGo,
       };
     });
+  }
+
+  // ---- The Counter tab ----
+  // Rebuilt whole whenever the set of counters changes and written into in
+  // place otherwise, the same way the jobs board is: the queue bars move
+  // every tick and rebuilding the DOM under a cursor ten times a second
+  // makes the buttons unclickable.
+  const larderEl = document.getElementById('larder');
+  const counterListEl = document.getElementById('counter-list');
+  const counterDotEl = document.getElementById('tab-dot-counter');
+  let counterRows = [];
+  let counterSignature = '';
+
+  function counterKeyOf(c) {
+    return c.themeId + ':' + c.roomIndex + ':' + c.index + ':' + c.itemId;
+  }
+  function themeName(themeId) {
+    const t = THEMES.find((x) => x.id === themeId);
+    return t ? t.name : themeId;
+  }
+  function secondsText(sec) {
+    const s2 = Math.max(0, Math.round(sec));
+    if (s2 < 60) return s2 + 's';
+    const m = Math.floor(s2 / 60);
+    return m + 'm' + (s2 % 60 ? ' ' + (s2 % 60) + 's' : '');
+  }
+
+  function buildCounterUI(counters) {
+    counterListEl.innerHTML = '';
+    counterRows = [];
+    if (!counters.length) {
+      const none = document.createElement('p');
+      none.className = 'tycoon-counter-empty';
+      none.textContent = 'Put a Juice Bar or a Pro Shop on a floor and it can start making stock.';
+      counterListEl.appendChild(none);
+      return;
+    }
+    counters.forEach((c) => {
+      const card = document.createElement('div');
+      card.className = 'tycoon-maker';
+      card.innerHTML =
+        '<div class="tycoon-maker-head">'
+          + '<span class="tycoon-maker-name"></span>'
+          + '<span class="tycoon-maker-where"></span>'
+        + '</div>'
+        + '<div class="tycoon-maker-queue"></div>'
+        + '<div class="tycoon-maker-state"></div>'
+        + '<div class="tycoon-maker-btns"></div>';
+      const queue = card.querySelector('.tycoon-maker-queue');
+      const pips = [];
+      for (let i = 0; i < QUEUE_SLOTS; i++) {
+        const pip = document.createElement('span');
+        pip.className = 'tycoon-pip';
+        pip.innerHTML = '<span></span>';
+        queue.appendChild(pip);
+        pips.push({ root: pip, fill: pip.firstChild });
+      }
+      const btns = card.querySelector('.tycoon-maker-btns');
+      const makeBtns = RECIPES_OF[c.itemId].map((productId) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tycoon-make-btn';
+        b.innerHTML = PRODUCTS[productId].name
+          + '<span class="tycoon-make-secs">' + secondsText(PRODUCTS[productId].seconds) + '</span>';
+        b.addEventListener('click', () => {
+          if (startBatch(c.themeId, c.roomIndex, c.index, productId)) refreshCounterUI();
+        });
+        btns.appendChild(b);
+        return { productId, btn: b };
+      });
+      const collect = document.createElement('button');
+      collect.type = 'button';
+      collect.className = 'tycoon-collect-btn';
+      collect.textContent = 'Collect';
+      collect.hidden = true;
+      collect.addEventListener('click', () => {
+        if (collectBatches(c.themeId, c.roomIndex, c.index)) {
+          refreshCounterUI();
+          refreshJobsUI();
+          renderScene();
+        }
+      });
+      btns.appendChild(collect);
+      counterListEl.appendChild(card);
+      counterRows.push({
+        at: c,
+        name: card.querySelector('.tycoon-maker-name'),
+        where: card.querySelector('.tycoon-maker-where'),
+        state: card.querySelector('.tycoon-maker-state'),
+        pips,
+        makeBtns,
+        collect,
+      });
+    });
+  }
+
+  function refreshLarderUI() {
+    if (!larderEl) return;
+    const held = Object.keys(PRODUCTS).filter((p) => larderCount(p) > 0);
+    const sig = held.map((p) => p + larderCount(p)).join('|');
+    if (larderEl.dataset.sig === sig) return;
+    larderEl.dataset.sig = sig;
+    larderEl.innerHTML = '';
+    if (!held.length) {
+      const none = document.createElement('span');
+      none.className = 'tycoon-larder-empty';
+      none.textContent = 'The larder is empty.';
+      larderEl.appendChild(none);
+      return;
+    }
+    held.forEach((p) => {
+      const pill = document.createElement('span');
+      pill.className = 'tycoon-stock';
+      pill.style.color = PRODUCTS[p].color;
+      pill.innerHTML = '<span class="tycoon-stock-dot"></span>'
+        + '<span class="tycoon-stock-name"></span>'
+        + '<span class="tycoon-stock-n"></span>';
+      pill.querySelector('.tycoon-stock-name').textContent = PRODUCTS[p].name;
+      pill.querySelector('.tycoon-stock-n').textContent = larderCount(p)
+        + (larderCount(p) >= LARDER_CAP ? ' / full' : '');
+      larderEl.appendChild(pill);
+    });
+  }
+
+  function refreshCounterUI() {
+    if (!counterListEl) return;
+    const counters = countersPlaced();
+    // The tab only appears once there is a counter to look at, the way the
+    // staff tab only appears once there is somebody to hire.
+    const show = counters.length > 0 || (state.owned.juicebar || 0) > 0
+      || (state.owned.proshop || 0) > 0;
+    if (tabEls.counter && tabEls.counter.hidden === show) {
+      tabEls.counter.hidden = !show;
+      if (!show && activePanel === 'counter') showPanel('shop');
+    }
+    const sig = counters.map(counterKeyOf).join(',');
+    if (sig !== counterSignature) {
+      counterSignature = sig;
+      buildCounterUI(counters);
+    }
+    refreshLarderUI();
+    const now = Date.now();
+    counterRows.forEach((row) => {
+      const c = row.at;
+      const room = roomIn(c.themeId, c.roomIndex);
+      if (!room) return;
+      setText(row.name, itemById(c.itemId).name);
+      setText(row.where, themeName(c.themeId)
+        + (state.themeRooms[c.themeId].length > 1 ? ' ' + roomLabel(c.roomIndex) : ''));
+      const q = queueAt(room, c.index);
+      let ready = 0;
+      let nextDone = 0;
+      row.pips.forEach((pip, i) => {
+        const b = q[i];
+        if (!b) {
+          pip.root.style.color = 'transparent';
+          pip.root.classList.remove('is-done');
+          pip.fill.style.width = '0%';
+          return;
+        }
+        const product = PRODUCTS[b.p];
+        pip.root.style.color = product.color;
+        const left = (b.at - now) / 1000;
+        if (left <= 0) {
+          ready++;
+          pip.root.classList.add('is-done');
+        } else {
+          pip.root.classList.remove('is-done');
+          const frac = 1 - Math.min(1, left / product.seconds);
+          pip.fill.style.width = Math.round(frac * 100) + '%';
+          if (!nextDone) nextDone = left;
+        }
+      });
+      setText(row.state, ready
+        ? ready + (ready === 1 ? ' batch ready' : ' batches ready')
+        : q.length
+          ? 'Next in ' + secondsText(nextDone) + ', ' + q.length + ' of ' + QUEUE_SLOTS + ' on'
+          : 'Nothing on. The counter is free.');
+      row.collect.hidden = ready === 0;
+      row.makeBtns.forEach((mb) => {
+        const full = q.length >= QUEUE_SLOTS;
+        const noRoom = larderRoom(mb.productId) === 0;
+        const off = full || noRoom;
+        if (mb.btn.disabled !== off) mb.btn.disabled = off;
+        const why = full ? 'All three slots are running' : noRoom
+          ? 'The larder is full of those' : '';
+        if (mb.btn.title !== why) mb.btn.title = why;
+      });
+    });
+    if (counterDotEl) {
+      const ready = anythingReady();
+      if (counterDotEl.hidden === ready) counterDotEl.hidden = !ready;
+    }
   }
 
   function refreshStaffUI() {
@@ -3873,6 +4288,86 @@
       } else {
         ledge(); bell(); counter(); screen();
       }
+    },
+
+    // Juice bar: a serving counter with a raised bar top, a blender on the
+    // work side and three bottles along the back.
+    juicebar: (ctx, b) => {
+      const L = 1.60, D = 0.66;
+      const BODY = '#8a4a32';
+      const TOP = '#c69a63';
+      // The bottles stand on the back edge of the bar top rather than on a
+      // gantry behind it. A gantry taller than the counter hides the counter
+      // from whichever side it ends up on, and one turn in four that is the
+      // side you are looking from.
+      const bottles = () => {
+        [-0.52, -0.24, 0.04].forEach((u, i) => {
+          drawIsoBox(ctx, b, u * M, -(D / 2 - 0.10) * M, 0.055 * M, 0.055 * M, 0.24 * MH,
+            ['#d5643c', '#5db56a', '#e8b04b'][i], 1.06 * MH);
+          drawIsoBox(ctx, b, u * M, -(D / 2 - 0.10) * M, 0.022 * M, 0.022 * M, 0.05 * MH,
+            '#cfc6b4', 1.30 * MH);
+        });
+      };
+      const body = () => {
+        drawIsoBox(ctx, b, 0, 0, L / 2 * M, D / 2 * M, 1.00 * MH, BODY, 0);
+        drawIsoBox(ctx, b, 0, 0, (L / 2 + 0.05) * M, (D / 2 + 0.05) * M, 0.06 * MH, TOP, 1.00 * MH);
+        // A blender on the top, which is what says what this piece is for.
+        drawIsoBox(ctx, b, 0.54 * M, -0.04 * M, 0.10 * M, 0.10 * M, 0.07 * MH,
+          shade(BODY, -30), 1.06 * MH);
+        drawIsoBox(ctx, b, 0.54 * M, -0.04 * M, 0.075 * M, 0.075 * M, 0.26 * MH,
+          'rgba(180,225,205,0.55)', 1.13 * MH);
+      };
+      const front = () => {
+        // The customer's rail, and two stools tucked under it.
+        drawIsoBar(ctx, b, -(L / 2 + 0.05) * M, (D / 2 + 0.06) * M, (L / 2 + 0.05) * M,
+          (D / 2 + 0.06) * M, 1.08 * MH, 2.4, '#d9b25a');
+        [-0.42, 0.42].forEach((u) => {
+          drawIsoBox(ctx, b, u * M, (D / 2 + 0.34) * M, 0.06 * M, 0.06 * M, 0.60 * MH, '#6f6357', 0);
+          drawIsoSlab(ctx, b, u * M, (D / 2 + 0.34) * M, 0.17 * M, 0.17 * M, 0.64 * MH, '#a8563a', 5);
+        });
+      };
+      drawParts([{ u: 0, v: 0, draw: body }, { u: 0, v: -(D / 2 - 0.10), draw: bottles },
+        { u: 0, v: D / 2 + 0.20, draw: front }]);
+    },
+
+    // Pro shop: a glass display case with folded stock behind it on a rail.
+    proshop: (ctx, b) => {
+      const L = 1.70, D = 0.74;
+      const BODY = '#3f5566';
+      const TOP = '#93a6b4';
+      // A real rail rather than a panel with shirts painted on it: two posts
+      // and a bar, so from the back of the shop you see past it to the case
+      // instead of at a solid slab.
+      const rail = () => {
+        const at = (L / 2 - 0.04);
+        [-1, 1].forEach((sgn) => {
+          drawIsoBox(ctx, b, sgn * at * M, -(D / 2 + 0.04) * M, 0.045 * M, 0.045 * M,
+            1.55 * MH, shade(BODY, -22), 0);
+        });
+        drawIsoBar(ctx, b, -at * M, -(D / 2 + 0.04) * M, at * M, -(D / 2 + 0.04) * M,
+          1.52 * MH, 3, '#8f9aa6');
+        [-0.54, -0.18, 0.18, 0.54].forEach((u, i) => {
+          drawIsoBox(ctx, b, u * M, -(D / 2 + 0.04) * M, 0.13 * M, 0.045 * M, 0.46 * MH,
+            ['#c0483a', '#e8b04b', '#4f9ad1', '#5db56a'][i], 0.96 * MH);
+        });
+      };
+      const cabinet = () => {
+        drawIsoBox(ctx, b, 0, 0, L / 2 * M, D / 2 * M, 0.62 * MH, BODY, 0);
+        drawIsoBox(ctx, b, 0, 0, (L / 2 - 0.03) * M, (D / 2 - 0.03) * M, 0.34 * MH,
+          'rgba(170,215,235,0.34)', 0.62 * MH);
+        drawIsoBox(ctx, b, 0, 0, (L / 2 + 0.05) * M, (D / 2 + 0.05) * M, 0.06 * MH, TOP, 0.96 * MH);
+        // Folded stock inside the case, seen through the glass.
+        [-0.40, 0.10].forEach((u) => {
+          drawIsoBox(ctx, b, u * M, 0, 0.16 * M, 0.18 * M, 0.16 * MH, '#d9d2c4', 0.64 * MH);
+        });
+      };
+      const till = () => {
+        drawIsoBox(ctx, b, 0.58 * M, 0.08 * M, 0.13 * M, 0.13 * M, 0.14 * MH,
+          shade(BODY, -30), 1.02 * MH);
+        drawIsoBox(ctx, b, 0.58 * M, 0.04 * M, 0.10 * M, 0.02 * M, 0.16 * MH, GLOW, 1.16 * MH);
+      };
+      drawParts([{ u: 0, v: -(D / 2 + 0.04), draw: rail }, { u: 0, v: 0, draw: cabinet },
+        { u: 0.58, v: 0.08, draw: till }]);
     },
 
     // Manager's desk: a counter with a return along one end.
@@ -5414,12 +5909,49 @@
         floorCtx.restore();
       }
       drawProp(itemId, c, tierOf(itemId), turnAt(room, index));
+      if (makesStock(itemId)) drawBatchBar(room, index, c);
       const pile = pileOf(room, shape, index);
       if (pile.level > 0) queuePileTag(roomIndex, index, itemId, turnAt(room, index), c, pile);
     });
 
     if (editing && editing.roomIndex === roomIndex) {
       drawHeldPiece(place, editing);
+    }
+  }
+
+  // What a counter has on, on the floor at its foot: one lane per queue
+  // slot, filling as the batch runs and going solid when it is done. It sits
+  // on the floor rather than in a bubble over the piece because there is
+  // already a bubble over every machine for the money, and two of them on
+  // one piece is the clutter the bubbles were introduced to get rid of.
+  function drawBatchBar(room, index, c) {
+    const q = queueAt(room, index);
+    if (!q.length) return;
+    const now = Date.now();
+    // Sized off the tile rather than in flat pixels, so it stays the same
+    // fraction of the piece however far the plan is zoomed out.
+    const w = ROOM.tileW * 1.35;
+    const h = Math.max(4.5, ROOM.tileH * 0.34);
+    const gap = h * 0.55;
+    const lane = (w - gap * (QUEUE_SLOTS - 1)) / QUEUE_SLOTS;
+    const y = c.y + ROOM.tileH * 0.86;
+    for (let i = 0; i < QUEUE_SLOTS; i++) {
+      const x = c.x - w / 2 + i * (lane + gap);
+      roundRectPath(floorCtx, x - 1, y - 1, lane + 2, h + 2, (h + 2) / 2);
+      floorCtx.fillStyle = 'rgba(0,0,0,0.55)';
+      floorCtx.fill();
+      roundRectPath(floorCtx, x, y, lane, h, h / 2);
+      floorCtx.fillStyle = 'rgba(255,255,255,0.10)';
+      floorCtx.fill();
+      const b = q[i];
+      if (!b || !PRODUCTS[b.p]) continue;
+      const product = PRODUCTS[b.p];
+      const left = (b.at - now) / 1000;
+      const frac = left <= 0 ? 1 : 1 - Math.min(1, left / product.seconds);
+      if (frac <= 0) continue;
+      roundRectPath(floorCtx, x, y, Math.max(h, lane * frac), h, h / 2);
+      floorCtx.fillStyle = left <= 0 ? '#ffb703' : product.color;
+      floorCtx.fill();
     }
   }
 
@@ -6277,6 +6809,10 @@
   function liftPiece(roomIndex, index) {
     const room = activeRooms()[roomIndex];
     collectPile(roomIndex, index);
+    // A queue belongs to a counter standing still: the piece being lifted
+    // may end up in storage or in another room's slot, so what is finished
+    // goes into the larder now and what is not is poured away.
+    emptyCounter(state.activeTheme, roomIndex, index);
     const shape = roomShapeFor(state.activeTheme, roomIndex);
     const itemId = room.layout[index];
     if (!itemId) return;
@@ -6918,6 +7454,7 @@
   buildRoomActions();
   buildStaffUI();
   buildTrophyUI();
+  refreshCounterUI();
   refreshFranchiseUI();
   refillJobs();
   refreshRushUI();
@@ -6994,6 +7531,7 @@
     refreshJobsUI();
     refreshShopUI();
     refreshStaffUI();
+    refreshCounterUI();
     refreshFranchiseUI();
     refreshThemeRow();
     refreshRoomActions();
@@ -7055,10 +7593,21 @@
     if (now - lastFrameAt < 1000 / MEMBER_FPS) return;
     const dt = Math.min(0.25, (now - lastFrameAt) / 1000);
     lastFrameAt = now;
-    if (!members.length) return;
-    stepMembers(dt);
-    paintScene();
+    if (members.length) {
+      stepMembers(dt);
+      paintScene();
+      lastBatchPaint = now;
+      return;
+    }
+    // Nobody in, but a counter's queue bar still has to creep along. It gets
+    // one repaint a second rather than the crowd's twenty: the bar moves a
+    // pixel a minute and an empty gym is meant to cost nothing.
+    if (now - lastBatchPaint > 1000 && anyQueueHere()) {
+      lastBatchPaint = now;
+      paintScene();
+    }
   }
+  let lastBatchPaint = 0;
   requestAnimationFrame(animateMembers);
 
   window.addEventListener('beforeunload', save);
