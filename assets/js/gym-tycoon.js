@@ -5317,6 +5317,41 @@
     recomputeStats();
   }
 
+  // Now that two pieces cannot share floor, what people want is to set them
+  // side by side -- and getting two edges exactly flush with a five-pixel
+  // nudge is fiddly. So a held piece that comes within half a tile of
+  // another piece's edge snaps to it, flush: along whichever axis the two
+  // already overlap, on the other. Snapping never moves a piece more than
+  // that half tile, so it cannot fight the hand that is dragging it.
+  const SNAP_REACH = 0.55;
+  function snapToNeighbours(room, shape, itemId, spot, turn) {
+    const h = halfBoxOf(itemId, turn);
+    let best = null;
+    room.layout.forEach((id, i) => {
+      if (!id) return;
+      const sp = spotOf(room, i, shape);
+      const o = halfBoxOf(id, turnAt(room, i));
+      const sideBySideU = Math.abs(sp.v - spot.v) < h.v + o.v;
+      const sideBySideV = Math.abs(sp.u - spot.u) < h.u + o.u;
+      // Flush on u: the held piece's near edge against this piece's far
+      // edge, whichever side it is on. Same again on v.
+      const tries = [];
+      if (sideBySideU) {
+        tries.push({ u: sp.u + o.u + h.u, v: spot.v });
+        tries.push({ u: sp.u - o.u - h.u, v: spot.v });
+      }
+      if (sideBySideV) {
+        tries.push({ u: spot.u, v: sp.v + o.v + h.v });
+        tries.push({ u: spot.u, v: sp.v - o.v - h.v });
+      }
+      tries.forEach((t) => {
+        const d = Math.hypot(t.u - spot.u, t.v - spot.v);
+        if (d < SNAP_REACH && (!best || d < best.d)) best = { u: t.u, v: t.v, d };
+      });
+    });
+    return best ? { u: best.u, v: best.v } : spot;
+  }
+
   // Whatever the held piece would land on top of, right now.
   function editOverlaps() {
     if (!editing) return null;
@@ -5327,7 +5362,13 @@
 
   function moveEditTo(u, v) {
     if (!editing) return;
-    editing.spot = clampSpot(snapSpot(u, v), editShape(), editing.itemId, editing.turn);
+    const room = activeRooms()[editing.roomIndex];
+    const shape = editShape();
+    const at = clampSpot(snapSpot(u, v), shape, editing.itemId, editing.turn);
+    // Snapped, then clamped again: a snap can only ever move a piece toward
+    // a neighbour, and a neighbour against a wall is inside the room.
+    editing.spot = clampSpot(snapToNeighbours(room, shape, editing.itemId, at, editing.turn),
+      shape, editing.itemId, editing.turn);
     refreshPlaceHud();
     renderScene();
   }
