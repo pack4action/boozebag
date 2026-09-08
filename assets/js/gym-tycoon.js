@@ -7,6 +7,11 @@
   const TICK_MS = 100;
 
   const ITEMS = [
+    // The first thing on any floor. Every location needs one before it takes
+    // a cent or sells you anything: the first is yours for nothing, and the
+    // next locations each buy their own. It earns a trickle of membership
+    // fees on its own, which is what the first dumbbell set is bought with.
+    { id: 'frontdesk', name: 'Customer Desk', baseCost: 2500, gps: 0.3, starter: true },
     { id: 'dumbbell', name: 'Dumbbell Set', baseCost: 15, gps: 0.1 },
     { id: 'dumbbellrack', name: 'Dumbbell Rack', baseCost: 35, gps: 0.22 },
     { id: 'mat', name: 'Yoga Mat', baseCost: 60, gps: 0.5 },
@@ -19,7 +24,7 @@
     { id: 'soundsystem', name: 'Hype Sound System', baseCost: 2500000, gps: 25000 },
     // Office tier: hidden in the shop until the gym is established enough to
     // need one -- the "then you hire people" stage after the core equipment.
-    { id: 'desk', name: 'Reception Desk', baseCost: 10000000, gps: 100000, unlockLevel: 6 },
+    { id: 'desk', name: "Manager's Desk", baseCost: 10000000, gps: 100000, unlockLevel: 6 },
     { id: 'cubicle', name: 'Sales Cubicle', baseCost: 40000000, gps: 400000, unlockLevel: 8 },
     { id: 'officepod', name: 'Corner Office Pod', baseCost: 160000000, gps: 1600000, unlockLevel: 10 },
 
@@ -70,6 +75,7 @@
     sauna: '<path d="M12 2.2c-1.2 3-4.6 4.7-4.6 9a4.6 4.6 0 0 0 9.2 0c0-2.1-1-3.3-2-4.6.1 1.7-1 2.9-2 2.9-1.2 0-1.7-1.2-1-2.4C13 5.6 13 4 12 2.2Z"/>',
     gearfridge: '<rect x="5.5" y="2" width="13" height="8.6" rx="1.6"/><rect x="5.5" y="12" width="13" height="10" rx="1.6"/><rect x="3.4" y="4.6" width="1.8" height="4" rx="0.9"/><rect x="3.4" y="14.4" width="1.8" height="4.6" rx="0.9"/>',
     soundsystem: '<rect x="5.5" y="2" width="13" height="20" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="8.6" r="3.1"/><circle cx="12" cy="16.8" r="2"/>',
+    frontdesk: '<rect x="2.5" y="11" width="19" height="3" rx="1"/><rect x="4" y="14" width="16" height="7" rx="1"/><rect x="9.6" y="6.6" width="4.8" height="4.4" rx="1.2"/><rect x="11.4" y="4.4" width="1.2" height="2.4"/>',
     desk: '<rect x="3" y="13.4" width="18" height="2.8" rx="1"/><rect x="5" y="16.2" width="2" height="5.4" rx="0.6"/><rect x="17" y="16.2" width="2" height="5.4" rx="0.6"/><rect x="9" y="5.4" width="6.4" height="6" rx="1"/><rect x="11.2" y="11.4" width="2" height="2.2"/>',
     cubicle: '<rect x="3" y="4" width="3" height="16.5" rx="0.8"/><rect x="3" y="4" width="14.5" height="3" rx="0.8"/><rect x="6" y="14.5" width="14.5" height="3" rx="1"/><rect x="15.3" y="8.2" width="5.2" height="5.2" rx="1"/>',
     officepod: '<rect x="3" y="4.2" width="18" height="15.6" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.9"/><rect x="12.6" y="6.8" width="6" height="10.4" rx="1.2"/><rect x="5.6" y="12.2" width="5.4" height="2" rx="0.7"/><rect x="6.4" y="14.2" width="1.5" height="3.2" rx="0.6"/>',
@@ -370,6 +376,7 @@
     treadmill: 'cardio',
     mat: 'recovery', sauna: 'recovery',
     gearfridge: 'booster', soundsystem: 'booster',
+    frontdesk: 'front',
     desk: 'office', cubicle: 'office', officepod: 'office',
     palm: 'decor', cooler: 'decor', mirrorwall: 'decor', neon: 'decor',
   };
@@ -379,6 +386,7 @@
     recovery: { name: 'Recovery', color: '#3fa87e' },
     booster: { name: 'Booster', color: '#d9a53f' },
     office: { name: 'Office', color: '#8a6fd1' },
+    front: { name: 'Front of house', color: '#e8b04b' },
     decor: { name: 'Fittings', color: '#4fc38a' },
   };
   const SAME_CATEGORY_BONUS = 0.12;
@@ -476,7 +484,7 @@
     dumbbell: [0.80, 0.64], dumbbellrack: [1.55, 0.62], mat: [1.80, 0.66],
     bench: [1.75, 1.50], rack: [0.62, 2.10], cable: [0.52, 1.50],
     treadmill: [1.90, 0.80], sauna: [2.00, 1.50],
-    gearfridge: [1.40, 0.70], soundsystem: [0.70, 1.60], desk: [1.85, 1.20],
+    gearfridge: [1.40, 0.70], soundsystem: [0.70, 1.60], desk: [1.85, 1.20], frontdesk: [1.80, 0.75],
     cubicle: [1.65, 1.40], officepod: [1.60, 1.35], palm: [0.50, 0.50],
     cooler: [0.40, 0.40], mirrorwall: [0.34, 1.70], neon: [0.22, 1.50],
   };
@@ -785,6 +793,17 @@
   const STAFF_FALLOFF = 0.75;
   const STAFF_ROLES = [
     {
+      id: 'cashier',
+      name: 'Cashier',
+      baseCost: 6000,
+      unlockLevel: 2,
+      // Goes round the floor picking up the takings so you do not have to:
+      // the first collects half of everything as it is earned, and by the
+      // third nothing waits on the floor at all.
+      first: 0.5,
+      note: (n) => 'collects ' + Math.round(Math.min(1, staffEffect('cashier', n)) * 100) + '% of the takings for you',
+    },
+    {
       id: 'cleaner',
       name: 'Cleaner',
       baseCost: 60000,
@@ -971,17 +990,22 @@
   // raw ownership -- gear sitting unplaced in inventory earns nothing.
   // Synergy is computed per-room: adjacency only matters within the same
   // grid, so equipment in different rooms never interacts.
-  function computeGps(room, shape) {
-    const mult = synergyMultipliers(room, shape);
-    let total = 0;
-    room.layout.forEach((itemId, index) => {
-      if (!itemId) return;
-      total += gpsOf(itemId) * mult[index];
-    });
-    // Net, not gross: the wage bill comes off every figure the game shows,
-    // so the rate in the HUD is the rate the balance actually climbs at.
-    return total * vibeMultiplier(room) * rushMultiplier() * promoMultiplier()
+  // Everything that multiplies a whole room's takings. Net, not gross: the
+  // wage bill comes off every figure the game shows, so the rate in the HUD
+  // is the rate the money actually arrives at.
+  function roomMultiplier(room) {
+    return vibeMultiplier(room) * rushMultiplier() * promoMultiplier()
       * (1 + staffEffect('manager')) * franchiseMultiplier() * (1 - wageShare());
+  }
+  // What each piece in a room makes a second, slot by slot -- this is what
+  // lands in the pile at its foot.
+  function pieceRates(room, shape) {
+    const mult = synergyMultipliers(room, shape);
+    const rm = roomMultiplier(room);
+    return room.layout.map((itemId, index) => (itemId ? gpsOf(itemId) * mult[index] * rm : 0));
+  }
+  function computeGps(room, shape) {
+    return pieceRates(room, shape).reduce((sum, r) => sum + r, 0);
   }
 
   // Total across every room in every theme's chain -- gear earns
@@ -989,9 +1013,116 @@
   // against its own footprint, since that decides which slots are neighbours.
   function computeTotalGps(themeRooms) {
     return THEMES.reduce((sum, t) => (
-      sum + (themeRooms[t.id] || []).reduce(
-        (s2, room, i) => s2 + computeGps(room, roomShapeFor(t.id, i)), 0)
+      chainHasDesk(themeRooms[t.id]) ? sum + (themeRooms[t.id] || []).reduce(
+        (s2, room, i) => s2 + computeGps(room, roomShapeFor(t.id, i)), 0) : sum
     ), 0);
+  }
+
+  // ---- Cash on the floor ----
+  // A piece of gear does not pay into your balance. What it takes piles up
+  // at its foot, and you pick it up -- tap the pile -- or a Cashier does.
+  // A pile only holds so much: a couple of minutes of that piece's takings
+  // to begin with, more as the Customer Desk is upgraded, and a piece whose
+  // pile is full earns nothing until it is cleared. That is the whole loop
+  // of the early game, and hiring your way out of it is the mid game.
+  const PILE_CAP_SECONDS = [0, 120, 360, 1200, 3600];
+  function pileCapSeconds() {
+    return PILE_CAP_SECONDS[tierOf('frontdesk')] || PILE_CAP_SECONDS[1];
+  }
+  // The share of the takings that never touch the floor: what the Cashiers
+  // pick up as it is earned.
+  function autoShare() {
+    return Math.min(1, staffEffect('cashier'));
+  }
+  function roomCash(room) {
+    if (!room.cash || room.cash.length !== room.layout.length) {
+      room.cash = new Array(room.layout.length).fill(0).map((_, i) => (room.cash && room.cash[i]) || 0);
+    }
+    return room.cash;
+  }
+  // How full a pile is, in steps the drawing and the repaint care about:
+  // 0 nothing to see, 1 to 3 a growing stack, 4 full and waiting.
+  function pileLevel(amount, cap) {
+    if (amount < 1 || cap <= 0) return 0;
+    const f = amount / cap;
+    return f >= 0.97 ? 4 : f >= 0.62 ? 3 : f >= 0.28 ? 2 : 1;
+  }
+  let pileLevelsKey = '';
+  function earnTick(dt) {
+    const auto = autoShare();
+    const capS = pileCapSeconds();
+    let direct = 0;
+    let key = '';
+    THEMES.forEach((t) => {
+      const rooms = state.themeRooms[t.id] || [];
+      if (!chainHasDesk(rooms)) return;
+      rooms.forEach((room, i) => {
+        const rates = pieceRates(room, roomShapeFor(t.id, i));
+        const cash = roomCash(room);
+        rates.forEach((r, k) => {
+          if (r <= 0) return;
+          // Membership fees are paid at the desk, straight into the till.
+          if (room.layout[k] === 'frontdesk') { direct += r * dt; return; }
+          direct += r * auto * dt;
+          const cap = r * capS;
+          cash[k] = Math.min(cap, cash[k] + r * (1 - auto) * dt);
+          key += pileLevel(cash[k], cap);
+        });
+      });
+    });
+    state.balance += direct;
+    state.lifetime += direct;
+    // A pile that has grown a size is a visible change on a floor that may
+    // not otherwise be repainting.
+    if (key !== pileLevelsKey) {
+      pileLevelsKey = key;
+      renderScene();
+    }
+  }
+  // The cap for one piece, in dollars, and the level its pile is at now.
+  function pileOf(room, shape, index) {
+    const rate = pieceRates(room, shape)[index] || 0;
+    const cap = rate * pileCapSeconds();
+    const amount = roomCash(room)[index] || 0;
+    return { amount, cap, level: pileLevel(amount, cap) };
+  }
+  function floorCash() {
+    return allRoomsEverywhere().reduce((sum, room) => sum + roomCash(room).reduce((a, b) => a + b, 0), 0);
+  }
+  function collectPile(roomIndex, index) {
+    const room = activeRooms()[roomIndex];
+    if (!room) return 0;
+    const cash = roomCash(room);
+    const amount = cash[index] || 0;
+    if (amount < 0.5) return 0;
+    cash[index] = 0;
+    state.balance += amount;
+    state.lifetime += amount;
+    refreshHud();
+    toast('+$' + formatNum(amount), 'legend-paper');
+    renderScene();
+    save();
+    return amount;
+  }
+
+  // ---- The Customer Desk ----
+  // A location is open once its Customer Desk stands on its floor. Until
+  // then it takes nothing -- there is nobody to take it -- and the shop
+  // stays shut, so the first thing anyone does with a new gym is put the
+  // desk down.
+  function chainHasDesk(rooms) {
+    return (rooms || []).some((room) => room.layout.indexOf('frontdesk') !== -1);
+  }
+  function deskPlacedIn(themeId) {
+    return chainHasDesk(state.themeRooms[themeId]);
+  }
+  function gymOpen() {
+    return deskPlacedIn(state.activeTheme);
+  }
+  // Another desk can be bought while there is a location that has none:
+  // one per address, never a floor of them.
+  function deskWanted() {
+    return (state.owned.frontdesk || 0) < THEMES.filter(unlockedFor).length;
   }
 
   function formatNum(n) {
@@ -1046,6 +1177,11 @@
           const sp = oldSpots[k];
           return sp && typeof sp.u === 'number' && typeof sp.v === 'number'
             ? { u: sp.u, v: sp.v, r: (sp.r | 0) & 3 } : null;
+        }),
+        // What is waiting on the floor by each piece.
+        cash: new Array(n).fill(0).map((_, k) => {
+          const c = Array.isArray(r && r.cash) ? r.cash[k] : 0;
+          return typeof c === 'number' && isFinite(c) && c > 0 ? c : 0;
         }),
       };
       settleRoom(themeId, i, room);
@@ -1117,7 +1253,7 @@
       gymName: '',
       staff: {},
       franchise: { points: 0, runs: 0 },
-      owned: {},
+      owned: { frontdesk: 1 },
       themeRooms: defaultThemeRooms(),
       activeTheme: 'garage',
       activeRoomIndex: 0,
@@ -1246,6 +1382,34 @@
       toPlace.slice(0, firstLayout.length).forEach((id, i) => { firstLayout[i] = id; });
     }
 
+    // A gym from before the Customer Desk existed is open for business
+    // already, so every location with gear on its floor gets a desk standing
+    // on it -- on the nearest clear floor in the first room with any -- and
+    // one goes into the inventory if there is no room for it. A fresh gym
+    // has the one it started with.
+    THEMES.forEach((t) => {
+      const rooms = s.themeRooms[t.id] || [];
+      const hasGear = rooms.some((r) => r.layout.some(Boolean));
+      const hasDesk = rooms.some((r) => r.layout.indexOf('frontdesk') !== -1);
+      if (!hasGear || hasDesk) return;
+      s.owned.frontdesk = (s.owned.frontdesk || 0) + 1;
+      for (let i = 0; i < rooms.length; i++) {
+        const room = rooms[i];
+        const slot = room.layout.indexOf(null);
+        if (slot === -1) continue;
+        const shape = roomShapeFor(t.id, i);
+        const spot = findFreeSpot(room, shape, 'frontdesk', 0, { u: 1.4, v: shape.rows / 2 });
+        if (!spot) continue;
+        room.layout[slot] = 'frontdesk';
+        // The oldest save shape carries no positions at all, so a room
+        // migrated from it may have no spots array yet.
+        if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
+        room.spots[slot] = { u: spot.u, v: spot.v, r: 0 };
+        return;
+      }
+    });
+    if (!s.owned.frontdesk) s.owned.frontdesk = 1;
+
     // Nothing is credited for the time the tab was gone: gear earns while
     // you are watching it and not otherwise. lastSaved is still written --
     // it dates the save -- it just no longer buys anything.
@@ -1267,7 +1431,6 @@
     return activeRooms()[state.activeRoomIndex];
   }
   let gps = computeTotalGps(state.themeRooms);
-  let clickAmount = 1 + gps * 0.05;
 
   // ---- Jobs ----
   // Three standing requests at a time, each one a thing the gym could be
@@ -1392,7 +1555,7 @@
   function makeJob(mult, avoidKinds) {
     const tally = floorTally();
     const level = currentLevel();
-    const affordable = ITEMS.filter((i) => unlockedFor(i));
+    const affordable = ITEMS.filter((i) => unlockedFor(i) && !i.starter);
     const owned = affordable.filter((i) => (state.owned[i.id] || 0) > 0);
     // Weighted to the better half of what they own -- ITEMS runs cheapest
     // first, so this is the dearer end. Otherwise a gym full of saunas keeps
@@ -1555,9 +1718,11 @@
     { id: 'pier', name: 'Out On The Pier', hint: 'Open the Boardwalk and put gear on it',
       cash: 250000000, got: (c) => c.themesUsed >= 4 },
 
+    { id: 'open', name: 'Open For Business', hint: 'Put the Customer Desk on the floor',
+      cash: 50, got: (c) => c.open },
     { id: 'staff1', name: 'On The Payroll', hint: 'Hire your first member of staff',
       cash: 40000, got: (c) => c.staff >= 1 },
-    { id: 'staffall', name: 'Full Team', hint: 'Employ all three kinds of staff at once',
+    { id: 'staffall', name: 'Full Team', hint: 'Employ every kind of staff at once',
       cash: 4000000, got: (c) => c.roles >= STAFF_ROLES.length },
 
     { id: 'upgrade', name: 'Marked Up', hint: 'Upgrade a piece of gear to Mk II',
@@ -1619,6 +1784,7 @@
       themesUsed,
       staff: staffTotal(),
       roles: STAFF_ROLES.filter((r) => staffCount(r.id) > 0).length,
+      open: THEMES.some((t) => deskPlacedIn(t.id)),
       topTier,
       jobsDone: state.jobsDone || 0,
       rushDone: state.rushDone || 0,
@@ -2510,16 +2676,15 @@
 
   // ---- HUD ----
   const hudGps = document.getElementById('hud-gps');
-  const hudClick = document.getElementById('hud-click');
+  const hudFloor = document.getElementById('hud-floor');
   function refreshHud() {
     hudTotal.textContent = '$' + formatNum(state.balance);
     hudGps.textContent = formatNum(gps) + '/s';
-    hudClick.textContent = '+' + formatNum(clickAmount);
+    if (hudFloor) hudFloor.textContent = '$' + formatNum(floorCash());
   }
 
   function recomputeStats() {
     gps = computeTotalGps(state.themeRooms);
-    clickAmount = 1 + gps * 0.05;
     refreshHud();
     refreshSynergyText();
   }
@@ -2587,7 +2752,7 @@
   // room's layout the single source of truth for what's placed.
   function sellItem(id) {
     const item = ITEMS.find((i) => i.id === id);
-    if (!item || availableCount(id) <= 0) return;
+    if (!item || item.starter || availableCount(id) <= 0) return;
     const refund = sellPrice(item);
     state.owned[id] -= 1;
     state.balance += refund;
@@ -2635,7 +2800,20 @@
     });
   }
 
+  const openHintEl = document.getElementById('open-hint');
+  function refreshOpenHint() {
+    if (!openHintEl) return;
+    const open = gymOpen();
+    openHintEl.hidden = open;
+    if (open) return;
+    const theme = THEMES.find((t) => t.id === state.activeTheme);
+    openHintEl.textContent = availableCount('frontdesk') > 0
+      ? 'The ' + theme.name + ' is closed. Put the Customer Desk down -- it is in your inventory above -- to open the doors. Nothing earns and the shop stays shut until it stands on the floor.'
+      : 'The ' + theme.name + ' is closed: it needs a Customer Desk of its own. Buy one in the shop below and put it down to open the doors.';
+  }
+
   function refreshShopUI() {
+    refreshOpenHint();
     ITEMS.forEach((item) => {
       const els = shopEls[item.id];
       const unlocked = unlockedFor(item);
@@ -2650,6 +2828,17 @@
       const owned = state.owned[item.id] || 0;
       const cost = costFor(item);
       els.ownedEl.textContent = 'x' + owned;
+      // Shut until the Customer Desk is down, apart from the desk itself --
+      // which is only for sale while some location still has none.
+      const shut = item.starter ? !deskWanted() : !gymOpen();
+      els.root.classList.toggle('is-shut', shut);
+      if (shut) {
+        els.buyBtn.textContent = item.starter ? 'One per location' : 'Place your Customer Desk first';
+        els.buyBtn.disabled = true;
+        els.root.classList.remove('is-affordable');
+        els.upBtn.hidden = true;
+        return;
+      }
       els.buyBtn.textContent = 'Buy — $' + formatNum(cost);
       const affordable = state.balance >= cost;
       els.buyBtn.disabled = !affordable;
@@ -2677,6 +2866,7 @@
   function buyItem(id) {
     const item = ITEMS.find((i) => i.id === id);
     if (!unlockedFor(item)) return;
+    if (item.starter ? !deskWanted() : !gymOpen()) return;
     const cost = costFor(item);
     if (state.balance < cost) return;
     const before = currentLevel();
@@ -3236,6 +3426,7 @@
     gearfridge: 1.4,
     soundsystem: 1.6,
     desk: 2.0,
+    frontdesk: 1.8,
     cubicle: 2.0,
     officepod: 1.7,
     palm: 0.8,
@@ -3501,7 +3692,38 @@
       ctx.fillRect(top.x - 12, top.y - 4, 24, 4);
     },
 
-    // Reception desk: a counter with a return along one end.
+    // The customer desk: a counter with a higher ledge along the customer's
+    // side, a screen behind it and a bell on the ledge.
+    frontdesk: (ctx, b) => {
+      const L = 1.80, D = 0.62;
+      const TOP = '#7d6a55';
+      const SIDE = '#5a4a3a';
+      const LEDGE = '#8f7c64';
+      // The staff side is the back: the ledge stands along the front edge.
+      drawIsoBox(ctx, b, 0, -0.04 * M, L / 2 * M, (D / 2 - 0.04) * M, 0.92 * MH, SIDE, 0);
+      drawIsoBox(ctx, b, 0, -0.04 * M, (L / 2 + 0.04) * M, (D / 2) * M, 0.05 * MH, TOP, 0.92 * MH);
+      drawIsoBox(ctx, b, 0, (D / 2 - 0.06) * M, (L / 2 + 0.04) * M, 0.10 * M, 1.10 * MH, SIDE, 0);
+      drawIsoBox(ctx, b, 0, (D / 2 - 0.06) * M, (L / 2 + 0.08) * M, 0.14 * M, 0.05 * MH, LEDGE, 1.10 * MH);
+      // A brass strip along the customer's edge of the ledge.
+      drawIsoBar(ctx, b, -(L / 2 + 0.08) * M, (D / 2 + 0.08) * M, (L / 2 + 0.08) * M, (D / 2 + 0.08) * M,
+        1.15 * MH, 2, '#d9b25a');
+      // The screen, angled toward whoever is behind the desk.
+      const sc = isoScreenPoint(b, -0.35 * M, -0.14 * M, 1.02 * MH);
+      ctx.fillStyle = '#2b3140';
+      ctx.fillRect(sc.x - 9, sc.y - 13, 18, 12);
+      ctx.fillStyle = GLOW;
+      ctx.fillRect(sc.x - 7, sc.y - 11, 14, 8);
+      // The bell.
+      const bell = isoScreenPoint(b, 0.52 * M, (D / 2 - 0.06) * M, 1.15 * MH);
+      ctx.beginPath();
+      ctx.arc(bell.x, bell.y - 3, 3.2, Math.PI, 0);
+      ctx.fillStyle = '#e2c063';
+      ctx.fill();
+      ctx.fillStyle = '#a8862f';
+      ctx.fillRect(bell.x - 4, bell.y - 3, 8, 1.6);
+    },
+
+    // Manager's desk: a counter with a return along one end.
     desk: (ctx, b) => {
       const L = 1.75;
       drawIsoBox(ctx, b, 0, 0, L / 2 * M, 0.32 * M, 1.02 * MH, '#6b5a48', 0);
@@ -4924,11 +5146,87 @@
         floorCtx.restore();
       }
       drawProp(itemId, c, tierOf(itemId), turnAt(room, index));
+      const pile = pileOf(room, shape, index);
+      if (pile.level > 0) drawCashPile(pileAnchor(place, room, shape, index), pile);
     });
 
     if (editing && editing.roomIndex === roomIndex) {
       drawHeldPiece(place, editing);
     }
+  }
+
+  // Where a piece's pile sits: just in front of its footprint's near corner,
+  // on the floor, where it is clear of the piece and easy to tap.
+  function pileAnchor(place, room, shape, index) {
+    const sp = spotOf(room, index, shape);
+    const h = halfBoxOf(room.layout[index], turnAt(room, index));
+    return isoPoint(place.gx0 + sp.u + h.u * 0.55, place.gy0 + sp.v + h.v + 0.45);
+  }
+  const PILE_HIT = 15;
+  function drawCashPile(c, pile) {
+    const ctx = floorCtx;
+    const stacks = pile.level >= 4 ? 3 : pile.level;
+    const full = pile.level >= 4;
+    // A ring on the floor a full pile sits in, so it reads as waiting.
+    if (full) {
+      ctx.beginPath();
+      ctx.ellipse(c.x, c.y + 2, 15, 7.5, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,183,3,0.85)';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.ellipse(c.x, c.y + 2, 11, 5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fill();
+    // Banded stacks of notes, each a little offset from the one below.
+    for (let i = 0; i < stacks; i++) {
+      const y = c.y - i * 4.2;
+      const x = c.x + (i % 2 ? 1.5 : -1.5);
+      ctx.fillStyle = i % 2 ? '#3f9a5c' : '#4aae69';
+      ctx.fillRect(x - 8, y - 4, 16, 5);
+      ctx.fillStyle = '#2e7a46';
+      ctx.fillRect(x - 8, y - 4, 16, 1.2);
+      ctx.fillStyle = '#d9c46a';
+      ctx.fillRect(x - 2, y - 4, 4, 5);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(x - 8, y - 4, 16, 5);
+    }
+    // The figure, in a tag above the stack.
+    const label = '$' + formatNum(pile.amount);
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const w = ctx.measureText(label).width + 10;
+    const ty = c.y - stacks * 4.2 - 10;
+    ctx.fillStyle = full ? 'rgba(255,183,3,0.95)' : 'rgba(20,22,28,0.85)';
+    roundRectPath(ctx, c.x - w / 2, ty - 7, w, 14, 7);
+    ctx.fill();
+    ctx.fillStyle = full ? '#1a1200' : '#fff';
+    ctx.fillText(label, c.x, ty + 0.5);
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // The pile under a point on the canvas, if any: the same circle the pile
+  // is drawn in, so what you see is what you can tap.
+  function pileAtPoint(px, py) {
+    let best = null;
+    activeRooms().forEach((room, roomIndex) => {
+      const place = placements[roomIndex];
+      if (!place) return;
+      const shape = roomShapeFor(state.activeTheme, roomIndex);
+      room.layout.forEach((id, i) => {
+        if (!id) return;
+        const pile = pileOf(room, shape, i);
+        if (pile.level === 0) return;
+        const c = pileAnchor(place, room, shape, i);
+        const d = Math.hypot(px - c.x, py - (c.y - pile.level * 3));
+        if (d <= PILE_HIT && (!best || d < best.d)) best = { roomIndex, index: i, d };
+      });
+    });
+    return best ? { roomIndex: best.roomIndex, index: best.index } : null;
   }
 
   // The piece in your hands: a marked footprint on the floor so you can see
@@ -5643,6 +5941,7 @@
   // elsewhere; cancel puts it back in the same slot.
   function liftPiece(roomIndex, index) {
     const room = activeRooms()[roomIndex];
+    collectPile(roomIndex, index);
     const shape = roomShapeFor(state.activeTheme, roomIndex);
     const itemId = room.layout[index];
     if (!itemId) return;
@@ -5881,7 +6180,13 @@
       if (hit && hit.roomIndex === editing.roomIndex) moveEditTo(hit.u, hit.v);
       return;
     }
-    // A piece first: its top can stand past the floor of any room.
+    // Cash first: a pile is the thing you are most likely reaching for.
+    const pile = pileAtPoint(px, py);
+    if (pile) {
+      collectPile(pile.roomIndex, pile.index);
+      return;
+    }
+    // Then a piece: its top can stand past the floor of any room.
     const piece = pieceAtPoint(px, py);
     const roomIndex = piece ? piece.roomIndex : hit ? hit.roomIndex : -1;
     if (roomIndex < 0) return;
@@ -5901,7 +6206,7 @@
       p.className = 'tycoon-inv-empty';
       p.textContent = THEMES.some((t) => state.themeRooms[t.id].some((r) => r.layout.some(Boolean)))
         ? 'Everything you own is already on the floor.'
-        : 'Buy some gear below, then place it up here.';
+        : 'Put the Customer Desk down, then buy some gear below and place it up here.';
       inventoryEl.appendChild(p);
       return;
     }
@@ -5911,7 +6216,8 @@
       // clickable controls (arm-to-place, and sell) -- buttons can't nest.
       const chip = document.createElement('div');
       const held = editing && editing.itemId === item.id && editing.fromIndex === null;
-      chip.className = 'tycoon-inv-item' + (held ? ' is-armed' : '');
+      chip.className = 'tycoon-inv-item' + (held ? ' is-armed' : '')
+        + (item.starter && !gymOpen() && !held ? ' is-needed' : '');
 
       const armBtn = document.createElement('button');
       armBtn.type = 'button';
@@ -5934,13 +6240,16 @@
       });
       chip.appendChild(armBtn);
 
-      const sellBtn = document.createElement('button');
-      sellBtn.type = 'button';
-      sellBtn.className = 'tycoon-inv-sell';
-      sellBtn.textContent = 'Sell +$' + formatNum(sellPrice(item));
-      sellBtn.title = 'Sell one for 60% of what it cost';
-      sellBtn.addEventListener('click', () => sellItem(item.id));
-      chip.appendChild(sellBtn);
+      // The desk is not for sale: a location cannot run without one.
+      if (!item.starter) {
+        const sellBtn = document.createElement('button');
+        sellBtn.type = 'button';
+        sellBtn.className = 'tycoon-inv-sell';
+        sellBtn.textContent = 'Sell +$' + formatNum(sellPrice(item));
+        sellBtn.title = 'Sell one for 60% of what it cost';
+        sellBtn.addEventListener('click', () => sellItem(item.id));
+        chip.appendChild(sellBtn);
+      }
 
       inventoryEl.appendChild(chip);
     });
@@ -6080,21 +6389,12 @@
     if (placeStoreBtn) placeStoreBtn.addEventListener('click', storeEdit);
   }
 
-  // ---- Lift button ----
-  document.getElementById('btn-lift').addEventListener('click', () => {
-    state.balance += clickAmount;
-    state.lifetime += clickAmount;
-    refreshHud();
-    toast('+$' + formatNum(clickAmount), null);
-  });
-
   // ---- Reset ----
   document.getElementById('btn-reset').addEventListener('click', () => {
     if (!confirm("Reset all Gym Tycoon progress on this browser? This can't be undone.")) return;
     localStorage.removeItem(SAVE_KEY);
     state = defaultState();
     gps = 0;
-    clickAmount = 1;
     armedItemId = null;
     editing = null;
     refreshHud();
@@ -6187,8 +6487,7 @@
     }
     refreshPromoUI();
 
-    state.balance += gps * dt;
-    state.lifetime += gps * dt;
+    earnTick(dt);
     refreshHud();
     refreshJobsUI();
     refreshShopUI();

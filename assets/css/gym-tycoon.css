@@ -26,8 +26,7 @@
 .tycoon-add-room,
 .tycoon-inv-arm,
 .tycoon-inv-sell,
-.shop-buy-btn,
-.tycoon-lift-btn {
+.shop-buy-btn {
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
@@ -190,6 +189,10 @@
 }
 .tycoon-inv-item:hover { border-color: var(--amber); }
 .tycoon-inv-item.is-armed { background: var(--amber); color: #1a1200; border-color: #000; }
+.tycoon-inv-item.is-needed { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(255, 183, 3, 0.25); animation: tycoon-needed 1.6s ease-in-out infinite; }
+@keyframes tycoon-needed { 0%, 100% { box-shadow: 0 0 0 2px rgba(255, 183, 3, 0.2); } 50% { box-shadow: 0 0 0 6px rgba(255, 183, 3, 0.45); } }
+@media (prefers-reduced-motion: reduce) { .tycoon-inv-item.is-needed { animation: none; } }
+.tycoon-open-hint { margin: 6px 0 4px; padding: 10px 12px; border-radius: 10px; background: rgba(255, 183, 3, 0.12); border: 1px solid rgba(255, 183, 3, 0.45); color: var(--text); font-size: 13px; line-height: 1.45; }
 .tycoon-inv-arm {
   display: flex;
   align-items: center;
@@ -243,28 +246,6 @@
   line-height: 1.5;
 }
 
-/* ---- Lift button ---- */
-.tycoon-lift-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin: 0 auto 30px;
-  padding: 18px 46px;
-  font-family: 'Anton', sans-serif;
-  font-size: 22px;
-  letter-spacing: 0.5px;
-  color: #1a1200;
-  background: linear-gradient(180deg, var(--amber) 0%, var(--amber-2) 100%);
-  border: 3px solid #000;
-  border-radius: 999px;
-  cursor: pointer;
-  box-shadow: var(--shadow-hard);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-}
-.tycoon-lift-btn:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 #000; }
-.tycoon-lift-btn:active { transform: translate(1px, 1px); box-shadow: 3px 3px 0 #000; }
-.tycoon-lift-icon { display: inline-flex; align-items: center; }
 
 /* ---- Shop ---- */
 .tycoon-shop {
@@ -285,6 +266,8 @@
 }
 .shop-item.is-affordable { border-color: var(--amber); }
 .shop-item.is-locked { opacity: 0.5; }
+.shop-item.is-shut { opacity: 0.6; }
+.shop-item.is-shut .shop-buy-btn { font-size: 11px; }
 .shop-item-head {
   display: flex;
   align-items: center;
@@ -359,7 +342,6 @@
    that is the right order on a desktop, where the sidebar is a real
    scrolling column and this ordering does not apply. */
 .tycoon-sidebar { display: flex; flex-direction: column; }
-.tycoon-sidebar > .tycoon-lift-btn { order: 1; }
 .tycoon-sidebar > .tycoon-shop { order: 2; }
 .tycoon-sidebar > .tycoon-jobs { order: 3; }
 .tycoon-sidebar > .tycoon-staff { order: 4; }
@@ -429,11 +411,6 @@
     border-radius: 999px;
   }
 
-  .tycoon-lift-btn {
-    width: 100%;
-    margin: 0 0 16px;
-    padding: 16px 20px;
-  }
   .tycoon-shop {
     grid-template-columns: 1fr;
     gap: 10px;
