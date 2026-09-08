@@ -3597,15 +3597,29 @@
   // ---- Floor designer: isometric room rendered on canvas ----
   const floorCanvas = document.getElementById('tycoon-floor');
   let floorCtx = floorCanvas.getContext('2d');
+  // What Place all would put down here, biggest first so the awkward pieces
+  // get the room they need before the small ones fill it up. The count on
+  // the button comes from the same list, so it can never promise more than
+  // it will do.
+  function placeAllQueue() {
+    const queue = [];
+    ITEMS.slice().reverse().forEach((item) => {
+      // The spare desks are for the other locations. One is already down
+      // here, or one goes down here, and no more than that.
+      const want = item.starter
+        ? (deskPlacedIn(state.activeTheme) ? 0 : Math.min(1, availableCount(item.id)))
+        : availableCount(item.id);
+      for (let i = 0; i < want; i++) queue.push(item.id);
+    });
+    return queue;
+  }
+
   function placeAllStored() {
     const roomIndex = state.activeRoomIndex;
     const room = activeRooms()[roomIndex];
     const shape = roomShapeFor(state.activeTheme, roomIndex);
     if (!room) return;
-    const queue = [];
-    ITEMS.slice().reverse().forEach((item) => {
-      for (let i = 0; i < availableCount(item.id); i++) queue.push(item.id);
-    });
+    const queue = placeAllQueue();
     if (!queue.length) return;
     let placed = 0;
     queue.forEach((itemId) => {
@@ -3634,7 +3648,7 @@
   if (placeAllBtn) placeAllBtn.addEventListener('click', placeAllStored);
   function refreshPlaceAll() {
     if (!placeAllBtn) return;
-    const waiting = ITEMS.reduce((n, item) => n + availableCount(item.id), 0);
+    const waiting = placeAllQueue().length;
     const show = waiting > 1 && gymOpen();
     if (placeAllBtn.hidden !== !show) placeAllBtn.hidden = !show;
     if (show) setText(placeAllBtn, 'Place all ' + waiting);
@@ -7272,6 +7286,8 @@
     // Storage -- moving a piece already on the floor is a single act, and
     // handing you another one after it would be baffling.
     if (!fromTray || availableCount(itemId) <= 0) return;
+    // One desk per location, so putting one down is the end of it.
+    if (itemById(itemId) && itemById(itemId).starter) return;
     const shape = roomShapeFor(state.activeTheme, roomIndex);
     const next = findFreeSpot(activeRooms()[roomIndex], shape, itemId, turn, at);
     if (!next) return;
