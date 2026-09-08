@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=9" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=5" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=44" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=45" />
 </head>
 <body class="game-body">
 
@@ -131,11 +131,14 @@
       <span class="tycoon-next-text"></span>
       <button class="tycoon-next-go" type="button" hidden></button>
     </div>
-    <div class="tycoon-synergy" id="tycoon-synergy"></div>
     <div class="tycoon-tray">
-      <h3 class="tycoon-panel-title">Storage <span class="tycoon-panel-sub">bought but not standing anywhere, so earning nothing &mdash; click a piece to put it down</span></h3>
+      <div class="tycoon-tray-head">
+        <h3 class="tycoon-panel-title">Storage <span class="tycoon-panel-sub">bought but not standing anywhere, so earning nothing</span></h3>
+        <button class="tycoon-place-all" id="btn-place-all" type="button" hidden></button>
+      </div>
       <div class="tycoon-inventory" id="tycoon-inventory"></div>
     </div>
+    <div class="tycoon-synergy" id="tycoon-synergy"></div>
   </div>
 
   <div class="tycoon-sidebar">
@@ -171,6 +174,15 @@
     </section>
 
     <section class="tycoon-panel" data-panel="gym" hidden>
+      <div class="tycoon-lvl" id="level-card">
+        <div class="tycoon-lvl-head">
+          <span class="tycoon-lvl-now"></span>
+          <span class="tycoon-lvl-xp"></span>
+        </div>
+        <span class="tycoon-lvl-bar"><span class="tycoon-lvl-fill"></span></span>
+        <p class="tycoon-lvl-next"></p>
+      </div>
+
       <input class="tycoon-gym-name" id="gym-name" type="text" maxlength="28"
         placeholder="Name your gym" aria-label="Gym name" autocomplete="off" spellcheck="false" />
       <h3 class="tycoon-panel-title">Your locations <span class="tycoon-panel-sub">four separate gyms &mdash; click one to go and look at it</span></h3>
@@ -192,13 +204,13 @@
         <div class="tycoon-howto-body">
           <p><b>The short version.</b> Buy a machine. Stand it on the floor. Money collects in a bubble over it, and you tap the bubble to take it. Everything else is a way of making that bubble fill faster.</p>
 
-          <p><b>Opening up.</b> You start with a Customer Desk and nothing else. Put it down and the doors open: it earns membership fees on its own, and the shop unlocks with it. Nothing earns and nothing can be bought until it is standing on the floor. Each of the four locations needs a desk of its own, and a desk can never be sold.</p>
+          <p><b>Opening up.</b> You start with a Customer Desk and nothing else. Put it down and the doors open: it earns membership fees on its own, and the shop unlocks with it. Nothing earns and nothing can be bought until it is standing on the floor. Every location comes with a desk of its own, free, the moment you unlock it. You never buy one, you can never own a spare, and a desk can never be sold.</p>
 
           <p><b>Getting paid.</b> A machine does not pay straight into your balance. What it takes fills a coin bubble above it, and you tap the bubble to collect. A bubble holds a round figure, about two minutes of that machine's takings, and once it is full the machine stops earning until you empty it. That is the whole early game: come back, tap, come back.</p>
 
           <p><b>Getting out of tapping.</b> Two things fix it. Upgrading the Customer Desk raises what every bubble can hold, from two minutes up to a full hour at Mk IV. Hiring Cashiers collects a share of the takings for you as they are earned, and three of them means nothing waits at all.</p>
 
-          <p><b>Putting things down.</b> Click a piece in Storage to pick it up, drag it or nudge it with the arrows, turn it if you like, then press Place. It stands exactly where you leave it, not in a grid square. Click a piece already on the floor to move it again or put it back in Storage. Storage sells back at 60% of what you paid.</p>
+          <p><b>Putting things down.</b> Click a piece in Storage to pick it up, drag it or nudge it with the arrow keys, press R to turn it, then Enter or Place to set it down. Escape puts it back. It stands exactly where you leave it, not in a grid square, and if you own another of the same it comes straight to hand so you can lay out a row without going back to Storage. Two fingers pan and pinch the view while you are still holding something. Click a piece already on the floor to move it again or put it back in Storage. Storage sells back at 60% of what you paid.</p>
 
           <p><b>Room to use it.</b> Every machine keeps a strip of clear floor on the side you step onto it from. While you are holding a piece that strip is drawn as a dashed patch, and nothing may stand in it. Two treadmills side by side are fine. One parked directly behind another is not, because nobody could get on the back one.</p>
 
@@ -241,6 +253,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=86"></script>
+<script src="assets/js/gym-tycoon.js?v=88"></script>
 </body>
 </html>

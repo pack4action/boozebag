@@ -463,6 +463,14 @@
        an overflow: auto ancestor would otherwise shear off. */
     padding: 2px 12px 2px 2px;
   }
+  .tycoon-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    margin: 0 0 12px;
+    padding: 6px 0;
+    background: var(--bg, #0a0a0d);
+  }
   .tycoon-sidebar::-webkit-scrollbar { width: 8px; }
   .tycoon-sidebar::-webkit-scrollbar-thumb {
     background: var(--panel-border);
@@ -845,6 +853,113 @@
   background: transparent;
 }
 .tycoon-hire-let-go:hover { color: #e8837a; border-color: rgba(232, 131, 122, 0.5); }
+
+/* Storage sits directly under the plan now, above the numbers: it is the
+   thing you reach for while placing, and it was below them. Both it and the
+   breakdown are cards, so the left column reads as three stacked panels
+   rather than a plan with loose text under it. */
+.tycoon-tray-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.tycoon-tray-head .tycoon-panel-title { margin: 0; }
+.tycoon-place-all {
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  color: #06231a;
+  background: linear-gradient(180deg, #8fe9be, #5ec9a0);
+}
+.tycoon-place-all[hidden] { display: none !important; }
+
+/* Level, and what the next one brings. The Gym tab used to open on a name
+   field, which is not the question anybody has when they get there. */
+.tycoon-lvl {
+  border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.09));
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 12px 14px 13px;
+  margin-bottom: 14px;
+}
+.tycoon-lvl-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tycoon-lvl-now { font-size: 14px; font-weight: 800; }
+.tycoon-lvl-xp {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted, #8b8b93);
+  font-variant-numeric: tabular-nums;
+}
+.tycoon-lvl-bar {
+  display: block;
+  height: 6px;
+  margin: 9px 0 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.tycoon-lvl-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7fd8a8, #ffd166);
+}
+.tycoon-lvl-next {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted, #8b8b93);
+}
+
+/* What each location is worth, on the button that goes there, and a dot on
+   the one with money waiting in it. */
+.theme-rate {
+  margin-left: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+.theme-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #ffd166;
+  vertical-align: middle;
+}
+.tycoon-theme-btn.is-shut .theme-rate { color: #e8837a; opacity: 0.9; }
+
+/* Buy, and buy ten. */
+.shop-item-buy { display: flex; gap: 6px; align-items: stretch; }
+.shop-item-buy .shop-buy-btn { flex: 1 1 auto; }
+.shop-bulk-btn {
+  flex: none;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 11px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  color: #06231a;
+  background: rgba(126, 216, 168, 0.85);
+}
+.shop-bulk-btn[hidden] { display: none !important; }
+.tycoon-inv-sell.is-all { opacity: 0.8; }
 
 /* The one line telling you what is worth doing. It sits under the plan
    where the eye already is, rather than on the tab it is talking about. */

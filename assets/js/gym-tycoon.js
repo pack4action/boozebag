@@ -1176,10 +1176,24 @@
   function gymOpen() {
     return deskPlacedIn(state.activeTheme);
   }
-  // Another desk can be bought while there is a location that has none:
-  // one per address, never a floor of them.
+  // The desk is never for sale. It used to cost $2,500 and be buyable once
+  // per address, which meant a new location could be opened and then sat
+  // there shut because the money had gone on gear -- a dead end you could
+  // walk into without noticing. Every unlocked location is simply given one.
   function deskWanted() {
-    return (state.owned.frontdesk || 0) < THEMES.filter(unlockedFor).length;
+    return false;
+  }
+  // One spare desk for every unlocked location that has not got one standing
+  // on its floor. Idempotent, so it can be called whenever the set of
+  // unlocked locations might have changed without ever handing out two.
+  function grantFreeDesks() {
+    const short = THEMES.filter(unlockedFor).filter((t) => !deskPlacedIn(t.id)).length;
+    const spare = (state.owned.frontdesk || 0)
+      - THEMES.reduce((n, t) => n + (state.themeRooms[t.id] || []).reduce(
+        (m, room) => m + room.layout.filter((id) => id === 'frontdesk').length, 0), 0);
+    if (spare >= short) return false;
+    state.owned.frontdesk = (state.owned.frontdesk || 0) + (short - spare);
+    return true;
   }
 
   // Money as somebody would say it out loud: whole dollars under a
@@ -1498,6 +1512,18 @@
       }
     });
     if (!s.owned.frontdesk) s.owned.frontdesk = 1;
+    // Every unlocked location gets a desk of its own, free. Done against `s`
+    // rather than through grantFreeDesks, which reads the live state that
+    // this function is still building.
+    {
+      const level = levelFromXp(s.xp || 0);
+      const unlocked = THEMES.filter((t) => level >= (t.unlockLevel || 1));
+      const standing = THEMES.reduce((n, t) => n + (s.themeRooms[t.id] || []).reduce(
+        (m, room) => m + room.layout.filter((id) => id === 'frontdesk').length, 0), 0);
+      const short = unlocked.filter((t) => !chainHasDesk(s.themeRooms[t.id])).length;
+      const spare = (s.owned.frontdesk || 0) - standing;
+      if (spare < short) s.owned.frontdesk += short - spare;
+    }
 
     // "First Rep" is gone -- it fired on the same click as opening up -- so a
     // save that won it carries a key for a trophy that no longer exists.
@@ -2454,8 +2480,13 @@
   // What this level just opened up, so a level-up says something more useful
   // than a bigger number.
   function announceLevel(level) {
+    // A level can open a location, and a location arrives with its desk.
+    if (grantFreeDesks()) renderInventory();
     const opened = ITEMS.filter((i) => i.unlockLevel === level).map((i) => i.name)
-      .concat(THEMES.filter((t) => t.unlockLevel === level).map((t) => t.name));
+      .concat(THEMES.filter((t) => t.unlockLevel === level).map((t) => t.name))
+      .concat(STAFF_ROLES.filter((r) => r.unlockLevel === level).map((r) => r.name + 's'))
+      .concat(level === UPGRADE_MIN_LEVEL ? ['upgrades'] : [])
+      .concat(level === RUSH_ORDER_MIN_LEVEL ? ['rush orders'] : []);
     toast(opened.length
       ? 'Level ' + level + ' -- ' + opened.join(' and ') + ' unlocked'
       : 'Level ' + level, 'good');
@@ -2710,6 +2741,9 @@
     editing = null;
     armedItemId = null;
     membersKey = '';
+    // The level survives a franchise, so the locations it opened do too, and
+    // each of them is entitled to its desk.
+    grantFreeDesks();
     refillJobs();
     recomputeStats();
     refreshHud();
@@ -3342,15 +3376,29 @@
         '<span class="shop-item-gps">' + (item.vibe
           ? '+' + Math.round(item.vibe * VIBE_PER_POINT * 100) + '% to everything its room earns'
           : earnsLine(item.id)) + '</span>' +
-        '<button class="shop-buy-btn" type="button">Buy</button>' +
+        '<div class="shop-item-buy">' +
+          '<button class="shop-buy-btn" type="button">Buy</button>' +
+          '<button class="shop-bulk-btn" type="button" hidden title="Buy ten">x10</button>' +
+        '</div>' +
         '<button class="shop-upgrade-btn" type="button" hidden></button>';
       const buyBtn = el.querySelector('.shop-buy-btn');
+      const bulkBtn = el.querySelector('.shop-bulk-btn');
       const upBtn = el.querySelector('.shop-upgrade-btn');
       buyBtn.addEventListener('click', () => buyItem(item.id));
+      // Ten of something cheap is ten clicks otherwise. Each one costs a
+      // little more than the last, so this buys them one at a time and
+      // stops the moment the next is out of reach.
+      bulkBtn.addEventListener('click', () => {
+        for (let i = 0; i < 10; i++) {
+          if (state.balance < costFor(item)) break;
+          buyItem(item.id);
+        }
+      });
       upBtn.addEventListener('click', () => upgradeItem(item.id));
       shopGrid.appendChild(el);
       shopEls[item.id] = {
         root: el,
+        bulkBtn,
         ownedEl: el.querySelector('.shop-item-owned'),
         gpsEl: el.querySelector('.shop-item-gps'),
         tierEl: el.querySelector('.shop-item-name'),
@@ -3442,7 +3490,7 @@
     const theme = THEMES.find((t) => t.id === state.activeTheme);
     openHintEl.textContent = availableCount('frontdesk') > 0
       ? 'The ' + theme.name + ' is closed. Your Customer Desk is in Storage below: put it on the floor to open the doors. Until it is down, nothing earns and the shop stays shut.'
-      : 'The ' + theme.name + ' is closed. Every location needs a Customer Desk of its own -- buy one from the shop and put it on this floor to open the doors.';
+      : 'The ' + theme.name + ' is closed. Every location comes with its own Customer Desk, free -- put it on this floor to open the doors.';
   }
 
   function refreshShopUI() {
@@ -3469,16 +3517,23 @@
       const shut = item.starter ? !deskWanted() : !gymOpen();
       els.root.classList.toggle('is-shut', shut);
       if (shut) {
-        els.buyBtn.textContent = item.starter ? 'One per location' : 'Place your Customer Desk first';
+        els.buyBtn.textContent = item.starter
+          ? 'Free with every location' : 'Place your Customer Desk first';
         els.buyBtn.disabled = true;
         els.root.classList.remove('is-affordable');
         els.upBtn.hidden = true;
+        els.bulkBtn.hidden = true;
         return;
       }
       els.buyBtn.textContent = 'Buy — $' + formatNum(cost);
       const affordable = state.balance >= cost;
       els.buyBtn.disabled = !affordable;
       els.root.classList.toggle('is-affordable', affordable);
+      // Ten only shows up when ten are genuinely within reach, so it is
+      // never a button that buys three and stops.
+      const tenCost = cost * (Math.pow(COST_GROWTH, 10) - 1) / (COST_GROWTH - 1);
+      const bulk = affordable && state.balance >= tenCost;
+      if (els.bulkBtn.hidden !== !bulk) els.bulkBtn.hidden = !bulk;
 
       // What it earns now, which is not what it says on the tin once it has
       // been upgraded, and the control to take it further.
@@ -3542,6 +3597,49 @@
   // ---- Floor designer: isometric room rendered on canvas ----
   const floorCanvas = document.getElementById('tycoon-floor');
   let floorCtx = floorCanvas.getContext('2d');
+  function placeAllStored() {
+    const roomIndex = state.activeRoomIndex;
+    const room = activeRooms()[roomIndex];
+    const shape = roomShapeFor(state.activeTheme, roomIndex);
+    if (!room) return;
+    const queue = [];
+    ITEMS.slice().reverse().forEach((item) => {
+      for (let i = 0; i < availableCount(item.id); i++) queue.push(item.id);
+    });
+    if (!queue.length) return;
+    let placed = 0;
+    queue.forEach((itemId) => {
+      const slot = room.layout.indexOf(null);
+      if (slot === -1) return;
+      const at = findFreeSpot(room, shape, itemId, 0, null);
+      if (!at) return;
+      if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
+      room.layout[slot] = itemId;
+      room.spots[slot] = { u: at.u, v: at.v, r: 0 };
+      placed++;
+    });
+    const left = queue.length - placed;
+    toast(placed
+      ? 'Put ' + placed + (placed === 1 ? ' piece' : ' pieces') + ' down'
+        + (left ? ', and ' + left + ' would not fit' : '')
+      : 'Nothing would fit in ' + roomLabel(roomIndex), placed ? 'good' : null);
+    recomputeStats();
+    renderScene();
+    renderInventory();
+    refreshRoomActions();
+    save();
+  }
+
+  const placeAllBtn = document.getElementById('btn-place-all');
+  if (placeAllBtn) placeAllBtn.addEventListener('click', placeAllStored);
+  function refreshPlaceAll() {
+    if (!placeAllBtn) return;
+    const waiting = ITEMS.reduce((n, item) => n + availableCount(item.id), 0);
+    const show = waiting > 1 && gymOpen();
+    if (placeAllBtn.hidden !== !show) placeAllBtn.hidden = !show;
+    if (show) setText(placeAllBtn, 'Place all ' + waiting);
+  }
+
   const inventoryEl = document.getElementById('tycoon-inventory');
   const themeRowEl = document.getElementById('theme-row');
   let armedItemId = null;
@@ -6739,6 +6837,19 @@
     stageScrollEl.scrollTop = stageRect.top + worldY * zoomLevel - clientY;
   }
 
+  // Shift the view by a screen delta, right now, with nothing remembered.
+  // The two-finger pan measures frame to frame rather than from where the
+  // gesture started, because a pinch moves both fingers and there is no one
+  // anchor to hold on to.
+  function nudgeView(dx, dy) {
+    if (!stageScrollEl) return;
+    stageScrollEl.scrollLeft -= dx;
+    const maxTop = Math.max(0, stageScrollEl.scrollHeight - stageScrollEl.clientHeight);
+    const wantTop = stageScrollEl.scrollTop - dy;
+    const clamped = Math.max(0, Math.min(maxTop, wantTop));
+    stageScrollEl.scrollTop = clamped;
+  }
+
   // Pan the stage, and pass whatever scroll it cannot absorb on to the page,
   // the way a nested scroller normally chains.
   function panBy(dx, dy) {
@@ -6774,7 +6885,7 @@
       // Second finger down: stop panning, start pinching.
       dragState = null;
       const mid = pointerMid();
-      pinchState = { startDist: mid.dist || 1, startZoom: zoomLevel };
+      pinchState = { startDist: mid.dist || 1, startZoom: zoomLevel, lastX: mid.x, lastY: mid.y };
       return;
     }
     if (pointers.size > 2) return;
@@ -6801,7 +6912,13 @@
     if (pinchState && pointers.size >= 2) {
       const mid = pointerMid();
       if (!mid.dist) return;
+      // Both at once, the way every map does it: the span between the
+      // fingers sets the zoom, and the midpoint moving drags the view.
+      // Zooming first, so the pan is measured in the new scale.
       zoomAround(pinchState.startZoom * (mid.dist / pinchState.startDist), mid.x, mid.y);
+      nudgeView(mid.x - pinchState.lastX, mid.y - pinchState.lastY);
+      pinchState.lastX = mid.x;
+      pinchState.lastY = mid.y;
       return;
     }
 
@@ -6865,9 +6982,34 @@
     restCursor();
   });
 
+  // The finger still down after a pinch ends starts a fresh gesture from
+  // where it is, rather than waiting to be lifted and put back.
+  function resumeSinglePointer() {
+    if (!stageScrollEl || pointers.size !== 1) return;
+    const id = Array.from(pointers.keys())[0];
+    const at = pointers.get(id);
+    dragState = {
+      pointerId: id,
+      startClientX: at.x,
+      startClientY: at.y,
+      startScrollLeft: stageScrollEl.scrollLeft,
+      startScrollTop: stageScrollEl.scrollTop,
+      pageScrolled: 0,
+      // A gesture that began as a pinch is a view gesture, not a placement
+      // one: lifting one finger should not suddenly start dragging the
+      // piece you are holding halfway across the room.
+      moved: 999,
+      carrying: false,
+    };
+  }
+
   gestureEl.addEventListener('pointerup', (e) => {
+    const wasPinching = !!pinchState;
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchState = null;
+    // One of a pinch's two fingers has come off. The other is still on the
+    // glass and has to go on meaning something.
+    if (wasPinching && !pinchState) resumeSinglePointer();
 
     if (!dragState || e.pointerId !== dragState.pointerId) return;
     const wasDrag = dragState.moved > DRAG_THRESHOLD;
@@ -6902,9 +7044,11 @@
   }, { passive: false });
 
   gestureEl.addEventListener('pointercancel', (e) => {
+    const wasPinching = !!pinchState;
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchState = null;
     dragState = null;
+    if (wasPinching && !pinchState) resumeSinglePointer();
     restCursor();
   });
 
@@ -7115,10 +7259,26 @@
       return;
     }
     if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
-    room.layout[slot] = editing.itemId;
-    room.spots[slot] = {
-      u: editing.spot.u, v: editing.spot.v, r: editing.turn & 3 };
+    const itemId = editing.itemId;
+    const turn = editing.turn & 3;
+    const roomIndex = editing.roomIndex;
+    const fromTray = editing.fromIndex === null;
+    room.layout[slot] = itemId;
+    room.spots[slot] = { u: editing.spot.u, v: editing.spot.v, r: turn };
+    const at = { u: editing.spot.u, v: editing.spot.v };
     endEdit();
+
+    // Straight on to the next one. Only for a piece that came out of
+    // Storage -- moving a piece already on the floor is a single act, and
+    // handing you another one after it would be baffling.
+    if (!fromTray || availableCount(itemId) <= 0) return;
+    const shape = roomShapeFor(state.activeTheme, roomIndex);
+    const next = findFreeSpot(activeRooms()[roomIndex], shape, itemId, turn, at);
+    if (!next) return;
+    beginEdit(itemId, roomIndex, next, null);
+    if (editing) editing.turn = turn;
+    refreshPlaceHud();
+    renderScene();
   }
 
   function cancelEdit() {
@@ -7242,6 +7402,7 @@
   }
 
   function renderInventory() {
+    refreshPlaceAll();
     inventoryEl.innerHTML = '';
     const ownedItems = ITEMS.filter((item) => availableCount(item.id) > 0);
     if (ownedItems.length === 0) {
@@ -7298,6 +7459,19 @@
         sellBtn.title = 'Sell one back for 60% of what you paid for it';
         sellBtn.addEventListener('click', () => sellItem(item.id));
         chip.appendChild(sellBtn);
+        // Clearing out a stack of six meant six clicks.
+        const spare = availableCount(item.id);
+        if (spare > 1) {
+          const allBtn = document.createElement('button');
+          allBtn.type = 'button';
+          allBtn.className = 'tycoon-inv-sell is-all';
+          allBtn.textContent = 'all ' + spare;
+          allBtn.title = 'Sell every spare ' + item.name + ' back';
+          allBtn.addEventListener('click', () => {
+            for (let i = 0; i < spare; i++) sellItem(item.id);
+          });
+          chip.appendChild(allBtn);
+        }
       }
 
       inventoryEl.appendChild(chip);
@@ -7339,11 +7513,20 @@
       const btn = themeBtns[t.id];
       if (!btn) return;
       const unlocked = unlockedFor(t);
-      const label = unlocked ? t.name
-        : t.name + ' <span class="btn-lock-icon">' + iconMarkup('lock', 11) + '</span> Lv ' + t.unlockLevel;
+      const rooms = state.themeRooms[t.id] || [];
+      const open = chainHasDesk(rooms);
+      const rate = open ? rooms.reduce(
+        (sum, room, i) => sum + computeGps(room, roomShapeFor(t.id, i)), 0) : 0;
+      const waiting = rooms.reduce(
+        (sum, room) => sum + roomCash(room).reduce((a, b) => a + b, 0), 0);
+      const label = !unlocked
+        ? t.name + ' <span class="btn-lock-icon">' + iconMarkup('lock', 11) + '</span> Lv ' + t.unlockLevel
+        : t.name + '<span class="theme-rate">' + (open ? formatNum(rate) + '/s' : 'shut') + '</span>'
+          + (waiting >= 1 ? '<span class="theme-dot" title="Money waiting in the bubbles here"></span>' : '');
       if (btn.innerHTML !== label) btn.innerHTML = label;
       btn.classList.toggle('is-active', state.activeTheme === t.id);
       btn.classList.toggle('is-locked', !unlocked);
+      btn.classList.toggle('is-shut', unlocked && !open);
       btn.disabled = !unlocked;
     });
   }
@@ -7464,7 +7647,7 @@
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      placeEdit();
+      confirmEdit();
       return;
     }
     if (e.key === 'Escape') {
@@ -7562,6 +7745,39 @@
   const overviewEl = document.getElementById('overview');
   const overviewRows = {};
   let overviewTotalEl = null;
+  // What the next level opens, in the same words the level-up toast uses.
+  function nextLevelBrings(level) {
+    const opened = ITEMS.filter((i) => i.unlockLevel === level).map((i) => i.name)
+      .concat(THEMES.filter((t) => t.unlockLevel === level).map((t) => t.name))
+      .concat(STAFF_ROLES.filter((r) => r.unlockLevel === level).map((r) => r.name + 's'))
+      .concat(level === UPGRADE_MIN_LEVEL ? ['upgrades'] : [])
+      .concat(level === RUSH_ORDER_MIN_LEVEL ? ['rush orders'] : []);
+    return opened.length ? opened.join(', ') : null;
+  }
+
+  const levelCardEl = document.getElementById('level-card');
+  function refreshLevelCard() {
+    if (!levelCardEl) return;
+    const level = currentLevel();
+    const p = levelProgress();
+    setText(levelCardEl.querySelector('.tycoon-lvl-now'), 'Level ' + level);
+    levelCardEl.querySelector('.tycoon-lvl-fill').style.width =
+      Math.round(p.frac * 100) + '%';
+    if (p.capped) {
+      setText(levelCardEl.querySelector('.tycoon-lvl-xp'), 'Top level');
+      setText(levelCardEl.querySelector('.tycoon-lvl-next'),
+        'There is no level above this one. Everything is open.');
+      return;
+    }
+    const into = Math.max(0, (state.xp || 0) - p.from);
+    setText(levelCardEl.querySelector('.tycoon-lvl-xp'),
+      formatNum(into) + ' / ' + formatNum(p.to - p.from) + ' XP to level ' + (level + 1));
+    const brings = nextLevelBrings(level + 1);
+    setText(levelCardEl.querySelector('.tycoon-lvl-next'), brings
+      ? 'Level ' + (level + 1) + ' opens ' + brings + '.'
+      : 'Buying and upgrading gear is what earns XP. Dearer kit earns more.');
+  }
+
   function buildOverview() {
     if (!overviewEl) return;
     overviewEl.innerHTML = '';
@@ -7659,6 +7875,7 @@
   refreshRoomActions();
   refreshTrophyUI();
   refreshNextStep();
+  refreshLevelCard();
   refreshPromoUI();
   tickRushOrder();
   refreshRushOrderUI();
@@ -7729,6 +7946,7 @@
     refreshRushOrderUI();
     refreshJobsDot();
     refreshNextStep();
+    refreshLevelCard();
     refreshOverview();
     checkTrophies();
 
