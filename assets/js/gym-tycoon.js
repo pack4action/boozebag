@@ -2986,14 +2986,13 @@
   // edges to be cut off rather than to end. None of it counts towards the
   // auto-fit zoom (see PLAN_W/PLAN_H), or adding background would shrink the
   // rooms.
-  // How much drawn ground stands around the plan. Generous, because the
-  // plan is what the eye follows and a building with nothing around it
-  // reads as a model on a table: pan or zoom in and there is still site
-  // out there rather than the edge of the world.
-  const WORLD_PAD = 44;
-  const BLEED_TOP = 320;
-  const BLEED_SIDE = 300;
-  const BLEED_BOTTOM = 240;
+  // How much room the plan canvas leaves around the rooms themselves. The
+  // ground is not drawn here any more -- it has its own canvas the size of
+  // the window -- so this is only the space the plan needs to breathe.
+  const WORLD_PAD = 34;
+  const BLEED_TOP = 250;
+  const BLEED_SIDE = 150;
+  const BLEED_BOTTOM = 120;
   let PLAN_W = 480;
   let PLAN_H = 380;
   // The plan's extent in tiles, which is what the site is built around.
@@ -3106,6 +3105,9 @@
   }
 
   function applyStageSizing() {
+    // Sized before the ground is measured against it, since the ground is
+    // drawn from where this puts the plan canvas.
+    queueGroundPaint();
     if (zoomWrapEl) {
       zoomWrapEl.style.width = (BASE_W * zoomLevel) + 'px';
       zoomWrapEl.style.height = (BASE_H * zoomLevel) + 'px';
@@ -3947,11 +3949,15 @@
   // it does not need a building drawn around it: it stands on open ground
   // that carries the theme's colour and falls away into the dark.
 
-  function drawGroundLattice(colors) {
+  function drawGroundLattice(colors, view) {
     const step = 6;   // lattice tiles between lines
     const halfW = ROOM.tileW / 2;
     const halfH = ROOM.tileH / 2;
-    const reach = Math.ceil((BASE_W / halfW + BASE_H / halfH) / 2) + step * 2;
+    // Far enough out to cross whatever is being looked at, corner to
+    // corner, however far the view reaches past the plan itself.
+    const wide = view ? Math.max(Math.abs(view.x0 - worldOrigin.x), Math.abs(view.x1 - worldOrigin.x)) * 2 : BASE_W;
+    const tall = view ? Math.max(Math.abs(view.y0 - worldOrigin.y), Math.abs(view.y1 - worldOrigin.y)) * 2 : BASE_H;
+    const reach = Math.ceil((wide / halfW + tall / halfH) / 2) + step * 2;
     const span = reach * 2;
 
     floorCtx.save();
@@ -4034,36 +4040,91 @@
     maskAmbienceEdges();
   }
 
-  // The ground the plan stands on never changes while you are looking at
-  // it: same theme, same size, same lattice, every frame. Drawing it again
-  // sixty times a second was the single most expensive thing on the canvas
-  // once there was a decent amount of it, so it is drawn once into its own
-  // bitmap and stamped down after that.
-  let groundBitmap = null;
+  // The ground has a canvas of its own, behind the scrolling plan and the
+  // size of the stage window rather than the size of the plan. The plan
+  // canvas is only as big as the rooms need, so zoomed out it sat in the
+  // middle of the window with flat colour all round it -- the site has to
+  // reach the edges of what you are looking through, at every zoom.
+  //
+  // It is drawn in the window's own coordinates, with the plan's transform
+  // applied, so the lattice lines up with the floors exactly and travels
+  // with them as you pan. Nothing here changes between frames, so it is
+  // repainted only when the view does: a pan, a zoom, a new plan, a change
+  // of theme or of the hour.
+  const groundCanvas = document.getElementById('tycoon-ground');
+  const groundCtx = groundCanvas ? groundCanvas.getContext('2d') : null;
   let groundKey = '';
-  function paintGround(theme) {
-    const scale = floorCtx.getTransform().a || 1;
-    const key = theme + '|' + BASE_W + 'x' + BASE_H + '|' + scale.toFixed(3);
-    if (key !== groundKey || !groundBitmap) {
-      const cv = document.createElement('canvas');
-      cv.width = Math.max(1, Math.ceil(BASE_W * scale));
-      cv.height = Math.max(1, Math.ceil(BASE_H * scale));
-      const ctx = cv.getContext('2d');
-      ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      const live = floorCtx;
-      floorCtx = ctx;
-      try {
-        drawAmbience(theme);
-      } finally {
-        floorCtx = live;
-      }
-      groundBitmap = cv;
-      groundKey = key;
+  function paintStageGround(force) {
+    if (!groundCtx || !stageScrollEl) return;
+    const w = Math.round(stageScrollEl.clientWidth);
+    const h = Math.round(stageScrollEl.clientHeight);
+    if (!w || !h) return;
+    const sr = stageScrollEl.getBoundingClientRect();
+    const cr = floorCanvas.getBoundingClientRect();
+    const wr = groundCanvas.parentNode.getBoundingClientRect();
+    if (!sr.width || !cr.width) return;
+    // Laid exactly over the stage's inside edge, whatever the stage's own
+    // width and centring work out to.
+    const border = (sr.width - w) / 2;
+    groundCanvas.style.left = (sr.left - wr.left + border) + 'px';
+    groundCanvas.style.top = (sr.top - wr.top + border) + 'px';
+    // Where the plan canvas's own (0,0) sits inside the window, in window
+    // pixels -- which folds in the scroll position and the centring the
+    // stage does when the plan is smaller than the window.
+    const ox = Math.round((cr.left - sr.left) * 100) / 100;
+    const oy = Math.round((cr.top - sr.top) * 100) / 100;
+    const z = cr.width / (parseFloat(floorCanvas.style.width) || BASE_W);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const key = [state.activeTheme, w, h, ox, oy, z.toFixed(4), dpr,
+      Math.round(skyWash().a * 1000)].join('|');
+    if (!force && key === groundKey) return;
+    groundKey = key;
+
+    const bw = Math.max(1, Math.round(w * dpr));
+    const bh = Math.max(1, Math.round(h * dpr));
+    if (groundCanvas.width !== bw || groundCanvas.height !== bh) {
+      groundCanvas.width = bw;
+      groundCanvas.height = bh;
     }
-    floorCtx.save();
-    floorCtx.setTransform(1, 0, 0, 1, 0, 0);
-    floorCtx.drawImage(groundBitmap, 0, 0);
-    floorCtx.restore();
+    groundCanvas.style.width = w + 'px';
+    groundCanvas.style.height = h + 'px';
+
+    const colors = THEME_COLORS[state.activeTheme] || THEME_COLORS.garage;
+    groundCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    groundCtx.fillStyle = colors.bg;
+    groundCtx.fillRect(0, 0, w, h);
+
+    // Everything below is drawn in the plan's coordinates, so the same
+    // isoPoint the rooms are built from puts the lattice in the right
+    // place. The visible part of the plan's world is the window, mapped
+    // back through the transform.
+    const live = floorCtx;
+    floorCtx = groundCtx;
+    groundCtx.save();
+    groundCtx.setTransform(dpr * z, 0, 0, dpr * z, dpr * ox, dpr * oy);
+    const view = { x0: -ox / z, y0: -oy / z, x1: (w - ox) / z, y1: (h - oy) / z };
+    try {
+      drawGroundLattice(colors, view);
+      drawSiteWash(AMBIENT_WASH[state.activeTheme] || AMBIENT_WASH.garage);
+    } finally {
+      groundCtx.restore();
+      floorCtx = live;
+    }
+
+    // The hour of the day and the vignette, over the ground and in the
+    // window's own space -- a vignette tied to the plan canvas would draw a
+    // rectangle of shadow in the middle of the site.
+    const sky = skyWash();
+    if (sky.a > 0.002) {
+      groundCtx.fillStyle = 'rgba(' + sky.r + ',' + sky.g + ',' + sky.b + ',' + sky.a.toFixed(3) + ')';
+      groundCtx.fillRect(0, 0, w, h);
+    }
+    const vig = groundCtx.createRadialGradient(w / 2, h * 0.45, Math.min(w, h) * 0.3,
+      w / 2, h * 0.45, Math.hypot(w, h) * 0.62);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,0,0,0.45)');
+    groundCtx.fillStyle = vig;
+    groundCtx.fillRect(0, 0, w, h);
   }
 
   // Point on a wall: t is fraction along the wall (0 = the near/floor
@@ -4542,6 +4603,9 @@
   // meet at the corner. Earlier the rooms drew flat planes while corridors
   // drew slabs, which is why the junctions never lined up.
   const WALL_THICK = 0.3; // in tiles
+  // A metre and a bit: high enough to read as a division of the room, low
+  // enough to see over into the corner behind it.
+  const PARTITION_H = Math.round(1.15 * PX_PER_METRE_TALL);
 
   // Which way a wall's thickness points: away from the space it encloses,
   // along the other tile axis. Walls that run along +gx are backed off in
@@ -5041,6 +5105,12 @@
   // arrives at the far room through a real back wall, which is where the
   // casing belongs, drawn with that room's walls.
 
+  let groundTimer = null;
+  function queueGroundPaint() {
+    clearTimeout(groundTimer);
+    groundTimer = setTimeout(() => paintStageGround(), 0);
+  }
+
   function renderScene() {
     rebuildPlan();
     rebuildMembers();
@@ -5055,8 +5125,6 @@
   // second, and asking the browser to re-lay-out the page that often -- which
   // is what reading the stage's size does -- would cost far more than the
   // drawing itself.
-  let sceneVignette = null;
-  let vignetteKey = '';
   function paintScene() {
     const colors = THEME_COLORS[state.activeTheme] || THEME_COLORS.garage;
     const light = LIGHT_COLORS[state.activeTheme] || LIGHT_COLORS.garage;
@@ -5070,8 +5138,8 @@
     // The canvas no longer paints its own full-bleed rectangle: the stage
     // window carries the ground colour, the canvas fades to transparent at
     // its edges, and the two meet with no seam to see.
-    if (stageScrollEl) stageScrollEl.style.background = colors.bg;
-    paintGround(state.activeTheme);
+    // The site the plan stands on is a layer of its own now, behind this
+    // canvas and the size of the window (see paintStageGround).
 
     // Rooms and hallways go down in one back-to-front pass, ordered by how far
     // back their rear corner sits. Drawing all the hallways first instead
@@ -5101,23 +5169,17 @@
     pileTagRects = [];
     if (!editing) layOutPileTags();
 
-    // The hour of the day, laid over everything but under the vignette.
+    // The hour of the day, over the gym only: 'source-atop' keeps it off
+    // the empty parts of this canvas, which are a window onto the ground
+    // layer behind and have already been tinted there.
     const sky = skyWash();
     if (sky.a > 0.002) {
+      floorCtx.save();
+      floorCtx.globalCompositeOperation = 'source-atop';
       floorCtx.fillStyle = 'rgba(' + sky.r + ',' + sky.g + ',' + sky.b + ',' + sky.a.toFixed(3) + ')';
       floorCtx.fillRect(0, 0, W, H);
+      floorCtx.restore();
     }
-
-    // Built once per canvas size rather than per frame: a radial gradient
-    // is not free to make, and this one is always the same.
-    if (!sceneVignette || vignetteKey !== W + 'x' + H) {
-      sceneVignette = floorCtx.createRadialGradient(W / 2, H * 0.42, H * 0.25, W / 2, H * 0.42, H * 0.72);
-      sceneVignette.addColorStop(0, 'rgba(0,0,0,0)');
-      sceneVignette.addColorStop(1, 'rgba(0,0,0,0.45)');
-      vignetteKey = W + 'x' + H;
-    }
-    floorCtx.fillStyle = sceneVignette;
-    floorCtx.fillRect(0, 0, W, H);
   }
 
   // ---- Hover ----
@@ -5195,10 +5257,12 @@
     // tall gear like real ceiling hardware instead of floating on top.
     drawCeilingStrip(north, east, west, light);
 
-    // A corner cut out of the back or the left leaves one more wall standing
-    // inside the box: the notch's own back-facing side. It is a real wall --
-    // solid, skirted, lit -- but it stands in the middle of the floor, so it
-    // has to go down in depth order with the gear rather than before it.
+    // A corner cut out of the back or the left leaves one more side standing
+    // inside the box: the notch's own back-facing edge. It goes down in
+    // depth order with the gear rather than before it, since it stands in
+    // the middle of the floor -- and it is a waist-high partition rather
+    // than a wall, because a full-height wall in the middle of a room hides
+    // the floor behind it and leaves a corner you cannot see into.
     let innerWall = null;
     if (cutAtBack) {
       const gy = place.gy0 + cut.rows;
@@ -5238,9 +5302,8 @@
 
     standing.forEach(({ index, itemId, spot, member, wall }) => {
       if (wall) {
-        drawWallRun(wall.pts, [wall.axis], ROOM.wallH, colors, ['cap', 'cap'], [[]]);
+        drawWallRun(wall.pts, [wall.axis], PARTITION_H, colors, ['cap', 'cap'], [[]]);
         drawBaseboard(wall.pts[0], wall.pts[1]);
-        drawLightRails([wall.pts], light);
         return;
       }
       if (member) {
@@ -6014,6 +6077,12 @@
     setHoverCell(cashUnderPointer ? null : pieceAtPoint(p.x, p.y));
     restCursor();
   });
+
+  // Panning moves the plan under the window, so the site has to be
+  // redrawn at its new offset.
+  if (stageScrollEl) {
+    stageScrollEl.addEventListener('scroll', queueGroundPaint, { passive: true });
+  }
 
   gestureEl.addEventListener('pointerleave', () => {
     cashUnderPointer = false;
@@ -6813,6 +6882,8 @@
       lastRush = rush;
       recomputeStats();
       refreshRushUI();
+      // The hour tints the site as well as the gym.
+      queueGroundPaint();
       membersKey = '';
     }
 

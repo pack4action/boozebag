@@ -138,10 +138,20 @@
   display: flex;
   align-items: safe center;
   justify-content: safe center;
-  /* The ground the plan stands on. renderScene() sets this to the active
-     theme's colour, which is also what the canvas fades out to, so the
-     edge of the canvas is invisible and the view has no box around it. */
-  background: #0e1114;
+  /* The ground is a canvas of its own behind this one (.tycoon-ground),
+     the size of this window rather than of the plan, so it reaches the
+     edges however far you zoom out. */
+  background: transparent;
+  position: relative;
+  z-index: 1;
+}
+.tycoon-ground {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 15px;
+  pointer-events: none;
+  z-index: 0;
 }
 .tycoon-room-stage::-webkit-scrollbar { display: none; }
 .tycoon-room-zoom-wrap {
