@@ -14,7 +14,6 @@
     { id: 'rack', name: 'Squat Rack', baseCost: 800, gps: 8 },
     { id: 'cable', name: 'Cable Machine', baseCost: 3000, gps: 30 },
     { id: 'treadmill', name: 'Treadmill', baseCost: 10000, gps: 100 },
-    { id: 'trainer', name: 'Personal Trainer', baseCost: 40000, gps: 400 },
     { id: 'sauna', name: 'Sauna', baseCost: 150000, gps: 1500 },
     { id: 'gearfridge', name: 'Gear Fridge', baseCost: 600000, gps: 6000 },
     { id: 'soundsystem', name: 'Hype Sound System', baseCost: 2500000, gps: 25000 },
@@ -290,14 +289,14 @@
   // Placement is no longer cosmetic: gains/sec is earned only by gear
   // actually sitting in the room (see computeGps), and equipment of the
   // same category placed edge-to-edge in the grid boosts each other.
-  // Booster-category gear (trainer/gear/hq) instead boosts ANY different
+  // Booster-category gear (fridge/sound system) instead boosts ANY different
   // category neighbor, so it's worth spreading those around rather than
   // clustering them.
   const CATEGORY = {
     dumbbell: 'strength', dumbbellrack: 'strength', bench: 'strength', rack: 'strength', cable: 'strength',
     treadmill: 'cardio',
     mat: 'recovery', sauna: 'recovery',
-    trainer: 'booster', gearfridge: 'booster', soundsystem: 'booster',
+    gearfridge: 'booster', soundsystem: 'booster',
     desk: 'office', cubicle: 'office', officepod: 'office',
     palm: 'decor', cooler: 'decor', mirrorwall: 'decor', neon: 'decor',
   };
@@ -403,8 +402,8 @@
   const ITEM_BOX = {
     dumbbell: [0.80, 0.64], dumbbellrack: [1.55, 0.62], mat: [1.80, 0.66],
     bench: [1.75, 1.50], rack: [0.62, 2.10], cable: [0.52, 1.50],
-    treadmill: [1.90, 0.80], trainer: [0.60, 0.60], sauna: [2.00, 1.50],
-    gearfridge: [0.70, 0.62], soundsystem: [0.62, 1.45], desk: [1.85, 1.20],
+    treadmill: [1.90, 0.80], sauna: [2.00, 1.50],
+    gearfridge: [1.40, 0.70], soundsystem: [0.70, 1.60], desk: [1.85, 1.20],
     cubicle: [1.65, 1.40], officepod: [1.60, 1.35], palm: [0.50, 0.50],
     cooler: [0.40, 0.40], mirrorwall: [0.34, 1.70], neon: [0.22, 1.50],
   };
@@ -500,7 +499,7 @@
   }
 
   // Per-slot multiplier from adjacent gear: +12% for each neighbor of the
-  // same category, +20% for each neighboring booster (trainer/gear/hq) of
+  // same category, +20% for each neighboring booster (fridge/sound system) of
   // a *different* category. Two boosters next to each other just count as
   // a same-category match.
 
@@ -969,6 +968,24 @@
       s.xp = Math.max(fromOwned, fromLifetime);
     }
 
+    // The Personal Trainer is gone: at a third of a square metre it earned
+    // more per metre of floor than a sauna, and a floor of them was the
+    // best money in the game. Anyone who owned one gets what they paid.
+    if (s.owned.trainer) {
+      s.balance = (s.balance || 0) + s.owned.trainer * 40000;
+      delete s.owned.trainer;
+      THEMES.forEach((t) => {
+        (s.themeRooms[t.id] || []).forEach((room) => {
+          room.layout.forEach((id, i) => {
+            if (id === 'trainer') {
+              room.layout[i] = null;
+              if (room.spots) room.spots[i] = null;
+            }
+          });
+        });
+      });
+    }
+
     // Carry saves across the item swap (see RENAMED_ITEMS): a Steroid Cycle
     // in the inventory becomes a Gear Fridge, one standing in a room becomes
     // a Gear Fridge standing in the same spot. Counts are added rather than
@@ -1407,13 +1424,12 @@
     cable: 'pull',
     mat: 'stretch',
     sauna: 'sit',
-    trainer: 'coach',
   };
   // How fast each movement cycles, in radians a second. A sprint is not a
   // squat, and a set of squats taken at running speed looks ridiculous.
   const EXERCISE_RATE = {
     run: 11.5, curl: 3.4, press: 2.5, squat: 2.0, pull: 3.0,
-    stretch: 1.2, sit: 0.8, coach: 2.0,
+    stretch: 1.2, sit: 0.8,
   };
   const MEMBER_WALK = 1.15 * TILES_PER_METRE;   // tiles a second, a gym walk
   // Roughly two members for every three pieces of kit, so a room fills up as
@@ -2928,10 +2944,9 @@
     rack: 1.6,
     cable: 1.7,
     treadmill: 2.0,
-    trainer: 0.7,        // the floor a person stands on, not their height
     sauna: 2.2,
-    gearfridge: 0.9,
-    soundsystem: 1.4,
+    gearfridge: 1.4,
+    soundsystem: 1.6,
     desk: 2.0,
     cubicle: 2.0,
     officepod: 1.7,
@@ -2942,15 +2957,9 @@
   };
   const DEFAULT_FOOTPRINT = 1.4;
 
-  // The size to *draw* a piece at, along its longest side, for the few whose
-  // art is not proportioned like their footprint. A Personal Trainer is a
-  // standing person: scaled by the half-metre of floor they occupy they come
-  // out knee-high next to the gear, so they are drawn at their own height
-  // instead. How much room a piece needs to clear a wall still comes from
-  // ITEM_FOOTPRINT.
-  const ITEM_DRAW_SIZE = {
-    trainer: 1.75,
-  };
+  // The size a piece is drawn at, along its longest side. The same as its
+  // footprint now that every piece is built to its own dimensions.
+  const ITEM_DRAW_SIZE = {};
 
   // A lattice tile is a third of a metre, so this is a metre across the
   // floor in pixels.
@@ -2984,13 +2993,6 @@
   const RUBBER = '#20232b';
   const WEIGHT = '#454f63';
   const GLOW = '#5fd0e6';
-
-  const TRAINER_FIGURE = [1, -1].map((facing) => ({
-    state: 'using', gearId: null, phase: 0, facing, staffRole: 'trainer',
-    shirt: STAFF_SHIRT, skin: '#d59a6c', hair: '#2b2119', build: 1.02, broad: 1.08,
-    legs: '#2c3140', shortsLen: 0.415, hairStyle: 'crop', capColor: '#2f3a4a',
-    bagColor: '#4a4f5c', carry: 'towel',
-  }));
 
   const PROP_BUILDERS = {
     // A pair on a small rubber square. Knee-high clutter, not furniture.
@@ -3130,14 +3132,6 @@
       });
     },
 
-    // A person, not a machine -- and the crowd already has a rig for drawing
-  // one, so the trainer is a member who never moves, in the staff shirt,
-  // facing the way the piece is turned. Drawn straight onto the floor
-  // context, which is what `ctx` is here.
-  trainer: (ctx, b) => {
-    drawMember(b, TRAINER_FIGURE[propTurn < 2 ? 0 : 1]);
-  },
-
   // A timber cabin with a glass door and a warm slot of light behind it.
     sauna: (ctx, b) => {
       const L = 1.90, D = 1.40, H = 1.72;
@@ -3174,36 +3168,40 @@
       ctx.stroke();
     },
 
-    // A glass-fronted fridge, lit from inside.
+    // A double glass-door fridge, lit from inside. It used to be a single
+    // locker of a thing at a fraction of the floor, which at its price made
+    // it the best money in the game per square metre by a mile.
     gearfridge: (ctx, b) => {
-      const W = 0.70, D = 0.62, H = 1.58;
+      const W = 1.36, D = 0.66, H = 1.58;
       drawIsoBox(ctx, b, 0, 0, W / 2 * M, D / 2 * M, H * MH, FRAME_DK, 0);
-      const a = isoScreenPoint(b, (W / 2) * M, -(D / 2 - 0.08) * M, 0.12 * MH);
-      const c = isoScreenPoint(b, (W / 2) * M, (D / 2 - 0.08) * M, 0.12 * MH);
-      const gh = 1.22 * MH;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y);
-      ctx.lineTo(c.x, c.y - gh); ctx.lineTo(a.x, a.y - gh);
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(120,220,240,0.5)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      for (let i = 0; i < 3; i++) {
-        const s0 = isoScreenPoint(b, (W / 2) * M, -(D / 2 - 0.08) * M, (0.30 + i * 0.36) * MH);
-        const s1 = isoScreenPoint(b, (W / 2) * M, (D / 2 - 0.08) * M, (0.30 + i * 0.36) * MH);
+      [[-(W / 2 - 0.08), -0.04], [0.04, W / 2 - 0.08]].forEach(([d0, d1]) => {
+        const a = isoScreenPoint(b, d0 * M, (D / 2) * M, 0.12 * MH);
+        const c = isoScreenPoint(b, d1 * M, (D / 2) * M, 0.12 * MH);
+        const gh = 1.24 * MH;
         ctx.beginPath();
-        ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y);
-        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y);
+        ctx.lineTo(c.x, c.y - gh); ctx.lineTo(a.x, a.y - gh);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(120,220,240,0.5)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+        ctx.lineWidth = 1;
         ctx.stroke();
-      }
+        for (let i = 0; i < 3; i++) {
+          const s0 = isoScreenPoint(b, d0 * M, (D / 2) * M, (0.30 + i * 0.36) * MH);
+          const s1 = isoScreenPoint(b, d1 * M, (D / 2) * M, (0.30 + i * 0.36) * MH);
+          ctx.beginPath();
+          ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y);
+          ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+          ctx.stroke();
+        }
+      });
     },
 
     // Two stacks and a deck between them.
     soundsystem: (ctx, b) => {
       [-1, 1].forEach((s) => {
-        drawIsoBox(ctx, b, 0, s * 0.52 * M, 0.20 * M, 0.20 * M, 1.35 * MH, FRAME_DK, 0);
+        drawIsoBox(ctx, b, 0, s * 0.56 * M, 0.24 * M, 0.24 * M, 1.40 * MH, FRAME_DK, 0);
         const f = isoScreenPoint(b, 0.20 * M, s * 0.52 * M, 0.95 * MH);
         drawIsoDisc(ctx, f, 8, 10, '#1b1e25');
         const g = isoScreenPoint(b, 0.20 * M, s * 0.52 * M, 0.45 * MH);
@@ -4699,10 +4697,6 @@
         return Object.assign(base, {
           crouch: 0.26, handY: 0.545 + cycle * 0.075, handX: 0.150 + cycle * 0.022,
           spread: 1.30, bob: Math.abs(c) * 0.008,
-        });
-      case 'coach':
-        return Object.assign(base, {
-          legT: s * 0.12, armT: -s * 0.12, handY: 0.545 + cycle * 0.085, handX: 0.132,
         });
       default:
         return Object.assign(base, { legT: s * 0.22, armT: -s * 0.22, bob: Math.abs(c) * 0.004 });
