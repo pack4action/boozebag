@@ -463,6 +463,9 @@
   left: 0;
   right: 0;
   bottom: 14px;
+  /* Over the stage, which sits above the ground layer and would otherwise
+     take the taps meant for these controls. */
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;

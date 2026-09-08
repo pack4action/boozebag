@@ -3294,6 +3294,15 @@
   // liftPx up off the ground -- for a box drawn at that same (u, v, lift)
   // this lands exactly on its right-face plane, so small flat details
   // (windows, screens, buttons) can be stamped directly onto a box's face.
+  // Whether the face whose outward normal is (du, dv) in the piece's own
+  // frame is turned toward the viewer. Anything stamped flat on a face --
+  // a screen, a door, a control panel -- has to be left off when that face
+  // is round the back, or it reads as a sticker floating on the wrong side.
+  function faceShows(du, dv) {
+    const t = turnUV(du, dv);
+    return t.u + t.v > 0.0001;
+  }
+
   function isoScreenPoint(base, u, v, liftPx) {
     const t = turnUV(u, v);
     const c = isoVecRaw(t.u, t.v);
@@ -3473,13 +3482,19 @@
 
     // Rim highlight on the nearest vertical edge, where the two side faces
     // meet -- the brightest line on the box, like light catching an edge.
-    ctx.beginPath();
-    ctx.moveTo(pFront.x, pFront.y + r);
-    ctx.lineTo(top(pFront).x, top(pFront).y - r);
-    ctx.strokeStyle = shade(color, 48);
-    ctx.lineWidth = 1.4;
-    ctx.lineCap = 'round';
-    ctx.stroke();
+    // It stops short of both ends by the corner radius, so it stays on the
+    // edge it is lighting: run the other way it overshot the box at top and
+    // bottom, and a stack of boxes drew one bright line straight down the
+    // piece and on out onto the floor.
+    if (height > r * 2 + 1) {
+      ctx.beginPath();
+      ctx.moveTo(pFront.x, pFront.y - r);
+      ctx.lineTo(top(pFront).x, top(pFront).y + r);
+      ctx.strokeStyle = shade(color, 48);
+      ctx.lineWidth = 1.4;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
   }
 
   // How much floor each piece actually takes up, along its longest side, in
@@ -3674,9 +3689,11 @@
       });
       drawIsoBox(ctx, b, back * M, 0, 0.06 * M, (W / 2 - 0.02) * M, 0.28 * MH,
         FRAME_DK, 1.02 * MH);
-      const s = isoScreenPoint(b, (back + 0.07) * M, 0, 1.22 * MH);
-      ctx.fillStyle = GLOW;
-      ctx.fillRect(s.x - 8, s.y - 5, 16, 9);
+      if (faceShows(1, 0)) {
+        const s = isoScreenPoint(b, (back + 0.07) * M, 0, 1.22 * MH);
+        ctx.fillStyle = GLOW;
+        ctx.fillRect(s.x - 8, s.y - 5, 16, 9);
+      }
       [-1, 1].forEach((sgn) => {
         drawIsoBar(ctx, b, (back + 0.05) * M, sgn * (W / 2 - 0.04) * M,
           (back + 0.62) * M, sgn * (W / 2 - 0.04) * M, 0.92 * MH, 5, STEEL_LT);
@@ -3690,19 +3707,23 @@
       drawIsoBox(ctx, b, 0, 0, (L / 2 + 0.05) * M, (D / 2 + 0.05) * M, 0.10 * MH, '#6d4e31', H * MH);
       // Board lines down the face that looks at the viewer, so it reads as
       // timber rather than as a crate.
+      // Board lines down whichever of the two long faces is turned toward
+      // the viewer, so the cabin reads as timber from either side.
       ctx.save();
       ctx.strokeStyle = 'rgba(0,0,0,0.16)';
       ctx.lineWidth = 1.5;
+      const boardFace = faceShows(1, 0) ? 1 : -1;
       for (let i = -2; i <= 2; i++) {
-        const p0 = isoScreenPoint(b, (L / 2) * M, i * 0.24 * M, 0.04 * MH);
-        const p1 = isoScreenPoint(b, (L / 2) * M, i * 0.24 * M, (H - 0.04) * MH);
+        const p0 = isoScreenPoint(b, boardFace * (L / 2) * M, i * 0.24 * M, 0.04 * MH);
+        const p1 = isoScreenPoint(b, boardFace * (L / 2) * M, i * 0.24 * M, (H - 0.04) * MH);
         ctx.beginPath();
         ctx.moveTo(p0.x, p0.y);
         ctx.lineTo(p1.x, p1.y);
         ctx.stroke();
       }
       ctx.restore();
-      // The door, stamped on the face that looks at the viewer.
+      // The door is on one face only: from behind, the cabin is just timber.
+      if (!faceShows(1, 0)) return;
       const dl = isoScreenPoint(b, (L / 2) * M, -0.30 * M, 0.06 * MH);
       const dr = isoScreenPoint(b, (L / 2) * M, 0.34 * M, 0.06 * MH);
       const doorH = 1.48 * MH;
@@ -3725,6 +3746,9 @@
     gearfridge: (ctx, b) => {
       const W = 1.36, D = 0.66, H = 1.58;
       drawIsoBox(ctx, b, 0, 0, W / 2 * M, D / 2 * M, H * MH, FRAME_DK, 0);
+      // The doors are the front of it: turned away, you see the back of a
+      // fridge, which is a plain cabinet.
+      if (!faceShows(0, 1)) return;
       [[-(W / 2 - 0.08), -0.04], [0.04, W / 2 - 0.08]].forEach(([d0, d1]) => {
         const a = isoScreenPoint(b, d0 * M, (D / 2) * M, 0.12 * MH);
         const c = isoScreenPoint(b, d1 * M, (D / 2) * M, 0.12 * MH);
@@ -3771,28 +3795,54 @@
       const TOP = '#7d6a55';
       const SIDE = '#5a4a3a';
       const LEDGE = '#8f7c64';
-      // The staff side is the back: the ledge stands along the front edge.
-      drawIsoBox(ctx, b, 0, -0.04 * M, L / 2 * M, (D / 2 - 0.04) * M, 0.92 * MH, SIDE, 0);
-      drawIsoBox(ctx, b, 0, -0.04 * M, (L / 2 + 0.04) * M, (D / 2) * M, 0.05 * MH, TOP, 0.92 * MH);
-      drawIsoBox(ctx, b, 0, (D / 2 - 0.06) * M, (L / 2 + 0.04) * M, 0.10 * M, 1.10 * MH, SIDE, 0);
-      drawIsoBox(ctx, b, 0, (D / 2 - 0.06) * M, (L / 2 + 0.08) * M, 0.14 * M, 0.05 * MH, LEDGE, 1.10 * MH);
-      // A brass strip along the customer's edge of the ledge.
-      drawIsoBar(ctx, b, -(L / 2 + 0.08) * M, (D / 2 + 0.08) * M, (L / 2 + 0.08) * M, (D / 2 + 0.08) * M,
-        1.15 * MH, 2, '#d9b25a');
-      // The screen, angled toward whoever is behind the desk.
-      const sc = isoScreenPoint(b, -0.35 * M, -0.14 * M, 1.02 * MH);
-      ctx.fillStyle = '#2b3140';
-      ctx.fillRect(sc.x - 9, sc.y - 13, 18, 12);
-      ctx.fillStyle = GLOW;
-      ctx.fillRect(sc.x - 7, sc.y - 11, 14, 8);
-      // The bell.
-      const bell = isoScreenPoint(b, 0.52 * M, (D / 2 - 0.06) * M, 1.15 * MH);
-      ctx.beginPath();
-      ctx.arc(bell.x, bell.y - 3, 3.2, Math.PI, 0);
-      ctx.fillStyle = '#e2c063';
-      ctx.fill();
-      ctx.fillStyle = '#a8862f';
-      ctx.fillRect(bell.x - 4, bell.y - 3, 8, 1.6);
+      // How near a part of the piece is to the viewer once the piece has
+      // been turned. An asymmetric piece has to draw its parts back to
+      // front, and which part is at the back depends on the turn -- drawn
+      // in a fixed order, the desk's customer-side ledge ended up in front
+      // of the screen that is meant to be behind it.
+      const near = (u, v) => {
+        const t = turnUV(u, v);
+        return t.u + t.v;
+      };
+      // The counter itself, with the staff's side of the top.
+      const counter = () => {
+        drawIsoBox(ctx, b, 0, -0.04 * M, L / 2 * M, (D / 2 - 0.04) * M, 0.92 * MH, SIDE, 0);
+        drawIsoBox(ctx, b, 0, -0.04 * M, (L / 2 + 0.04) * M, (D / 2) * M, 0.05 * MH, TOP, 0.92 * MH);
+      };
+      // A monitor standing on the counter, facing whoever is working the
+      // desk. Built as boxes rather than stamped on as a flat rectangle, so
+      // it stands up from every side instead of lying on the desk like a
+      // sticker -- and so its back is what you see from the customer's side,
+      // which is how a reception desk looks.
+      const screen = () => {
+        drawIsoBox(ctx, b, -0.34 * M, -0.10 * M, 0.05 * M, 0.14 * M, 0.10 * MH, '#39404e', 0.97 * MH);
+        drawIsoBox(ctx, b, -0.34 * M, -0.10 * M, 0.035 * M, 0.26 * M, 0.34 * MH, '#2b3140', 1.07 * MH);
+        drawIsoBox(ctx, b, -0.34 * M, -0.15 * M, 0.02 * M, 0.22 * M, 0.28 * MH, GLOW, 1.10 * MH);
+      };
+      // The customer's side: a higher ledge with a brass strip along it.
+      const ledge = () => {
+        drawIsoBox(ctx, b, 0, (D / 2 - 0.06) * M, (L / 2 + 0.04) * M, 0.10 * M, 1.10 * MH, SIDE, 0);
+        drawIsoBox(ctx, b, 0, (D / 2 - 0.06) * M, (L / 2 + 0.08) * M, 0.14 * M, 0.05 * MH, LEDGE, 1.10 * MH);
+        drawIsoBar(ctx, b, -(L / 2 + 0.08) * M, (D / 2 + 0.08) * M, (L / 2 + 0.08) * M, (D / 2 + 0.08) * M,
+          1.15 * MH, 2, '#d9b25a');
+      };
+      const bell = () => {
+        const at = isoScreenPoint(b, 0.52 * M, (D / 2 - 0.06) * M, 1.15 * MH);
+        ctx.beginPath();
+        ctx.arc(at.x, at.y - 3, 3.2, Math.PI, 0);
+        ctx.fillStyle = '#e2c063';
+        ctx.fill();
+        ctx.fillStyle = '#a8862f';
+        ctx.fillRect(at.x - 4, at.y - 3, 8, 1.6);
+      };
+      // Whichever of the two sides is at the back goes down first. What
+      // stands on a side always follows it: the screen on the counter, the
+      // bell on the ledge.
+      if (near(0, D / 2) > near(0, -0.04)) {
+        counter(); screen(); ledge(); bell();
+      } else {
+        ledge(); bell(); counter(); screen();
+      }
     },
 
     // Manager's desk: a counter with a return along one end.
@@ -3801,11 +3851,11 @@
       drawIsoBox(ctx, b, 0, 0, L / 2 * M, 0.32 * M, 1.02 * MH, '#6b5a48', 0);
       drawIsoBox(ctx, b, 0, 0, (L / 2 + 0.05) * M, 0.38 * M, 0.07 * MH, '#8d7860', 1.02 * MH);
       drawIsoBox(ctx, b, -(L / 2 - 0.30) * M, 0.52 * M, 0.30 * M, 0.22 * M, 0.74 * MH, '#6b5a48', 0);
-      const s = isoScreenPoint(b, 0.30 * M, 0.10 * M, 1.10 * MH);
-      ctx.fillStyle = '#2b3140';
-      ctx.fillRect(s.x - 9, s.y - 13, 18, 13);
-      ctx.fillStyle = GLOW;
-      ctx.fillRect(s.x - 7, s.y - 11, 14, 9);
+      // A monitor built as boxes rather than stamped on flat, so it stands
+      // up whichever way the desk is turned.
+      drawIsoBox(ctx, b, 0.30 * M, 0.06 * M, 0.05 * M, 0.14 * M, 0.09 * MH, '#39404e', 1.09 * MH);
+      drawIsoBox(ctx, b, 0.30 * M, 0.06 * M, 0.035 * M, 0.26 * M, 0.34 * MH, '#2b3140', 1.18 * MH);
+      drawIsoBox(ctx, b, 0.30 * M, 0.01 * M, 0.02 * M, 0.22 * M, 0.28 * MH, GLOW, 1.21 * MH);
     },
 
     // Partitions with a desk inside them.
@@ -3814,11 +3864,9 @@
       drawIsoBox(ctx, b, -(W / 2) * M, 0, 0.06 * M, D / 2 * M, 1.28 * MH, '#5a6472', 0);
       drawIsoBox(ctx, b, 0, -(D / 2) * M, W / 2 * M, 0.06 * M, 1.28 * MH, '#4e5765', 0);
       drawIsoBox(ctx, b, 0.10 * M, 0.10 * M, 0.52 * M, 0.28 * M, 0.72 * MH, '#6b5a48', 0);
-      const s = isoScreenPoint(b, 0.10 * M, 0.10 * M, 0.74 * MH);
-      ctx.fillStyle = '#2b3140';
-      ctx.fillRect(s.x - 8, s.y - 12, 16, 12);
-      ctx.fillStyle = GLOW;
-      ctx.fillRect(s.x - 6, s.y - 10, 12, 8);
+      drawIsoBox(ctx, b, 0.10 * M, 0.06 * M, 0.05 * M, 0.13 * M, 0.08 * MH, '#39404e', 0.79 * MH);
+      drawIsoBox(ctx, b, 0.10 * M, 0.06 * M, 0.03 * M, 0.24 * M, 0.30 * MH, '#2b3140', 0.87 * MH);
+      drawIsoBox(ctx, b, 0.10 * M, 0.01 * M, 0.02 * M, 0.20 * M, 0.25 * MH, GLOW, 0.90 * MH);
     },
 
     // A glazed pod: solid to waist height, glass above.
@@ -3861,13 +3909,16 @@
       drawIsoBox(ctx, b, 0, 0, 0.20 * M, 0.20 * M, 0.07 * MH, '#9aa5b3', 0.92 * MH);
       drawIsoBox(ctx, b, 0, 0, 0.13 * M, 0.13 * M, 0.40 * MH,
         'rgba(96,196,232,0.9)', 0.99 * MH);
-      // The taps, on the face that looks at the viewer.
-      const t = isoScreenPoint(b, 0.18 * M, 0, 0.62 * MH);
-      ctx.fillStyle = '#5a6472';
-      ctx.fillRect(t.x - 5, t.y - 6, 10, 7);
-      const p = isoScreenPoint(b, 0.18 * M, 0, 0.40 * MH);
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.fillRect(p.x - 7, p.y - 5, 14, 5);
+      // The taps, on the front of the cooler -- and only when the front is
+      // the side you are looking at.
+      if (faceShows(1, 0)) {
+        const t = isoScreenPoint(b, 0.18 * M, 0, 0.62 * MH);
+        ctx.fillStyle = '#5a6472';
+        ctx.fillRect(t.x - 5, t.y - 6, 10, 7);
+        const p = isoScreenPoint(b, 0.18 * M, 0, 0.40 * MH);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(p.x - 7, p.y - 5, 14, 5);
+      }
     },
 
     // A mirror on a frame, standing against whatever wall it is put by.
