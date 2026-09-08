@@ -837,7 +837,8 @@
       // the first collects half of everything as it is earned, and by the
       // third nothing waits on the floor at all.
       first: 0.5,
-      note: (n) => 'collects ' + Math.round(Math.min(1, staffEffect('cashier', n)) * 100) + '% of the takings for you',
+      note: (n) => 'empties ' + Math.round(Math.min(1, staffEffect('cashier', n)) * 100)
+        + '% of the coin bubbles for you, so you tap less',
     },
     {
       id: 'cleaner',
@@ -847,7 +848,8 @@
       // Keeps every room nicer than it would otherwise be: vibe points on
       // top of the fittings, and so subject to the same ceiling.
       first: 2,
-      note: (n) => '+' + staffEffect('cleaner', n).toFixed(1) + ' vibe in every room',
+      note: (n) => '+' + staffEffect('cleaner', n).toFixed(1)
+        + ' vibe in every room, which lifts what the room earns',
     },
     {
       id: 'receptionist',
@@ -857,7 +859,8 @@
       // Works the front desk, so more of the rush actually gets through the
       // door: the peak bonus itself is bigger.
       first: 0.3,
-      note: (n) => 'rush bonus +' + Math.round(staffEffect('receptionist', n) * 100) + '% bigger',
+      note: (n) => 'busy-hour bonus is ' + Math.round(staffEffect('receptionist', n) * 100)
+        + '% bigger than it would be',
     },
     {
       id: 'manager',
@@ -865,7 +868,7 @@
       baseCost: 250000,
       unlockLevel: 7,
       first: 0.18,
-      note: (n) => '+' + Math.round(staffEffect('manager', n) * 100) + '% on everything',
+      note: (n) => '+' + Math.round(staffEffect('manager', n) * 100) + '% on everything the gym earns',
     },
   ];
   function staffRole(id) {
@@ -998,9 +1001,9 @@
 
   function rushLabel() {
     const f = rushFactor();
-    if (f >= 0.8) return 'Peak hours';
+    if (f >= 0.8) return 'Rammed';
     if (f >= 0.45) return 'Busy';
-    if (f >= 0.18) return 'Ticking over';
+    if (f >= 0.18) return 'Steady';
     return 'Quiet';
   }
 
@@ -3047,25 +3050,27 @@
       els.count.textContent = have ? ' x' + have : '';
       els.letGo.hidden = !have;
       if (!unlocked) {
-        els.note.textContent = 'Unlocks at level ' + role.unlockLevel;
+        els.note.textContent = 'You can hire these from level ' + role.unlockLevel;
         els.btn.textContent = 'Locked';
         els.btn.disabled = true;
         return;
       }
       // What they are worth now, and what one more would add on top.
       const next = staffEffect(role.id, have + 1) - staffEffect(role.id, have);
-      els.note.textContent = (have ? role.note(have) + ' -- ' : '')
-        + 'next adds ' + (role.id === 'cleaner'
+      els.note.textContent = (have ? role.note(have) + '. ' : '')
+        + 'One more adds ' + (role.id === 'cleaner'
           ? next.toFixed(1) + ' vibe' : Math.round(next * 100) + '%')
-        + ' for ' + Math.round(WAGE_SHARE_EACH * 100) + '% of takings';
+        + ' on top, and costs ' + Math.round(WAGE_SHARE_EACH * 100)
+        + '% of the takings in wages.';
       els.btn.textContent = 'Hire -- $' + formatNum(cost);
       els.btn.disabled = state.balance < cost;
     });
     const share = wageShare();
     staffWagesEl.textContent = share > 0
-      ? staffTotal() + ' on the books -- ' + Math.round(share * 100) + '% of takings in wages'
-        + (share >= WAGE_SHARE_MAX ? ' (capped)' : '')
-      : 'no wages to pay';
+      ? 'You have ' + staffTotal() + (staffTotal() === 1 ? ' person' : ' people')
+        + ' on, taking ' + Math.round(share * 100) + '% of the takings in wages'
+        + (share >= WAGE_SHARE_MAX ? ', which is the most wages can ever be.' : '.')
+      : 'Nobody on the payroll yet, so no wages.';
   }
 
   // Free to do, and no severance: over-hiring should be a mistake you can
@@ -3105,13 +3110,16 @@
   const rushEl = document.getElementById('rush-badge');
   function refreshRushUI() {
     if (!rushEl) return;
+    const shut = !gymOpen();
+    if (rushEl.hidden !== shut) rushEl.hidden = shut;
+    if (shut) return;
     const f = rushFactor();
     const bonus = Math.round(RUSH_BONUS * f * 100);
     rushEl.innerHTML = '<span class="tycoon-rush-when">' + rushLabel() + '</span>'
       + '<span class="tycoon-rush-meter"><span class="tycoon-rush-fill" style="width:'
       + (f * 100).toFixed(0) + '%"></span></span>'
       + '<span class="tycoon-rush-bonus' + (bonus > 0 ? '' : ' is-none') + '">'
-      + (bonus > 0 ? '+' + bonus + '% while it lasts' : 'no rush bonus right now') + '</span>';
+      + (bonus > 0 ? '+' + bonus + '% while it lasts' : 'no bonus at this hour') + '</span>';
   }
 
   // ---- Open day button ----
@@ -3120,6 +3128,11 @@
   let promoWasRunning = false;
   function refreshPromoUI() {
     if (!promoBtn) return;
+    // Nothing to multiply until the gym is open, and a bright button that
+    // does nothing is the loudest thing on a new player's screen.
+    const shut = !gymOpen();
+    if (promoBtn.hidden !== shut) promoBtn.hidden = shut;
+    if (shut) return;
     const left = promoSecondsLeft();
     const cooling = promoReadyInSeconds();
     promoBtn.classList.toggle('is-running', left > 0);
@@ -3182,8 +3195,9 @@
     const roomLabel = () => 'Room ' + (state.activeRoomIndex + 1);
     const placed = layout.filter(Boolean).length;
     if (placed === 0) {
-      synergyEl.textContent = roomLabel() + ' is empty = $0/s from here. '
-        + 'Pick a piece of gear below, drag it where you want it, and hit the tick.';
+      synergyEl.innerHTML = '<p class="tycoon-bd-empty"></p>';
+      synergyEl.firstChild.textContent = roomLabel() + ' is empty, so it earns nothing. '
+        + 'Pick something out of Storage below, drag it where you want it, and press Place.';
       return;
     }
     const baseSum = layout.reduce((sum, id) => sum + (id ? gpsOf(id) : 0), 0);
@@ -3204,13 +3218,41 @@
     const arrangedGps = layout.reduce(
       (sum, id, i) => sum + (id ? gpsOf(id) * arrangeMult[i] : 0), 0);
     const bonusPct = baseSum > 0 ? Math.round((arrangedGps / baseSum - 1) * 100) : 0;
-    synergyEl.textContent = roomLabel() + ': ' + placed + '/' + layout.length
-      + ' slots filled -- base ' + formatNum(baseSum) + '/s'
-      + (bonusPct > 0 ? ', +' + bonusPct + '% from arrangement synergy' : ', no synergy bonus yet')
-      + (vibe > 0 ? ', +' + vibePct + '% vibe from the fittings'
-        + (vibe > VIBE_MAX_POINTS ? ' (capped)' : '') : '')
-      + (rushPct > 0 ? ', +' + rushPct + '% rush bonus' : '')
-      + ' = ' + formatNum(roomGps) + '/s from this room.';
+    // Written as a breakdown rather than a sentence. It used to be one long
+    // run-on -- "7/12 slots filled -- base 140/s, +3% from arrangement
+    // synergy, +9% vibe from the fittings, +16% rush bonus = 177/s" -- which
+    // holds the answer to "why is this room worth what it is worth" and
+    // gives it up to nobody. Same numbers, one per line, so the three
+    // bonuses can be read against each other and against the base.
+    const rows = [['Gear on the floor', '', formatNum(baseSum) + '/s']];
+    const add = (label, pct, from) => {
+      if (pct <= 0) return;
+      rows.push([label, '+' + pct + '%', '+' + formatNum(baseSum * (pct / 100) * from) + '/s']);
+    };
+    add('Arrangement', bonusPct, 1);
+    if (vibe > 0) {
+      rows.push(['Fittings' + (vibe > VIBE_MAX_POINTS ? ' (at the cap)' : ''),
+        '+' + vibePct + '%', '+' + formatNum(arrangedGps * (vibePct / 100)) + '/s']);
+    }
+    if (rushPct > 0) {
+      const before = arrangedGps * (1 + vibePct / 100);
+      rows.push(['Busy hour', '+' + rushPct + '%', '+' + formatNum(before * (rushPct / 100)) + '/s']);
+    }
+    const cell = (text, cls) => '<span class="' + cls + '"></span>';
+    synergyEl.innerHTML = '<p class="tycoon-bd-head"></p>'
+      + rows.map(() => '<span class="tycoon-bd-row">' + cell('', 'tycoon-bd-label')
+        + cell('', 'tycoon-bd-pct') + cell('', 'tycoon-bd-num') + '</span>').join('')
+      + '<span class="tycoon-bd-row is-total">' + cell('', 'tycoon-bd-label')
+      + cell('', 'tycoon-bd-pct') + cell('', 'tycoon-bd-num') + '</span>';
+    synergyEl.querySelector('.tycoon-bd-head').textContent =
+      roomLabel() + ' \u00b7 ' + placed + '/' + layout.length + ' slots filled';
+    const rowEls = synergyEl.querySelectorAll('.tycoon-bd-row');
+    rows.concat([['This room earns', '', formatNum(roomGps) + '/s']]).forEach((r, i) => {
+      const el = rowEls[i];
+      el.children[0].textContent = r[0];
+      el.children[1].textContent = r[1];
+      el.children[2].textContent = r[2];
+    });
   }
 
   // ---- Shop ----
@@ -3261,6 +3303,30 @@
         .map((p) => PRODUCTS[p].name.toLowerCase()).join(' and ') + ' to order' : '');
   }
 
+  // Which category the shop is showing. Null is everything, which is where
+  // it starts and where it stays unless somebody asks for less.
+  let shopFilter = null;
+  const shopFilterEl = document.getElementById('shop-filter');
+
+  function buildShopFilter() {
+    if (!shopFilterEl) return;
+    const cats = [null].concat([...new Set(ITEMS.map((i) => CATEGORY[i.id]))]);
+    shopFilterEl.innerHTML = '';
+    cats.forEach((cat) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tycoon-filter' + (cat === shopFilter ? ' is-on' : '');
+      btn.textContent = cat ? CATEGORY_META[cat].name : 'All';
+      if (cat) btn.style.setProperty('--cat', CATEGORY_META[cat].color);
+      btn.addEventListener('click', () => {
+        shopFilter = shopFilter === cat ? null : cat;
+        buildShopFilter();
+        refreshShopUI();
+      });
+      shopFilterEl.appendChild(btn);
+    });
+  }
+
   function buildShop() {
     ITEMS.forEach((item) => {
       const el = document.createElement('div');
@@ -3294,6 +3360,79 @@
     });
   }
 
+  // ---- What to do next ----
+  // In priority order: the thing that is finished and waiting beats the
+  // thing that is merely available, and both beat advice. Only ever one
+  // line, because a list of five suggestions is not a suggestion.
+  const nextStepEl = document.getElementById('next-step');
+  function nextStep() {
+    if (!gymOpen()) return null;
+
+    const tally = floorTally();
+    const readyJobs = (state.jobs || []).filter((j) => jobProgress(j, tally).ready).length;
+    const rush = rushOrder();
+    if (rush && jobProgress(rush, tally).ready) {
+      return ['Your rush order is finished -- hand it in on the Jobs tab before the clock runs out.', 'jobs'];
+    }
+    if (readyJobs) {
+      return [readyJobs === 1 ? 'A job is finished and waiting to be handed in.'
+        : readyJobs + ' jobs are finished and waiting to be handed in.', 'jobs'];
+    }
+    const readyCounter = countersPlaced().find((c) => readyAt(c.room, c.index) > 0);
+    if (readyCounter) {
+      return ['There is stock ready on the ' + itemById(readyCounter.itemId).name
+        + '. Collect it before the counter fills up.', 'counter'];
+    }
+    const waiting = ITEMS.reduce((n, item) => n + availableCount(item.id), 0);
+    if (waiting) {
+      return [waiting === 1 ? 'One piece is sitting in Storage earning nothing. Put it on a floor.'
+        : waiting + ' pieces are sitting in Storage earning nothing. Put them on a floor.', null];
+    }
+    const inBubbles = floorCash();
+    if (inBubbles >= 1) {
+      return ['$' + formatMoney(inBubbles) + ' is waiting in the coin bubbles. Tap them to collect it.', null];
+    }
+    // Nothing is waiting, so the question becomes what to spend on.
+    const idle = countersPlaced().find((c) => queueAt(c.room, c.index).length === 0);
+    if (idle) {
+      return ['The ' + itemById(idle.itemId).name + ' has nothing on. Start a batch and it runs while you play.', 'counter'];
+    }
+    const hire = STAFF_ROLES.find((r) => unlockedFor(r) && staffCount(r.id) === 0
+      && state.balance >= staffHireCost(r.id));
+    if (hire) {
+      return ['You can afford your first ' + hire.name + '. ' + hire.note(1) + '.', 'staff'];
+    }
+    const up = ITEMS.find((i) => canUpgrade(i.id) && state.balance >= upgradeCost(i.id));
+    if (up) {
+      return ['You can upgrade every ' + up.name + ' you own to '
+        + TIER_NAMES[tierOf(up.id) + 1] + ', which is worth 2.2 times as much.', 'shop'];
+    }
+    const buy = ITEMS.filter((i) => unlockedFor(i) && !i.starter && state.balance >= costFor(i))
+      .sort((a, b) => costFor(b) - costFor(a))[0];
+    if (buy) {
+      return ['The best thing you can afford right now is a ' + buy.name + '.', 'shop'];
+    }
+    return ['Nothing to do but let it earn. Come back when there is money in the bubbles.', null];
+  }
+
+  function refreshNextStep() {
+    if (!nextStepEl) return;
+    const step = nextStep();
+    if (!step) {
+      if (!nextStepEl.hidden) nextStepEl.hidden = true;
+      return;
+    }
+    if (nextStepEl.hidden) nextStepEl.hidden = false;
+    setText(nextStepEl.querySelector('.tycoon-next-text'), step[0]);
+    const go = nextStepEl.querySelector('.tycoon-next-go');
+    const tab = step[1] && tabEls[step[1]] && !tabEls[step[1]].hidden ? step[1] : null;
+    if (go.hidden !== !tab) go.hidden = !tab;
+    if (tab) {
+      setText(go, 'Open ' + tabEls[tab].firstChild.textContent);
+      go.onclick = () => showPanel(tab);
+    }
+  }
+
   const openHintEl = document.getElementById('open-hint');
   function refreshOpenHint() {
     if (!openHintEl) return;
@@ -3302,14 +3441,17 @@
     if (open) return;
     const theme = THEMES.find((t) => t.id === state.activeTheme);
     openHintEl.textContent = availableCount('frontdesk') > 0
-      ? 'The ' + theme.name + ' is closed. Put the Customer Desk down -- it is in your inventory above -- to open the doors. Nothing earns and the shop stays shut until it stands on the floor.'
-      : 'The ' + theme.name + ' is closed: it needs a Customer Desk of its own. Buy one in the shop below and put it down to open the doors.';
+      ? 'The ' + theme.name + ' is closed. Your Customer Desk is in Storage below: put it on the floor to open the doors. Until it is down, nothing earns and the shop stays shut.'
+      : 'The ' + theme.name + ' is closed. Every location needs a Customer Desk of its own -- buy one from the shop and put it on this floor to open the doors.';
   }
 
   function refreshShopUI() {
     refreshOpenHint();
     ITEMS.forEach((item) => {
       const els = shopEls[item.id];
+      const shown = !shopFilter || CATEGORY[item.id] === shopFilter;
+      if (els.root.hidden !== !shown) els.root.hidden = !shown;
+      if (!shown) return;
       const unlocked = unlockedFor(item);
       els.root.classList.toggle('is-locked', !unlocked);
       if (!unlocked) {
@@ -3383,7 +3525,7 @@
         if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
         room.spots[emptyIndex] = { u: spot.u, v: spot.v, r: 0 };
       } else {
-        toast('No clear floor for it here -- it is in your inventory', null);
+        toast('Nowhere clear to stand it -- it has gone to Storage', null);
       }
       renderScene();
     }
@@ -6969,7 +7111,7 @@
     let slot = sameRoom ? editing.fromIndex : null;
     if (slot === null || room.layout[slot]) slot = room.layout.indexOf(null);
     if (slot === -1) {
-      toast('That room is full -- ' + roomLabel(editing.roomIndex) + ' has no slot free', null);
+      toast(roomLabel(editing.roomIndex) + ' is full -- every slot in it is taken', null);
       return;
     }
     if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
@@ -7106,8 +7248,8 @@
       const p = document.createElement('p');
       p.className = 'tycoon-inv-empty';
       p.textContent = THEMES.some((t) => state.themeRooms[t.id].some((r) => r.layout.some(Boolean)))
-        ? 'Everything you own is already on the floor.'
-        : 'Put the Customer Desk down, then buy some gear below and place it up here.';
+        ? 'Storage is empty -- everything you own is out on a floor, earning.'
+        : 'Put the Customer Desk down to open up, then buy some gear and stand it on the floor.';
       inventoryEl.appendChild(p);
       return;
     }
@@ -7125,7 +7267,13 @@
       armBtn.className = 'tycoon-inv-arm';
       armBtn.innerHTML = '<span class="inv-cat-dot" style="background:' + cat.color + '"></span>'
         + '<span class="inv-icon">' + iconMarkup(item.id, 15) + '</span> '
-        + item.name + ' <span class="inv-count">x' + availableCount(item.id) + '</span>';
+        + item.name + ' <span class="inv-count">x' + availableCount(item.id) + '</span>'
+        + '<span class="inv-rate"></span>';
+      // What it will be worth once it is down, so the choice of what to
+      // place first can be made here rather than back in the shop.
+      armBtn.querySelector('.inv-rate').textContent = item.vibe
+        ? '+' + Math.round(item.vibe * VIBE_PER_POINT * 100) + '% vibe'
+        : formatNum(gpsOf(item.id)) + '/s';
       armBtn.addEventListener('click', () => {
         if (editing && editing.itemId === item.id && editing.fromIndex === null) {
           cancelEdit();
@@ -7147,7 +7295,7 @@
         sellBtn.type = 'button';
         sellBtn.className = 'tycoon-inv-sell';
         sellBtn.textContent = 'Sell +$' + formatNum(sellPrice(item));
-        sellBtn.title = 'Sell one for 60% of what it cost';
+        sellBtn.title = 'Sell one back for 60% of what you paid for it';
         sellBtn.addEventListener('click', () => sellItem(item.id));
         chip.appendChild(sellBtn);
       }
@@ -7249,7 +7397,9 @@
   function refreshRoomActions() {
     if (!addRoomBtn) return;
     const rooms = activeRooms();
-    if (rooms.length >= MAX_ROOMS_PER_THEME) {
+    // A second room is no use to a location whose first one is not open yet,
+    // and none of it is any use before the desk goes down.
+    if (rooms.length >= MAX_ROOMS_PER_THEME || !gymOpen()) {
       addRoomBtn.hidden = true;
       return;
     }
@@ -7281,9 +7431,9 @@
     if (placeLabelEl) {
       const where = activeRooms().length > 1 ? ' in ' + roomLabel(editing.roomIndex) : '';
       placeLabelEl.textContent = (item ? item.name : 'Gear')
-        + (blocker ? ' -- overlaps the ' + blockerName(blocker) + ', move it'
-          : editing.fromIndex === null ? where + ' -- drag or nudge, then place'
-            : where + ' -- moving');
+        + (blocker ? ' -- too close to the ' + blockerName(blocker) + ', move it clear'
+          : editing.fromIndex === null ? where + ' -- drag it where you want it, then press Place'
+            : where + ' -- moving it. Press Place to set it down.');
     }
     if (placeConfirmBtn) placeConfirmBtn.disabled = !!blocker;
     if (placeStoreBtn) placeStoreBtn.hidden = editing.fromIndex === null;
@@ -7293,6 +7443,11 @@
   if (placeTurnBtn) placeTurnBtn.addEventListener('click', turnEdit);
   // R for the same thing, because a piece being turned round is the sort of
   // thing you do half a dozen times while laying a room out.
+  // Screen directions again: up is away from you up the floor, which on this
+  // projection is a step back along both lattice axes.
+  const ARROW_NUDGE = {
+    ArrowUp: [-1, -1], ArrowDown: [1, 1], ArrowLeft: [-1, 1], ArrowRight: [1, -1],
+  };
   document.addEventListener('keydown', (e) => {
     if (!editing || e.metaKey || e.ctrlKey || e.altKey) return;
     const el = document.activeElement;
@@ -7300,6 +7455,21 @@
     if (e.key === 'r' || e.key === 'R') {
       e.preventDefault();
       turnEdit();
+      return;
+    }
+    if (ARROW_NUDGE[e.key]) {
+      e.preventDefault();
+      nudgeEdit(ARROW_NUDGE[e.key][0], ARROW_NUDGE[e.key][1]);
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      placeEdit();
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEdit();
     }
   });
 
@@ -7357,9 +7527,11 @@
   const panelEls = {};
   const tabEls = {};
   let activePanel = 'shop';
+  const PANEL_KEY = 'gymTycoonPanel';
   function showPanel(name) {
     if (!panelEls[name] || tabEls[name].hidden) return;
     activePanel = name;
+    try { localStorage.setItem(PANEL_KEY, name); } catch (err) { /* private mode */ }
     Object.keys(panelEls).forEach((key) => {
       panelEls[key].hidden = key !== name;
       tabEls[key].classList.toggle('is-active', key === name);
@@ -7374,7 +7546,13 @@
       tabEls[btn.dataset.panel] = btn;
       btn.addEventListener('click', () => showPanel(btn.dataset.panel));
     });
-    showPanel('shop');
+    // Back where you left off. A tab that has since been hidden -- the last
+    // of a staff role let go, say -- falls back to the shop, which showPanel
+    // does for us by refusing a hidden tab.
+    let want = 'shop';
+    try { want = localStorage.getItem(PANEL_KEY) || 'shop'; } catch (err) { want = 'shop'; }
+    showPanel(want);
+    if (activePanel !== want) showPanel('shop');
   }
 
   // ---- What the whole business is doing ----
@@ -7460,6 +7638,7 @@
   buildTabs();
   buildOverview();
   buildShop();
+  buildShopFilter();
   buildThemeRow();
   buildRoomActions();
   buildStaffUI();
@@ -7479,6 +7658,7 @@
   refreshThemeRow();
   refreshRoomActions();
   refreshTrophyUI();
+  refreshNextStep();
   refreshPromoUI();
   tickRushOrder();
   refreshRushOrderUI();
@@ -7548,6 +7728,7 @@
     tickRushOrder();
     refreshRushOrderUI();
     refreshJobsDot();
+    refreshNextStep();
     refreshOverview();
     checkTrophies();
 

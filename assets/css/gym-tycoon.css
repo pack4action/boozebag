@@ -168,15 +168,55 @@
   -webkit-user-select: none;
 }
 
+/* The room's takings, broken out a line at a time. This is the answer to
+   "why is this room worth what it is worth", and as one running sentence it
+   was unreadable. */
 .tycoon-synergy {
+  max-width: 380px;
+  margin: 0 auto 14px;
+  font-size: 12px;
+}
+.tycoon-bd-empty {
+  margin: 0;
   font-size: 12.5px;
   font-weight: 700;
   color: var(--muted);
   text-align: center;
-  max-width: 440px;
-  margin: 0 auto 12px;
   line-height: 1.5;
 }
+.tycoon-bd-head {
+  margin: 0 0 5px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-bd-row {
+  display: grid;
+  text-align: left;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 0;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-bd-pct { font-weight: 700; color: #7fd8a8; }
+.tycoon-bd-num {
+  min-width: 74px;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #e9e9ee;
+}
+.tycoon-bd-row.is-total {
+  margin-top: 3px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e9e9ee;
+  font-weight: 800;
+}
+.tycoon-bd-row.is-total .tycoon-bd-num { color: #ffd166; }
 
 /* ---- Inventory tray ---- */
 .tycoon-inventory {
@@ -446,7 +486,7 @@
     height: clamp(440px, calc(100vh - 330px), 780px);
     margin-bottom: 16px;
   }
-  .tycoon-synergy { max-width: none; }
+  .tycoon-synergy { max-width: 420px; }
   .tycoon-inventory { max-width: none; }
   .tycoon-designer-hint { max-width: 780px; margin-bottom: 0; }
   .tycoon-page .leaderboard-sub { display: inline; }
@@ -805,6 +845,80 @@
   background: transparent;
 }
 .tycoon-hire-let-go:hover { color: #e8837a; border-color: rgba(232, 131, 122, 0.5); }
+
+/* The one line telling you what is worth doing. It sits under the plan
+   where the eye already is, rather than on the tab it is talking about. */
+.tycoon-next {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: 620px;
+  margin: 0 auto 12px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 209, 102, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 209, 102, 0.05);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #e9e9ee;
+}
+.tycoon-next[hidden] { display: none; }
+.tycoon-next-go {
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  color: #2a1e00;
+  background: linear-gradient(180deg, #ffd98a, #f3b73f);
+}
+.tycoon-next-go[hidden] { display: none; }
+
+/* A control that has nothing to do is gone, not an empty pill: both of
+   these set display in their own rules, which beats the [hidden] attribute
+   on its own. */
+.tycoon-promo-btn[hidden],
+.tycoon-rush[hidden] { display: none !important; }
+
+/* Shop filter: nineteen rows in one column is a lot to read past when you
+   came for one thing. */
+.tycoon-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0 0 12px;
+}
+.tycoon-filter {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  color: var(--muted, #8b8b93);
+  background: transparent;
+}
+.tycoon-filter:hover { color: #e9e9ee; border-color: rgba(255, 255, 255, 0.28); }
+.tycoon-filter.is-on {
+  color: var(--cat, #ffd166);
+  border-color: currentColor;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* What a piece in Storage will be worth once it is standing up. */
+.inv-rate {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #7fd8a8;
+}
 
 /* ---- The counter ----
    The larder along the top, then one card per counter standing on a floor:
