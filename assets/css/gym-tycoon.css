@@ -351,7 +351,19 @@
    the floor plan takes the left column at something like a readable size
    and the shop becomes a sticky sidebar you can shop from while watching
    the room. */
-.tycoon-sidebar { display: contents; }
+/* A flex column rather than display: contents, so its children can be
+   ordered independently of the source. They stack exactly as they did --
+   the sidebar is full width here either way -- but on a phone what a player
+   wants is the button that earns and then the shop that spends, with the
+   boards after them, while in the source the boards come first because
+   that is the right order on a desktop, where the sidebar is a real
+   scrolling column and this ordering does not apply. */
+.tycoon-sidebar { display: flex; flex-direction: column; }
+.tycoon-sidebar > .tycoon-lift-btn { order: 1; }
+.tycoon-sidebar > .tycoon-shop { order: 2; }
+.tycoon-sidebar > .tycoon-jobs { order: 3; }
+.tycoon-sidebar > .tycoon-staff { order: 4; }
+.tycoon-sidebar > .tycoon-franchise { order: 5; }
 
 @media (min-width: 1080px) {
   .tycoon-page {
@@ -836,3 +848,43 @@
   color: #2a0a08;
   background: linear-gradient(180deg, #f0a08f, #d8604a);
 }
+
+/* ---- How it works ----
+   The hint under the plan had grown a paragraph per feature and was five
+   hundred words of unbroken text nobody was ever going to read. Folded away
+   by default, and broken into one short paragraph per idea when opened. */
+.tycoon-howto {
+  max-width: 780px;
+  margin: 12px auto 0;
+  border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  text-align: left;
+}
+.tycoon-howto > summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  list-style: none;
+}
+.tycoon-howto > summary::-webkit-details-marker { display: none; }
+.tycoon-howto > summary::after {
+  content: '+';
+  float: right;
+  font-weight: 400;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-howto[open] > summary::after { content: '\2013'; }
+.tycoon-howto-body {
+  padding: 0 14px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-howto-body p { margin: 0 0 9px; }
+.tycoon-howto-body p:last-child { margin-bottom: 0; }
+.tycoon-howto-body b { color: var(--text, #e8e8ea); font-weight: 700; }
+

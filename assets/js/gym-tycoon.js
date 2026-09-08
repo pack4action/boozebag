@@ -1542,8 +1542,12 @@
     });
   }
 
+  const staffPanelEl = document.querySelector('.tycoon-staff');
   function refreshStaffUI() {
     if (!staffListEl) return;
+    // Nothing to show a new player but three locked rows, and on a phone
+    // they would have to scroll past them to reach the shop.
+    if (staffPanelEl) staffPanelEl.hidden = !STAFF_ROLES.some(unlockedFor);
     STAFF_ROLES.forEach((role) => {
       const els = hireEls[role.id];
       if (!els) return;
@@ -1679,7 +1683,7 @@
       + (bonusPct > 0 ? ', +' + bonusPct + '% from arrangement synergy' : ', no synergy bonus yet')
       + (vibe > 0 ? ', +' + vibePct + '% vibe from the fittings'
         + (vibe > VIBE_MAX_POINTS ? ' (capped)' : '') : '')
-      + (rushPct > 0 ? ', +' + rushPct + '% for the ' + rushLabel().toLowerCase() : '')
+      + (rushPct > 0 ? ', +' + rushPct + '% rush bonus' : '')
       + ' = ' + formatNum(roomGps) + '/s from this room.';
   }
 
