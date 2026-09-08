@@ -3231,7 +3231,7 @@
     if (placed === 0) {
       synergyEl.innerHTML = '<p class="tycoon-bd-empty"></p>';
       synergyEl.firstChild.textContent = roomLabel() + ' is empty, so it earns nothing. '
-        + 'Pick something out of Storage below, drag it where you want it, and press Place.';
+        + 'Pick something out of Storage above, drag it where you want it, and press Place.';
       return;
     }
     const baseSum = layout.reduce((sum, id) => sum + (id ? gpsOf(id) : 0), 0);
@@ -3489,7 +3489,7 @@
     if (open) return;
     const theme = THEMES.find((t) => t.id === state.activeTheme);
     openHintEl.textContent = availableCount('frontdesk') > 0
-      ? 'The ' + theme.name + ' is closed. Your Customer Desk is in Storage below: put it on the floor to open the doors. Until it is down, nothing earns and the shop stays shut.'
+      ? 'The ' + theme.name + ' is closed. Your Customer Desk is in Storage, just under the plan: put it on the floor to open the doors. Until it is down, nothing earns and the shop stays shut.'
       : 'The ' + theme.name + ' is closed. Every location comes with its own Customer Desk, free -- put it on this floor to open the doors.';
   }
 
