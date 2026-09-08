@@ -3303,6 +3303,21 @@
     return t.u + t.v > 0.0001;
   }
 
+  // Draw a piece's parts back to front for the way it is standing. A piece
+  // with a front and a back -- a bench with its rack at the head, a
+  // treadmill with its console -- was drawn in one fixed order, so on the
+  // turns where the back is nearest the viewer the two ends came out the
+  // wrong way round and the bench appeared to sit behind its own bar. Each
+  // part gives the point it stands at, and they are sorted by how near
+  // that point is once the turn is applied.
+  function drawParts(parts) {
+    parts.slice().sort((a, b) => {
+      const ta = turnUV(a.u || 0, a.v || 0);
+      const tb = turnUV(b.u || 0, b.v || 0);
+      return (ta.u + ta.v) - (tb.u + tb.v);
+    }).forEach((p) => p.draw());
+  }
+
   function isoScreenPoint(base, u, v, liftPx) {
     const t = turnUV(u, v);
     const c = isoVecRaw(t.u, t.v);
@@ -3604,28 +3619,31 @@
     // bar sitting in the hooks.
     bench: (ctx, b) => {
       const L = 1.30;
-      // Two feet, a padded bench across them, and a rack at the head end with
-      // a loaded bar sitting in the hooks.
-      [-1, 1].forEach((sgn) => {
-        drawIsoBox(ctx, b, sgn * (L / 2 - 0.14) * M, 0, 0.09 * M, 0.22 * M, 0.34 * MH, FRAME, 0);
-      });
-      drawIsoBox(ctx, b, 0, 0, L / 2 * M, 0.20 * M, 0.14 * MH, PAD, 0.32 * MH);
-      // The head end is raised a little, the way a bench's is.
-      drawIsoBox(ctx, b, -(L / 2 - 0.20) * M, 0, 0.22 * M, 0.20 * M, 0.08 * MH, PAD, 0.46 * MH);
-
       const head = -(L / 2 + 0.16);
-      [-1, 1].forEach((sgn) => {
-        drawIsoBox(ctx, b, head * M, sgn * 0.34 * M, 0.06 * M, 0.06 * M, 1.02 * MH, FRAME, 0);
-        // The hook the bar rests in.
-        drawIsoBox(ctx, b, head * M, sgn * 0.34 * M, 0.10 * M, 0.05 * M, 0.10 * MH,
-          FRAME_DK, 0.94 * MH);
-      });
-      drawIsoBar(ctx, b, head * M, -0.74 * M, head * M, 0.74 * M, 1.02 * MH, 6, STEEL_LT);
-      [-0.60, 0.60].forEach((v) => {
-        const at = isoScreenPoint(b, head * M, v * M, 1.02 * MH);
-        drawIsoDisc(ctx, at, 9, 12, WEIGHT);
-        drawIsoDisc(ctx, at, 3.2, 4.2, STEEL);
-      });
+      // Two feet and a padded bench across them.
+      const seat = () => {
+        [-1, 1].forEach((sgn) => {
+          drawIsoBox(ctx, b, sgn * (L / 2 - 0.14) * M, 0, 0.09 * M, 0.22 * M, 0.34 * MH, FRAME, 0);
+        });
+        drawIsoBox(ctx, b, 0, 0, L / 2 * M, 0.20 * M, 0.14 * MH, PAD, 0.32 * MH);
+        // The head end is raised a little, the way a bench's is.
+        drawIsoBox(ctx, b, -(L / 2 - 0.20) * M, 0, 0.22 * M, 0.20 * M, 0.08 * MH, PAD, 0.46 * MH);
+      };
+      // The rack at the head end, with a loaded bar sitting in the hooks.
+      const rack = () => {
+        [-1, 1].forEach((sgn) => {
+          drawIsoBox(ctx, b, head * M, sgn * 0.34 * M, 0.06 * M, 0.06 * M, 1.02 * MH, FRAME, 0);
+          drawIsoBox(ctx, b, head * M, sgn * 0.34 * M, 0.10 * M, 0.05 * M, 0.10 * MH,
+            FRAME_DK, 0.94 * MH);
+        });
+        drawIsoBar(ctx, b, head * M, -0.74 * M, head * M, 0.74 * M, 1.02 * MH, 6, STEEL_LT);
+        [-0.60, 0.60].forEach((v) => {
+          const at = isoScreenPoint(b, head * M, v * M, 1.02 * MH);
+          drawIsoDisc(ctx, at, 9, 12, WEIGHT);
+          drawIsoDisc(ctx, at, 3.2, 4.2, STEEL);
+        });
+      };
+      drawParts([{ u: 0, v: 0, draw: seat }, { u: head, v: 0, draw: rack }]);
     },
 
     // Squat rack: two uprights on feet, a loaded bar in the hooks at chest
@@ -3655,49 +3673,61 @@
         drawIsoBox(ctx, b, 0, s * (W / 2) * M, 0.07 * M, 0.07 * M, 1.80 * MH, FRAME, 0.09 * MH);
       });
       drawIsoBox(ctx, b, 0, 0, 0.10 * M, W / 2 * M, 0.09 * MH, FRAME, 1.78 * MH);
-      // The stack: plates in a cage against the near upright.
-      drawIsoBox(ctx, b, -0.02 * M, -(W / 2 - 0.02) * M, 0.16 * M, 0.16 * M,
-        0.95 * MH, WEIGHT, 0.09 * MH);
-      for (let i = 0; i < 5; i++) {
-        const p = isoScreenPoint(b, 0.14 * M, -(W / 2 - 0.02) * M, (0.20 + i * 0.16) * MH);
-        ctx.fillStyle = 'rgba(0,0,0,0.35)';
-        ctx.fillRect(p.x - 7, p.y - 1.5, 14, 2);
-      }
-      // Cable down from the pulley, and the bar on the end of it.
-      const topP = isoScreenPoint(b, 0, (W / 2 - 0.14) * M, 1.76 * MH);
-      const barP = isoScreenPoint(b, 0, (W / 2 - 0.14) * M, 1.35 * MH);
-      ctx.beginPath();
-      ctx.moveTo(topP.x, topP.y);
-      ctx.lineTo(barP.x, barP.y);
-      ctx.strokeStyle = 'rgba(220,232,244,0.75)';
-      ctx.lineWidth = 1.4;
-      ctx.stroke();
-      drawIsoBar(ctx, b, -0.26 * M, (W / 2 - 0.14) * M, 0.26 * M, (W / 2 - 0.14) * M,
-        1.33 * MH, 5, STEEL_LT);
+      // The stack of plates against one upright, and the bar hanging off the
+      // pulley at the other -- drawn back to front for the turn, or the bar
+      // ends up behind the frame it hangs in front of.
+      const stack = () => {
+        drawIsoBox(ctx, b, -0.02 * M, -(W / 2 - 0.02) * M, 0.16 * M, 0.16 * M,
+          0.95 * MH, WEIGHT, 0.09 * MH);
+        for (let i = 0; i < 5; i++) {
+          const p = isoScreenPoint(b, 0.14 * M, -(W / 2 - 0.02) * M, (0.20 + i * 0.16) * MH);
+          ctx.fillStyle = 'rgba(0,0,0,0.35)';
+          ctx.fillRect(p.x - 7, p.y - 1.5, 14, 2);
+        }
+      };
+      const bar = () => {
+        const topP = isoScreenPoint(b, 0, (W / 2 - 0.14) * M, 1.76 * MH);
+        const barP = isoScreenPoint(b, 0, (W / 2 - 0.14) * M, 1.35 * MH);
+        ctx.beginPath();
+        ctx.moveTo(topP.x, topP.y);
+        ctx.lineTo(barP.x, barP.y);
+        ctx.strokeStyle = 'rgba(220,232,244,0.75)';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        drawIsoBar(ctx, b, -0.26 * M, (W / 2 - 0.14) * M, 0.26 * M, (W / 2 - 0.14) * M,
+          1.33 * MH, 5, STEEL_LT);
+      };
+      drawParts([{ u: 0, v: -(W / 2), draw: stack }, { u: 0, v: W / 2, draw: bar }]);
     },
 
     // Two metres of deck with a console on a mast at the back of it.
     treadmill: (ctx, b) => {
       const L = 1.90, W = 0.80;
-      drawIsoBox(ctx, b, 0, 0, L / 2 * M, W / 2 * M, 0.14 * MH, STEEL, 0);
-      drawIsoSlab(ctx, b, 0.06 * M, 0, (L / 2 - 0.16) * M, (W / 2 - 0.15) * M,
-        0.16 * MH, RUBBER, 3);
       const back = -(L / 2 - 0.14);
-      [-1, 1].forEach((s) => {
-        drawIsoBox(ctx, b, back * M, s * (W / 2 - 0.09) * M, 0.05 * M, 0.05 * M,
-          1.00 * MH, STEEL, 0.14 * MH);
-      });
-      drawIsoBox(ctx, b, back * M, 0, 0.06 * M, (W / 2 - 0.02) * M, 0.28 * MH,
-        FRAME_DK, 1.02 * MH);
-      if (faceShows(1, 0)) {
-        const s = isoScreenPoint(b, (back + 0.07) * M, 0, 1.22 * MH);
-        ctx.fillStyle = GLOW;
-        ctx.fillRect(s.x - 8, s.y - 5, 16, 9);
-      }
-      [-1, 1].forEach((sgn) => {
-        drawIsoBar(ctx, b, (back + 0.05) * M, sgn * (W / 2 - 0.04) * M,
-          (back + 0.62) * M, sgn * (W / 2 - 0.04) * M, 0.92 * MH, 5, STEEL_LT);
-      });
+      const deck = () => {
+        drawIsoBox(ctx, b, 0, 0, L / 2 * M, W / 2 * M, 0.14 * MH, STEEL, 0);
+        drawIsoSlab(ctx, b, 0.06 * M, 0, (L / 2 - 0.16) * M, (W / 2 - 0.15) * M,
+          0.16 * MH, RUBBER, 3);
+      };
+      // The mast, the console on it and the handles either side.
+      const console_ = () => {
+        [-1, 1].forEach((s) => {
+          drawIsoBox(ctx, b, back * M, s * (W / 2 - 0.09) * M, 0.05 * M, 0.05 * M,
+            1.00 * MH, STEEL, 0.14 * MH);
+        });
+        drawIsoBox(ctx, b, back * M, 0, 0.06 * M, (W / 2 - 0.02) * M, 0.28 * MH,
+          FRAME_DK, 1.02 * MH);
+        if (faceShows(1, 0)) {
+          const s = isoScreenPoint(b, (back + 0.07) * M, 0, 1.22 * MH);
+          ctx.fillStyle = GLOW;
+          ctx.fillRect(s.x - 8, s.y - 5, 16, 9);
+        }
+        [-1, 1].forEach((sgn) => {
+          drawIsoBar(ctx, b, (back + 0.05) * M, sgn * (W / 2 - 0.04) * M,
+            (back + 0.62) * M, sgn * (W / 2 - 0.04) * M, 0.92 * MH, 5, STEEL_LT);
+        });
+      };
+      drawParts([{ u: 0, v: 0, draw: deck }, { u: back, v: 0, draw: console_ }]);
     },
 
   // A timber cabin with a glass door and a warm slot of light behind it.
@@ -3850,23 +3880,40 @@
       const L = 1.75;
       drawIsoBox(ctx, b, 0, 0, L / 2 * M, 0.32 * M, 1.02 * MH, '#6b5a48', 0);
       drawIsoBox(ctx, b, 0, 0, (L / 2 + 0.05) * M, 0.38 * M, 0.07 * MH, '#8d7860', 1.02 * MH);
-      drawIsoBox(ctx, b, -(L / 2 - 0.30) * M, 0.52 * M, 0.30 * M, 0.22 * M, 0.74 * MH, '#6b5a48', 0);
-      // A monitor built as boxes rather than stamped on flat, so it stands
-      // up whichever way the desk is turned.
-      drawIsoBox(ctx, b, 0.30 * M, 0.06 * M, 0.05 * M, 0.14 * M, 0.09 * MH, '#39404e', 1.09 * MH);
-      drawIsoBox(ctx, b, 0.30 * M, 0.06 * M, 0.035 * M, 0.26 * M, 0.34 * MH, '#2b3140', 1.18 * MH);
-      drawIsoBox(ctx, b, 0.30 * M, 0.01 * M, 0.02 * M, 0.22 * M, 0.28 * MH, GLOW, 1.21 * MH);
+      // The return along one end, and a monitor built as boxes rather than
+      // stamped on flat so it stands up whichever way the desk is turned.
+      const returnEnd = () => drawIsoBox(ctx, b, -(L / 2 - 0.30) * M, 0.52 * M,
+        0.30 * M, 0.22 * M, 0.74 * MH, '#6b5a48', 0);
+      const monitor = () => {
+        drawIsoBox(ctx, b, 0.30 * M, 0.06 * M, 0.05 * M, 0.14 * M, 0.09 * MH, '#39404e', 1.09 * MH);
+        drawIsoBox(ctx, b, 0.30 * M, 0.06 * M, 0.035 * M, 0.26 * M, 0.34 * MH, '#2b3140', 1.18 * MH);
+        drawIsoBox(ctx, b, 0.30 * M, 0.01 * M, 0.02 * M, 0.22 * M, 0.28 * MH, GLOW, 1.21 * MH);
+      };
+      drawParts([{ u: -(L / 2 - 0.30), v: 0.52, draw: returnEnd },
+        { u: 0.30, v: 0.06, draw: monitor }]);
     },
 
     // Partitions with a desk inside them.
     cubicle: (ctx, b) => {
       const W = 1.65, D = 1.40;
-      drawIsoBox(ctx, b, -(W / 2) * M, 0, 0.06 * M, D / 2 * M, 1.28 * MH, '#5a6472', 0);
-      drawIsoBox(ctx, b, 0, -(D / 2) * M, W / 2 * M, 0.06 * M, 1.28 * MH, '#4e5765', 0);
-      drawIsoBox(ctx, b, 0.10 * M, 0.10 * M, 0.52 * M, 0.28 * M, 0.72 * MH, '#6b5a48', 0);
-      drawIsoBox(ctx, b, 0.10 * M, 0.06 * M, 0.05 * M, 0.13 * M, 0.08 * MH, '#39404e', 0.79 * MH);
-      drawIsoBox(ctx, b, 0.10 * M, 0.06 * M, 0.03 * M, 0.24 * M, 0.30 * MH, '#2b3140', 0.87 * MH);
-      drawIsoBox(ctx, b, 0.10 * M, 0.01 * M, 0.02 * M, 0.20 * M, 0.25 * MH, GLOW, 0.90 * MH);
+      // Both partitions stand on the same two sides of the desk, so on one
+      // turn in four they both end up between the desk and the camera and
+      // the whole thing reads as a plain blue box. A partition facing the
+      // viewer is cut down to a rail, the way the room's own near walls are,
+      // so you can always see the desk it is meant to enclose.
+      const panelH = (near) => (near ? 0.42 : 1.28) * MH;
+      const wallU = () => drawIsoBox(ctx, b, -(W / 2) * M, 0, 0.06 * M, D / 2 * M,
+        panelH(faceShows(-1, 0)), '#5a6472', 0);
+      const wallV = () => drawIsoBox(ctx, b, 0, -(D / 2) * M, W / 2 * M, 0.06 * M,
+        panelH(faceShows(0, -1)), '#4e5765', 0);
+      const workstation = () => {
+        drawIsoBox(ctx, b, 0.10 * M, 0.10 * M, 0.52 * M, 0.28 * M, 0.72 * MH, '#6b5a48', 0);
+        drawIsoBox(ctx, b, 0.10 * M, 0.06 * M, 0.05 * M, 0.13 * M, 0.08 * MH, '#39404e', 0.79 * MH);
+        drawIsoBox(ctx, b, 0.10 * M, 0.06 * M, 0.03 * M, 0.24 * M, 0.30 * MH, '#2b3140', 0.87 * MH);
+        drawIsoBox(ctx, b, 0.10 * M, 0.01 * M, 0.02 * M, 0.20 * M, 0.25 * MH, GLOW, 0.90 * MH);
+      };
+      drawParts([{ u: -(W / 2), v: 0, draw: wallU }, { u: 0, v: -(D / 2), draw: wallV },
+        { u: 0.10, v: 0.10, draw: workstation }]);
     },
 
     // A glazed pod: solid to waist height, glass above.
