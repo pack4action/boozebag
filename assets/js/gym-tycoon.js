@@ -109,7 +109,9 @@
   // three tiles long and a room is dozens across -- which is what makes a
   // gym floor read as a floor with equipment standing about on it, rather
   // than a shelf with one item per compartment.
-  const ROOM = { tileW: 32, tileH: 16, wallH: 100 };
+  // The walls stand a real ceiling height, 2.4 m -- tall enough that a
+  // doorway cut in them clears anyone walking through.
+  const ROOM = { tileW: 32, tileH: 16, wallH: 145 };
 
   // Gear is drawn against this reference tile size, so its size on screen is
   // fixed no matter how fine the lattice under it gets. Shrinking the tile
@@ -124,29 +126,41 @@
   // The four chains come to 63, 63, 65 and 64 slots, so no theme is a better
   // buy than another for the same run of prices -- what differs is the shape
   // of the space you are arranging gear in.
+  // A shape is its bounding box in lattice tiles, and some have a corner
+  // taken out of them -- `cut` names which corner and how much of it -- so
+  // a chain is not four boxes in a row. 'ne' is the back-right corner, 'sw'
+  // the front-left, 'se' the front-right; the back-left is where a hallway
+  // comes in, so it is never cut. The starter room of every location is a
+  // plain box, because the first thing a new player does is find their feet
+  // in it.
+  //
+  // Corners are chosen away from wherever a hallway meets the room: a
+  // hallway leaves a room by its east edge or south edge at the back-left
+  // end of that edge, and arrives through the west or north wall, again at
+  // the back-left end, so the cut corners never take a hallway's floor.
   const ROOM_PLANS = {
-    // A row of vehicle bays down one unit: wide, shallow, side by side, with
-    // just enough between them to walk through.
+    // Vehicle bays knocked through into one another: broad rooms, each a
+    // little bigger than the last, with a short walk between them.
     garage: {
       shapes: [
-        { cols: 18, rows: 7 },  // 12 pieces of gear -- the starter bay
-        { cols: 21, rows: 7 },  // 14
-        { cols: 24, rows: 7 },  // 16 -- the long bay
-        { cols: 21, rows: 10 }, // 21 -- deep enough for two rows of kit
+        { cols: 13, rows: 10 },                                        // 12 pieces
+        { cols: 15, rows: 11, cut: { corner: 'sw', cols: 5, rows: 4 } }, // 14
+        { cols: 16, rows: 12, cut: { corner: 'se', cols: 5, rows: 5 } }, // 16
+        { cols: 17, rows: 14, cut: { corner: 'ne', cols: 6, rows: 4 } }, // 21
       ],
       caps: [12, 14, 16, 21],
       dirs: ['east', 'east', 'south'],
       corridorLen: 6,
       corridorWidth: 6,
     },
-    // Cellar rooms: narrow, deep, and strung together by real tunnels that
-    // turn corners rather than opening straight onto each other.
+    // Cellar rooms strung together by real tunnels that turn corners rather
+    // than opening straight onto each other.
     basement: {
       shapes: [
-        { cols: 10, rows: 13 }, // 12
-        { cols: 10, rows: 16 }, // 15 -- the long cell
-        { cols: 13, rows: 13 }, // 16
-        { cols: 13, rows: 16 }, // 20
+        { cols: 11, rows: 12 },                                        // 12
+        { cols: 14, rows: 13, cut: { corner: 'sw', cols: 5, rows: 4 } }, // 15
+        { cols: 14, rows: 14, cut: { corner: 'se', cols: 5, rows: 4 } }, // 16
+        { cols: 15, rows: 15, cut: { corner: 'ne', cols: 6, rows: 5 } }, // 20
       ],
       caps: [12, 15, 16, 20],
       dirs: ['south', 'east', 'south'],
@@ -157,24 +171,23 @@
     // walkways wide enough to read as outdoors.
     rooftop: {
       shapes: [
-        { cols: 13, rows: 10 }, // 12
-        { cols: 16, rows: 10 }, // 15
-        { cols: 19, rows: 10 }, // 18 -- the wide deck
-        { cols: 16, rows: 13 }, // 20
+        { cols: 12, rows: 11 },                                        // 12
+        { cols: 14, rows: 12, cut: { corner: 'se', cols: 4, rows: 4 } }, // 15
+        { cols: 15, rows: 14, cut: { corner: 'sw', cols: 5, rows: 4 } }, // 18
+        { cols: 16, rows: 14, cut: { corner: 'se', cols: 5, rows: 4 } }, // 20
       ],
       caps: [12, 15, 18, 20],
       dirs: ['east', 'south', 'west'],
       corridorLen: 9,
       corridorWidth: 9,
     },
-    // Decking out over the water: long shallow platforms running away from
-    // the shore, joined by walkways with room to stop on.
+    // Decking out over the water, joined by walkways with room to stop on.
     boardwalk: {
       shapes: [
-        { cols: 16, rows: 8 },  // 12
-        { cols: 13, rows: 12 }, // 16
-        { cols: 20, rows: 9 },  // 17 -- the long pier
-        { cols: 16, rows: 13 }, // 19
+        { cols: 12, rows: 11 },                                        // 12
+        { cols: 14, rows: 12, cut: { corner: 'se', cols: 4, rows: 3 } }, // 16
+        { cols: 15, rows: 13, cut: { corner: 'sw', cols: 5, rows: 4 } }, // 17
+        { cols: 16, rows: 14, cut: { corner: 'ne', cols: 6, rows: 4 } }, // 19
       ],
       caps: [12, 16, 17, 19],
       dirs: ['east', 'south', 'east'],
@@ -189,6 +202,66 @@
   function roomShapeFor(themeId, index) {
     const shapes = planFor(themeId).shapes;
     return shapes[index % shapes.length];
+  }
+
+  // ---- Cut corners ----
+  // The notch taken out of a shape or a placed room, as a rectangle in the
+  // same coordinates (a shape has no gx0/gy0 and so is measured from its own
+  // back corner). Null for a plain box.
+  function cutRect(r) {
+    const c = r && r.cut;
+    if (!c) return null;
+    const gx0 = r.gx0 || 0;
+    const gy0 = r.gy0 || 0;
+    return {
+      gx0: c.corner === 'ne' || c.corner === 'se' ? gx0 + r.cols - c.cols : gx0,
+      gy0: c.corner === 'sw' || c.corner === 'se' ? gy0 + r.rows - c.rows : gy0,
+      cols: c.cols,
+      rows: c.rows,
+    };
+  }
+  function inRect(r, gx, gy) {
+    return gx >= r.gx0 && gx < r.gx0 + r.cols && gy >= r.gy0 && gy < r.gy0 + r.rows;
+  }
+  // Whether a point is on this room's floor: inside its box and not in the
+  // notch.
+  function onFloorOf(r, gx, gy) {
+    const gx0 = r.gx0 || 0;
+    const gy0 = r.gy0 || 0;
+    if (gx < gx0 || gx >= gx0 + r.cols || gy < gy0 || gy >= gy0 + r.rows) return false;
+    const c = cutRect(r);
+    return !(c && inRect(c, gx, gy));
+  }
+  // The floor's outline as lattice corners, walked clockwise from the back
+  // corner: four for a box, six for an L.
+  function floorPolygon(r) {
+    const gx0 = r.gx0 || 0;
+    const gy0 = r.gy0 || 0;
+    const gx1 = gx0 + r.cols;
+    const gy1 = gy0 + r.rows;
+    const c = r.cut;
+    if (!c) return [[gx0, gy0], [gx1, gy0], [gx1, gy1], [gx0, gy1]];
+    if (c.corner === 'ne') {
+      return [[gx0, gy0], [gx1 - c.cols, gy0], [gx1 - c.cols, gy0 + c.rows],
+        [gx1, gy0 + c.rows], [gx1, gy1], [gx0, gy1]];
+    }
+    if (c.corner === 'sw') {
+      return [[gx0, gy0], [gx1, gy0], [gx1, gy1], [gx0 + c.cols, gy1],
+        [gx0 + c.cols, gy1 - c.rows], [gx0, gy1 - c.rows]];
+    }
+    return [[gx0, gy0], [gx1, gy0], [gx1, gy1 - c.rows], [gx1 - c.cols, gy1 - c.rows],
+      [gx1 - c.cols, gy1], [gx0, gy1]];
+  }
+  // The inside corner of the notch, stepped half a tile onto the floor --
+  // the point a walk across the room goes round.
+  function innerCornerOf(r) {
+    const c = cutRect(r);
+    if (!c) return null;
+    const k = r.cut.corner;
+    return {
+      gx: k === 'sw' ? c.gx0 + c.cols + 0.5 : c.gx0 - 0.5,
+      gy: k === 'ne' ? c.gy0 + c.rows + 0.5 : c.gy0 - 0.5,
+    };
   }
   // How much a room holds, which is no longer the same question as how big
   // its floor is.
@@ -211,7 +284,7 @@
     for (let i = 0; i < count; i++) {
       const shape = roomShapeFor(themeId, i);
       if (i === 0) {
-        out.push({ gx0: 0, gy0: 0, cols: shape.cols, rows: shape.rows });
+        out.push({ gx0: 0, gy0: 0, cols: shape.cols, rows: shape.rows, cut: shape.cut || null });
         continue;
       }
       const prev = out[i - 1];
@@ -228,7 +301,7 @@
         gy0 = prev.gy0 + prev.rows + plan.corridorLen;
         gx0 = prev.gx0 + Math.round((prev.cols - shape.cols) / 2);
       }
-      out.push({ gx0, gy0, cols: shape.cols, rows: shape.rows });
+      out.push({ gx0, gy0, cols: shape.cols, rows: shape.rows, cut: shape.cut || null });
     }
     return out;
   }
@@ -419,10 +492,34 @@
     const h = halfBoxOf(itemId, turn || 0);
     const lo = Math.min(h.u, shape.cols / 2);
     const loV = Math.min(h.v, shape.rows / 2);
-    return {
+    const at = {
       u: Math.max(lo, Math.min(shape.cols - lo, spot.u)),
       v: Math.max(loV, Math.min(shape.rows - loV, spot.v)),
     };
+    // Out of the notch, if it has landed in one: pushed back onto the floor
+    // along whichever axis is the shorter push, then held inside the box
+    // again. A piece bigger than the leg it is in can end up still hanging
+    // over, and confirmEdit refuses that.
+    const c = cutRect(shape);
+    if (c && boxMeetsRect(at, h, c)) {
+      const onRight = c.gx0 > 0;
+      const atFront = c.gy0 > 0;
+      const uAway = onRight ? c.gx0 - h.u : c.gx0 + c.cols + h.u;
+      const vAway = atFront ? c.gy0 - h.v : c.gy0 + c.rows + h.v;
+      if (Math.abs(uAway - at.u) <= Math.abs(vAway - at.v)) at.u = uAway; else at.v = vAway;
+      at.u = Math.max(lo, Math.min(shape.cols - lo, at.u));
+      at.v = Math.max(loV, Math.min(shape.rows - loV, at.v));
+    }
+    return at;
+  }
+  function boxMeetsRect(spot, h, r) {
+    return spot.u + h.u > r.gx0 + 0.02 && spot.u - h.u < r.gx0 + r.cols - 0.02
+      && spot.v + h.v > r.gy0 + 0.02 && spot.v - h.v < r.gy0 + r.rows - 0.02;
+  }
+  // Whether a piece at this spot hangs over the room's notch.
+  function spotInCut(shape, itemId, spot, turn) {
+    const c = cutRect(shape);
+    return !!c && boxMeetsRect(spot, halfBoxOf(itemId, turn || 0), c);
   }
 
   // The piece already standing where this one would go, if any. Two boxes
@@ -856,7 +953,7 @@
       const old = Array.isArray(r && r.layout) ? r.layout : [];
       const oldSpots = Array.isArray(r && r.spots) ? r.spots : [];
       const n = slotCountFor(themeId, i);
-      return {
+      const room = {
         layout: new Array(n).fill(null).map((_, k) => old[k] || null),
         // Positions travel with the pieces. A save from before free
         // placement has none, and spotOf falls back to the middle of the
@@ -868,8 +965,55 @@
             ? { u: sp.u, v: sp.v, r: (sp.r | 0) & 3 } : null;
         }),
       };
+      settleRoom(themeId, i, room);
+      return room;
     });
     return rooms.length ? rooms : [emptyGymRoom(themeId, 0)];
+  }
+
+  // Every piece back on the floor of the room as it is now shaped. Rooms
+  // change shape between versions of the game, and a piece that was
+  // standing where there is now a wall, or the notch cut out of a corner,
+  // or on top of something else, is moved to the nearest clear floor -- and
+  // if there is none, taken up into the inventory rather than left hanging
+  // in the air.
+  function settleRoom(themeId, index, room) {
+    const shape = roomShapeFor(themeId, index);
+    room.layout.forEach((id, k) => {
+      if (!id || !itemById(id)) return;
+      const sp = spotOf(room, k, shape);
+      const turn = turnAt(room, k);
+      const at = clampSpot(sp, shape, id, turn);
+      // Checked against the others with this one lifted out, so it does not
+      // block itself.
+      room.layout[k] = null;
+      let clear = !spotInCut(shape, id, at, turn) && !overlapsAnother(room, shape, id, at, turn) ? at : null;
+      if (!clear) clear = findFreeSpot(room, shape, id, turn, at);
+      if (clear) {
+        room.layout[k] = id;
+        room.spots[k] = { u: clear.u, v: clear.v, r: turn };
+      } else {
+        room.spots[k] = null;
+      }
+    });
+  }
+
+  // The nearest clear spot to `near` where this piece would stand on the
+  // floor and on nothing else, searched over a half-tile grid; null if the
+  // room is full.
+  function findFreeSpot(room, shape, itemId, turn, near) {
+    const from = near || { u: shape.cols / 2, v: shape.rows / 2 };
+    let best = null;
+    for (let v = 0.5; v < shape.rows; v += 0.5) {
+      for (let u = 0.5; u < shape.cols; u += 0.5) {
+        const at = clampSpot({ u, v }, shape, itemId, turn);
+        if (spotInCut(shape, itemId, at, turn)) continue;
+        if (overlapsAnother(room, shape, itemId, at, turn)) continue;
+        const d = Math.hypot(at.u - from.u, at.v - from.v);
+        if (!best || d < best.d) best = { u: at.u, v: at.v, d };
+      }
+    }
+    return best ? { u: best.u, v: best.v } : null;
   }
 
   // ---- Persistence ----
@@ -1469,14 +1613,43 @@
   const STAFF_SHIRT = '#1f2a44';
   const STAFF_TRIM = '#e8c46a';
 
+  // Somewhere on this room's floor, clear of the walls and never in the
+  // notch cut out of its corner.
+  function randomFloorSpot(place) {
+    for (let tries = 0; tries < 12; tries++) {
+      const at = {
+        gx: place.gx0 + 0.8 + Math.random() * Math.max(0.1, place.cols - 1.6),
+        gy: place.gy0 + 0.8 + Math.random() * Math.max(0.1, place.rows - 1.6),
+      };
+      if (onFloorOf(place, at.gx, at.gy)) return at;
+    }
+    return { gx: place.gx0 + 1, gy: place.gy0 + 1 };
+  }
+  // A walk from one point to another inside a room, as the waypoints to
+  // reach: straight there, unless the line crosses the notch, in which case
+  // round its inside corner first. Nobody walks across a hole in the floor.
+  function routeInRoom(place, from, to) {
+    const c = cutRect(place);
+    if (!c) return [to];
+    const steps = Math.max(2, Math.ceil(Math.hypot(to.gx - from.gx, to.gy - from.gy) / 0.4));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      if (inRect(c, from.gx + (to.gx - from.gx) * t, from.gy + (to.gy - from.gy) * t)) {
+        return [innerCornerOf(place), to];
+      }
+    }
+    return [to];
+  }
+
   function spawnMember(room, place, staffRoleId) {
+    const at = randomFloorSpot(place);
     return {
       // Where a member is, is a point on the world lattice, not a point in
       // some room -- they walk out of one room, down a hallway and into the
       // next, and none of that has room-local coordinates that mean anything.
       room,
-      gx: place.gx0 + 0.8 + Math.random() * Math.max(0.1, place.cols - 1.6),
-      gy: place.gy0 + 0.8 + Math.random() * Math.max(0.1, place.rows - 1.6),
+      gx: at.gx,
+      gy: at.gy,
       path: [],
       gear: null,
       state: 'idle',
@@ -1609,25 +1782,30 @@
         gx: place.gx0 + clampTo(spot.u + clear * 0.5, 0.6, Math.max(0.6, place.cols - 0.6)),
         gy: place.gy0 + clampTo(spot.v + clear * 0.8, 0.6, Math.max(0.6, place.rows - 0.6)),
       };
+      // A piece against the notch has its front over the edge: stand beside
+      // it instead.
+      if (!onFloorOf(place, goal.gx, goal.gy)) {
+        goal = { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v + clear * 0.4 };
+        if (!onFloorOf(place, goal.gx, goal.gy)) goal = { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v };
+      }
     } else {
       m.gear = null;
-      goal = {
-        gx: place.gx0 + 0.8 + Math.random() * Math.max(0.1, place.cols - 1.6),
-        gy: place.gy0 + 0.8 + Math.random() * Math.max(0.1, place.rows - 1.6),
-      };
+      goal = randomFloorSpot(place);
     }
 
     if (dest === m.room) {
-      m.path = [goal];
+      m.path = routeInRoom(place, m, goal);
     } else {
       // corridors[i] joins rooms i and i+1, and always runs from its nearRoom
       // to its doorRoom -- which of those is the room being left decides
       // which way down it this member is walking.
       const c = corridors[Math.min(m.room, dest)];
       if (!c) {
-        m.path = [goal];
+        m.path = routeInRoom(place, m, goal);
       } else {
-        m.path = corridorWaypoints(c, placements[m.room] === c.nearRoom).concat([goal]);
+        const hall = corridorWaypoints(c, placements[m.room] === c.nearRoom);
+        m.path = routeInRoom(placements[m.room], m, hall[0])
+          .concat(hall.slice(1), routeInRoom(place, hall[hall.length - 1], goal));
         m.room = dest;
       }
     }
@@ -2413,9 +2591,16 @@
     const emptyIndex = room.layout.indexOf(null);
     if (emptyIndex !== -1) {
       const shape = roomShapeFor(state.activeTheme, state.activeRoomIndex);
-      room.layout[emptyIndex] = id;
-      if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
-      room.spots[emptyIndex] = defaultSpot(shape, emptyIndex, room.layout.length);
+      // Wherever the old grid would have put it, or the nearest clear floor
+      // to that -- never on top of something already standing there.
+      const spot = findFreeSpot(room, shape, id, 0, defaultSpot(shape, emptyIndex, room.layout.length));
+      if (spot) {
+        room.layout[emptyIndex] = id;
+        if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
+        room.spots[emptyIndex] = { u: spot.u, v: spot.v, r: 0 };
+      } else {
+        toast('No clear floor for it here -- it is in your inventory', null);
+      }
       renderScene();
     }
     recomputeStats();
@@ -3535,8 +3720,11 @@
   // A lit rail running the length of both walls, downlights washing the wall
   // beneath each lamp -- the alternative to the single hanging bulb.
   function drawCeilingStrip(north, east, west, light) {
+    drawLightRails([[north, east], [north, west]], light);
+  }
+  function drawLightRails(walls, light) {
     const bulbColor = light.bulb || '#eaf7ff';
-    [[north, east], [north, west]].forEach(([from, to]) => {
+    walls.forEach(([from, to]) => {
       const railA = wallPoint(from, to, 0.05, 0.92);
       const railB = wallPoint(from, to, 0.95, 0.92);
       floorCtx.beginPath();
@@ -3549,7 +3737,7 @@
       // Longer wall, more lamps -- a bigger room should read as better lit,
       // not as the same three lights stretched further apart.
       const run = Math.hypot(to.x - from.x, to.y - from.y);
-      const lamps = Math.max(3, Math.min(5, Math.round(run / 95)));
+      const lamps = Math.max(run < 150 ? 2 : 3, Math.min(5, Math.round(run / 95)));
       for (let i = 0; i < lamps; i++) {
         const t = 0.2 + (i * 0.6) / (lamps - 1);
         const lamp = wallPoint(from, to, t, 0.9);
@@ -3675,12 +3863,13 @@
     const nw = [];  // the north->west wall, running along +gy
     if (!r) return { ne, nw };
     const pad = 0.05;
+    const len = backWallLengths(r);
     corridors.forEach((c) => {
       if (c.doorRoom !== r) return;
       if (c.axis === 'gy') {
-        ne.push([(c.gx0 - r.gx0) / r.cols - pad, (c.gx0 + c.cols - r.gx0) / r.cols + pad]);
+        ne.push([(c.gx0 - r.gx0) / len.ne - pad, (c.gx0 + c.cols - r.gx0) / len.ne + pad]);
       } else {
-        nw.push([(c.gy0 - r.gy0) / r.rows - pad, (c.gy0 + c.rows - r.gy0) / r.rows + pad]);
+        nw.push([(c.gy0 - r.gy0) / len.nw - pad, (c.gy0 + c.rows - r.gy0) / len.nw + pad]);
       }
     });
     return { ne, nw };
@@ -3831,8 +4020,7 @@
   }
 
   function tileIsFloor(gx, gy) {
-    const inside = (r) => gx >= r.gx0 && gx < r.gx0 + r.cols && gy >= r.gy0 && gy < r.gy0 + r.rows;
-    return placements.some(inside) || corridors.some(inside);
+    return placements.some((r) => onFloorOf(r, gx, gy)) || corridors.some((r) => inRect(r, gx, gy));
   }
 
   // The lattice is far finer than a floor tile -- it is what gear is
@@ -3910,13 +4098,21 @@
       }
     };
 
-    const gxEdge = rect.gx0 + rect.cols;
-    runEdge(rect.gy0, rect.gy0 + rect.rows,
-      (gy) => !tileIsFloor(gxEdge, gy), (gy) => isoPoint(gxEdge, gy), right);
-
-    const gyEdge = rect.gy0 + rect.rows;
-    runEdge(rect.gx0, rect.gx0 + rect.cols,
-      (gx) => !tileIsFloor(gx, gyEdge), (gx) => isoPoint(gx, gyEdge), left);
+    // Every line the floor can drop away along: the two front edges of the
+    // box, and for a room with a corner cut out, the two inner edges of the
+    // notch. A lip goes where there is floor on the near side of the line
+    // and none on the far side.
+    const cut = cutRect(rect);
+    const gxLines = [rect.gx0 + rect.cols];
+    const gyLines = [rect.gy0 + rect.rows];
+    if (cut) {
+      if (cut.gx0 > rect.gx0) gxLines.push(cut.gx0);
+      if (cut.gy0 > rect.gy0) gyLines.push(cut.gy0);
+    }
+    gxLines.forEach((gx) => runEdge(rect.gy0, rect.gy0 + rect.rows,
+      (gy) => onFloorOf(rect, gx - 1, gy) && !tileIsFloor(gx, gy), (gy) => isoPoint(gx, gy), right));
+    gyLines.forEach((gy) => runEdge(rect.gx0, rect.gx0 + rect.cols,
+      (gx) => onFloorOf(rect, gx, gy - 1) && !tileIsFloor(gx, gy), (gx) => isoPoint(gx, gy), left));
   }
 
   // ---- Walls ----
@@ -4001,7 +4197,11 @@
   // the opening is as a fraction of the hallway mouth it stands in -- the
   // same numbers drawCorridorDoor builds its casing from, so the hole and
   // the frame around it line up exactly.
-  const DOOR_HEAD = ROOM.wallH * 0.56 - 10;
+  // A doorway is 2.1 m to the top of its casing and the lintel is 10 px
+  // deep, so the opening itself clears the tallest member (1.85 m) with
+  // room to spare: nobody's head passes through the lintel any more.
+  const DOOR_H = Math.round(2.1 * PX_PER_METRE_TALL);
+  const DOOR_HEAD = DOOR_H - 10;
   const DOOR_JAMB = 0.12;
   const DOOR_FROM = 0.18 + DOOR_JAMB * (0.82 - 0.18);
   const DOOR_TO = 0.82 - DOOR_JAMB * (0.82 - 0.18);
@@ -4009,20 +4209,31 @@
   // Where this room's walls have holes in them, as fractions along each wall
   // in the direction that wall is measured: north->east for the one running
   // along +gx, north->west for the one running along +gy.
+  // How long each back wall actually is, in tiles: a corner cut out of the
+  // back-right shortens the north wall, one out of the front-left shortens
+  // the west wall. Fractions along a wall are measured against these.
+  function backWallLengths(r) {
+    const c = r.cut;
+    return {
+      ne: r.cols - (c && c.corner === 'ne' ? c.cols : 0),
+      nw: r.rows - (c && c.corner === 'sw' ? c.rows : 0),
+    };
+  }
   function wallApertures(roomIndex) {
     const r = placements[roomIndex];
     const ne = [];
     const nw = [];
     if (!r) return { ne, nw };
+    const len = backWallLengths(r);
     corridors.forEach((c) => {
       if (c.doorRoom !== r) return;
       if (c.axis === 'gy') {
-        const lo = (c.gx0 - r.gx0) / r.cols;
-        const span = c.cols / r.cols;
+        const lo = (c.gx0 - r.gx0) / len.ne;
+        const span = c.cols / len.ne;
         ne.push([lo + span * DOOR_FROM, lo + span * DOOR_TO]);
       } else {
-        const lo = (c.gy0 - r.gy0) / r.rows;
-        const span = c.rows / r.rows;
+        const lo = (c.gy0 - r.gy0) / len.nw;
+        const span = c.rows / len.nw;
         nw.push([lo + span * DOOR_FROM, lo + span * DOOR_TO]);
       }
     });
@@ -4267,7 +4478,7 @@
   // around an unlit opening. Drawn as a frame rather than a filled slab so
   // the doorway reads as something you look through, not a black panel.
   function drawCorridorDoor(p0, p1, colors) {
-    const h = ROOM.wallH * 0.56;
+    const h = DOOR_H;
     // Narrow it to the middle of the hallway -- a door, not the whole end
     // wall gone missing.
     const a = lerpPt(p0, p1, 0.18);
@@ -4301,18 +4512,14 @@
       for (let rx = 0; rx < rect.cols; rx++) {
         const gx = rect.gx0 + rx;
         const gy = rect.gy0 + ry;
+        if (!onFloorOf(rect, gx, gy)) continue;
         paintQuad([
           isoPoint(gx, gy), isoPoint(gx + 1, gy),
           isoPoint(gx + 1, gy + 1), isoPoint(gx, gy + 1),
         ], faint, 'rgba(255,255,255,0.05)', 1);
       }
     }
-    const corners = [
-      isoPoint(rect.gx0, rect.gy0),
-      isoPoint(rect.gx0 + rect.cols, rect.gy0),
-      isoPoint(rect.gx0 + rect.cols, rect.gy0 + rect.rows),
-      isoPoint(rect.gx0, rect.gy0 + rect.rows),
-    ];
+    const corners = floorPolygon(rect).map(([gx, gy]) => isoPoint(gx, gy));
     floorCtx.save();
     floorCtx.setLineDash([8, 7]);
     paintQuad(corners, null, accent, 2);
@@ -4492,8 +4699,17 @@
     const shape = { cols: place.cols, rows: place.rows };
 
     const north = isoPoint(place.gx0, place.gy0);
-    const east = isoPoint(place.gx0 + place.cols, place.gy0);
-    const west = isoPoint(place.gx0, place.gy0 + place.rows);
+    const gx1 = place.gx0 + place.cols;
+    const gy1 = place.gy0 + place.rows;
+    const cut = place.cut;
+    const cutAtBack = cut && cut.corner === 'ne';
+    const cutAtLeft = cut && cut.corner === 'sw';
+    // Where the two back walls end: at the room's open corners for a box, or
+    // short of them where a corner has been cut out.
+    const eastCorner = { gx: cutAtBack ? gx1 - cut.cols : gx1, gy: place.gy0 };
+    const westCorner = { gx: place.gx0, gy: cutAtLeft ? gy1 - cut.rows : gy1 };
+    const east = isoPoint(eastCorner.gx, eastCorner.gy);
+    const west = isoPoint(westCorner.gx, westCorner.gy);
 
     // Both back walls are one solid that turns the north corner, not two
     // that meet there, and each end either caps off at the room's open corner
@@ -4502,8 +4718,8 @@
     // backwards relative to the direction its doorways are measured in.
     const holes = wallApertures(roomIndex);
     drawWallRun([east, north, west], ['gx', 'gy'], ROOM.wallH, colors, [
-      roomWallEnd(place, { gx: place.gx0 + place.cols, gy: place.gy0 }),
-      roomWallEnd(place, { gx: place.gx0, gy: place.gy0 + place.rows }),
+      roomWallEnd(place, eastCorner),
+      roomWallEnd(place, westCorner),
     ], [holes.ne.map(([t0, t1]) => [1 - t1, 1 - t0]), holes.nw]);
 
     drawBaseboard(east, north);
@@ -4512,7 +4728,18 @@
     drawWallDecor(theme, north, east, west, doors);
     drawRoomFittings(roomFitFor(roomIndex), north, east, west, doors);
 
+    // The floor is the L, not the box: paved inside its outline only.
+    floorCtx.save();
+    if (cut) {
+      const poly = floorPolygon(place).map(([gx, gy]) => isoPoint(gx, gy));
+      floorCtx.beginPath();
+      floorCtx.moveTo(poly[0].x, poly[0].y);
+      for (let i = 1; i < poly.length; i++) floorCtx.lineTo(poly[i].x, poly[i].y);
+      floorCtx.closePath();
+      floorCtx.clip();
+    }
     drawPaving(place, colors, 0);
+    floorCtx.restore();
 
     drawSlabEdges(place, colors);
 
@@ -4522,6 +4749,27 @@
     // Drawn before the props loop below, not after, so the rail sits behind
     // tall gear like real ceiling hardware instead of floating on top.
     drawCeilingStrip(north, east, west, light);
+
+    // A corner cut out of the back or the left leaves one more wall standing
+    // inside the box: the notch's own back-facing side. It is a real wall --
+    // solid, skirted, lit -- but it stands in the middle of the floor, so it
+    // has to go down in depth order with the gear rather than before it.
+    let innerWall = null;
+    if (cutAtBack) {
+      const gy = place.gy0 + cut.rows;
+      innerWall = {
+        pts: [isoPoint(gx1, gy), isoPoint(gx1 - cut.cols, gy)], axis: 'gx',
+        // Nearest point of the wall to the viewer, on the same scale as a
+        // piece's depth: whatever sits deeper than this is in front of it.
+        depth: (gx1 - cut.cols - place.gx0) + (gy - place.gy0) - 0.001,
+      };
+    } else if (cutAtLeft) {
+      const gx = place.gx0 + cut.cols;
+      innerWall = {
+        pts: [isoPoint(gx, gy1 - cut.rows), isoPoint(gx, gy1)], axis: 'gy',
+        depth: (gx - place.gx0) + (gy1 - cut.rows - place.gy0) - 0.001,
+      };
+    }
 
     // Gear stands wherever it was put, not in a grid cell, so the draw
     // order comes from the pieces themselves -- furthest back first, or a
@@ -4538,9 +4786,18 @@
     membersInside(place).forEach((m) => {
       standing.push({ member: m, spot: { u: m.gx - place.gx0, v: m.gy - place.gy0 } });
     });
+    if (innerWall) {
+      standing.push({ wall: innerWall, spot: { u: innerWall.depth, v: 0 } });
+    }
     standing.sort((a, b) => (a.spot.u + a.spot.v) - (b.spot.u + b.spot.v));
 
-    standing.forEach(({ index, itemId, spot, member }) => {
+    standing.forEach(({ index, itemId, spot, member, wall }) => {
+      if (wall) {
+        drawWallRun(wall.pts, [wall.axis], ROOM.wallH, colors, ['cap', 'cap'], [[]]);
+        drawBaseboard(wall.pts[0], wall.pts[1]);
+        drawLightRails([wall.pts], light);
+        return;
+      }
       if (member) {
         drawMember(isoPoint(place.gx0 + spot.u, place.gy0 + spot.v), member);
         return;
@@ -5300,11 +5557,18 @@
   }
 
   // Whatever the held piece would land on top of, right now.
+  // 'edge' when it hangs over the notch cut out of the room, which is not a
+  // thing but blocks like one.
   function editOverlaps() {
     if (!editing) return null;
     const room = activeRooms()[editing.roomIndex];
     if (!room) return null;
-    return overlapsAnother(room, editShape(), editing.itemId, editing.spot, editing.turn);
+    const shape = editShape();
+    if (spotInCut(shape, editing.itemId, editing.spot, editing.turn)) return 'edge';
+    return overlapsAnother(room, shape, editing.itemId, editing.spot, editing.turn);
+  }
+  function blockerName(blocker) {
+    return blocker === 'edge' ? 'edge of the floor' : itemById(blocker).name;
   }
 
   function moveEditTo(u, v) {
@@ -5349,7 +5613,7 @@
     if (!editing) return;
     const blocker = editOverlaps();
     if (blocker) {
-      toast("Won't fit -- it would overlap the " + itemById(blocker).name, null);
+      toast("Won't fit -- it would overlap the " + blockerName(blocker), null);
       return;
     }
     const room = activeRooms()[editing.roomIndex];
@@ -5397,6 +5661,8 @@
     for (let i = 0; i < placements.length; i++) {
       const p = placements[i];
       if (gx >= p.gx0 && gx <= p.gx0 + p.cols && gy >= p.gy0 && gy <= p.gy0 + p.rows) {
+        const c = cutRect(p);
+        if (c && inRect(c, gx, gy)) continue;
         return { roomIndex: i, u: gx - p.gx0, v: gy - p.gy0 };
       }
     }
@@ -5616,7 +5882,7 @@
     const blocker = editOverlaps();
     if (placeLabelEl) {
       placeLabelEl.textContent = (item ? item.name : 'Gear')
-        + (blocker ? ' -- overlaps the ' + itemById(blocker).name + ', move it'
+        + (blocker ? ' -- overlaps the ' + blockerName(blocker) + ', move it'
           : editing.fromIndex === null ? ' -- drag or nudge, then place' : ' -- moving');
     }
     if (placeConfirmBtn) placeConfirmBtn.disabled = !!blocker;
