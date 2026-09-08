@@ -90,6 +90,9 @@
     { id: 'garage', name: 'Garage', unlockLevel: 1 },
     { id: 'basement', name: 'Basement', unlockLevel: 2 },
     { id: 'rooftop', name: 'Rooftop', unlockLevel: 4 },
+    // The far end of the ladder. Nothing else unlocks past level ten, and
+    // forty levels of nothing to look forward to is a long way to walk.
+    { id: 'boardwalk', name: 'Boardwalk', unlockLevel: 12 },
   ];
 
   // Grid the rooms are laid out on. Moved up here (rather than living with
@@ -119,7 +122,7 @@
   // N times either: every position in a chain has its own footprint, and the
   // later ones are bigger, which is most of what they are bought for.
   //
-  // The three chains come to 63, 63 and 65 slots, so no theme is a better
+  // The four chains come to 63, 63, 65 and 64 slots, so no theme is a better
   // buy than another for the same run of prices -- what differs is the shape
   // of the space you are arranging gear in.
   const ROOM_PLANS = {
@@ -164,6 +167,20 @@
       dirs: ['east', 'south', 'west'],
       corridorLen: 9,
       corridorWidth: 9,
+    },
+    // Decking out over the water: long shallow platforms running away from
+    // the shore, joined by walkways with room to stop on.
+    boardwalk: {
+      shapes: [
+        { cols: 16, rows: 8 },  // 12
+        { cols: 13, rows: 12 }, // 16
+        { cols: 20, rows: 9 },  // 17 -- the long pier
+        { cols: 16, rows: 13 }, // 19
+      ],
+      caps: [12, 16, 17, 19],
+      dirs: ['east', 'south', 'east'],
+      corridorLen: 10,
+      corridorWidth: 7,
     },
   };
 
@@ -1164,8 +1181,10 @@
 
     { id: 'rooms', name: 'Knocked Through', hint: 'Open all four rooms in one location',
       cash: 6000000, got: (c) => c.mostRooms >= MAX_ROOMS_PER_THEME },
-    { id: 'themes', name: 'Three Addresses', hint: 'Have gear on the floor in all three locations',
-      cash: 900000, got: (c) => c.themesUsed >= THEMES.length },
+    { id: 'themes', name: 'Three Addresses', hint: 'Have gear on the floor in three locations at once',
+      cash: 900000, got: (c) => c.themesUsed >= 3 },
+    { id: 'pier', name: 'Out On The Pier', hint: 'Open the Boardwalk and put gear on it',
+      cash: 250000000, got: (c) => c.themesUsed >= 4 },
 
     { id: 'staff1', name: 'On The Payroll', hint: 'Hire your first member of staff',
       cash: 40000, got: (c) => c.staff >= 1 },
@@ -2397,6 +2416,8 @@
     garage: { floorA: '#5c4530', floorB: '#4a3624', wallL: '#3a2c1c', wallR: '#2e2116', bgTop: '#241a10', bg: '#171310' },
     basement: { floorA: '#33404a', floorB: '#28333c', wallL: '#1c242c', wallR: '#161b21', bgTop: '#171b1f', bg: '#0e1114' },
     rooftop: { floorA: '#5a89ad', floorB: '#4a7594', wallL: '#3f6f94', wallR: '#2f5673', bgTop: '#3f6f94', bg: '#1c3348' },
+    // Sun-bleached decking over green water.
+    boardwalk: { floorA: '#c3a069', floorB: '#ad8b55', wallL: '#8a6a41', wallR: '#6d5232', bgTop: '#2d7f8c', bg: '#0f3846' },
   };
   // The colour the ground around the plan is washed with -- the theme's own
   // light spilling out past the rooms.
@@ -2404,6 +2425,7 @@
     garage: 'rgba(120, 82, 40, 0.5)',
     basement: 'rgba(58, 82, 104, 0.5)',
     rooftop: 'rgba(96, 148, 190, 0.55)',
+    boardwalk: 'rgba(240, 186, 108, 0.5)',
   };
 
   // Per-theme ceiling fixture + ambient glow pool. Rooftop has no fixture
@@ -2412,6 +2434,9 @@
     garage: { glow: 'rgba(255,196,120,0.30)', cord: '#171310', shade: '#caa25c', shadeDark: '#8a6a34', bulb: '#fff2cf' },
     basement: { glow: 'rgba(170,210,255,0.20)', cord: '#0b0f12', shade: '#c6d6de', shadeDark: '#84949e', bulb: '#eaf7ff' },
     rooftop: { glow: 'rgba(255,236,180,0.38)', cord: null, shade: null, shadeDark: null, bulb: null },
+    // Open to the sky like the rooftop, but hung with festoon bulbs rather
+    // than lit by nothing, so it reads as somewhere that stays open late.
+    boardwalk: { glow: 'rgba(255,214,150,0.34)', cord: '#3a2c1c', shade: '#e2b878', shadeDark: '#a3814c', bulb: '#fff1cd' },
   };
 
   // Placement counts are global across every room in every theme's chain
@@ -3594,6 +3619,24 @@
       sheet(-17, 5, 15, 12, 'rgba(0,0,0,0.55)');
       sheet(-17, 9, 8, 5, 'rgba(0,0,0,0.55)');
       sheet(-17, -5, 1, -2, '#c0483a');
+    } else if (theme === 'boardwalk') {
+      // Bunting: a slack line between two corners with flags hung off it,
+      // which is the one thing that says seaside and nothing else does.
+      const flags = ['#e4573f', '#e8c46a', '#3fa8a0', '#eef1f6'];
+      [{ from: north, to: east }, { from: north, to: west }].forEach(({ from, to }, side) => {
+        const sag = (t) => 0.90 - 0.055 * Math.sin(Math.PI * t);
+        const line = [];
+        for (let i = 0; i <= 12; i++) line.push(wallPoint(from, to, i / 12, sag(i / 12)));
+        strokePolyline(line, 'rgba(255,255,255,0.35)', 1.4);
+        for (let i = 1; i < 12; i++) {
+          const t = i / 12;
+          const hang = wallPoint(from, to, t, sag(t));
+          const tipL = wallPoint(from, to, t - 0.022, sag(t));
+          const tipR = wallPoint(from, to, t + 0.022, sag(t));
+          const point = wallPoint(from, to, t, sag(t) - 0.055);
+          paintQuad([tipL, tipR, point], flags[(i + side) % flags.length], null);
+        }
+      });
     } else if (theme === 'rooftop') {
       const wallTopColor = 'rgba(255, 236, 190, 0.9)';
       [
