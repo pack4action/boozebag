@@ -78,8 +78,8 @@
     rack: '<rect x="4" y="2" width="2.4" height="20" rx="0.6"/><rect x="17.6" y="2" width="2.4" height="20" rx="0.6"/><rect x="4" y="10" width="16" height="2.2" rx="0.6"/>',
     cable: '<rect x="4" y="3" width="4" height="18" rx="1"/><circle cx="6" cy="6.2" r="2.1" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.6 8.2 L16.5 17.8" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/><circle cx="17" cy="18.2" r="1.9"/>',
     treadmill: '<rect x="3" y="15.2" width="15" height="3.6" rx="1.4"/><rect x="15" y="4" width="3" height="12.5" rx="1"/><rect x="13.6" y="2.6" width="6" height="2.4" rx="1"/>',
-    juicebar: '<rect x="2.6" y="12.4" width="18.8" height="3" rx="1"/><rect x="4.4" y="15.4" width="15.2" height="6.2" rx="1"/><path d="M8.6 2.4h6.8l-1.1 6.4a2.4 2.4 0 0 1-4.6 0Z"/><rect x="11.3" y="9" width="1.4" height="3.4"/>',
-    proshop: '<rect x="2.6" y="13" width="18.8" height="3" rx="1"/><rect x="4.4" y="16" width="15.2" height="5.6" rx="1"/><path d="M9 2.6h6l3 3.2-2 2-1-1v5.2H9V6.8l-1 1-2-2Z"/>',
+    juicebar: '<path d="M6.2 6.6h11.6l-1.5 13.2a2.4 2.4 0 0 1-2.4 2.1h-3.8a2.4 2.4 0 0 1-2.4-2.1Z"/><rect x="5.2" y="3.6" width="13.6" height="2.6" rx="1.3"/><path d="M14.4 2.2l2.6 1-3.4 4.2-1.6-1Z"/>',
+    proshop: '<path d="M9.4 3.4h5.2a2.6 2.6 0 0 1-5.2 0Z"/><path d="M8.6 3.6 4 6.9l2.3 3.5 2-1.2v11h11.4v-11l2 1.2L24 6.9l-4.6-3.3h-1.2a5 5 0 0 1-9.4 0Z" transform="translate(-1)"/>',
     trainer: '<circle cx="12" cy="6.2" r="3.1"/><rect x="8" y="10.2" width="8" height="9.6" rx="3.2"/>',
     sauna: '<path d="M12 2.2c-1.2 3-4.6 4.7-4.6 9a4.6 4.6 0 0 0 9.2 0c0-2.1-1-3.3-2-4.6.1 1.7-1 2.9-2 2.9-1.2 0-1.7-1.2-1-2.4C13 5.6 13 4 12 2.2Z"/>',
     gearfridge: '<rect x="5.5" y="2" width="13" height="8.6" rx="1.6"/><rect x="5.5" y="12" width="13" height="10" rx="1.6"/><rect x="3.4" y="4.6" width="1.8" height="4" rx="0.9"/><rect x="3.4" y="14.4" width="1.8" height="4.6" rx="0.9"/>',
@@ -3248,6 +3248,17 @@
   const shopGrid = document.getElementById('shop-grid');
   const shopEls = {};
 
+  // What a shop row says a piece does. A counter earns like anything else
+  // and also makes stock, and the stock is the reason to buy one, so the row
+  // has to say so where the gains/sec is said.
+  function earnsLine(itemId) {
+    const tier = tierOf(itemId);
+    return '+' + formatNum(gpsOf(itemId)) + ' gains/sec when placed'
+      + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '')
+      + (makesStock(itemId) ? ', and makes ' + RECIPES_OF[itemId]
+        .map((p) => PRODUCTS[p].name.toLowerCase()).join(' and ') + ' to order' : '');
+  }
+
   function buildShop() {
     ITEMS.forEach((item) => {
       const el = document.createElement('div');
@@ -3262,7 +3273,7 @@
         '<span class="shop-item-cat" style="color:' + cat.color + '">' + cat.name + '</span>' +
         '<span class="shop-item-gps">' + (item.vibe
           ? '+' + Math.round(item.vibe * VIBE_PER_POINT * 100) + '% to everything its room earns'
-          : '+' + formatNum(item.gps) + ' gains/sec when placed') + '</span>' +
+          : earnsLine(item.id)) + '</span>' +
         '<button class="shop-buy-btn" type="button">Buy</button>' +
         '<button class="shop-upgrade-btn" type="button" hidden></button>';
       const buyBtn = el.querySelector('.shop-buy-btn');
@@ -3329,10 +3340,7 @@
       // been upgraded, and the control to take it further.
       const tier = tierOf(item.id);
       els.tierEl.textContent = item.name + (tier > 1 ? ' ' + TIER_NAMES[tier] : '');
-      if (!item.vibe) {
-        els.gpsEl.textContent = '+' + formatNum(gpsOf(item.id)) + ' gains/sec when placed'
-          + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '');
-      }
+      if (!item.vibe) els.gpsEl.textContent = earnsLine(item.id);
       const upgradable = canUpgrade(item.id);
       els.upBtn.hidden = !upgradable;
       if (upgradable) {
