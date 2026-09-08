@@ -795,3 +795,44 @@
   background: transparent;
 }
 .tycoon-hire-let-go:hover { color: #e8837a; border-color: rgba(232, 131, 122, 0.5); }
+
+/* ---- Franchising ----
+   Hidden until it is worth anything, then loud, because it is the one
+   control in the game that throws work away. */
+.tycoon-franchise {
+  border: 1px solid rgba(232, 196, 106, 0.35);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(232, 196, 106, 0.09), rgba(232, 196, 106, 0.03));
+  padding: 12px;
+  margin-bottom: 14px;
+  text-align: left;
+}
+.tycoon-franchise .tycoon-jobs-sub { color: #e8c46a; }
+.tycoon-franchise-note {
+  margin: 0 0 9px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-franchise-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  color: #2a1e04;
+  background: linear-gradient(180deg, #f2d489, #d8ac4a);
+}
+.tycoon-franchise-btn[disabled] {
+  cursor: default;
+  color: var(--muted, #8b8b93);
+  background: rgba(255, 255, 255, 0.06);
+}
+.tycoon-franchise-btn.is-confirming {
+  color: #2a0a08;
+  background: linear-gradient(180deg, #f0a08f, #d8604a);
+}

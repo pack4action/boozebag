@@ -446,6 +446,32 @@
   // a same-category match.
 
 
+  // ---- Franchising ----
+  // The shop runs out. Once the office tier is bought there is nothing left
+  // to spend money on but more of the same, and no reason to keep the tab
+  // open. Franchising is the way out of that: cash the gym in for points
+  // that multiply everything from then on, and build it back faster than it
+  // went up the first time.
+  //
+  // It keeps levels and everything they unlocked. Relocking the Rooftop
+  // would read as being punished for finishing, and starting over is
+  // supposed to be the reward. What it does cost is real: every piece of
+  // gear, every room past the first, and everyone on the payroll.
+  const FRANCHISE_MIN_LIFETIME = 1e7;
+  const FRANCHISE_PER_POINT = 0.15;
+  function franchisePoints() {
+    return (state.franchise && state.franchise.points) || 0;
+  }
+  function franchiseMultiplier() {
+    return 1 + franchisePoints() * FRANCHISE_PER_POINT;
+  }
+  // What cashing in right now would be worth, over and above what has
+  // already been banked from previous times.
+  function franchiseOffer() {
+    const earned = Math.floor(Math.pow(Math.max(0, state.lifetime) / FRANCHISE_MIN_LIFETIME, 0.4));
+    return Math.max(0, earned - franchisePoints());
+  }
+
   // ---- Staff ----
   // Everything in this game only ever went up: gear earns, fittings
   // multiply, rushes add. Nothing cost anything to keep. Staff are the other
@@ -630,7 +656,7 @@
     // Net, not gross: the wage bill comes off every figure the game shows,
     // so the rate in the HUD is the rate the balance actually climbs at.
     return total * vibeMultiplier(room) * rushMultiplier()
-      * (1 + staffEffect('manager')) * (1 - wageShare());
+      * (1 + staffEffect('manager')) * franchiseMultiplier() * (1 - wageShare());
   }
 
   // Total across every room in every theme's chain -- gear earns
@@ -709,6 +735,7 @@
       xp: 0,
       jobs: [],
       staff: {},
+      franchise: { points: 0, runs: 0 },
       owned: {},
       themeRooms: defaultThemeRooms(),
       activeTheme: 'garage',
@@ -1395,6 +1422,91 @@
     updateLeaderboardEntry();
     save();
   }
+
+  const franchisePanelEl = document.getElementById('franchise-panel');
+  const franchiseHeldEl = document.getElementById('franchise-held');
+  const franchiseNoteEl = document.getElementById('franchise-note');
+  const franchiseBtn = document.getElementById('btn-franchise');
+  // Throwing the gym away takes two clicks, and the second one says what it
+  // is about to do. It also times out, so a stray click cannot leave the
+  // control armed for later.
+  let franchiseArmed = false;
+  let franchiseArmTimer = null;
+
+  function refreshFranchiseUI() {
+    if (!franchisePanelEl) return;
+    const held = franchisePoints();
+    const offer = franchiseOffer();
+    // Nothing to see until it is either worth something or already earned.
+    franchisePanelEl.hidden = held === 0 && offer === 0;
+    if (franchisePanelEl.hidden) return;
+    franchiseHeldEl.textContent = held
+      ? held + ' point' + (held === 1 ? '' : 's') + ' -- +'
+        + Math.round((franchiseMultiplier() - 1) * 100) + '% on everything, forever'
+      : 'nothing banked yet';
+    franchiseNoteEl.textContent = offer
+      ? 'Cash this gym in for ' + offer + ' more point' + (offer === 1 ? '' : 's') + '. '
+        + 'You keep your level and everything it unlocked, and your points. '
+        + 'You lose the gear, every room past the first, and the staff.'
+      : 'Keep earning -- the next point is worth more the bigger the gym gets.';
+    franchiseBtn.disabled = offer === 0;
+    franchiseBtn.classList.toggle('is-confirming', franchiseArmed);
+    franchiseBtn.textContent = !offer ? 'Nothing to cash in yet'
+      : franchiseArmed ? 'Really clear the gym?' : 'Franchise out -- +' + offer;
+  }
+
+  function disarmFranchise() {
+    franchiseArmed = false;
+    clearTimeout(franchiseArmTimer);
+    refreshFranchiseUI();
+  }
+
+  function doFranchise() {
+    const offer = franchiseOffer();
+    if (!offer) return;
+    if (!franchiseArmed) {
+      franchiseArmed = true;
+      clearTimeout(franchiseArmTimer);
+      franchiseArmTimer = setTimeout(disarmFranchise, 6000);
+      refreshFranchiseUI();
+      return;
+    }
+    franchiseArmed = false;
+    clearTimeout(franchiseArmTimer);
+
+    const banked = franchisePoints() + offer;
+    const runs = ((state.franchise && state.franchise.runs) || 0) + 1;
+    const keptXp = state.xp;
+    const keptLifetime = state.lifetime;
+    state = Object.assign(defaultState(), {
+      xp: keptXp,
+      // Lifetime is what the offer is measured against, so it has to survive
+      // -- points already banked are subtracted from the offer instead.
+      lifetime: keptLifetime,
+      franchise: { points: banked, runs },
+    });
+    editing = null;
+    armedItemId = null;
+    membersKey = '';
+    refillJobs();
+    recomputeStats();
+    refreshHud();
+    refreshLevelUI();
+    refreshJobsUI();
+    refreshStaffUI();
+    refreshShopUI();
+    refreshThemeRow();
+    refreshRoomActions();
+    refreshFranchiseUI();
+    renderInventory();
+    renderScene();
+    updateLeaderboardEntry();
+    save();
+    toast('Franchised out -- ' + banked + ' points, +'
+      + Math.round((franchiseMultiplier() - 1) * 100) + '% forever', 'good');
+  }
+
+  if (franchiseBtn) franchiseBtn.addEventListener('click', doFranchise);
 
   const staffListEl = document.getElementById('staff-list');
   const staffWagesEl = document.getElementById('staff-wages');
@@ -4420,6 +4532,7 @@
   // ---- Init ----
   buildShop();
   buildStaffUI();
+  refreshFranchiseUI();
   refillJobs();
   refreshRushUI();
   refreshStaffUI();
@@ -4474,6 +4587,7 @@
     refreshJobsUI();
     refreshShopUI();
     refreshStaffUI();
+    refreshFranchiseUI();
     refreshThemeRow();
     refreshRoomActions();
 
