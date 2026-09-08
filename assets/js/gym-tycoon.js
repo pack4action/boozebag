@@ -111,9 +111,7 @@
 
   // Gear is drawn against this reference tile size, so its size on screen is
   // fixed no matter how fine the lattice under it gets. Shrinking the tile
-  // to fit a bigger room must not shrink the equipment standing in it. What
-  // each piece is scaled to from there is its own footprint -- see
-  // propScaleFor.
+  // to fit a bigger room must not shrink the equipment standing in it.
   const PROP_TILE = 96;
 
   // Each theme builds to its own floor plan, because a unit, a cellar and a
@@ -414,15 +412,10 @@
     return defaultSpot(shape, index, room.layout.length);
   }
 
-  // Which way round a piece is standing. Two orientations, not four: this
-  // projection turns a piece by mirroring it across the screen's vertical
-  // axis -- x = (gx - gy) * w/2, so a mirror maps a piece lying along +gx
-  // onto the same piece lying along +gy -- and a mirror has only two states.
-  // The other two quarter-turns differ from these only in which end faces
-  // the viewer, which is a thing the art cannot say either way.
-  function turnedAt(room, index) {
+  // Which way round a piece is standing: 0, 1, 2 or 3 quarter turns.
+  function turnAt(room, index) {
     const s = room.spots && room.spots[index];
-    return !!(s && s.r);
+    return s && s.r ? (s.r & 3) : 0;
   }
 
   // "Next to" is a distance now: close enough to be part of the same set-up,
@@ -818,7 +811,7 @@
         spots: new Array(n).fill(null).map((_, k) => {
           const sp = oldSpots[k];
           return sp && typeof sp.u === 'number' && typeof sp.v === 'number'
-            ? { u: sp.u, v: sp.v, r: sp.r ? 1 : 0 } : null;
+            ? { u: sp.u, v: sp.v, r: (sp.r | 0) & 3 } : null;
         }),
       };
     });
@@ -2203,7 +2196,7 @@
 
   // ---- Floor designer: isometric room rendered on canvas ----
   const floorCanvas = document.getElementById('tycoon-floor');
-  const floorCtx = floorCanvas.getContext('2d');
+  let floorCtx = floorCanvas.getContext('2d');
   const inventoryEl = document.getElementById('tycoon-inventory');
   const themeRowEl = document.getElementById('theme-row');
   let armedItemId = null;
@@ -2490,13 +2483,80 @@
     return { x: (u - v) * (ROOM.tileW / 2), y: (u + v) * (ROOM.tileH / 2) };
   }
 
+  // Which quarter turn the piece currently being drawn is standing at.
+  // Applied inside the primitives every builder is written in terms of, and
+  // nowhere a builder can see it: a piece is described once, facing one way,
+  // and comes out right at all four of them.
+  //
+  // This is why the equipment is geometry rather than pictures. A picture
+  // gives two usable views -- itself and its mirror -- and the other two
+  // quarter turns are the back of the object, which a front view does not
+  // contain. Boxes on a lattice have no such problem.
+  let propTurn = 0;
+  function turnUV(u, v) {
+    if (propTurn === 1) return { u: -v, v: u };
+    if (propTurn === 2) return { u: -u, v: -v };
+    if (propTurn === 3) return { u: v, v: -u };
+    return { u, v };
+  }
+
   // A single point on a prop's surface, (u, v) tile-units from its base and
   // liftPx up off the ground -- for a box drawn at that same (u, v, lift)
   // this lands exactly on its right-face plane, so small flat details
   // (windows, screens, buttons) can be stamped directly onto a box's face.
   function isoScreenPoint(base, u, v, liftPx) {
-    const c = isoVecRaw(u, v);
+    const t = turnUV(u, v);
+    const c = isoVecRaw(t.u, t.v);
     return { x: base.x + c.x, y: base.y + c.y - (liftPx || 0) };
+  }
+
+  // A round bar or post between two points on the lattice, at one height --
+  // half of this equipment is made of them, and a box never reads as one.
+  function drawIsoBar(ctx, base, u0, v0, u1, v1, lift, thick, color) {
+    const a = isoScreenPoint(base, u0, v0, lift);
+    const b = isoScreenPoint(base, u1, v1, lift);
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    ctx.save();
+    ctx.translate(a.x, a.y);
+    ctx.rotate(Math.atan2(dy, dx));
+    const grad = ctx.createLinearGradient(0, -thick / 2, 0, thick / 2);
+    grad.addColorStop(0, shade(color, 26));
+    grad.addColorStop(1, shade(color, -26));
+    ctx.beginPath();
+    roundedQuadPath(ctx,
+      { x: -thick / 2, y: -thick / 2 }, { x: len + thick / 2, y: -thick / 2 },
+      { x: len + thick / 2, y: thick / 2 }, { x: -thick / 2, y: thick / 2 },
+      thick / 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // A flat panel lying on the floor: a mat, a platform, a rubber square.
+  function drawIsoSlab(ctx, base, offU, offV, halfA, halfB, lift, color, radius) {
+    const t = turnUV(offU, offV);
+    const hA = propTurn % 2 ? halfB : halfA;
+    const hB = propTurn % 2 ? halfA : halfB;
+    const c = isoVecRaw(t.u, t.v);
+    const gx = base.x + c.x;
+    const gy = base.y + c.y - (lift || 0);
+    const at = (a, b) => {
+      const v = isoVecRaw(a, b);
+      return { x: gx + v.x, y: gy + v.y };
+    };
+    ctx.beginPath();
+    roundedQuadPath(ctx, at(hA, hB), at(hA, -hB), at(-hA, -hB), at(-hA, hB),
+      radius == null ? 3 : radius);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
   }
 
   // A shaded round disc (weight plate, pulley wheel, a head) -- boxes can't
@@ -2560,14 +2620,21 @@
   // ground, for stacking props on top of one another).
   function drawIsoBox(ctx, base, offU, offV, halfA, halfB, height, color, lift) {
     lift = lift || 0;
-    const c = isoVecRaw(offU, offV);
+    // The turn: the offset rotates on the lattice and the two half-extents
+    // swap on the odd quarters, so each face keeps its own meaning and goes
+    // on being lit from the same side of the room whichever way round the
+    // piece is standing.
+    const t = turnUV(offU, offV);
+    const hA = propTurn % 2 ? halfB : halfA;
+    const hB = propTurn % 2 ? halfA : halfB;
+    const c = isoVecRaw(t.u, t.v);
     const groundY = base.y + c.y - lift;
     const groundX = base.x + c.x;
 
-    const front = isoVecRaw(halfA, halfB);
-    const right = isoVecRaw(halfA, -halfB);
-    const back = isoVecRaw(-halfA, -halfB);
-    const left = isoVecRaw(-halfA, halfB);
+    const front = isoVecRaw(hA, hB);
+    const right = isoVecRaw(hA, -hB);
+    const back = isoVecRaw(-hA, -hB);
+    const left = isoVecRaw(-hA, hB);
 
     const pFront = { x: groundX + front.x, y: groundY + front.y };
     const pRight = { x: groundX + right.x, y: groundY + right.y };
@@ -2580,7 +2647,7 @@
     // Corner radius scales down for small/thin boxes (accents, bars) so
     // they don't get over-rounded into blobs, but stays big enough on
     // normal-sized boxes to visibly soften every hard edge.
-    const r = Math.min(5, Math.min(halfA, halfB) * ROOM.tileW * 0.4, height * 0.35);
+    const r = Math.min(5, Math.min(hA, hB) * ROOM.tileW * 0.4, height * 0.35);
 
     // Left face: vertical gradient instead of one flat tint, so it reads as
     // a lit surface rather than a solid color swatch.
@@ -2625,32 +2692,6 @@
     ctx.stroke();
   }
 
-  // Real icon art for equipment, where we have it -- drawn as a flat
-  // "billboard" sprite standing on the tile rather than skewed into the
-  // isometric projection (the standard, accepted way isometric games
-  // render sprites that weren't modeled/drawn in true 3D). Items without
-  // an entry here fall back to the hand-drawn PROP_BUILDERS box below.
-  const ITEM_SPRITE_SRC = {
-    dumbbell: 'assets/img/equipment/dumbbell.png',
-    dumbbellrack: 'assets/img/equipment/dumbbell-rack.png',
-    cable: 'assets/img/equipment/cable.png',
-    treadmill: 'assets/img/equipment/treadmill.png',
-    rack: 'assets/img/equipment/rack.png',
-    mat: 'assets/img/equipment/mat.png',
-    bench: 'assets/img/equipment/bench.png',
-    trainer: 'assets/img/equipment/trainer.png',
-    sauna: 'assets/img/equipment/sauna.png',
-    desk: 'assets/img/equipment/desk.png',
-    cubicle: 'assets/img/equipment/cubicle.png',
-  };
-  const itemSprites = {};
-  Object.keys(ITEM_SPRITE_SRC).forEach((id) => {
-    const img = new Image();
-    img.onload = () => renderScene();
-    img.src = ITEM_SPRITE_SRC[id];
-    itemSprites[id] = img;
-  });
-
   // How much floor each piece actually takes up, along its longest side, in
   // metres. Everything used to be drawn at one size, which is why a pair of
   // dumbbells came out as big as a squat rack; sized off this, a dumbbell is
@@ -2687,271 +2728,391 @@
     trainer: 1.75,
   };
 
-  // A lattice tile is a third of a metre, and drawItemSprite draws an
-  // untouched sprite about 1.15 tiles wide -- so this is what one metre of
-  // real gear has to be scaled by to come out a metre wide on the floor.
+  // A lattice tile is a third of a metre, so this is a metre across the
+  // floor in pixels.
   const PX_PER_METRE = ROOM.tileW * 3;
-  const SPRITE_BASE_W = ROOM.tileW * 1.15;
-  function propScaleFor(itemId) {
-    return (drawSizeOf(itemId) * PX_PER_METRE) / SPRITE_BASE_W;
-  }
 
-  // What one metre of *height* comes out as on the floor. A sprite is drawn
-  // ROOM.tileH * 1.45 tall before its own scaling, so this is the number to
-  // build anything by hand against if it is to stand the same height as the
-  // art does -- a person next to a squat rack, say.
-  const PX_PER_METRE_TALL = (ROOM.tileH * 1.45) * (PX_PER_METRE / SPRITE_BASE_W);
+  // What one metre of *height* comes out as on screen. Set so a person
+  // stands the right height next to a squat rack, and everything else
+  // built by hand is measured against the same number.
+  const PX_PER_METRE_TALL = (ROOM.tileH * 1.45) * (3 / 1.15);
 
-  // `anchor` shifts how far the image's bottom edge sits below the middle of
-  // its footprint -- an object whose visual weight isn't near the bottom of
-  // its own bounding box (a dumbbell shot at an angle, a mat lying flat)
-  // needs a bigger push down or it reads as floating above its shadow.
-  const ITEM_SPRITE_TUNING = {
-    dumbbell: { anchor: 0.34 },
-    mat: { anchor: 0.36 },
-  };
-  const DEFAULT_SPRITE_TUNING = { anchor: 0.16 };
+  // Metres to lattice units on the floor, and metres to pixels upward. Every
+  // piece below is written in these, so a bench is 0.45 tall because a bench
+  // is 0.45 tall -- there is no per-piece fudge factor between the model and
+  // the drawing any more.
+  const M = TILES_PER_METRE;
+  const MH = PX_PER_METRE_TALL;
 
-  function drawItemSprite(ctx, center, img, itemId) {
-    const ready = img.complete && img.naturalWidth > 0;
-    if (!ready) return false;
-    const tuning = ITEM_SPRITE_TUNING[itemId] || DEFAULT_SPRITE_TUNING;
-    const maxH = ROOM.tileH * 1.45;
-    const maxW = ROOM.tileW * 1.15;
-    const aspect = img.naturalWidth / img.naturalHeight;
-    let h = maxH;
-    let w = h * aspect;
-    if (w > maxW) {
-      w = maxW;
-      h = w / aspect;
-    }
-    ctx.drawImage(img, center.x - w / 2, center.y - h + h * tuning.anchor, w, h);
-    return true;
-  }
+  // Every piece of equipment, drawn as geometry in real dimensions: `M` turns
+  // metres into lattice units on the floor, `MH` turns metres into pixels
+  // upward. A builder never mentions the turn -- drawIsoBox, drawIsoBar,
+  // drawIsoSlab and isoScreenPoint apply it -- so a piece written here comes
+  // out right at all four quarter turns, lit from the same side at each.
+  //
+  // Gym equipment is powder-coated steel, black upholstery and rubber. The
+  // room's own lighting does the rest, so the palette stays narrow.
+  const STEEL = '#9fb0c6';
+  const STEEL_LT = '#c3d0de';
+  const FRAME = '#5d6a80';
+  const FRAME_DK = '#3d4658';
+  const PAD = '#2b3140';
+  const RUBBER = '#20232b';
+  const WEIGHT = '#454f63';
+  const GLOW = '#5fd0e6';
 
-  // Each piece of equipment is built from a couple of shaded boxes rather
-  // than a flat emoji sticker, so it actually reads as part of the 3D room.
+  const TRAINER_FIGURE = [1, -1].map((facing) => ({
+    state: 'using', gearId: null, phase: 0, facing, staffRole: 'trainer',
+    shirt: STAFF_SHIRT, skin: '#d59a6c', hair: '#2b2119', build: 1.02, broad: 1.08,
+    legs: '#2c3140', shortsLen: 0.415, hairStyle: 'crop', capColor: '#2f3a4a',
+    bagColor: '#4a4f5c', carry: 'towel',
+  }));
+
   const PROP_BUILDERS = {
+    // A pair on a small rubber square. Knee-high clutter, not furniture.
     dumbbell: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0, 0.30, 0.20, 4, '#4a3c2e', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.15, 0.032, 5, '#9a9aa0', 4);
-      [-0.15, 0.15].forEach((u) => {
-        const p = isoScreenPoint(b, u, 0, 17);
-        drawIsoDisc(ctx, p, 9, 13, '#26262a');
-        drawIsoDisc(ctx, p, 3.2, 4.6, '#6a6a70');
-      });
-    },
-    dumbbellrack: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0, 0.03, 0.20, 30, '#5a5a60', 0);
-      drawIsoBox(ctx, b, 0, -0.10, 0.20, 0.03, 3, '#3a3a3e', 24);
-      drawIsoBox(ctx, b, 0, 0.10, 0.20, 0.03, 3, '#3a3a3e', 10);
-      [-0.10, 0.10].forEach((v) => {
-        [24, 10].forEach((lift) => {
-          const p = isoScreenPoint(b, 0.16, v, lift + 3);
-          drawIsoDisc(ctx, p, 5, 7, '#26262a');
+      drawIsoSlab(ctx, b, 0, 0, 0.40 * M, 0.32 * M, 0, RUBBER, 4);
+      [-0.16, 0.16].forEach((v) => {
+        drawIsoBar(ctx, b, -0.13 * M, v * M, 0.13 * M, v * M, 0.13 * MH, 6, STEEL_LT);
+        [-0.19, 0.19].forEach((u) => {
+          drawIsoDisc(ctx, isoScreenPoint(b, u * M, v * M, 0.13 * MH), 8, 10, FRAME_DK);
+          drawIsoDisc(ctx, isoScreenPoint(b, u * M, v * M, 0.13 * MH), 2.8, 3.6, STEEL);
         });
       });
     },
-    mat: (ctx, b) => {
-      drawIsoBox(ctx, b, 0.02, 0, 0.32, 0.20, 5, '#3fa8a0', 0);
-      drawIsoBox(ctx, b, -0.28, 0, 0.05, 0.19, 9, '#2c8c85', 0);
-    },
-    bench: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, -0.28, 0.08, 0.06, 24, '#7a7a80', 0);
-      drawIsoBox(ctx, b, 0, 0.28, 0.08, 0.06, 24, '#7a7a80', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.14, 0.34, 10, '#2255aa', 20);
-      drawIsoBox(ctx, b, 0, 0, 0.24, 0.04, 4, '#26262a', 33);
-      [-0.20, 0.20].forEach((u) => {
-        const p = isoScreenPoint(b, u, 0, 35);
-        drawIsoDisc(ctx, p, 7, 10, '#c0483a');
+
+    // An A-frame with two tiers of dumbbells racked along it.
+    dumbbellrack: (ctx, b) => {
+      const L = 1.55, D = 0.5;
+      [-1, 1].forEach((s) => {
+        drawIsoBox(ctx, b, s * (L / 2 - 0.06) * M, 0, 0.06 * M, D / 2 * M, 0.80 * MH, FRAME, 0);
       });
-    },
-    rack: (ctx, b) => {
-      drawIsoBox(ctx, b, -0.20, -0.20, 0.045, 0.045, 42, '#5a5a60', 0);
-      drawIsoBox(ctx, b, 0.20, -0.20, 0.045, 0.045, 42, '#5a5a60', 0);
-      drawIsoBox(ctx, b, -0.20, 0.20, 0.045, 0.045, 42, '#5a5a60', 0);
-      drawIsoBox(ctx, b, 0.20, 0.20, 0.045, 0.045, 42, '#5a5a60', 0);
-      drawIsoBox(ctx, b, 0, -0.20, 0.22, 0.03, 3, '#3a3a3e', 22);
-      drawIsoBox(ctx, b, 0, 0.20, 0.22, 0.03, 3, '#3a3a3e', 22);
-      drawIsoBox(ctx, b, 0, 0, 0.24, 0.24, 4, '#c0483a', 42);
-    },
-    cable: (ctx, b) => {
-      drawIsoBox(ctx, b, -0.10, 0, 0.09, 0.11, 4, '#26262a', 0);
-      drawIsoBox(ctx, b, -0.10, 0, 0.08, 0.10, 46, '#3a3a3e', 4);
-      drawIsoDisc(ctx, isoScreenPoint(b, -0.10, 0, 51), 6, 4.2, '#c0483a');
-      drawIsoBox(ctx, b, 0.14, 0, 0.10, 0.14, 20, '#4a5a6a', 0);
-      drawIsoBox(ctx, b, 0.14, 0, 0.08, 0.03, 4, '#8fa4b4', 18);
-      drawIsoBox(ctx, b, 0.14, 0, 0.08, 0.03, 4, '#c0483a', 12);
-    },
-    treadmill: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0.02, 0.32, 0.18, 8, '#26262a', 0);
-      drawIsoBox(ctx, b, 0, -0.20, 0.06, 0.16, 24, '#3a3a3e', 8);
-      drawIsoBox(ctx, b, 0, -0.24, 0.10, 0.03, 4, '#5ec4c9', 30);
-      drawIsoBox(ctx, b, -0.17, -0.05, 0.03, 0.03, 20, '#2a2a2e', 8);
-      drawIsoBox(ctx, b, 0.17, -0.05, 0.03, 0.03, 20, '#2a2a2e', 8);
-    },
-    trainer: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0.02, 0.09, 0.08, 15, '#2a2a2e', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.13, 0.11, 20, '#c98a4a', 15);
-      drawIsoBox(ctx, b, -0.14, 0, 0.04, 0.045, 14, '#c98a4a', 20);
-      drawIsoBox(ctx, b, 0.14, 0, 0.04, 0.045, 14, '#c98a4a', 20);
-      drawIsoDisc(ctx, isoScreenPoint(b, 0, 0, 40), 7.5, 7.5, '#e0a86a');
-      drawIsoBox(ctx, b, 0, -0.02, 0.085, 0.06, 3, '#8a5a2e', 46);
-    },
-    sauna: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0, 0.30, 0.26, 44, '#8a5a34', 0);
-      drawIsoBox(ctx, b, 0.08, -0.22, 0.08, 0.02, 26, '#5a3c22', 4);
-      drawIsoBox(ctx, b, 0, 0, 0.10, 0.10, 10, '#e8b04a', 44);
-      drawIsoBox(ctx, b, 0, 0, 0.05, 0.05, 5, '#ffe0a0', 54);
-    },
-    // Every builder below is drawn at its own item's scale (drawProp scales
-    // the whole context by propScaleFor), so all three are dimensioned off
-    // their ITEM_FOOTPRINT F: one real metre is 1.15/F tile-units across the
-    // floor and about 24/F pixels up. That is what lets a 1.85m fridge and a
-    // 2.1m office pod come out the right heights relative to each other on
-    // screen while their floor footprints stay 0.9m and 1.7m apart.
-    gearfridge: (ctx, b) => {
-      // Glass-fronted fridge, shelves stocked with vials. F = 0.9.
-      drawIsoBox(ctx, b, 0, 0, 0.46, 0.42, 49, '#59636f', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.42, 0.38, 4, '#39414a', 49);
-      drawFacePanel(ctx, b, { u: 0.465, v: -0.34 }, { u: 0.465, v: 0.34 }, 5, 44, '#16232b', 3);
-      [12, 23, 34].forEach((z) => {
-        drawFacePanel(ctx, b, { u: 0.47, v: -0.30 }, { u: 0.47, v: 0.30 }, z, z + 1.5, '#e8a04a', 1);
-        for (let k = -2; k <= 2; k++) {
-          const v = k * 0.125;
-          drawFacePanel(ctx, b, { u: 0.475, v: v - 0.045 }, { u: 0.475, v: v + 0.045 }, z + 1.5, z + 6.5, '#6fd6e8', 1);
+      drawIsoBox(ctx, b, 0, 0, L / 2 * M, D / 2 * M, 0.09 * MH, FRAME_DK, 0);
+      [[0.46, 0.20], [0.74, 0.03]].forEach(([h, lean]) => {
+        drawIsoBox(ctx, b, 0, lean * M, (L / 2 - 0.05) * M, 0.10 * M, 0.06 * MH, STEEL, h * MH);
+        for (let i = -2; i <= 2; i++) {
+          const u = i * 0.30;
+          drawIsoBar(ctx, b, u * M, (lean - 0.14) * M, u * M, (lean + 0.14) * M,
+            (h + 0.10) * MH, 5, STEEL_LT);
+          [-0.16, 0.16].forEach((dv) => {
+            drawIsoDisc(ctx, isoScreenPoint(b, u * M, (lean + dv) * M, (h + 0.10) * MH),
+              5, 6.5, '#b4453c');
+          });
         }
       });
-      drawFacePanel(ctx, b, { u: 0.49, v: 0.26 }, { u: 0.49, v: 0.30 }, 12, 38, '#cfd6de', 2);
     },
-    soundsystem: (ctx, b) => {
-      // A pair of PA stacks -- a sub on the floor with a column speaker
-      // standing on it -- and the thing that makes the whole room train
-      // harder. F = 1.4.
-      [-0.30, 0.30].forEach((v) => {
-        drawIsoBox(ctx, b, 0, v, 0.226, 0.226, 10.3, '#464c56', 0);
-        drawFacePanel(ctx, b, { u: 0.231, v: v - 0.185 }, { u: 0.231, v: v + 0.185 }, 1.2, 9.1, '#22252b', 1.4);
-        drawIsoDisc(ctx, isoScreenPoint(b, 0.236, v, 5.2), 3.4, 4.1, '#6a717d');
-        drawIsoBox(ctx, b, 0, v, 0.148, 0.148, 19.7, '#525965', 10.3);
-        drawFacePanel(ctx, b, { u: 0.153, v: v - 0.115 }, { u: 0.153, v: v + 0.115 }, 11.6, 28.6, '#22252b', 1.2);
-        [15.2, 20.1, 25.0].forEach((z) => {
-          drawIsoDisc(ctx, isoScreenPoint(b, 0.158, v, z), 1.9, 2.3, '#6a717d');
-        });
-        drawFacePanel(ctx, b, { u: 0.160, v: v - 0.05 }, { u: 0.160, v: v + 0.05 }, 12.2, 13.1, '#5ec4c9', 0.5);
+
+    // Rolled out flat, with a lighter strip down the middle of it.
+    mat: (ctx, b) => {
+      drawIsoSlab(ctx, b, 0, 0, 0.90 * M, 0.33 * M, 0.02 * MH, '#4b4fa8', 4);
+      drawIsoSlab(ctx, b, 0, 0, 0.78 * M, 0.22 * M, 0.025 * MH, '#5a5fc4', 4);
+    },
+
+    // Bench press: a padded bench with a rack at the head of it and a loaded
+    // bar sitting in the hooks.
+    bench: (ctx, b) => {
+      const L = 1.30;
+      // Two feet, a padded bench across them, and a rack at the head end with
+      // a loaded bar sitting in the hooks.
+      [-1, 1].forEach((sgn) => {
+        drawIsoBox(ctx, b, sgn * (L / 2 - 0.14) * M, 0, 0.09 * M, 0.22 * M, 0.34 * MH, FRAME, 0);
+      });
+      drawIsoBox(ctx, b, 0, 0, L / 2 * M, 0.20 * M, 0.14 * MH, PAD, 0.32 * MH);
+      // The head end is raised a little, the way a bench's is.
+      drawIsoBox(ctx, b, -(L / 2 - 0.20) * M, 0, 0.22 * M, 0.20 * M, 0.08 * MH, PAD, 0.46 * MH);
+
+      const head = -(L / 2 + 0.16);
+      [-1, 1].forEach((sgn) => {
+        drawIsoBox(ctx, b, head * M, sgn * 0.34 * M, 0.06 * M, 0.06 * M, 1.02 * MH, FRAME, 0);
+        // The hook the bar rests in.
+        drawIsoBox(ctx, b, head * M, sgn * 0.34 * M, 0.10 * M, 0.05 * M, 0.10 * MH,
+          FRAME_DK, 0.94 * MH);
+      });
+      drawIsoBar(ctx, b, head * M, -0.74 * M, head * M, 0.74 * M, 1.02 * MH, 6, STEEL_LT);
+      [-0.60, 0.60].forEach((v) => {
+        const at = isoScreenPoint(b, head * M, v * M, 1.02 * MH);
+        drawIsoDisc(ctx, at, 9, 12, WEIGHT);
+        drawIsoDisc(ctx, at, 3.2, 4.2, STEEL);
       });
     },
-    desk: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0.02, 0.30, 0.20, 11, '#6b4a30', 0);
-      drawIsoBox(ctx, b, 0.10, -0.08, 0.03, 0.03, 9, '#26262a', 11);
-      drawIsoBox(ctx, b, 0.10, -0.08, 0.09, 0.02, 7, '#3fa0c9', 18);
+
+    // Squat rack: two uprights on feet, a loaded bar in the hooks at chest
+    // height, and a safety bar low down between them.
+    rack: (ctx, b) => {
+      const W = 1.25;
+      [-1, 1].forEach((s) => {
+        drawIsoBox(ctx, b, 0, s * (W / 2) * M, 0.28 * M, 0.07 * M, 0.10 * MH, FRAME_DK, 0);
+        drawIsoBox(ctx, b, 0, s * (W / 2) * M, 0.07 * M, 0.07 * M, 1.80 * MH, FRAME, 0.10 * MH);
+      });
+      drawIsoBar(ctx, b, 0, -(W / 2) * M, 0, (W / 2) * M, 0.55 * MH, 5, FRAME_DK);
+      drawIsoBar(ctx, b, 0.06 * M, -(W / 2 + 0.42) * M, 0.06 * M, (W / 2 + 0.42) * M,
+        1.42 * MH, 6, STEEL_LT);
+      [-1, 1].forEach((s) => {
+        const at = isoScreenPoint(b, 0.06 * M, s * (W / 2 + 0.30) * M, 1.42 * MH);
+        drawIsoDisc(ctx, at, 9, 12, WEIGHT);
+        drawIsoDisc(ctx, at, 3.4, 4.6, STEEL);
+      });
     },
-    cubicle: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0.08, 0.10, 0.24, 30, '#9aa4b0', 0);
-      drawIsoBox(ctx, b, -0.20, -0.06, 0.24, 0.06, 28, '#9aa4b0', 0);
-      drawIsoBox(ctx, b, 0.06, -0.08, 0.20, 0.14, 9, '#6b4a30', 0);
-      drawIsoBox(ctx, b, 0.06, -0.18, 0.045, 0.03, 8, '#26262a', 9);
-      drawIsoBox(ctx, b, 0.06, -0.18, 0.10, 0.02, 6, '#3fa0c9', 15);
+
+    // Cable machine: a weight stack in a frame, a pulley at the top and a bar
+    // hanging off the cable.
+    cable: (ctx, b) => {
+      const W = 1.35;
+      [-1, 1].forEach((s) => {
+        drawIsoBox(ctx, b, 0, s * (W / 2) * M, 0.24 * M, 0.07 * M, 0.09 * MH, FRAME_DK, 0);
+        drawIsoBox(ctx, b, 0, s * (W / 2) * M, 0.07 * M, 0.07 * M, 1.80 * MH, FRAME, 0.09 * MH);
+      });
+      drawIsoBox(ctx, b, 0, 0, 0.10 * M, W / 2 * M, 0.09 * MH, FRAME, 1.78 * MH);
+      // The stack: plates in a cage against the near upright.
+      drawIsoBox(ctx, b, -0.02 * M, -(W / 2 - 0.02) * M, 0.16 * M, 0.16 * M,
+        0.95 * MH, WEIGHT, 0.09 * MH);
+      for (let i = 0; i < 5; i++) {
+        const p = isoScreenPoint(b, 0.14 * M, -(W / 2 - 0.02) * M, (0.20 + i * 0.16) * MH);
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(p.x - 7, p.y - 1.5, 14, 2);
+      }
+      // Cable down from the pulley, and the bar on the end of it.
+      const topP = isoScreenPoint(b, 0, (W / 2 - 0.14) * M, 1.76 * MH);
+      const barP = isoScreenPoint(b, 0, (W / 2 - 0.14) * M, 1.35 * MH);
+      ctx.beginPath();
+      ctx.moveTo(topP.x, topP.y);
+      ctx.lineTo(barP.x, barP.y);
+      ctx.strokeStyle = 'rgba(220,232,244,0.75)';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      drawIsoBar(ctx, b, -0.26 * M, (W / 2 - 0.14) * M, 0.26 * M, (W / 2 - 0.14) * M,
+        1.33 * MH, 5, STEEL_LT);
     },
-    // A palm in a pot: fronds arcing out of a trunk, drawn as tapered blades
-    // rather than boxes, because nothing about a plant is rectangular.
-    // F = 0.8.
-    palm: (ctx, b) => {
-      drawIsoBox(ctx, b, 0, 0, 0.30, 0.28, 13, '#8a5a3a', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.26, 0.24, 3, '#5f3d27', 13);
-      drawIsoBox(ctx, b, 0, 0, 0.05, 0.05, 26, '#6f5a38', 15);
-      const top = isoScreenPoint(b, 0, 0, 41);
-      [[-1, -0.15], [-0.72, 0.5], [0.05, 0.85], [0.8, 0.45], [1, -0.2], [-0.3, -0.6], [0.4, -0.7]]
-        .forEach(([dx, dy], i) => {
-          const len = 22 + (i % 3) * 5;
-          ctx.beginPath();
-          ctx.moveTo(top.x, top.y);
-          ctx.quadraticCurveTo(top.x + dx * len * 0.6, top.y + dy * len * 0.5 - 9,
-            top.x + dx * len, top.y + dy * len * 0.55);
-          ctx.lineWidth = 5.5;
-          ctx.lineCap = 'round';
-          ctx.strokeStyle = i % 2 ? '#3f9a63' : '#2f7d4e';
-          ctx.stroke();
-        });
-      drawIsoDisc(ctx, top, 4, 3, '#4fb173');
+
+    // Two metres of deck with a console on a mast at the back of it.
+    treadmill: (ctx, b) => {
+      const L = 1.90, W = 0.80;
+      drawIsoBox(ctx, b, 0, 0, L / 2 * M, W / 2 * M, 0.14 * MH, STEEL, 0);
+      drawIsoSlab(ctx, b, 0.06 * M, 0, (L / 2 - 0.16) * M, (W / 2 - 0.15) * M,
+        0.16 * MH, RUBBER, 3);
+      const back = -(L / 2 - 0.14);
+      [-1, 1].forEach((s) => {
+        drawIsoBox(ctx, b, back * M, s * (W / 2 - 0.09) * M, 0.05 * M, 0.05 * M,
+          1.00 * MH, STEEL, 0.14 * MH);
+      });
+      drawIsoBox(ctx, b, back * M, 0, 0.06 * M, (W / 2 - 0.02) * M, 0.28 * MH,
+        FRAME_DK, 1.02 * MH);
+      const s = isoScreenPoint(b, (back + 0.07) * M, 0, 1.22 * MH);
+      ctx.fillStyle = GLOW;
+      ctx.fillRect(s.x - 8, s.y - 5, 16, 9);
+      [-1, 1].forEach((sgn) => {
+        drawIsoBar(ctx, b, (back + 0.05) * M, sgn * (W / 2 - 0.04) * M,
+          (back + 0.62) * M, sgn * (W / 2 - 0.04) * M, 0.92 * MH, 5, STEEL_LT);
+      });
     },
-    // A bottled cooler: base unit, a cup dispenser on its side, and the
-    // bottle upended on top of it. F = 0.6.
-    cooler: (ctx, b) => {
-      // 0.95m of cabinet with a 0.45m bottle upended on it: at 40 pixels to
-      // the metre for a piece this size, that is 38 and 18.
-      drawIsoBox(ctx, b, 0, 0, 0.40, 0.36, 38, '#dfe6ee', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.36, 0.32, 3, '#aab6c4', 38);
-      drawFacePanel(ctx, b, { u: 0.41, v: -0.22 }, { u: 0.41, v: 0.22 }, 12, 26, '#5a6673', 2);
-      drawFacePanel(ctx, b, { u: 0.42, v: -0.10 }, { u: 0.42, v: 0.10 }, 15, 23, '#7fd6e8', 1.5);
-      drawFacePanel(ctx, b, { u: 0.43, v: 0.24 }, { u: 0.43, v: 0.33 }, 7, 19, '#cfd6de', 1.5);
-      drawIsoBox(ctx, b, 0, 0, 0.27, 0.25, 18, 'rgba(120,200,225,0.85)', 41);
-      drawIsoBox(ctx, b, 0, 0, 0.10, 0.10, 4, '#4a7fa8', 59);
-    },
-    // A run of mirrored panel on a stand -- the thing that turns a bare room
-    // into a gym. F = 2.4.
-    mirrorwall: (ctx, b) => {
-      // 1.5m of mirror, 1.85m tall, on a shallow foot. A wide flat thing
-      // seen in this projection reads taller than it is -- its top face adds
-      // most of a metre of apparent height on its own -- so it is drawn to
-      // its real size and left to look as big as a real one does.
-      drawIsoBox(ctx, b, 0, 0, 0.055, 0.507, 1.6, '#3a3f48', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.034, 0.492, 26, '#2b343d', 1.6);
-      drawFacePanel(ctx, b, { u: 0.038, v: -0.465 }, { u: 0.038, v: 0.465 }, 3.4, 26.4, '#4c6373', 1.2);
-      // Two panes with a joint between them, and slanted highlights so it
-      // reads as glass rather than a grey board.
-      drawFacePanel(ctx, b, { u: 0.042, v: -0.42 }, { u: 0.042, v: -0.17 }, 5, 24.5, 'rgba(255,255,255,0.16)', 0.9);
-      drawFacePanel(ctx, b, { u: 0.042, v: 0.03 }, { u: 0.042, v: 0.18 }, 5, 24.5, 'rgba(255,255,255,0.09)', 0.9);
-      drawFacePanel(ctx, b, { u: 0.046, v: -0.015 }, { u: 0.046, v: 0.01 }, 3.4, 26.4, 'rgba(0,0,0,0.45)', 0.3);
-      drawIsoBox(ctx, b, 0, -0.48, 0.13, 0.045, 1.4, '#3a3f48', 0);
-      drawIsoBox(ctx, b, 0, 0.48, 0.13, 0.045, 1.4, '#3a3f48', 0);
-    },
-    // A neon sign on a pole. The glow is the point, so it is drawn as a
-    // shadowed stroke rather than a filled shape. F = 1.6.
-    neon: (ctx, b) => {
-      // A 0.75m sign on a 1.5m pole: 15 pixels to the metre at this size.
-      drawIsoBox(ctx, b, 0, 0, 0.162, 0.150, 2, '#2b2f36', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.029, 0.029, 22, '#4a4f58', 2);
-      drawIsoBox(ctx, b, 0, 0, 0.043, 0.539, 11.5, '#1d2128', 24);
-      const glow = (from, to, color) => {
+
+    // A person, not a machine -- and the crowd already has a rig for drawing
+  // one, so the trainer is a member who never moves, in the staff shirt,
+  // facing the way the piece is turned. Drawn straight onto the floor
+  // context, which is what `ctx` is here.
+  trainer: (ctx, b) => {
+    drawMember(b, TRAINER_FIGURE[propTurn < 2 ? 0 : 1]);
+  },
+
+  // A timber cabin with a glass door and a warm slot of light behind it.
+    sauna: (ctx, b) => {
+      const L = 1.90, D = 1.40, H = 1.72;
+      drawIsoBox(ctx, b, 0, 0, L / 2 * M, D / 2 * M, H * MH, '#8a6440', 0);
+      drawIsoBox(ctx, b, 0, 0, (L / 2 + 0.05) * M, (D / 2 + 0.05) * M, 0.10 * MH, '#6d4e31', H * MH);
+      // Board lines down the face that looks at the viewer, so it reads as
+      // timber rather than as a crate.
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+      ctx.lineWidth = 1.5;
+      for (let i = -2; i <= 2; i++) {
+        const p0 = isoScreenPoint(b, (L / 2) * M, i * 0.24 * M, 0.04 * MH);
+        const p1 = isoScreenPoint(b, (L / 2) * M, i * 0.24 * M, (H - 0.04) * MH);
         ctx.beginPath();
-        ctx.moveTo(from.x, from.y);
-        ctx.lineTo(to.x, to.y);
-        ctx.lineWidth = 1.9;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = color;
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 5;
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(p1.x, p1.y);
         ctx.stroke();
-        ctx.shadowBlur = 0;
-      };
-      const at = (v, z) => isoScreenPoint(b, 0.05, v, z);
-      glow(at(-0.40, 26.5), at(-0.40, 33), '#ff5c8a');
-      glow(at(-0.40, 33), at(-0.24, 26.5), '#ff5c8a');
-      glow(at(-0.24, 26.5), at(-0.24, 33), '#ff5c8a');
-      glow(at(-0.05, 33), at(-0.05, 26.5), '#5ec4c9');
-      glow(at(-0.05, 26.5), at(0.09, 26.5), '#5ec4c9');
-      glow(at(0.30, 26.5), at(0.30, 33), '#ffd45c');
+      }
+      ctx.restore();
+      // The door, stamped on the face that looks at the viewer.
+      const dl = isoScreenPoint(b, (L / 2) * M, -0.30 * M, 0.06 * MH);
+      const dr = isoScreenPoint(b, (L / 2) * M, 0.34 * M, 0.06 * MH);
+      const doorH = 1.48 * MH;
+      ctx.beginPath();
+      ctx.moveTo(dl.x, dl.y);
+      ctx.lineTo(dr.x, dr.y);
+      ctx.lineTo(dr.x, dr.y - doorH);
+      ctx.lineTo(dl.x, dl.y - doorH);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(255,168,72,0.85)';
+      ctx.fill();
+      ctx.strokeStyle = '#5c4128';
+      ctx.lineWidth = 2;
+      ctx.stroke();
     },
-    officepod: (ctx, b) => {
-      // A one-person glass office booth -- 1.6m square and 2.1m tall, the
-      // kind you drop on a floor, not a room. Drawn inside-out: plinth, then
-      // the furniture standing in it, then the glass in front of that, so
-      // you read the inside through the walls. F = 1.7.
-      drawIsoBox(ctx, b, 0, 0, 0.541, 0.474, 1.2, '#2f3a45', 0);
-      drawIsoBox(ctx, b, -0.24, 0.02, 0.203, 0.338, 10.6, '#6b4a30', 1.2);
-      drawIsoBox(ctx, b, -0.24, -0.13, 0.028, 0.028, 4.4, '#26262a', 11.8);
-      drawIsoBox(ctx, b, -0.24, -0.13, 0.115, 0.02, 5.6, '#3fa0c9', 16.2);
-      drawIsoBox(ctx, b, 0.08, 0.04, 0.16, 0.16, 6.4, '#33383f', 1.2);
-      drawIsoBox(ctx, b, 0.16, 0.04, 0.04, 0.15, 8.5, '#3f454e', 7.6);
-      drawIsoDisc(ctx, isoScreenPoint(b, -0.22, 0.06, 24), 5, 3.2, 'rgba(240,200,120,0.28)');
-      drawFacePanel(ctx, b, { u: -0.507, v: 0.443 }, { u: 0.507, v: 0.443 }, 1.2, 30, 'rgba(140,200,220,0.13)', 1);
-      drawFacePanel(ctx, b, { u: 0.505, v: -0.443 }, { u: 0.505, v: 0.443 }, 1.2, 30, 'rgba(155,210,230,0.20)', 1);
-      drawFacePanel(ctx, b, { u: 0.512, v: 0.03 }, { u: 0.512, v: 0.055 }, 1.2, 30, 'rgba(200,230,240,0.42)', 0.6);
-      drawFacePanel(ctx, b, { u: 0.518, v: 0.11 }, { u: 0.518, v: 0.145 }, 12, 17, '#cfd6de', 1);
-      [[-0.507, -0.443], [0.507, -0.443], [-0.507, 0.443], [0.507, 0.443]].forEach(([u, v]) => {
-        drawIsoBox(ctx, b, u, v, 0.024, 0.024, 30, '#98a1ac', 0);
+
+    // A glass-fronted fridge, lit from inside.
+    gearfridge: (ctx, b) => {
+      const W = 0.70, D = 0.62, H = 1.58;
+      drawIsoBox(ctx, b, 0, 0, W / 2 * M, D / 2 * M, H * MH, FRAME_DK, 0);
+      const a = isoScreenPoint(b, (W / 2) * M, -(D / 2 - 0.08) * M, 0.12 * MH);
+      const c = isoScreenPoint(b, (W / 2) * M, (D / 2 - 0.08) * M, 0.12 * MH);
+      const gh = 1.22 * MH;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y);
+      ctx.lineTo(c.x, c.y - gh); ctx.lineTo(a.x, a.y - gh);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(120,220,240,0.5)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      for (let i = 0; i < 3; i++) {
+        const s0 = isoScreenPoint(b, (W / 2) * M, -(D / 2 - 0.08) * M, (0.30 + i * 0.36) * MH);
+        const s1 = isoScreenPoint(b, (W / 2) * M, (D / 2 - 0.08) * M, (0.30 + i * 0.36) * MH);
+        ctx.beginPath();
+        ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y);
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.stroke();
+      }
+    },
+
+    // Two stacks and a deck between them.
+    soundsystem: (ctx, b) => {
+      [-1, 1].forEach((s) => {
+        drawIsoBox(ctx, b, 0, s * 0.52 * M, 0.20 * M, 0.20 * M, 1.35 * MH, FRAME_DK, 0);
+        const f = isoScreenPoint(b, 0.20 * M, s * 0.52 * M, 0.95 * MH);
+        drawIsoDisc(ctx, f, 8, 10, '#1b1e25');
+        const g = isoScreenPoint(b, 0.20 * M, s * 0.52 * M, 0.45 * MH);
+        drawIsoDisc(ctx, g, 5, 6.5, '#1b1e25');
       });
-      drawIsoBox(ctx, b, 0, 0, 0.548, 0.480, 2.5, '#59636f', 30);
+      drawIsoBox(ctx, b, 0, 0, 0.30 * M, 0.26 * M, 0.85 * MH, FRAME, 0);
+      const top = isoScreenPoint(b, 0, 0, 0.86 * MH);
+      ctx.fillStyle = GLOW;
+      ctx.fillRect(top.x - 12, top.y - 4, 24, 4);
+    },
+
+    // Reception desk: a counter with a return along one end.
+    desk: (ctx, b) => {
+      const L = 1.75;
+      drawIsoBox(ctx, b, 0, 0, L / 2 * M, 0.32 * M, 1.02 * MH, '#6b5a48', 0);
+      drawIsoBox(ctx, b, 0, 0, (L / 2 + 0.05) * M, 0.38 * M, 0.07 * MH, '#8d7860', 1.02 * MH);
+      drawIsoBox(ctx, b, -(L / 2 - 0.30) * M, 0.52 * M, 0.30 * M, 0.22 * M, 0.74 * MH, '#6b5a48', 0);
+      const s = isoScreenPoint(b, 0.30 * M, 0.10 * M, 1.10 * MH);
+      ctx.fillStyle = '#2b3140';
+      ctx.fillRect(s.x - 9, s.y - 13, 18, 13);
+      ctx.fillStyle = GLOW;
+      ctx.fillRect(s.x - 7, s.y - 11, 14, 9);
+    },
+
+    // Partitions with a desk inside them.
+    cubicle: (ctx, b) => {
+      const W = 1.65, D = 1.40;
+      drawIsoBox(ctx, b, -(W / 2) * M, 0, 0.06 * M, D / 2 * M, 1.28 * MH, '#5a6472', 0);
+      drawIsoBox(ctx, b, 0, -(D / 2) * M, W / 2 * M, 0.06 * M, 1.28 * MH, '#4e5765', 0);
+      drawIsoBox(ctx, b, 0.10 * M, 0.10 * M, 0.52 * M, 0.28 * M, 0.72 * MH, '#6b5a48', 0);
+      const s = isoScreenPoint(b, 0.10 * M, 0.10 * M, 0.74 * MH);
+      ctx.fillStyle = '#2b3140';
+      ctx.fillRect(s.x - 8, s.y - 12, 16, 12);
+      ctx.fillStyle = GLOW;
+      ctx.fillRect(s.x - 6, s.y - 10, 12, 8);
+    },
+
+    // A glazed pod: solid to waist height, glass above.
+    officepod: (ctx, b) => {
+      const W = 1.50, D = 1.25, H = 1.78;
+      drawIsoBox(ctx, b, 0, 0, W / 2 * M, D / 2 * M, 0.70 * MH, '#4e5765', 0);
+      drawIsoBox(ctx, b, 0, 0, W / 2 * M, D / 2 * M, 1.00 * MH, 'rgba(150,205,230,0.35)', 0.70 * MH);
+      drawIsoBox(ctx, b, 0, 0, (W / 2 + 0.05) * M, (D / 2 + 0.05) * M, 0.09 * MH, '#3d4658', H * MH);
+      [-1, 1].forEach((s) => {
+        drawIsoBox(ctx, b, s * (W / 2) * M, (D / 2) * M, 0.05 * M, 0.05 * M, H * MH, '#3d4658', 0);
+      });
+    },
+
+    // A pot with a trunk and a spray of fronds.
+    palm: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0, 0.21 * M, 0.21 * M, 0.36 * MH, '#7a4b32', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.23 * M, 0.23 * M, 0.05 * MH, '#5f3a26', 0.36 * MH);
+      // A trunk that leans a little, because a straight one reads as a pole.
+      drawIsoBar(ctx, b, 0, 0, 0.10 * M, 0.06 * M, 0.40 * MH, 7, '#8a6a44');
+      drawIsoBox(ctx, b, 0.05 * M, 0.03 * M, 0.045 * M, 0.045 * M, 0.72 * MH, '#8a6a44', 0.40 * MH);
+      const top = isoScreenPoint(b, 0.10 * M, 0.06 * M, 1.12 * MH);
+      ctx.save();
+      ctx.strokeStyle = '#4d7a45';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(top.x, top.y);
+        ctx.quadraticCurveTo(top.x + Math.cos(a) * 13, top.y + Math.sin(a) * 6.5 - 7,
+          top.x + Math.cos(a) * 24, top.y + Math.sin(a) * 12);
+        ctx.stroke();
+      }
+      ctx.restore();
+    },
+
+    // A cooler with the bottle upended on top of it.
+    cooler: (ctx, b) => {
+      drawIsoBox(ctx, b, 0, 0, 0.18 * M, 0.18 * M, 0.92 * MH, '#e6ebf1', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.20 * M, 0.20 * M, 0.07 * MH, '#9aa5b3', 0.92 * MH);
+      drawIsoBox(ctx, b, 0, 0, 0.13 * M, 0.13 * M, 0.40 * MH,
+        'rgba(96,196,232,0.9)', 0.99 * MH);
+      // The taps, on the face that looks at the viewer.
+      const t = isoScreenPoint(b, 0.18 * M, 0, 0.62 * MH);
+      ctx.fillStyle = '#5a6472';
+      ctx.fillRect(t.x - 5, t.y - 6, 10, 7);
+      const p = isoScreenPoint(b, 0.18 * M, 0, 0.40 * MH);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(p.x - 7, p.y - 5, 14, 5);
+    },
+
+    // A mirror on a frame, standing against whatever wall it is put by.
+    mirrorwall: (ctx, b) => {
+      const W = 1.60;
+      drawIsoBox(ctx, b, 0, 0, 0.16 * M, (W / 2 + 0.04) * M, 0.08 * MH, '#2f3644', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.06 * M, W / 2 * M, 1.55 * MH, '#3d4658', 0.08 * MH);
+      const a = isoScreenPoint(b, 0.06 * M, -(W / 2 - 0.06) * M, 0.18 * MH);
+      const c = isoScreenPoint(b, 0.06 * M, (W / 2 - 0.06) * M, 0.18 * MH);
+      const h = 1.36 * MH;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y);
+      ctx.lineTo(c.x, c.y - h); ctx.lineTo(a.x, a.y - h);
+      ctx.closePath();
+      const g = ctx.createLinearGradient(a.x, a.y - h, c.x, c.y);
+      g.addColorStop(0, 'rgba(200,226,240,0.85)');
+      g.addColorStop(1, 'rgba(140,175,200,0.7)');
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    },
+
+    // A sign on two legs, lit.
+    neon: (ctx, b) => {
+      const W = 1.45;
+      [-1, 1].forEach((s) => {
+        drawIsoBox(ctx, b, 0, s * (W / 2 - 0.08) * M, 0.05 * M, 0.05 * M, 0.95 * MH, FRAME_DK, 0);
+      });
+      drawIsoBox(ctx, b, 0, 0, 0.05 * M, W / 2 * M, 0.60 * MH, '#241b2e', 0.95 * MH);
+      const a = isoScreenPoint(b, 0.05 * M, -(W / 2 - 0.10) * M, 1.05 * MH);
+      const c = isoScreenPoint(b, 0.05 * M, (W / 2 - 0.10) * M, 1.05 * MH);
+      ctx.save();
+      ctx.strokeStyle = '#ff5fa8';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = '#ff5fa8';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y - 0.14 * MH);
+      ctx.lineTo(c.x, c.y - 0.14 * MH);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y - 0.34 * MH);
+      ctx.lineTo(c.x - (c.x - a.x) * 0.35, c.y - 0.34 * MH);
+      ctx.strokeStyle = '#5fd0e6';
+      ctx.shadowColor = '#5fd0e6';
+      ctx.stroke();
+      ctx.restore();
     },
   };
 
@@ -4211,8 +4372,7 @@
         floorCtx.stroke();
         floorCtx.restore();
       }
-      drawProp(itemId, c, propScaleFor(itemId), tierOf(itemId),
-        turnedAt(room, index));
+      drawProp(itemId, c, tierOf(itemId), turnAt(room, index));
     });
 
     if (editing && editing.roomIndex === roomIndex) {
@@ -4225,9 +4385,10 @@
   // little and lightened so it reads as held rather than placed.
   function drawHeldPiece(place, held) {
     const c = isoPoint(place.gx0 + held.spot.u, place.gy0 + held.spot.v);
-    const s = propScaleFor(held.itemId);
-    const rx = ROOM.tileW * 0.3 * s * 1.5;
-    const ry = ROOM.tileH * 0.3 * s * 1.5;
+    // The ring is the piece's footprint on the floor, a little generous.
+    const tiles = drawSizeOf(held.itemId) * TILES_PER_METRE;
+    const rx = tiles * ROOM.tileW * 0.30;
+    const ry = tiles * ROOM.tileH * 0.30;
 
     floorCtx.save();
     floorCtx.beginPath();
@@ -4243,8 +4404,7 @@
 
     floorCtx.save();
     floorCtx.globalAlpha = 0.82;
-    drawProp(held.itemId, { x: c.x, y: c.y - 10 }, propScaleFor(held.itemId), 1,
-      held.turned);
+    drawProp(held.itemId, { x: c.x, y: c.y - 10 }, 1, held.turn);
     floorCtx.restore();
   }
 
@@ -4536,12 +4696,13 @@
     }
   }
 
-  function drawProp(itemId, c, scale, tier, turned) {
+  function drawProp(itemId, c, tier, turn) {
     const catColor = CATEGORY_META[CATEGORY[itemId]].color;
     floorCtx.save();
-    floorCtx.translate(c.x, c.y);
-    floorCtx.scale(scale, scale);
-    floorCtx.translate(-c.x, -c.y);
+
+    // Everything below is in metres now, so there is no per-piece scaling
+    // transform any more: a builder that says 0.45 gets 0.45 of a metre.
+    const tiles = drawSizeOf(itemId) * TILES_PER_METRE;
 
     // The only thing on the floor under a piece is its shadow. It used to
     // stand on a category-coloured pool with a synergy ring and a pulsing
@@ -4551,20 +4712,16 @@
     // the arrangement bonus by the synergy line under the plan, and who is
     // using what by the person standing there doing it.
     //
-    // Tight to the base and darkest directly beneath, because that is what
-    // makes contact read. The softness is a gradient fading to nothing at
+    // Sized off the piece, so a dumbbell casts a dumbbell's shadow and a
+    // sauna casts a sauna's. The softness is a gradient fading to nothing at
     // the rim rather than an ellipse run through a blur filter: a canvas
     // filter re-rasterises the region it touches, and with one under every
     // piece of gear that single call cost nine tenths of the entire frame.
-    // Sized to the sprite, not to the tile. A piece is drawn up to
-    // tileW * 1.15 across, so a shadow a third of a tile wide disappeared
-    // behind it completely and left the gear looking pasted on -- this one
-    // spreads past the base on every side, which is the half of it you can
-    // actually see once the piece is drawn over the top.
-    const shadowRX = ROOM.tileW * 0.66;
-    const shadowRY = ROOM.tileH * 0.34;
-    const shadowY = c.y + 3;
-    const soft = floorCtx.createRadialGradient(c.x, shadowY, shadowRX * 0.08, c.x, shadowY, shadowRX);
+    const shadowRX = tiles * ROOM.tileW * 0.25;
+    const shadowRY = tiles * ROOM.tileH * 0.27;
+    const shadowY = c.y + 2;
+    const soft = floorCtx.createRadialGradient(c.x, shadowY, shadowRX * 0.08,
+      c.x, shadowY, shadowRX);
     soft.addColorStop(0, 'rgba(0,0,0,0.55)');
     soft.addColorStop(0.45, 'rgba(0,0,0,0.34)');
     soft.addColorStop(1, 'rgba(0,0,0,0)');
@@ -4576,43 +4733,87 @@
     // An upgraded piece carries its mark: one stripe per tier above the
     // first, painted on the floor in front of it, so a room of Mk III
     // treadmills reads differently from a room of new ones without having
-    // to be told. Stripes rather than dots -- a dot under a piece of gear
-    // is the thing this stopped doing.
+    // to be told.
     if (tier > 1) {
       for (let i = 0; i < tier - 1; i++) {
         const px = c.x + (i - (tier - 2) / 2) * ROOM.tileW * 0.11;
-        roundRectPath(floorCtx, px - ROOM.tileW * 0.022, c.y + ROOM.tileH * 0.40,
-          ROOM.tileW * 0.044, ROOM.tileH * 0.14, ROOM.tileW * 0.018);
+        roundRectPath(floorCtx, px - ROOM.tileW * 0.022,
+          shadowY + shadowRY * 0.72, ROOM.tileW * 0.044, ROOM.tileH * 0.14,
+          ROOM.tileW * 0.018);
         floorCtx.fillStyle = hexA(catColor, 0.9);
         floorCtx.fill();
       }
     }
 
-    // Turning a piece is a mirror about its own centre. It costs nothing and
-    // needs no second drawing of anything: the silhouette that comes out is
-    // exactly the piece lying along the other lattice axis. What it does not
-    // get right is the lighting, which mirrors with it, so a turned piece is
-    // lit from the other side -- at this size, and against art this flat,
-    // that is a trade worth making for a room you can actually arrange.
-    if (turned) {
-      floorCtx.translate(c.x, 0);
-      floorCtx.scale(-1, 1);
-      floorCtx.translate(-c.x, 0);
-    }
-
-    const sprite = itemSprites[itemId];
-    const drewSprite = sprite && drawItemSprite(floorCtx, c, sprite, itemId);
     const build = PROP_BUILDERS[itemId];
-    if (drewSprite) {
-      // real icon art, already drawn above
-    } else if (build) {
-      build(floorCtx, c);
+    if (build) {
+      blitProp(itemId, turn || 0, c);
     } else {
-      // Every current item has a PROP_BUILDER; this is just a safety net for
-      // a future item that doesn't yet, drawn as a plain block.
-      drawIsoBox(floorCtx, c, 0, 0, 0.24, 0.24, 20, catColor, 0);
+      // Nothing should reach here, but a piece with no drawing at all would
+      // otherwise be an invisible thing standing on the floor earning money.
+      drawIsoBox(floorCtx, c, 0, 0, tiles / 2, tiles / 2, 0.6 * PX_PER_METRE_TALL,
+        catColor, 0);
     }
     floorCtx.restore();
+  }
+
+  // A piece is a dozen gradient-filled faces, and a full gym has sixty of
+  // them on screen, redrawn twenty times a second under the crowd. Drawn
+  // live that cost more than the flat pictures it replaced. So each piece
+  // is drawn once, at each turn, into a bitmap of its own, and stamped from
+  // there -- which is cheaper than the pictures were. Nothing in a builder
+  // moves, so the bitmap never goes stale; it is only thrown away when the
+  // canvas's own resolution changes, because a bitmap made for one scale
+  // blurs at another.
+  const propCache = new Map();
+  let propCacheScale = 0;
+
+  function blitProp(itemId, turn, c) {
+    const scale = floorCtx.getTransform().a || 1;
+    if (scale !== propCacheScale) {
+      propCache.clear();
+      propCacheScale = scale;
+    }
+    const key = itemId + ':' + turn;
+    let entry = propCache.get(key);
+    if (!entry) {
+      entry = renderPropBitmap(itemId, turn, scale);
+      propCache.set(key, entry);
+    }
+    // Snapped to whole device pixels, or the stamp lands between them and
+    // comes out soft on one side.
+    const x = Math.round((c.x - entry.ox) * scale) / scale;
+    const y = Math.round((c.y - entry.oy) * scale) / scale;
+    floorCtx.drawImage(entry.canvas, x, y, entry.w, entry.h);
+  }
+
+  function renderPropBitmap(itemId, turn, scale) {
+    // Generous bounds off the piece's footprint: as wide as its longest side
+    // could reach on either lattice axis, and tall enough for anything that
+    // stands under the wall line, plus a margin for a rail or a frond that
+    // pokes past.
+    const tiles = drawSizeOf(itemId) * TILES_PER_METRE;
+    const w = Math.ceil(tiles * ROOM.tileW * 1.3 + 40);
+    const h = Math.ceil(tiles * ROOM.tileH * 1.3 + 2.3 * PX_PER_METRE_TALL + 40);
+    const ox = w / 2;
+    const oy = h - tiles * ROOM.tileH * 0.65 - 20;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(w * scale);
+    canvas.height = Math.ceil(h * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    // The builders draw through floorCtx by name, so it is pointed at the
+    // bitmap for the duration and put back after.
+    const live = floorCtx;
+    floorCtx = ctx;
+    propTurn = turn;
+    try {
+      PROP_BUILDERS[itemId](ctx, { x: ox, y: oy });
+    } finally {
+      propTurn = 0;
+      floorCtx = live;
+    }
+    return { canvas, w, h, ox, oy };
   }
 
   function pointFromEvent(e) {
@@ -4840,11 +5041,11 @@
       spot: at,
       // Picked up the way it was standing, so moving a turned piece does
       // not quietly straighten it out.
-      turned: !!(spot && spot.r),
+      turn: spot && spot.r ? (spot.r & 3) : 0,
       // Where it stood when it was picked up -- the position itself, not the
       // snapped working copy, so cancelling a piece that was sitting between
       // two steps of the grid puts it back between them.
-      originSpot: { u: spot.u, v: spot.v, r: spot && spot.r ? 1 : 0 },
+      originSpot: { u: spot.u, v: spot.v, r: spot && spot.r ? (spot.r & 3) : 0 },
       fromIndex: fromIndex === undefined ? null : fromIndex,
     };
     armedItemId = null;
@@ -4882,7 +5083,7 @@
 
   function turnEdit() {
     if (!editing) return;
-    editing.turned = !editing.turned;
+    editing.turn = (editing.turn + 1) & 3;
     renderScene();
   }
 
@@ -4907,7 +5108,7 @@
     if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
     room.layout[slot] = editing.itemId;
     room.spots[slot] = {
-      u: editing.spot.u, v: editing.spot.v, r: editing.turned ? 1 : 0 };
+      u: editing.spot.u, v: editing.spot.v, r: editing.turn & 3 };
     endEdit();
   }
 
