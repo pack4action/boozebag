@@ -1496,6 +1496,10 @@
     });
     if (!s.owned.frontdesk) s.owned.frontdesk = 1;
 
+    // "First Rep" is gone -- it fired on the same click as opening up -- so a
+    // save that won it carries a key for a trophy that no longer exists.
+    if (s.trophies && s.trophies.first) delete s.trophies.first;
+
     // A save from before the counter existed has no larder, and a hand-edited
     // one could hold anything. Whatever is there is read back to whole
     // counts of products that still exist.
@@ -1945,8 +1949,8 @@
   //
   // They are permanent. Franchising clears the gym; it does not clear these.
   const TROPHIES = [
-    { id: 'first', name: 'First Rep', hint: 'Place a piece of gear on the floor',
-      cash: 100, got: (c) => c.placed >= 1 },
+    { id: 'open', name: 'Open For Business', hint: 'Put the Customer Desk on the floor',
+      cash: 50, got: (c) => c.open },
     { id: 'ten', name: 'Kitted Out', hint: 'Have ten pieces on the floor at once',
       cash: 400, got: (c) => c.placed >= 10 },
     { id: 'fullroom', name: 'Not An Inch Spare', hint: 'Fill every slot in one room',
@@ -1976,8 +1980,6 @@
     { id: 'pier', name: 'Out On The Pier', hint: 'Open the Boardwalk and put gear on it',
       cash: 50000000, got: (c) => c.themesUsed >= 4 },
 
-    { id: 'open', name: 'Open For Business', hint: 'Put the Customer Desk on the floor',
-      cash: 50, got: (c) => c.open },
     { id: 'staff1', name: 'On The Payroll', hint: 'Hire your first member of staff',
       cash: 2000, got: (c) => c.staff >= 1 },
     { id: 'staffall', name: 'Full Team', hint: 'Employ every kind of staff at once',
