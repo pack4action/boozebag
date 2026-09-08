@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=9" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=5" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=36" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=37" />
 </head>
 <body class="game-body">
 
@@ -72,7 +72,7 @@
   <div class="game-hud">
     <div class="hud-stat"><span class="hud-label">Total Gains</span><span class="hud-value" id="hud-total">0</span></div>
     <div class="hud-stat"><span class="hud-label">Per Second</span><span class="hud-value" id="hud-gps">0</span></div>
-    <div class="hud-stat"><span class="hud-label">On The Floor</span><span class="hud-value" id="hud-floor">$0</span></div>
+    <div class="hud-stat"><span class="hud-label" id="hud-floor-label">On The Floor</span><span class="hud-value" id="hud-floor">$0</span></div>
     <div class="hud-stat hud-level">
       <span class="hud-label">Level</span>
       <span class="hud-value" id="hud-level">1</span>
@@ -130,7 +130,7 @@
       <summary>How it works</summary>
       <div class="tycoon-howto-body">
         <p><b>Opening up.</b> You start with a Customer Desk and nothing else. Put it on the floor and the doors open: it takes membership fees on its own, and the shop opens with it. Every location needs a desk of its own before it earns a cent, and a desk is never sold.</p>
-        <p><b>Picking up the money.</b> Gear does not pay you directly. What it takes piles up at its foot, with a tag above the piece counting it. Tap either the tag or the notes to pick the money up. The tag is drawn over everything, so money is never hidden behind a machine or somebody walking past. A pile only holds a couple of minutes of takings before it is full and the piece stops earning, so early on you are forever picking cash off the floor. Upgrading the Customer Desk lets every pile hold more, and hiring Cashiers collects a share of everything for you as it is earned -- three of them and nothing touches the floor at all.</p>
+        <p><b>Picking up the money.</b> Gear does not pay you directly. What it takes collects in a coin bubble over the machine. Tap the bubble to pick the money up. Bubbles are drawn over everything else, so money is never hidden behind a machine or somebody walking past. A pile only holds a couple of minutes of takings before it is full and the piece stops earning, so early on you are forever picking cash off the floor. Upgrading the Customer Desk lets every pile hold more, and hiring Cashiers collects a share of everything for you as it is earned -- three of them and nothing touches the floor at all.</p>
         <p><b>Placing gear.</b> Click a piece below to pick it up, nudge it with the arrows or just drag it, then hit the tick. It lands wherever you left it, not on a grid square. Click a placed piece to move it again or store it. Only what is on the floor earns anything, and gear in your inventory sells back for 60% of what it cost.</p>
         <p><b>Arrangement.</b> Two pieces of the same category -- they are colour-coded -- standing within about two metres of each other are worth +12% each. A Gear Fridge or Hype Sound System next to something from a different category is worth +20%.</p>
         <p><b>Rush orders.</b> From level 3 the board carries one timed order at a time: three times the pay of a standing job, eight minutes to do it in, and it only ever asks for something you can buy or place on the spot. Miss one and the board goes quiet for twenty minutes; finish one and the next comes sooner.</p>
@@ -185,6 +185,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=74"></script>
+<script src="assets/js/gym-tycoon.js?v=75"></script>
 </body>
 </html>

@@ -2703,13 +2703,23 @@
   // ---- HUD ----
   const hudGps = document.getElementById('hud-gps');
   const hudFloor = document.getElementById('hud-floor');
+  const hudFloorLabel = document.getElementById('hud-floor-label');
   function refreshHud() {
     hudTotal.textContent = '$' + formatNum(state.balance);
     hudGps.textContent = formatNum(gps) + '/s';
     if (hudFloor) {
+      // The figure alone, and never anything else: this box is a fixed size
+      // and a longer string in it would resize the whole row of stats and
+      // shove the page about. How many pieces have stopped earning goes on
+      // the label above it instead.
       const full = fullPiles();
-      hudFloor.textContent = '$' + formatNum(floorCash()) + (full ? ' · ' + full + ' full' : '');
+      hudFloor.textContent = '$' + formatNum(floorCash());
       hudFloor.classList.toggle('is-full', full > 0);
+      if (hudFloorLabel) {
+        const label = full ? 'On The Floor · ' + full + ' full' : 'On The Floor';
+        if (hudFloorLabel.textContent !== label) hudFloorLabel.textContent = label;
+        hudFloorLabel.classList.toggle('is-full', full > 0);
+      }
     }
   }
 
@@ -5188,61 +5198,11 @@
       }
       drawProp(itemId, c, tierOf(itemId), turnAt(room, index));
       const pile = pileOf(room, shape, index);
-      if (pile.level > 0) {
-        const foot = pileAnchor(place, room, shape, index);
-        drawCashStack(foot, pile);
-        queuePileTag(roomIndex, index, itemId, turnAt(room, index), c, foot, pile);
-      }
+      if (pile.level > 0) queuePileTag(roomIndex, index, itemId, turnAt(room, index), c, pile);
     });
 
     if (editing && editing.roomIndex === roomIndex) {
       drawHeldPiece(place, editing);
-    }
-  }
-
-  // Where a piece's pile sits: just in front of its footprint's near corner,
-  // on the floor, where it is clear of the piece and easy to tap.
-  function pileAnchor(place, room, shape, index) {
-    const sp = spotOf(room, index, shape);
-    const h = halfBoxOf(room.layout[index], turnAt(room, index));
-    return isoPoint(place.gx0 + sp.u + h.u * 0.55, place.gy0 + sp.v + h.v + 0.45);
-  }
-  // How far from the middle of the notes a tap still counts as reaching for
-  // them. The notes are small, so this is generous.
-  const PILE_HIT = 16;
-
-  // The notes themselves, on the floor at the piece's foot. This is the part
-  // that can end up behind something -- it is scenery, and the tag below is
-  // what guarantees the money is always visible and always reachable.
-  function drawCashStack(c, pile) {
-    const ctx = floorCtx;
-    const stacks = pile.level >= 4 ? 3 : pile.level;
-    const full = pile.level >= 4;
-    // A ring on the floor a full pile sits in, so it reads as waiting.
-    if (full) {
-      ctx.beginPath();
-      ctx.ellipse(c.x, c.y + 2, 15, 7.5, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255,183,3,0.85)';
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
-    }
-    ctx.beginPath();
-    ctx.ellipse(c.x, c.y + 2, 11, 5, 0, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.fill();
-    // Banded stacks of notes, each a little offset from the one below.
-    for (let i = 0; i < stacks; i++) {
-      const y = c.y - i * 4.2;
-      const x = c.x + (i % 2 ? 1.5 : -1.5);
-      ctx.fillStyle = i % 2 ? '#3f9a5c' : '#4aae69';
-      ctx.fillRect(x - 8, y - 4, 16, 5);
-      ctx.fillStyle = '#2e7a46';
-      ctx.fillRect(x - 8, y - 4, 16, 1.2);
-      ctx.fillStyle = '#d9c46a';
-      ctx.fillRect(x - 2, y - 4, 4, 5);
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-      ctx.lineWidth = 0.8;
-      ctx.strokeRect(x - 8, y - 4, 16, 5);
     }
   }
 
@@ -5253,15 +5213,18 @@
   // is where they ended up, which is also what a tap is tested against.
   let pileTags = [];
   let pileTagRects = [];
-  function queuePileTag(roomIndex, index, itemId, turn, base, foot, pile) {
+  function queuePileTag(roomIndex, index, itemId, turn, base, pile) {
     // A coin bubble over the machine, the way an idle game asks to be
     // tapped: above the piece's own artwork so it is never mistaken for
     // part of it, but no higher than a hand's reach above the floor it
     // stands on, so a tall machine does not send its bubble to the ceiling.
+    // It is the only place money appears. Notes stacked on the floor as
+    // well made a busy room impossible to read, and they were the half that
+    // could end up hidden behind something.
     const e = propCache.get(itemId + ':' + turn);
     const top = e ? base.y - e.oy - 8 : base.y - 40;
     pileTags.push({
-      roomIndex, index, pile, foot,
+      roomIndex, index, pile,
       x: base.x,
       y: Math.max(top, base.y - 78),
       depth: base.y,
@@ -5296,14 +5259,12 @@
   function drawPileTag(r, label, t) {
     const ctx = floorCtx;
     const full = t.pile.level >= 4;
-    // A thread down to the money it is counting, so a bubble that has been
-    // pushed up out of the way of another one still points at its own
-    // machine. Not drawn when the bubble already sits over the piece.
-    const mid = r.y + r.h / 2;
-    if (mid < t.foot.y - 60) {
+    // A thread when the bubble has had to move up out of the way of another
+    // one, so it still points at its own machine.
+    if (r.y + r.h < t.y - 4) {
       ctx.beginPath();
       ctx.moveTo(t.x, r.y + r.h);
-      ctx.lineTo(t.foot.x, t.foot.y - 4);
+      ctx.lineTo(t.x, t.y);
       ctx.strokeStyle = full ? 'rgba(255,183,3,0.45)' : 'rgba(255,255,255,0.22)';
       ctx.lineWidth = 1;
       ctx.stroke();
@@ -5360,26 +5321,6 @@
       }
     }
     return null;
-  }
-
-  // The pile under a point on the canvas, if any: the same circle the pile
-  // is drawn in, so what you see is what you can tap.
-  function pileAtPoint(px, py) {
-    let best = null;
-    activeRooms().forEach((room, roomIndex) => {
-      const place = placements[roomIndex];
-      if (!place) return;
-      const shape = roomShapeFor(state.activeTheme, roomIndex);
-      room.layout.forEach((id, i) => {
-        if (!id) return;
-        const pile = pileOf(room, shape, i);
-        if (pile.level === 0) return;
-        const c = pileAnchor(place, room, shape, i);
-        const d = Math.hypot(px - c.x, py - (c.y - pile.level * 3));
-        if (d <= PILE_HIT && (!best || d < best.d)) best = { roomIndex, index: i, d };
-      });
-    });
-    return best ? { roomIndex: best.roomIndex, index: best.index } : null;
   }
 
   // The piece in your hands: a marked footprint on the floor so you can see
@@ -5981,9 +5922,9 @@
       || (!!a && !!b && a.roomIndex === b.roomIndex && a.index === b.index);
   }
 
-  // Whether the pointer is over money -- a tag or the notes under it.
+  // Whether the pointer is over a machine's money bubble.
   function overCash(px, py) {
-    return !editing && !!(pileTagAtPoint(px, py) || pileAtPoint(px, py));
+    return !editing && !!pileTagAtPoint(px, py);
   }
 
   function setHoverCell(next) {
@@ -6341,9 +6282,9 @@
       if (hit && hit.roomIndex === editing.roomIndex) moveEditTo(hit.u, hit.v);
       return;
     }
-    // Cash first: a pile is the thing you are most likely reaching for, and
-    // its tag -- which is drawn over everything -- before the notes.
-    const pile = pileTagAtPoint(px, py) || pileAtPoint(px, py);
+    // Cash first: the bubble over a machine is the thing you are most
+    // likely reaching for, and it is drawn over everything.
+    const pile = pileTagAtPoint(px, py);
     if (pile) {
       collectPile(pile.roomIndex, pile.index);
       return;

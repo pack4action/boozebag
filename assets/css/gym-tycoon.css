@@ -192,7 +192,14 @@
 .tycoon-inv-item.is-needed { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(255, 183, 3, 0.25); animation: tycoon-needed 1.6s ease-in-out infinite; }
 @keyframes tycoon-needed { 0%, 100% { box-shadow: 0 0 0 2px rgba(255, 183, 3, 0.2); } 50% { box-shadow: 0 0 0 6px rgba(255, 183, 3, 0.45); } }
 @media (prefers-reduced-motion: reduce) { .tycoon-inv-item.is-needed { animation: none; } }
-.hud-value.is-full { color: var(--amber); }
+/* Every figure in the HUD changes ten times a second, so each box is a
+   fixed size: a box that grows with its contents drags the whole centred
+   row sideways, and a row that runs out of width wraps and shoves the page
+   down. Nothing in here may be allowed to resize. */
+.tycoon-page .hud-stat { width: 176px; box-sizing: border-box; }
+.tycoon-page .hud-value { white-space: nowrap; }
+.tycoon-page .hud-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud-label.is-full { color: var(--amber); }
 .tycoon-open-hint { margin: 6px 0 4px; padding: 10px 12px; border-radius: 10px; background: rgba(255, 183, 3, 0.12); border: 1px solid rgba(255, 183, 3, 0.45); color: var(--text); font-size: 13px; line-height: 1.45; }
 .tycoon-inv-arm {
   display: flex;
