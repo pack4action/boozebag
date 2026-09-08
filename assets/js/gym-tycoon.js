@@ -2627,15 +2627,15 @@
     boardwalk: 'rgba(240, 186, 108, 0.5)',
   };
 
-  // Per-theme ceiling fixture + ambient glow pool. Rooftop has no fixture
-  // (it's open to the sky) but still gets a warm sun-glow on the floor.
+  // Per-theme light: the colour of the downlights and of the pool they
+  // throw on the floor.
   const LIGHT_COLORS = {
-    garage: { glow: 'rgba(255,196,120,0.30)', cord: '#171310', shade: '#caa25c', shadeDark: '#8a6a34', bulb: '#fff2cf' },
-    basement: { glow: 'rgba(170,210,255,0.20)', cord: '#0b0f12', shade: '#c6d6de', shadeDark: '#84949e', bulb: '#eaf7ff' },
-    rooftop: { glow: 'rgba(255,236,180,0.38)', cord: null, shade: null, shadeDark: null, bulb: null },
+    garage: { glow: 'rgba(255,196,120,0.30)', bulb: '#fff2cf' },
+    basement: { glow: 'rgba(170,210,255,0.20)', bulb: '#eaf7ff' },
+    rooftop: { glow: 'rgba(255,236,180,0.38)', bulb: '#fff4d6' },
     // Open to the sky like the rooftop, but hung with festoon bulbs rather
     // than lit by nothing, so it reads as somewhere that stays open late.
-    boardwalk: { glow: 'rgba(255,214,150,0.34)', cord: '#3a2c1c', shade: '#e2b878', shadeDark: '#a3814c', bulb: '#fff1cd' },
+    boardwalk: { glow: 'rgba(255,214,150,0.34)', bulb: '#fff1cd' },
   };
 
   // Placement counts are global across every room in every theme's chain
@@ -3391,43 +3391,6 @@
 
   // Hanging bulb (garage/basement) -- skipped for rooftop, which is lit by
   // open sky instead of a fixture.
-  function drawLampFixture(anchor, light) {
-    if (!light.cord) return;
-    const cordLen = 30;
-    const bulbY = anchor.y + cordLen;
-    floorCtx.beginPath();
-    floorCtx.moveTo(anchor.x, anchor.y);
-    floorCtx.lineTo(anchor.x, bulbY);
-    floorCtx.strokeStyle = light.cord;
-    floorCtx.lineWidth = 2;
-    floorCtx.stroke();
-
-    floorCtx.beginPath();
-    floorCtx.moveTo(anchor.x - 13, bulbY);
-    floorCtx.lineTo(anchor.x + 13, bulbY);
-    floorCtx.lineTo(anchor.x + 7, bulbY + 14);
-    floorCtx.lineTo(anchor.x - 7, bulbY + 14);
-    floorCtx.closePath();
-    floorCtx.fillStyle = light.shadeDark;
-    floorCtx.fill();
-    floorCtx.beginPath();
-    floorCtx.moveTo(anchor.x - 13, bulbY);
-    floorCtx.lineTo(anchor.x + 13, bulbY);
-    floorCtx.lineTo(anchor.x + 10, bulbY - 5);
-    floorCtx.lineTo(anchor.x - 10, bulbY - 5);
-    floorCtx.closePath();
-    floorCtx.fillStyle = light.shade;
-    floorCtx.fill();
-
-    floorCtx.beginPath();
-    floorCtx.arc(anchor.x, bulbY + 18, 5, 0, Math.PI * 2);
-    floorCtx.fillStyle = light.bulb;
-    floorCtx.shadowColor = light.bulb;
-    floorCtx.shadowBlur = 12;
-    floorCtx.fill();
-    floorCtx.shadowBlur = 0;
-  }
-
   // The walls/floor only cover the middle ~70% of the canvas width -- the
   // ~70px strips on either side (and the sliver above the wall peak) are
   // plain background. Give each theme something to actually look at back
@@ -3585,11 +3548,14 @@
   // Two rooms of the same theme would otherwise be the same box twice over.
   // Each position in a chain gets its own lighting rig and its own set of
   // wall fittings on top of whatever the theme itself puts up.
-  // Deliberately escalating: the starter bay is a bare room with one bulb,
-  // and each one bought after it arrives better appointed than the last, so
-  // the plan visibly improves as it grows rather than repeating one room.
+  // Deliberately escalating: the starter bay is a bare room, and each one
+  // bought after it arrives better appointed than the last, so the plan
+  // visibly improves as it grows rather than repeating one room. Every room
+  // is properly lit, though -- a rail of downlights along both back walls
+  // -- because a single bulb on a cord made the first room look like a
+  // cellar you had not moved into yet.
   const ROOM_FITS = [
-    { lighting: 'bulb', decor: [] },
+    { lighting: 'strip', decor: [] },
     { lighting: 'strip', decor: ['vent', 'shelf'] },
     { lighting: 'strip', decor: ['shelf', 'clock', 'banner'] },
     { lighting: 'strip', decor: ['mirror', 'shelf', 'banner', 'clock', 'vent'] },
@@ -3644,6 +3610,19 @@
         floorCtx.shadowBlur = 9;
         floorCtx.fill();
         floorCtx.shadowBlur = 0;
+
+        // And a pool on the floor at the foot of the wall under it.
+        const foot = wallPoint(from, to, t, 0);
+        const pool = floorCtx.createRadialGradient(foot.x, foot.y, 2, foot.x, foot.y, ROOM.tileW * 1.15);
+        pool.addColorStop(0, scaleAlpha(light.glow, lampBoost() * 0.9));
+        pool.addColorStop(1, 'rgba(0,0,0,0)');
+        floorCtx.save();
+        floorCtx.globalCompositeOperation = 'lighter';
+        floorCtx.fillStyle = pool;
+        floorCtx.beginPath();
+        floorCtx.ellipse(foot.x, foot.y, ROOM.tileW * 1.15, ROOM.tileH * 1.15, 0, 0, Math.PI * 2);
+        floorCtx.fill();
+        floorCtx.restore();
       }
     });
   }
@@ -4574,11 +4553,7 @@
     // Drawn before the props loop below, not after -- otherwise a fixture
     // would float on top of tall gear placed in the center-ish slots
     // instead of being hidden behind it like real ceiling hardware.
-    if (roomFitFor(roomIndex).lighting === 'strip') {
-      drawCeilingStrip(north, east, west, light);
-    } else {
-      drawLampFixture({ x: roomCenterFloor.x, y: roomCenterFloor.y - ROOM.wallH + 6 }, light);
-    }
+    drawCeilingStrip(north, east, west, light);
 
     // Gear stands wherever it was put, not in a grid cell, so the draw
     // order comes from the pieces themselves -- furthest back first, or a
