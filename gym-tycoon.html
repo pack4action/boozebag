@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=9" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=5" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=37" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=38" />
 </head>
 <body class="game-body">
 
@@ -38,7 +38,7 @@
 <main class="game-page tycoon-page">
   <div class="game-head">
     <h1 class="game-title">GYM <span class="hl">TYCOON</span></h1>
-    <p class="game-sub">Start from nothing. Buy and place gym gear to earn gains per second, level up as you kit the place out, and unlock new spaces and an office tier as you go. Only gear actually placed on the floor earns anything, and matching equipment placed next to each other earns a synergy bonus -- how you arrange each room matters as much as what you buy.</p>
+    <p class="game-sub">Open a gym, fill it with kit, and keep the money moving. Only gear standing on the floor earns, arrangement matters as much as what you buy, and the takings sit in a bubble over each machine until somebody picks them up.</p>
   </div>
 
   <div class="game-switcher">
@@ -84,12 +84,14 @@
   <div class="game-toast" id="game-toast"></div>
 
   <div class="tycoon-designer">
-    <input class="tycoon-gym-name" id="gym-name" type="text" maxlength="28"
-      placeholder="Name your gym" aria-label="Gym name" autocomplete="off" spellcheck="false" />
-    <div class="tycoon-rush" id="rush-badge"></div>
-    <button class="tycoon-promo-btn" id="btn-promo" type="button"></button>
-    <div class="tycoon-room-actions" id="room-actions"></div>
-    <div class="tycoon-theme-row" id="theme-row"></div>
+    <div class="tycoon-toolbar">
+      <div class="tycoon-theme-row" id="theme-row"></div>
+      <div class="tycoon-toolbar-end">
+        <div class="tycoon-rush" id="rush-badge"></div>
+        <div class="tycoon-room-actions" id="room-actions"></div>
+        <button class="tycoon-promo-btn" id="btn-promo" type="button"></button>
+      </div>
+    </div>
     <div class="tycoon-stage-wrap">
       <div class="tycoon-room-stage" id="room-stage-scroll">
         <div class="tycoon-room-zoom-wrap" id="room-zoom-wrap">
@@ -123,51 +125,73 @@
         </div>
       </div>
     </div>
-    <p class="tycoon-synergy" id="tycoon-synergy"></p>
-    <div class="tycoon-inventory" id="tycoon-inventory"></div>
     <p class="tycoon-open-hint" id="open-hint" hidden></p>
-    <details class="tycoon-howto">
-      <summary>How it works</summary>
-      <div class="tycoon-howto-body">
-        <p><b>Opening up.</b> You start with a Customer Desk and nothing else. Put it on the floor and the doors open: it takes membership fees on its own, and the shop opens with it. Every location needs a desk of its own before it earns a cent, and a desk is never sold.</p>
-        <p><b>Picking up the money.</b> Gear does not pay you directly. What it takes collects in a coin bubble over the machine. Tap the bubble to pick the money up. Bubbles are drawn over everything else, so money is never hidden behind a machine or somebody walking past. A pile only holds a couple of minutes of takings before it is full and the piece stops earning, so early on you are forever picking cash off the floor. Upgrading the Customer Desk lets every pile hold more, and hiring Cashiers collects a share of everything for you as it is earned -- three of them and nothing touches the floor at all.</p>
-        <p><b>Placing gear.</b> Click a piece below to pick it up, nudge it with the arrows or just drag it, then hit the tick. It lands wherever you left it, not on a grid square. Click a placed piece to move it again or store it. Only what is on the floor earns anything, and gear in your inventory sells back for 60% of what it cost.</p>
-        <p><b>Arrangement.</b> Two pieces of the same category -- they are colour-coded -- standing within about two metres of each other are worth +12% each. A Gear Fridge or Hype Sound System next to something from a different category is worth +20%.</p>
-        <p><b>Rush orders.</b> From level 3 the board carries one timed order at a time: three times the pay of a standing job, eight minutes to do it in, and it only ever asks for something you can buy or place on the spot. Miss one and the board goes quiet for twenty minutes; finish one and the next comes sooner.</p>
-        <p><b>Fittings.</b> A palm, a water cooler, a mirror wall or a neon sign earns nothing on its own. It raises the room's vibe, which lifts everything else in the room and draws a bigger crowd. Each one takes a slot a machine could have had, which is the trade.</p>
-        <p><b>Rooms and themes.</b> Garage, Basement and Rooftop are three separate gyms, each growing its own chain of rooms joined by hallways, and each laid out differently -- the garage is a row of wide vehicle bays, the basement a chain of narrow cells, the rooftop a spread of open decks. Gear stays where you put it when you switch. Drag or swipe to pan; pinch, or hold ctrl and scroll, to zoom.</p>
-        <p><b>Levels.</b> Every piece you buy earns experience and better kit earns more. Levelling up is what opens the Basement, the Rooftop and the office tier.</p>
-        <p><b>Jobs.</b> Three standing requests beside the shop, with the money and experience for doing them stated up front. Finish one and another takes its place.</p>
-        <p><b>Staff.</b> Hired for cash, then paid a share of what the gym takes. Cashiers collect the money for you, Cleaners lift every room's vibe, Receptionists make the rush bigger, and a Floor Manager adds to everything. Each extra hire in a role is worth less than the one before while the wage stays the same, so there is a point past which the next one costs more than they bring in. Anyone can be let go.</p>
-        <p><b>Rush hours.</b> The gym fills up in the morning and again in the evening, on your own clock, and everything earns a bonus while it lasts. A quiet hour is never worse than normal.</p>
-        <p><b>Franchising.</b> Once the shop runs out, cash the whole gym in for points that multiply everything from then on. You keep your level and everything it unlocked.</p>
-      </div>
-    </details>
-    <details class="tycoon-trophies">
-      <summary>Trophies <span class="tycoon-trophy-count" id="trophy-count"></span></summary>
-      <div class="tycoon-trophy-grid" id="trophy-grid"></div>
-    </details>
+    <p class="tycoon-synergy" id="tycoon-synergy"></p>
+    <div class="tycoon-tray">
+      <h3 class="tycoon-panel-title">Storage <span class="tycoon-panel-sub">gear you own but have not put down &mdash; click a piece to place it</span></h3>
+      <div class="tycoon-inventory" id="tycoon-inventory"></div>
+    </div>
   </div>
 
   <div class="tycoon-sidebar">
-    <div class="tycoon-jobs">
-      <h3 class="tycoon-jobs-title">Jobs <span class="tycoon-jobs-sub">finish one, get paid, get another</span></h3>
+    <div class="tycoon-tabs" id="panel-tabs" role="tablist">
+      <button class="tycoon-tab is-active" type="button" data-panel="shop" role="tab">Shop</button>
+      <button class="tycoon-tab" type="button" data-panel="jobs" role="tab">Jobs<span class="tycoon-tab-dot" id="tab-dot-jobs" hidden></span></button>
+      <button class="tycoon-tab" type="button" data-panel="staff" role="tab" hidden>Staff</button>
+      <button class="tycoon-tab" type="button" data-panel="gym" role="tab">Gym</button>
+    </div>
+
+    <section class="tycoon-panel" data-panel="shop">
+      <p class="tycoon-panel-note">Everything you buy lands in storage under the plan. Put it on the floor to make it earn.</p>
+      <div class="tycoon-shop" id="shop-grid"></div>
+    </section>
+
+    <section class="tycoon-panel tycoon-jobs" data-panel="jobs" hidden>
+      <p class="tycoon-panel-note">Three standing requests, and from level 3 one timed rush order worth triple. The pay and the experience are stated before you start.</p>
       <div class="tycoon-rush-order" id="rush-order" hidden></div>
       <div class="tycoon-jobs-list" id="jobs-list"></div>
-    </div>
+    </section>
 
-    <div class="tycoon-staff">
-      <h3 class="tycoon-jobs-title">Staff <span class="tycoon-jobs-sub" id="staff-wages">no wages to pay</span></h3>
+    <section class="tycoon-panel tycoon-staff" data-panel="staff" hidden>
+      <p class="tycoon-panel-note">Staff are hired for cash and then paid a share of the takings. <span id="staff-wages">no wages to pay</span></p>
       <div class="tycoon-staff-list" id="staff-list"></div>
-    </div>
+    </section>
 
-    <div class="tycoon-franchise" id="franchise-panel" hidden>
-      <h3 class="tycoon-jobs-title">Franchise <span class="tycoon-jobs-sub" id="franchise-held"></span></h3>
-      <p class="tycoon-franchise-note" id="franchise-note"></p>
-      <button class="tycoon-franchise-btn" id="btn-franchise" type="button"></button>
-    </div>
+    <section class="tycoon-panel" data-panel="gym" hidden>
+      <input class="tycoon-gym-name" id="gym-name" type="text" maxlength="28"
+        placeholder="Name your gym" aria-label="Gym name" autocomplete="off" spellcheck="false" />
+      <h3 class="tycoon-panel-title">Your locations <span class="tycoon-panel-sub">click one to go there</span></h3>
+      <div class="tycoon-overview" id="overview"></div>
 
-    <div class="tycoon-shop" id="shop-grid"></div>
+      <div class="tycoon-franchise" id="franchise-panel" hidden>
+        <h3 class="tycoon-panel-title">Franchise <span class="tycoon-panel-sub" id="franchise-held"></span></h3>
+        <p class="tycoon-franchise-note" id="franchise-note"></p>
+        <button class="tycoon-franchise-btn" id="btn-franchise" type="button"></button>
+      </div>
+
+      <details class="tycoon-trophies">
+        <summary>Trophies <span class="tycoon-trophy-count" id="trophy-count"></span></summary>
+        <div class="tycoon-trophy-grid" id="trophy-grid"></div>
+      </details>
+
+      <details class="tycoon-howto">
+        <summary>How it works</summary>
+        <div class="tycoon-howto-body">
+          <p><b>Opening up.</b> You start with a Customer Desk and nothing else. Put it on the floor and the doors open: it takes membership fees by itself, and the shop opens with it. Every location needs a desk of its own before it earns a cent, and a desk is never sold.</p>
+          <p><b>The money.</b> Gear does not pay you directly. What a machine takes collects in a coin bubble above it, and you tap the bubble to pick it up. A bubble holds about two minutes of that machine's takings, and once it is full the machine stops earning until you empty it. Upgrading the Customer Desk raises what every bubble can hold, up to an hour at Mk IV, and hiring Cashiers collects a share for you as it is earned. Three Cashiers and nothing waits on the floor at all.</p>
+          <p><b>Placing gear.</b> Click a piece in storage to pick it up, drag it or nudge it with the arrows, then press Place. It stands wherever you left it rather than in a grid square. Click a piece already down to move it again or put it back in storage. Gear in storage sells for 60% of what it cost.</p>
+          <p><b>Room to use it.</b> Every machine keeps a strip of clear floor on the side you step onto it from, drawn as a dashed patch while you hold it. Two treadmills side by side are fine; one parked behind another is not, because nobody could get on the back one.</p>
+          <p><b>Arrangement.</b> Two pieces of the same category, which are colour-coded, standing within about two metres of each other are worth +12% each. A Gear Fridge or Hype Sound System next to something from a different category is worth +20%.</p>
+          <p><b>Fittings.</b> A palm, a water cooler, a mirror wall or a neon sign earns nothing by itself. It raises the room's vibe, which lifts everything else in that room and draws a bigger crowd. Each one takes floor a machine could have had, which is the trade.</p>
+          <p><b>Locations and rooms.</b> The Garage, Basement, Rooftop and Boardwalk are four separate gyms, each growing its own chain of rooms joined by hallways, and each laid out differently. Gear stays where you put it when you switch. Drag to pan, and scroll or pinch to zoom.</p>
+          <p><b>Levels.</b> Every piece you buy earns experience, and dearer kit earns more. Levelling up is what opens the other locations, the office tier and the staff roles.</p>
+          <p><b>Jobs.</b> Three standing requests on the Jobs tab, with the money and experience stated up front. Finish one and another takes its place. From level 3 there is also one timed rush order at a time, worth three times a standing job, with eight minutes to do it in. Miss one and the board goes quiet for twenty minutes.</p>
+          <p><b>Staff.</b> Cashiers collect the takings for you, Cleaners lift every room's vibe, Receptionists make the rush bigger, and a Floor Manager adds to everything. Each extra hire in a role is worth less than the one before while the wage stays the same, so there is a point past which the next one costs more than they bring in. Anyone can be let go.</p>
+          <p><b>Rush hours.</b> The gym fills up in the morning and again in the evening, on your own clock, and everything earns a bonus while it lasts. A quiet hour is never worse than normal. An open day is the same thing on demand, once a cooldown allows.</p>
+          <p><b>Franchising.</b> Once the shop runs out, cash the whole gym in for points that multiply everything from then on. You keep your level and everything it unlocked.</p>
+        </div>
+      </details>
+    </section>
   </div>
 
   <p class="game-hint">Progress saves automatically to this browser, but gains only tick up while this tab is open and on screen -- close it or switch away and the gym stops earning until you are back. Connect a wallet to put your total on the leaderboard.</p>
@@ -185,6 +209,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=75"></script>
+<script src="assets/js/gym-tycoon.js?v=76"></script>
 </body>
 </html>

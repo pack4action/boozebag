@@ -1082,3 +1082,144 @@
   cursor: not-allowed;
   filter: saturate(0.4);
 }
+
+
+/* ---- One toolbar over the plan --------------------------------------
+   Locations, the rush badge, the room you can buy next and the open day
+   used to be four separate rows stacked above the floor, which pushed the
+   thing you are actually working on off the screen. */
+.tycoon-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.tycoon-toolbar-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.tycoon-toolbar .tycoon-theme-row,
+.tycoon-toolbar .tycoon-room-actions,
+.tycoon-toolbar .tycoon-rush,
+.tycoon-toolbar .tycoon-promo-btn { margin: 0; }
+
+/* ---- Storage tray ---- */
+.tycoon-tray { margin-top: 12px; }
+.tycoon-panel-title {
+  margin: 0 0 6px;
+  font-family: 'Anton', sans-serif;
+  font-size: 17px;
+  letter-spacing: 0.4px;
+  color: var(--text);
+}
+.tycoon-panel-sub {
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--muted);
+  text-transform: none;
+}
+.tycoon-panel-note {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ---- The side column, as tabs --------------------------------------
+   Four boards in one scrolling column meant the shop and the jobs could
+   never be looked at together and everything was a scroll away. One board
+   at a time, each with the whole height. */
+.tycoon-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 2px;
+}
+.tycoon-tab {
+  position: relative;
+  flex: 1 1 0;
+  padding: 9px 6px;
+  font-family: 'Anton', sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tycoon-tab:hover { color: var(--text); border-color: var(--amber); }
+.tycoon-tab.is-active {
+  color: #1a1200;
+  background: var(--amber);
+  border-color: #000;
+}
+.tycoon-tab-dot {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5);
+}
+.tycoon-tab.is-active .tycoon-tab-dot { background: #1a1200; box-shadow: none; }
+.tycoon-panel[hidden] { display: none; }
+
+/* ---- What the whole business is doing ---- */
+.tycoon-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.ov-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.ov-row:hover { border-color: var(--amber); }
+.ov-row.is-active { border-color: var(--amber); background: rgba(255, 183, 3, 0.08); }
+.ov-row.is-locked { opacity: 0.55; cursor: default; }
+.ov-row.is-locked:hover { border-color: var(--panel-border); }
+.ov-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.ov-name { font-weight: 800; font-size: 13.5px; }
+.ov-meta { font-size: 11.5px; color: var(--muted); }
+.ov-meta.is-shut { color: var(--amber); }
+.ov-rate {
+  font-family: 'Anton', sans-serif;
+  font-size: 15px;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ov-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: rgba(255, 183, 3, 0.1);
+  border: 1px solid rgba(255, 183, 3, 0.35);
+  font-size: 12.5px;
+  color: var(--text);
+}

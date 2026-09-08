@@ -2256,6 +2256,14 @@
     });
   }
 
+  const jobsDotEl = document.getElementById('tab-dot-jobs');
+  function refreshJobsDot() {
+    if (!jobsDotEl) return;
+    const ready = !!document.querySelector('#jobs-list .tycoon-job.is-ready')
+      || !!document.querySelector('#rush-order .tycoon-job.is-ready');
+    if (jobsDotEl.hidden === ready) jobsDotEl.hidden = !ready;
+  }
+
   function refreshJobsUI() {
     if (!jobsListEl) return;
     const signature = state.jobs.map((j) => j.kind + ':' + j.target + ':' + (j.item || j.cat || '')).join('|');
@@ -2577,12 +2585,15 @@
     });
   }
 
-  const staffPanelEl = document.querySelector('.tycoon-staff');
   function refreshStaffUI() {
     if (!staffListEl) return;
-    // Nothing to show a new player but three locked rows, and on a phone
-    // they would have to scroll past them to reach the shop.
-    if (staffPanelEl) staffPanelEl.hidden = !STAFF_ROLES.some(unlockedFor);
+    // Nothing to show a new player but a column of locked rows, so the tab
+    // itself stays away until there is somebody they could hire.
+    const anyStaff = STAFF_ROLES.some(unlockedFor);
+    if (tabEls.staff && tabEls.staff.hidden === anyStaff) {
+      tabEls.staff.hidden = !anyStaff;
+      if (!anyStaff && activePanel === 'staff') showPanel('shop');
+    }
     STAFF_ROLES.forEach((role) => {
       const els = hireEls[role.id];
       if (!els) return;
@@ -6550,7 +6561,115 @@
 
   // ---- Zoom buttons ----
 
+  // ---- Side panel tabs ----
+  // One board at a time. The tab row is built once and never rebuilt, so a
+  // click on it always completes.
+  const tabsEl = document.getElementById('panel-tabs');
+  const panelEls = {};
+  const tabEls = {};
+  let activePanel = 'shop';
+  function showPanel(name) {
+    if (!panelEls[name] || tabEls[name].hidden) return;
+    activePanel = name;
+    Object.keys(panelEls).forEach((key) => {
+      panelEls[key].hidden = key !== name;
+      tabEls[key].classList.toggle('is-active', key === name);
+    });
+  }
+  function buildTabs() {
+    if (!tabsEl) return;
+    document.querySelectorAll('.tycoon-panel').forEach((el) => {
+      panelEls[el.dataset.panel] = el;
+    });
+    tabsEl.querySelectorAll('.tycoon-tab').forEach((btn) => {
+      tabEls[btn.dataset.panel] = btn;
+      btn.addEventListener('click', () => showPanel(btn.dataset.panel));
+    });
+    showPanel('shop');
+  }
+
+  // ---- What the whole business is doing ----
+  // The plan only ever shows one location. This is the answer to "so how am
+  // I doing": every location, whether it is open, how much of it is built
+  // and what it brings in -- and a click to go and look at one.
+  const overviewEl = document.getElementById('overview');
+  const overviewRows = {};
+  let overviewTotalEl = null;
+  function buildOverview() {
+    if (!overviewEl) return;
+    overviewEl.innerHTML = '';
+    overviewTotalEl = document.createElement('div');
+    overviewTotalEl.className = 'ov-total';
+    overviewEl.appendChild(overviewTotalEl);
+    THEMES.forEach((t) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'ov-row';
+      row.innerHTML = '<span class="ov-main"><span class="ov-name"></span>'
+        + '<span class="ov-meta"></span></span><span class="ov-rate"></span>';
+      row.addEventListener('click', () => {
+        if (!unlockedFor(t) || state.activeTheme === t.id) return;
+        state.activeTheme = t.id;
+        state.activeRoomIndex = Math.min(state.activeRoomIndex, activeRooms().length - 1);
+        rebuildPlan();
+        renderScene();
+        renderInventory();
+        refreshThemeRow();
+        refreshSynergyText();
+        refreshRoomActions();
+        refreshShopUI();
+        scrollToRoom(state.activeRoomIndex);
+        save();
+      });
+      overviewEl.appendChild(row);
+      overviewRows[t.id] = {
+        root: row,
+        name: row.querySelector('.ov-name'),
+        meta: row.querySelector('.ov-meta'),
+        rate: row.querySelector('.ov-rate'),
+      };
+    });
+  }
+  function refreshOverview() {
+    if (!overviewEl) return;
+    let places = 0;
+    let pieces = 0;
+    THEMES.forEach((t) => {
+      const els = overviewRows[t.id];
+      if (!els) return;
+      const rooms = state.themeRooms[t.id] || [];
+      const unlocked = unlockedFor(t);
+      const open = chainHasDesk(rooms);
+      const placed = rooms.reduce((n, r) => n + r.layout.filter(Boolean).length, 0);
+      const rate = open ? rooms.reduce(
+        (sum, room, i) => sum + computeGps(room, roomShapeFor(t.id, i)), 0) : 0;
+      if (open) places++;
+      pieces += placed;
+      const meta = !unlocked ? 'Locked until level ' + t.unlockLevel
+        : !open ? 'Closed -- needs a Customer Desk'
+          : rooms.length + (rooms.length === 1 ? ' room, ' : ' rooms, ') + placed
+            + (placed === 1 ? ' piece' : ' pieces');
+      setText(els.name, t.name + (state.activeTheme === t.id ? ' (here)' : ''));
+      setText(els.meta, meta);
+      setText(els.rate, unlocked && open ? formatNum(rate) + '/s' : '');
+      els.meta.classList.toggle('is-shut', unlocked && !open);
+      els.root.classList.toggle('is-active', state.activeTheme === t.id);
+      els.root.classList.toggle('is-locked', !unlocked);
+      els.root.disabled = !unlocked;
+    });
+    setText(overviewTotalEl, places + (places === 1 ? ' location open' : ' locations open')
+      + ' · ' + pieces + (pieces === 1 ? ' piece on the floor' : ' pieces on the floor')
+      + ' · ' + formatNum(gps) + '/s');
+  }
+  // Writing the same string back into the DOM ten times a second is a lot of
+  // needless layout work, so nothing is written unless it changed.
+  function setText(el, text) {
+    if (el && el.textContent !== text) el.textContent = text;
+  }
+
   // ---- Init ----
+  buildTabs();
+  buildOverview();
   buildShop();
   buildThemeRow();
   buildRoomActions();
@@ -6635,6 +6754,8 @@
     refreshRoomActions();
     tickRushOrder();
     refreshRushOrderUI();
+    refreshJobsDot();
+    refreshOverview();
     checkTrophies();
 
     const affordable = nextRoomAffordable();
