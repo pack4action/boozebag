@@ -1095,6 +1095,33 @@
   const MEMBER_SHIRTS = ['#4a5ec8', '#c0483a', '#3fa87e', '#c98a4a', '#7a5ac9', '#3f9ec9'];
   const MEMBER_SKINS = ['#efc39c', '#d59a6c', '#a06a44', '#7a4a2c', '#f3d3b4'];
   const MEMBER_HAIR = ['#2b2119', '#4a3524', '#8a6a3a', '#1c1c20', '#6b3a24'];
+  // Enough variation that six people in one room read as six people. 'skin'
+  // in the legs list means bare legs rather than a colour.
+  const MEMBER_LEGS = ['#454b57', '#2c3140', '#3d4a3a', '#5b4a3e', 'skin', 'skin'];
+  const MEMBER_HAIRSTYLES = ['crop', 'crop', 'crop', 'bun', 'tail', 'long', 'cap', 'band'];
+  const MEMBER_CAPS = ['#d94f43', '#3f7fd1', '#e0b93f', '#2f3a4a', '#3fa87e'];
+  const MEMBER_BAGS = ['#b0453c', '#2f5f8a', '#4a4f5c', '#7a5a34'];
+  const MEMBER_CARRY = ['none', 'none', 'none', 'none', 'none', 'bottle', 'bottle', 'bag', 'towel'];
+
+  // What somebody does at a piece of kit. Anything not named here gets a
+  // small stationary sway, which is the right answer for a sauna door or a
+  // reception desk -- and for whatever gets added later.
+  const EXERCISE = {
+    treadmill: 'run',
+    dumbbell: 'curl', dumbbellrack: 'curl',
+    bench: 'press',
+    rack: 'squat',
+    cable: 'pull',
+    mat: 'stretch',
+    sauna: 'sit',
+    trainer: 'coach',
+  };
+  // How fast each movement cycles, in radians a second. A sprint is not a
+  // squat, and a set of squats taken at running speed looks ridiculous.
+  const EXERCISE_RATE = {
+    run: 11.5, curl: 3.4, press: 2.5, squat: 2.0, pull: 3.0,
+    stretch: 1.2, sit: 0.8, coach: 2.0,
+  };
   const MEMBER_WALK = 1.15 * TILES_PER_METRE;   // tiles a second, a gym walk
   // Roughly two members for every three pieces of kit, so a room fills up as
   // it is fitted out, with a ceiling so a big room does not turn into a
@@ -1152,6 +1179,21 @@
       skin: pickOf(MEMBER_SKINS),
       hair: pickOf(MEMBER_HAIR),
       speed: MEMBER_WALK * (staffRoleId ? 0.75 : 0.85 + Math.random() * 0.35),
+      // Which piece they are on, once they get there, so the figure knows
+      // whether it is running, curling or sitting in a sauna.
+      gearId: null,
+      // Build and dress. Rolled once, at spawn, so somebody does not change
+      // height between frames.
+      build: 0.93 + Math.random() * 0.14,
+      broad: 0.92 + Math.random() * 0.20,
+      legs: pickOf(MEMBER_LEGS),
+      shortsLen: Math.random() < 0.35 ? 0.345 : 0.415,
+      hairStyle: pickOf(MEMBER_HAIRSTYLES),
+      capColor: pickOf(MEMBER_CAPS),
+      bagColor: pickOf(MEMBER_BAGS),
+      // Staff are at work, not on their way to it: no gym bag, but a towel
+      // over the shoulder is exactly what somebody working a floor carries.
+      carry: staffRoleId ? (Math.random() < 0.4 ? 'towel' : 'none') : pickOf(MEMBER_CARRY),
     };
   }
 
@@ -1291,7 +1333,7 @@
 
       if (m.state === 'using') {
         m.timer -= dt;
-        m.phase += dt * 5.5;
+        m.phase += dt * (EXERCISE_RATE[EXERCISE[m.gearId]] || 5.5);
         // The piece they were using can be picked up out from under them.
         if (m.timer <= 0 || !room.layout[m.gear]) m.state = 'idle';
         return;
@@ -1317,6 +1359,7 @@
         m.path.shift();
         if (m.path.length) return;
         m.state = m.gear === null ? 'idle' : 'using';
+        m.gearId = m.gear === null ? null : room.layout[m.gear];
         m.timer = 3.5 + Math.random() * 7;
         return;
       }
@@ -3876,20 +3919,84 @@
     ctx.closePath();
   }
 
+  // What the moving parts are doing this frame, in body-height units off the
+  // floor. The rig is identical for everybody -- these numbers are the whole
+  // difference between walking to a machine, sprinting on it and sinking
+  // under a loaded bar.
+  function poseOf(m) {
+    const s = Math.sin(m.phase);
+    const c = Math.cos(m.phase);
+    const base = {
+      legT: 0, armT: 0, crouch: 0, bob: 0, lift: 0, lean: 0,
+      handY: 0.545, handX: 0.125, spread: 1, hold: null,
+    };
+    if (m.state !== 'using') {
+      // Walking: arms and legs scissor opposite each other over a slight bob.
+      return Object.assign(base, { legT: s, armT: -s, bob: Math.abs(c) * 0.014 });
+    }
+    // 0 at one end of the movement, 1 at the other, smooth at both.
+    const cycle = 0.5 - 0.5 * c;
+    switch (EXERCISE[m.gearId]) {
+      case 'run':
+        return Object.assign(base, {
+          legT: s, armT: -s, bob: Math.abs(c) * 0.026, lift: 0.030,
+          handY: 0.700, handX: 0.098, lean: 0.048,
+        });
+      case 'curl':
+        return Object.assign(base, {
+          handY: 0.545 + cycle * 0.205, handX: 0.118, hold: 'dumbbells', spread: 1.1,
+        });
+      case 'press':
+        // Overhead, with a dip in the knees as the bar comes back down.
+        return Object.assign(base, {
+          handY: 0.822 + cycle * 0.235, handX: 0.150, hold: 'bar', spread: 1.15,
+          crouch: (1 - cycle) * 0.10,
+        });
+      case 'squat':
+        return Object.assign(base, {
+          crouch: cycle, handY: 0.845, handX: 0.185, hold: 'barback', spread: 1.5,
+        });
+      case 'pull':
+        return Object.assign(base, {
+          handY: 1.020 - cycle * 0.300, handX: 0.104, hold: 'bar', spread: 1.1,
+        });
+      case 'stretch':
+        return Object.assign(base, {
+          crouch: cycle * 0.95, handY: 0.520 - cycle * 0.230,
+          handX: 0.088 + cycle * 0.155, spread: 1.30, lean: cycle * 0.105,
+        });
+      case 'sit':
+        // Standing at the door getting their breath back, not exercising.
+        return Object.assign(base, {
+          crouch: 0.26, handY: 0.545 + cycle * 0.075, handX: 0.150 + cycle * 0.022,
+          spread: 1.30, bob: Math.abs(c) * 0.008,
+        });
+      case 'coach':
+        return Object.assign(base, {
+          legT: s * 0.12, armT: -s * 0.12, handY: 0.545 + cycle * 0.085, handX: 0.132,
+        });
+      default:
+        return Object.assign(base, { legT: s * 0.22, armT: -s * 0.22, bob: Math.abs(c) * 0.004 });
+    }
+  }
+
   // A member, flat-shaded to sit alongside the equipment art. Everything is
   // a proportion of body height, so a member stands the right height next to
-  // a squat rack whatever the room's scale, and arms and legs swing opposite
-  // each other over a slight bob so a busy room reads as moving rather than
-  // as a row of standing dolls.
+  // a squat rack whatever the room's scale.
+  //
+  // Two things stop a busy room reading as one figure copied six times:
+  // nobody is quite the same build or dressed the same way, and what
+  // somebody is doing is decided by the piece they are standing at.
   function drawMember(c, m) {
     const ctx = floorCtx;
-    const H = 1.72 * PX_PER_METRE_TALL;
-    // Working a machine is a smaller, quicker movement than walking to it.
-    const busy = m.state === 'using';
-    const swing = busy ? 0.22 : 1;
-    const t = Math.sin(m.phase) * swing;
+    const H = 1.72 * (m.build || 1) * PX_PER_METRE_TALL;
+    const broad = m.broad || 1;
+    const p = poseOf(m);
+    // Sinking the hips shortens the legs and brings everything above them
+    // down with it. The feet stay planted where they were.
+    const drop = p.crouch * 0.135;
     const f = m.facing;
-    const y = c.y - Math.abs(Math.cos(m.phase)) * H * 0.014 * swing;
+    const y = c.y - p.bob * H;
     const X = (v) => c.x + v * H * f;
     const Y = (v) => y - v * H;
     const line = 'rgba(0,0,0,0.38)';
@@ -3907,64 +4014,178 @@
       ctx.fill();
       outline();
     };
+    // A limb between two points, so an arm can reach overhead, forward or
+    // down to the floor rather than only hang off the shoulder.
+    const limb = (x1, y1, x2, y2, w, color) => {
+      const ax = X(x1);
+      const ay = Y(y1);
+      const dx = X(x2) - ax;
+      const dy = Y(y2) - ay;
+      const len = Math.hypot(dx, dy);
+      const t = w * H;
+      ctx.save();
+      ctx.translate(ax, ay);
+      ctx.rotate(Math.atan2(dy, dx));
+      roundRectPath(ctx, -t / 2, -t / 2, len + t, t, t * 0.45);
+      ctx.fillStyle = color;
+      ctx.fill();
+      outline();
+      ctx.restore();
+    };
 
     ctx.beginPath();
     ctx.ellipse(c.x, c.y + 2, H * 0.10, H * 0.043, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.30)';
     ctx.fill();
 
-    const legFront = '#454b57';
-    const legBack = '#333842';
+    const bare = m.legs === 'skin' || !m.legs;
+    const legFront = bare ? m.skin : m.legs;
+    const legBack = bare ? shade(m.skin, -34) : shade(m.legs, -22);
     const shorts = shade(m.shirt, -58);
 
+    const hip = 0.435 - drop;
+    const shoulderY = 0.80 - drop;
+    // Everything from the hips up leans together. The feet stay planted, so
+    // the lean reads as somebody putting their weight into it.
+    const lean = p.lean;
+    const shoulderX = 0.133 * broad + lean;
+    const stance = 0.052 * p.spread;
+    const legT = p.legT * 0.08;
+    const armT = p.armT * 0.06;
+    const backFoot = p.lift * Math.max(0, -p.legT);
+    const frontFoot = p.lift * Math.max(0, p.legT);
+    const armW = 0.052 * broad;
+
+    // Nobody's arms grow. A pose asking the hands further from the shoulders
+    // than an arm reaches gets them pulled back in along the same line, so
+    // whatever is in them comes back too.
+    let handX = p.handX + lean;
+    let handY = p.handY - drop;
+    {
+      const dx = handX - shoulderX;
+      const dy = handY - shoulderY;
+      const reach = Math.hypot(dx, dy);
+      if (reach > 0.345) {
+        const k = 0.345 / reach;
+        handX = shoulderX + dx * k;
+        handY = shoulderY + dy * k;
+      }
+    }
+
+    // Whatever is in the hands. Wanted at two depths: a bar across the
+    // shoulders goes behind the body, everything else in front of it.
+    const heldWeight = () => {
+      // Mirrored around the lean, not around the figure's own centre, so a
+      // weight stays in the hand holding it.
+      const hx = handX + armT;
+      const far = -hx + lean * 2;
+      if (p.hold === 'dumbbells') {
+        bar(hx, handY + 0.030, handY - 0.030, 0.052, '#333944');
+        bar(far, handY + 0.030, handY - 0.030, 0.052, '#2a2f39');
+        return;
+      }
+      const reach = Math.max(hx - lean, 0.13) + 0.075;
+      limb(lean - reach, handY, lean + reach, handY, 0.024, '#8b939e');
+      bar(lean - reach, handY + 0.048, handY - 0.048, 0.040, '#2f343d');
+      bar(lean + reach, handY + 0.048, handY - 0.048, 0.040, '#3a4049');
+    };
+
     // Back limbs first, darkened, so the figure has some depth to it.
-    bar(-0.125 + t * 0.05, 0.80, 0.545, 0.052, shade(m.skin, -38));
-    bar(-0.052 - t * 0.08, 0.435, 0.045, 0.078, legBack);
-    bar(-0.052 - t * 0.08, 0.062, 0.006, 0.098, '#b9c2cc');
+    limb(-shoulderX + lean * 2, shoulderY, -handX - armT + lean * 2, handY, armW, shade(m.skin, -38));
+    bar(-stance - legT, hip, 0.045 + backFoot, 0.078 * broad, legBack);
+    bar(-stance - legT, 0.062 + backFoot, 0.006 + backFoot, 0.098, '#b9c2cc');
 
     // Front leg and its shoe.
-    bar(0.052 + t * 0.08, 0.435, 0.045, 0.078, legFront);
-    bar(0.052 + t * 0.08, 0.062, 0.006, 0.098, '#e9edf2');
+    bar(stance + legT, hip, 0.045 + frontFoot, 0.078 * broad, legFront);
+    bar(stance + legT, 0.062 + frontFoot, 0.006 + frontFoot, 0.098, '#e9edf2');
 
-    bar(0, 0.545, 0.40, 0.215, shorts);
+    bar(lean * 0.35, 0.545 - drop, (m.shortsLen || 0.415) - drop, 0.200 * broad, shorts);
+
+    if (p.hold === 'barback') heldWeight();
 
     // Torso, tapered shoulder to waist rather than a straight block.
-    const shoulder = 0.118;
-    const waist = 0.092;
+    const waist = 0.092 * broad;
     ctx.beginPath();
     roundedQuadPath(ctx,
-      { x: X(-shoulder), y: Y(0.845) }, { x: X(shoulder), y: Y(0.845) },
-      { x: X(waist), y: Y(0.515) }, { x: X(-waist), y: Y(0.515) }, H * 0.035);
+      { x: X(-0.118 * broad + lean), y: Y(0.845 - drop) },
+      { x: X(0.118 * broad + lean), y: Y(0.845 - drop) },
+      { x: X(waist + lean * 0.35), y: Y(0.515 - drop) },
+      { x: X(-waist + lean * 0.35), y: Y(0.515 - drop) }, H * 0.035);
     ctx.fillStyle = m.shirt;
     ctx.fill();
     outline();
     // A lit edge down the side the room's lights come from.
     ctx.beginPath();
     roundedQuadPath(ctx,
-      { x: X(0.045), y: Y(0.83) }, { x: X(0.105), y: Y(0.83) },
-      { x: X(0.082), y: Y(0.53) }, { x: X(0.03), y: Y(0.53) }, H * 0.02);
+      { x: X(0.045 + lean), y: Y(0.83 - drop) },
+      { x: X(0.105 * broad + lean), y: Y(0.83 - drop) },
+      { x: X(0.082 * broad + lean * 0.35), y: Y(0.53 - drop) },
+      { x: X(0.03 + lean * 0.35), y: Y(0.53 - drop) }, H * 0.02);
     ctx.fillStyle = shade(m.shirt, 30);
     ctx.fill();
 
-    bar(0.125 - t * 0.05, 0.80, 0.545, 0.052, m.skin);
+    // A gym bag hangs off the back shoulder, so it sits over the shirt and
+    // under the arm carrying it.
+    if (m.carry === 'bag' && m.state !== 'using') {
+      limb(-0.06, 0.845 - drop, -0.155, 0.655 - drop, 0.016, '#2b3038');
+      roundRectPath(ctx, X(-0.225), Y(0.635 - drop), 0.115 * H * f, 0.145 * H,
+        H * 0.022);
+      ctx.fillStyle = m.bagColor;
+      ctx.fill();
+      outline();
+      // A lighter panel along the top, or it is a coloured brick.
+      roundRectPath(ctx, X(-0.222), Y(0.628 - drop), 0.109 * H * f, 0.030 * H,
+        H * 0.012);
+      ctx.fillStyle = shade(m.bagColor, 26);
+      ctx.fill();
+    }
+
+    limb(shoulderX, shoulderY, handX + armT, handY, armW, m.skin);
+
+    // A towel goes over the near shoulder, on top of the arm under it.
+    if (m.carry === 'towel' && m.state !== 'using') {
+      bar(0.128, 0.878 - drop, 0.640 - drop, 0.056, '#eef1f6');
+    }
 
     // Staff wear a marked shirt, so who works here is readable at a glance.
     if (m.staffRole) {
-      bar(0, 0.855, 0.815, 0.20, STAFF_TRIM);
-      bar(-0.055, 0.70, 0.655, 0.038, STAFF_TRIM);
+      bar(lean, 0.855 - drop, 0.815 - drop, 0.20 * broad, STAFF_TRIM);
+      bar(-0.055 + lean * 0.6, 0.70 - drop, 0.655 - drop, 0.038, STAFF_TRIM);
     }
 
-    // Neck, head, then hair sitting on top of it.
-    bar(0.006, 0.885, 0.83, 0.05, shade(m.skin, -18));
+    if (p.hold && p.hold !== 'barback') heldWeight();
+    if (m.carry === 'bottle' && m.state !== 'using') {
+      bar(handX + armT, handY + 0.035, handY - 0.032, 0.036, '#6fc9e8');
+      bar(handX + armT, handY + 0.058, handY + 0.033, 0.022, '#2f6f88');
+    }
+
+    // Hair that falls past the head is drawn behind it.
+    if (m.hairStyle === 'long') bar(-0.02 + lean, 0.955 - drop, 0.760 - drop, 0.132, m.hair);
+    if (m.hairStyle === 'tail') limb(-0.05 + lean, 0.930 - drop, -0.098 + lean, 0.775 - drop, 0.046, m.hair);
+
+    // Neck, head, then whatever is on top of it.
+    bar(0.006 + lean, 0.885 - drop, 0.83 - drop, 0.05, shade(m.skin, -18));
     ctx.beginPath();
-    ctx.arc(X(0.008), Y(0.915), H * 0.078, 0, Math.PI * 2);
+    ctx.arc(X(0.008 + lean), Y(0.915 - drop), H * 0.078, 0, Math.PI * 2);
     ctx.fillStyle = m.skin;
     ctx.fill();
     outline();
     ctx.beginPath();
-    ctx.arc(X(0.008), Y(0.928), H * 0.078, Math.PI * 1.02, Math.PI * 2.12);
-    ctx.fillStyle = m.hair;
+    ctx.arc(X(0.008 + lean), Y(0.928 - drop), H * 0.078, Math.PI * 1.02, Math.PI * 2.12);
+    ctx.fillStyle = m.hairStyle === 'cap' ? m.capColor : m.hair;
     ctx.fill();
+    if (m.hairStyle === 'cap') {
+      // A peak out the front, which is what makes a cap a cap.
+      limb(0.062 + lean, 0.948 - drop, 0.150 + lean, 0.940 - drop, 0.020, shade(m.capColor, -28));
+    } else if (m.hairStyle === 'bun') {
+      ctx.beginPath();
+      ctx.arc(X(-0.042 + lean), Y(0.988 - drop), H * 0.034, 0, Math.PI * 2);
+      ctx.fillStyle = m.hair;
+      ctx.fill();
+      outline();
+    } else if (m.hairStyle === 'band') {
+      bar(0.008 + lean, 0.948 - drop, 0.918 - drop, 0.152, m.capColor);
+    }
   }
 
   // Which pieces have somebody on them right now, keyed room and slot. Kept
