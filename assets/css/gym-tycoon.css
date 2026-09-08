@@ -910,3 +910,106 @@
   cursor: not-allowed;
   opacity: 0.45;
 }
+
+
+/* ---- Gym name ---- */
+/* Styled as a caption over the plan rather than as a form field, because
+   that is what it is: the place has a name and this is where it is written. */
+.tycoon-gym-name {
+  display: block;
+  margin: 0 auto 8px;
+  width: fit-content;
+  min-width: 190px;
+  max-width: 100%;
+  padding: 4px 14px;
+  text-align: center;
+  font: inherit;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.2px;
+  color: #fff;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+.tycoon-gym-name::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 700;
+}
+.tycoon-gym-name:hover { border-color: rgba(255, 255, 255, 0.12); }
+.tycoon-gym-name:focus {
+  outline: none;
+  border-color: rgba(255, 210, 90, 0.55);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ---- Trophies ---- */
+/* A wall of small tiles rather than a list: the ones won read as a
+   collection at a glance, and the ones still to win are the same size, so
+   the wall does not reflow as they light up. */
+.tycoon-trophies {
+  max-width: 780px;
+  margin: 8px auto 0;
+  border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  text-align: left;
+}
+.tycoon-trophies > summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  list-style: none;
+}
+.tycoon-trophies > summary::-webkit-details-marker { display: none; }
+.tycoon-trophies > summary::after {
+  content: '+';
+  float: right;
+  font-weight: 400;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-trophies[open] > summary::after { content: '\2013'; }
+.tycoon-trophy-count {
+  margin-left: 6px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: none;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-trophy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 7px;
+  padding: 0 14px 13px;
+}
+.tycoon-trophy {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  padding: 7px 9px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  opacity: 0.55;
+}
+.tycoon-trophy.is-won {
+  opacity: 1;
+  border-color: rgba(255, 205, 90, 0.4);
+  background: linear-gradient(180deg, rgba(255, 205, 90, 0.14), rgba(255, 205, 90, 0.04));
+}
+.tycoon-trophy-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.2;
+}
+.tycoon-trophy.is-won .tycoon-trophy-name { color: #ffd97a; }
+.tycoon-trophy-hint {
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: rgba(255, 255, 255, 0.42);
+}
+.tycoon-trophy.is-won .tycoon-trophy-hint { color: rgba(255, 255, 255, 0.6); }

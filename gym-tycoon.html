@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=9" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=5" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=30" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=31" />
 </head>
 <body class="game-body">
 
@@ -84,6 +84,8 @@
   <div class="game-toast" id="game-toast"></div>
 
   <div class="tycoon-designer">
+    <input class="tycoon-gym-name" id="gym-name" type="text" maxlength="28"
+      placeholder="Name your gym" aria-label="Gym name" autocomplete="off" spellcheck="false" />
     <div class="tycoon-rush" id="rush-badge"></div>
     <div class="tycoon-room-actions" id="room-actions"></div>
     <div class="tycoon-theme-row" id="theme-row"></div>
@@ -135,6 +137,10 @@
         <p><b>Franchising.</b> Once the shop runs out, cash the whole gym in for points that multiply everything from then on. You keep your level and everything it unlocked.</p>
       </div>
     </details>
+    <details class="tycoon-trophies">
+      <summary>Trophies <span class="tycoon-trophy-count" id="trophy-count"></span></summary>
+      <div class="tycoon-trophy-grid" id="trophy-grid"></div>
+    </details>
   </div>
 
   <div class="tycoon-sidebar">
@@ -185,6 +191,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=58"></script>
+<script src="assets/js/gym-tycoon.js?v=59"></script>
 </body>
 </html>

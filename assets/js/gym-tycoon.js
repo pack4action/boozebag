@@ -788,6 +788,9 @@
       xp: 0,
       tiers: {},
       jobs: [],
+      jobsDone: 0,
+      trophies: {},
+      gymName: '',
       staff: {},
       franchise: { points: 0, runs: 0 },
       owned: {},
@@ -1085,6 +1088,112 @@
     const kind = JOB_KINDS[job.kind];
     const at = Math.max(0, kind.done(job, tally));
     return { at, target: job.target, ready: at >= job.target };
+  }
+
+  // ---- Trophies ----
+  // Milestones, in the Township sense: things you were going to do anyway,
+  // noticed and paid for. What they are really for is pointing at corners of
+  // the game somebody might otherwise never open -- that how gear is
+  // arranged matters, that fittings do something, that there is a franchise
+  // button at all -- rather than at the totals, which look after themselves.
+  //
+  // They are permanent. Franchising clears the gym; it does not clear these.
+  const TROPHIES = [
+    { id: 'first', name: 'First Rep', hint: 'Place a piece of gear on the floor',
+      cash: 120, got: (c) => c.placed >= 1 },
+    { id: 'ten', name: 'Kitted Out', hint: 'Have ten pieces on the floor at once',
+      cash: 3000, got: (c) => c.placed >= 10 },
+    { id: 'fullroom', name: 'Not An Inch Spare', hint: 'Fill every slot in one room',
+      cash: 30000, got: (c) => c.fullRoom >= 1 },
+    { id: 'synergy', name: 'Good Layout', hint: 'Get one piece to a +40% arrangement bonus',
+      cash: 60000, got: (c) => c.bestSynergy >= 1.4 },
+    { id: 'vibe', name: 'Somewhere Nice', hint: 'Take a room to the top of the vibe scale',
+      cash: 250000, got: (c) => c.bestVibe >= VIBE_MAX_POINTS },
+    { id: 'fifty', name: 'Proper Gym', hint: 'Have fifty pieces on the floor at once',
+      cash: 500000, got: (c) => c.placed >= 50 },
+    { id: 'hundred', name: 'Chain Material', hint: 'Have a hundred pieces on the floor at once',
+      cash: 30000000, got: (c) => c.placed >= 100 },
+
+    { id: 'lvl5', name: 'Getting Somewhere', hint: 'Reach level 5',
+      cash: 20000, got: (c) => c.level >= 5 },
+    { id: 'lvl10', name: 'Established', hint: 'Reach level 10',
+      cash: 1500000, got: (c) => c.level >= 10 },
+    { id: 'lvl20', name: 'Household Name', hint: 'Reach level 20',
+      cash: 2000000000, got: (c) => c.level >= 20 },
+    { id: 'lvl30', name: 'Industry Fixture', hint: 'Reach level 30',
+      cash: 500000000000, got: (c) => c.level >= 30 },
+
+    { id: 'rooms', name: 'Knocked Through', hint: 'Open all four rooms in one location',
+      cash: 6000000, got: (c) => c.mostRooms >= MAX_ROOMS_PER_THEME },
+    { id: 'themes', name: 'Three Addresses', hint: 'Have gear on the floor in all three locations',
+      cash: 900000, got: (c) => c.themesUsed >= THEMES.length },
+
+    { id: 'staff1', name: 'On The Payroll', hint: 'Hire your first member of staff',
+      cash: 40000, got: (c) => c.staff >= 1 },
+    { id: 'staffall', name: 'Full Team', hint: 'Employ all three kinds of staff at once',
+      cash: 4000000, got: (c) => c.roles >= STAFF_ROLES.length },
+
+    { id: 'upgrade', name: 'Marked Up', hint: 'Upgrade a piece of gear to Mk II',
+      cash: 250000, got: (c) => c.topTier >= 2 },
+    { id: 'mkiv', name: 'Top Of The Range', hint: 'Take a piece all the way to Mk IV',
+      cash: 800000000, got: (c) => c.topTier >= MAX_TIER },
+
+    { id: 'jobs10', name: 'Reliable', hint: 'Finish ten jobs',
+      cash: 120000, got: (c) => c.jobsDone >= 10 },
+    { id: 'jobs50', name: 'Never Says No', hint: 'Finish fifty jobs',
+      cash: 60000000, got: (c) => c.jobsDone >= 50 },
+
+    { id: 'fran1', name: 'Second Location', hint: 'Franchise the gym out once',
+      cash: 3000000, got: (c) => c.runs >= 1 },
+    { id: 'fran5', name: 'Franchise Group', hint: 'Franchise out five times',
+      cash: 10000000000, got: (c) => c.runs >= 5 },
+
+    { id: 'rich', name: 'First Million', hint: 'Earn a million in total',
+      cash: 50000, got: (c) => c.lifetime >= 1e6 },
+    { id: 'richer', name: 'First Billion', hint: 'Earn a billion in total',
+      cash: 40000000, got: (c) => c.lifetime >= 1e9 },
+  ];
+
+  function hasTrophy(id) {
+    return !!(state.trophies && state.trophies[id]);
+  }
+  function trophiesWon() {
+    return TROPHIES.filter((t) => hasTrophy(t.id)).length;
+  }
+
+  // Everything the tests above ask about, gathered once. floorTally() is the
+  // expensive part of it, which is why the check is throttled rather than
+  // run on every tick of the earnings clock.
+  function trophyContext() {
+    const tally = floorTally();
+    let mostRooms = 0;
+    let themesUsed = 0;
+    THEMES.forEach((t) => {
+      const chain = state.themeRooms[t.id] || [];
+      if (chain.length > mostRooms) mostRooms = chain.length;
+      if (chain.some((r) => r.layout.some(Boolean))) themesUsed++;
+    });
+    let topTier = 1;
+    Object.keys(state.tiers || {}).forEach((id) => {
+      if (state.tiers[id] > topTier) topTier = state.tiers[id];
+    });
+    return {
+      placed: tally.placed,
+      fullRoom: tally.fullRoom,
+      bestSynergy: tally.bestSynergy,
+      // floorTally reports vibe as the percentage it is worth, because that
+      // is what the jobs board quotes. The scale itself is in points.
+      bestVibe: tally.bestVibe / (VIBE_PER_POINT * 100),
+      level: currentLevel(),
+      lifetime: state.lifetime,
+      mostRooms,
+      themesUsed,
+      staff: staffTotal(),
+      roles: STAFF_ROLES.filter((r) => staffCount(r.id) > 0).length,
+      topTier,
+      jobsDone: state.jobsDone || 0,
+      runs: (state.franchise && state.franchise.runs) || 0,
+    };
   }
 
   // ---- Members ----
@@ -1508,6 +1617,7 @@
     state.lifetime += job.cash;
     state.xp = (state.xp || 0) + job.xp;
     state.jobs.splice(index, 1);
+    state.jobsDone = (state.jobsDone || 0) + 1;
     refillJobs();
     if (currentLevel() > before) announceLevel(currentLevel());
     else toast('Job done -- $' + formatNum(job.cash) + ' and ' + job.xp + ' XP', 'good');
@@ -1575,8 +1685,14 @@
     const runs = ((state.franchise && state.franchise.runs) || 0) + 1;
     const keptXp = state.xp;
     const keptLifetime = state.lifetime;
+    const keptTrophies = state.trophies || {};
+    const keptJobsDone = state.jobsDone || 0;
+    const keptName = state.gymName || '';
     state = Object.assign(defaultState(), {
       xp: keptXp,
+      trophies: keptTrophies,
+      jobsDone: keptJobsDone,
+      gymName: keptName,
       // Lifetime is what the offer is measured against, so it has to survive
       // -- points already banked are subtracted from the offer instead.
       lifetime: keptLifetime,
@@ -1595,6 +1711,7 @@
     refreshThemeRow();
     refreshRoomActions();
     refreshFranchiseUI();
+    refreshTrophyUI();
     renderInventory();
     renderScene();
     updateLeaderboardEntry();
@@ -1604,6 +1721,79 @@
   }
 
   if (franchiseBtn) franchiseBtn.addEventListener('click', doFranchise);
+
+  // ---- Trophy panel ----
+  const trophyGridEl = document.getElementById('trophy-grid');
+  const trophyCountEl = document.getElementById('trophy-count');
+  const gymNameEl = document.getElementById('gym-name');
+  const trophyEls = {};
+
+  function buildTrophyUI() {
+    if (!trophyGridEl) return;
+    trophyGridEl.innerHTML = '';
+    TROPHIES.forEach((t) => {
+      const el = document.createElement('div');
+      el.className = 'tycoon-trophy';
+      el.innerHTML = '<span class="tycoon-trophy-name"></span>'
+        + '<span class="tycoon-trophy-hint"></span>';
+      el.querySelector('.tycoon-trophy-name').textContent = t.name;
+      el.querySelector('.tycoon-trophy-hint').textContent = t.hint;
+      trophyGridEl.appendChild(el);
+      trophyEls[t.id] = el;
+    });
+  }
+
+  function refreshTrophyUI() {
+    if (!trophyGridEl) return;
+    TROPHIES.forEach((t) => {
+      const el = trophyEls[t.id];
+      if (!el) return;
+      const won = hasTrophy(t.id);
+      el.classList.toggle('is-won', won);
+      el.querySelector('.tycoon-trophy-hint').textContent = won
+        ? 'Done -- $' + formatNum(t.cash) : t.hint;
+    });
+    trophyCountEl.textContent = trophiesWon() + ' of ' + TROPHIES.length;
+  }
+
+  // Swept off the earnings tick, so a total that creeps past a milestone
+  // while nothing is being clicked still lands -- but throttled, because
+  // gathering the context walks every room in every theme.
+  let lastTrophySweep = 0;
+  function checkTrophies(force) {
+    const now = Date.now();
+    if (!force && now - lastTrophySweep < 1500) return;
+    lastTrophySweep = now;
+    if (!state.trophies) state.trophies = {};
+    const ctx = trophyContext();
+    const won = [];
+    TROPHIES.forEach((t) => {
+      if (hasTrophy(t.id) || !t.got(ctx)) return;
+      state.trophies[t.id] = true;
+      state.balance += t.cash;
+      state.lifetime += t.cash;
+      won.push(t);
+    });
+    if (!won.length) return;
+    refreshTrophyUI();
+    refreshHud();
+    // One at a time: two toasts in the same breath and only the second is
+    // ever read.
+    toast(won[0].name + ' -- $' + formatNum(won[0].cash), 'good');
+    save();
+  }
+
+  // The name is the player's, so it is kept the moment it is typed rather
+  // than behind a save button nobody would press.
+  let nameSaveTimer = null;
+  if (gymNameEl) {
+    gymNameEl.value = state.gymName || '';
+    gymNameEl.addEventListener('input', () => {
+      state.gymName = gymNameEl.value.slice(0, 28);
+      clearTimeout(nameSaveTimer);
+      nameSaveTimer = setTimeout(save, 400);
+    });
+  }
 
   const staffListEl = document.getElementById('staff-list');
   const staffWagesEl = document.getElementById('staff-wages');
@@ -4837,6 +5027,10 @@
     refreshHud();
     refreshSynergyText();
     refreshShopUI();
+    // The trophy wall only ever gains tiles as they are won, so a reset has
+    // to put it back itself or it would keep showing a cleared gym's.
+    refreshTrophyUI();
+    if (gymNameEl) gymNameEl.value = '';
     renderScene();
     renderInventory();
     refreshThemeRow();
@@ -4849,6 +5043,7 @@
   // ---- Init ----
   buildShop();
   buildStaffUI();
+  buildTrophyUI();
   refreshFranchiseUI();
   refillJobs();
   refreshRushUI();
@@ -4862,6 +5057,11 @@
   renderInventory();
   refreshThemeRow();
   refreshRoomActions();
+  refreshTrophyUI();
+  // Straight away rather than on the first tick, so a save that already
+  // qualifies for something opens showing it rather than winning it a
+  // second and a half after the page settles.
+  checkTrophies(true);
 
   // The plot sign for the next room lights up once you can afford it, so the
   // scene has to be redrawn on the tick that crosses the price -- the loop
@@ -4907,6 +5107,7 @@
     refreshFranchiseUI();
     refreshThemeRow();
     refreshRoomActions();
+    checkTrophies();
 
     const affordable = nextRoomAffordable();
     if (affordable !== couldAffordNextRoom) {
