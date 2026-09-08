@@ -4564,7 +4564,7 @@
   // Edges that a hallway continues through are skipped, so the floor stays
   // unbroken where you can actually walk between two spaces.
   function drawSlabEdges(rect, colors) {
-    const h = 15;
+    const h = SLAB_DEPTH;
     const right = shade(colors.floorB, -40);
     const left = shade(colors.floorB, -26);
     const outline = 'rgba(0,0,0,0.55)';
@@ -4604,6 +4604,21 @@
       (gy) => onFloorOf(rect, gx - 1, gy) && !tileIsFloor(gx, gy), (gy) => isoPoint(gx, gy), right));
     gyLines.forEach((gy) => runEdge(rect.gx0, rect.gx0 + rect.cols,
       (gx) => onFloorOf(rect, gx, gy - 1) && !tileIsFloor(gx, gy), (gx) => isoPoint(gx, gy), left));
+
+    // The walls stand on this slab and are thick, so they reach a little
+    // past the room's own edge. The lip runs out to meet them at the two
+    // corners where a wall ends on a front edge -- without it the wall
+    // overhangs the corner with nothing beneath it, and the outline of the
+    // building takes a step there.
+    const t = WALL_THICK;
+    const eastLine = rect.gx0 + rect.cols;
+    if (onFloorOf(rect, eastLine - 1, rect.gy0) && !tileIsFloor(eastLine, rect.gy0)) {
+      drop(isoPoint(eastLine, rect.gy0 - t), isoPoint(eastLine, rect.gy0), right);
+    }
+    const southLine = rect.gy0 + rect.rows;
+    if (onFloorOf(rect, rect.gx0, southLine - 1) && !tileIsFloor(rect.gx0, southLine)) {
+      drop(isoPoint(rect.gx0 - t, southLine), isoPoint(rect.gx0, southLine), left);
+    }
   }
 
   // ---- Walls ----
@@ -4647,6 +4662,12 @@
   // this whole thing is here to get rid of; a run drawn later overlaps the
   // one it continues instead.
   const WALL_JOIN_OVERLAP = 1.5;
+  // A wall is a solid with thickness, and that thickness sits over the edge
+  // of the floor slab it stands on. At the end of a run you were looking
+  // straight at the underside of the overhang, with the site showing
+  // through the gap between it and the slab's own edge -- so the cut end of
+  // a wall is carried down the depth of the slab and meets it.
+  const SLAB_DEPTH = 15;
   function pushPast(p, towards) {
     const dx = p.x - towards.x;
     const dy = p.y - towards.y;
@@ -4757,11 +4778,14 @@
     });
 
     // Cut ends first: whatever stands in front of them is drawn after.
+    // Carried down the depth of the floor slab, so the end of the wall
+    // lands on the slab's edge rather than hanging over it.
+    const drop = (p) => ({ x: p.x, y: p.y + SLAB_DEPTH });
     const endIndex = [0, n];
     endIndex.forEach((i, which) => {
       if (ends[which] !== 'cap') return;
       const d = dep[i === 0 ? 0 : n - 1];
-      paintQuad([pts[i], shift(pts[i], d), outer[i], lift(pts[i])],
+      paintQuad([drop(pts[i]), drop(shift(pts[i], d)), outer[i], lift(pts[i])],
         shade(faceOf(axes[i === 0 ? 0 : n - 1]), -20), null);
     });
 
@@ -4824,7 +4848,7 @@
     endIndex.forEach((i, which) => {
       if (ends[which] !== 'cap') return;
       const d = dep[i === 0 ? 0 : n - 1];
-      strokePolyline([lift(pts[i]), pts[i], shift(pts[i], d), outer[i]],
+      strokePolyline([lift(pts[i]), drop(pts[i]), drop(shift(pts[i], d)), outer[i]],
         'rgba(0,0,0,0.5)', 1);
     });
   }
