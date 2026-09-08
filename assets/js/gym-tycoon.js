@@ -638,6 +638,40 @@
   function rushMultiplier() {
     return 1 + RUSH_BONUS * (1 + staffEffect('receptionist')) * rushFactor();
   }
+  // ---- Open day ----
+  // The gym's own rhythm is the rush, and you cannot argue with it: the
+  // place is busy at seven in the morning and at six in the evening whether
+  // you are there or not. An open day is the one lever over how busy it is
+  // that belongs to the player -- free, short, and on a long enough
+  // cooldown that it is worth coming back for rather than something to sit
+  // and spam.
+  const PROMO_MULT = 2.5;
+  const PROMO_SECONDS = 90;
+  const PROMO_COOLDOWN_SECONDS = 15 * 60;
+
+  // Measured off the wall clock, like everything else with a duration here,
+  // so a reload does not restart it and a closed tab does not pause it.
+  function promoAgeSeconds() {
+    const at = state.promoAt || 0;
+    return at ? (Date.now() - at) / 1000 : Infinity;
+  }
+  function promoSecondsLeft() {
+    return Math.max(0, PROMO_SECONDS - promoAgeSeconds());
+  }
+  function promoReadyInSeconds() {
+    return Math.max(0, PROMO_COOLDOWN_SECONDS - promoAgeSeconds());
+  }
+  function promoRunning() {
+    return promoSecondsLeft() > 0;
+  }
+  function promoMultiplier() {
+    return promoRunning() ? PROMO_MULT : 1;
+  }
+  function clockOf(seconds) {
+    const s = Math.ceil(seconds);
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+
   // The light outside, by the hour. A room is lit by its own fittings, so
   // this is a wash laid over the finished plan rather than a change to any
   // material in it -- cold and dim in the small hours, warm at the ends of
@@ -708,7 +742,7 @@
     });
     // Net, not gross: the wage bill comes off every figure the game shows,
     // so the rate in the HUD is the rate the balance actually climbs at.
-    return total * vibeMultiplier(room) * rushMultiplier()
+    return total * vibeMultiplier(room) * rushMultiplier() * promoMultiplier()
       * (1 + staffEffect('manager')) * franchiseMultiplier() * (1 - wageShare());
   }
 
@@ -789,6 +823,7 @@
       tiers: {},
       jobs: [],
       jobsDone: 0,
+      promoAt: 0,
       trophies: {},
       gymName: '',
       staff: {},
@@ -1328,7 +1363,7 @@
       // A room people want to be in has more people in it, so the fittings
       // show up in the crowd as well as in the takings.
       const draw = placed * MEMBERS_PER_PIECE * vibeMultiplier(room)
-        * (0.55 + 0.75 * rushFactor());
+        * (0.55 + 0.75 * rushFactor()) * (promoRunning() ? 1.4 : 1);
       const want = placed === 0 ? 0
         : Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM, Math.round(draw)));
       const here = members.filter((m) => m.room === roomIndex && !m.staffRole).slice(0, want);
@@ -1686,12 +1721,14 @@
     const keptXp = state.xp;
     const keptLifetime = state.lifetime;
     const keptTrophies = state.trophies || {};
+    const keptPromoAt = state.promoAt || 0;
     const keptJobsDone = state.jobsDone || 0;
     const keptName = state.gymName || '';
     state = Object.assign(defaultState(), {
       xp: keptXp,
       trophies: keptTrophies,
       jobsDone: keptJobsDone,
+      promoAt: keptPromoAt,
       gymName: keptName,
       // Lifetime is what the offer is measured against, so it has to survive
       // -- points already banked are subtracted from the offer instead.
@@ -1911,6 +1948,38 @@
       + '<span class="tycoon-rush-bonus' + (bonus > 0 ? '' : ' is-none') + '">'
       + (bonus > 0 ? '+' + bonus + '% while it lasts' : 'no rush bonus right now') + '</span>';
   }
+
+  // ---- Open day button ----
+  const promoBtn = document.getElementById('btn-promo');
+  // Whether one was running last tick, so its ending can be noticed.
+  let promoWasRunning = false;
+  function refreshPromoUI() {
+    if (!promoBtn) return;
+    const left = promoSecondsLeft();
+    const cooling = promoReadyInSeconds();
+    promoBtn.classList.toggle('is-running', left > 0);
+    promoBtn.disabled = cooling > 0;
+    promoBtn.textContent = left > 0
+      ? 'Open day -- x' + PROMO_MULT + ' for ' + Math.ceil(left) + 's'
+      : cooling > 0
+        ? 'Next open day in ' + clockOf(cooling)
+        : 'Run an open day -- x' + PROMO_MULT + ' for ' + PROMO_SECONDS + 's';
+  }
+
+  function runOpenDay() {
+    if (promoReadyInSeconds() > 0) return;
+    state.promoAt = Date.now();
+    // The rate and the crowd both change the moment it starts, so neither
+    // waits for whatever would have refreshed them next.
+    membersKey = '';
+    recomputeStats();
+    refreshPromoUI();
+    renderScene();
+    save();
+    toast('Open day -- x' + PROMO_MULT + ' for ' + PROMO_SECONDS + ' seconds', 'good');
+  }
+
+  if (promoBtn) promoBtn.addEventListener('click', runOpenDay);
 
   const toastEl = document.getElementById('game-toast');
   function toast(msg, cls) {
@@ -5058,6 +5127,8 @@
   refreshThemeRow();
   refreshRoomActions();
   refreshTrophyUI();
+  refreshPromoUI();
+  promoWasRunning = promoRunning();
   // Straight away rather than on the first tick, so a save that already
   // qualifies for something opens showing it rather than winning it a
   // second and a half after the page settles.
@@ -5097,6 +5168,17 @@
       refreshRushUI();
       membersKey = '';
     }
+
+    // An open day ends on its own, so the tick has to notice: the rate goes
+    // back down and the crowd it drew in goes home.
+    const promoOn = promoRunning();
+    if (promoOn !== promoWasRunning) {
+      promoWasRunning = promoOn;
+      recomputeStats();
+      membersKey = '';
+      renderScene();
+    }
+    refreshPromoUI();
 
     state.balance += gps * dt;
     state.lifetime += gps * dt;

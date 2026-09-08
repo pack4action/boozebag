@@ -1013,3 +1013,41 @@
   color: rgba(255, 255, 255, 0.42);
 }
 .tycoon-trophy.is-won .tycoon-trophy-hint { color: rgba(255, 255, 255, 0.6); }
+
+
+/* ---- Open day ---- */
+/* Sits under the rush pill, because it is the same idea -- how busy the gym
+   is -- with the difference that this one is yours to press. */
+.tycoon-promo-btn {
+  display: block;
+  margin: 0 auto 10px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 205, 90, 0.45);
+  background: rgba(255, 205, 90, 0.1);
+  color: #ffd97a;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
+}
+.tycoon-promo-btn:hover:not(:disabled) {
+  background: rgba(255, 205, 90, 0.2);
+  border-color: rgba(255, 205, 90, 0.75);
+}
+.tycoon-promo-btn:active:not(:disabled) { transform: translateY(1px); }
+.tycoon-promo-btn:disabled {
+  cursor: default;
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.4);
+}
+/* While one is running the button is the countdown, and it should read as
+   live rather than as something waiting to be pressed. */
+.tycoon-promo-btn.is-running:disabled {
+  border-color: rgba(255, 205, 90, 0.6);
+  background: linear-gradient(180deg, rgba(255, 205, 90, 0.26), rgba(255, 205, 90, 0.1));
+  color: #ffe6a6;
+}
