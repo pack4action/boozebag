@@ -414,6 +414,17 @@
     return defaultSpot(shape, index, room.layout.length);
   }
 
+  // Which way round a piece is standing. Two orientations, not four: this
+  // projection turns a piece by mirroring it across the screen's vertical
+  // axis -- x = (gx - gy) * w/2, so a mirror maps a piece lying along +gx
+  // onto the same piece lying along +gy -- and a mirror has only two states.
+  // The other two quarter-turns differ from these only in which end faces
+  // the viewer, which is a thing the art cannot say either way.
+  function turnedAt(room, index) {
+    const s = room.spots && room.spots[index];
+    return !!(s && s.r);
+  }
+
   // "Next to" is a distance now: close enough to be part of the same set-up,
   // about two metres between centres.
   const SYNERGY_REACH = 2.0 * TILES_PER_METRE;
@@ -807,7 +818,7 @@
         spots: new Array(n).fill(null).map((_, k) => {
           const sp = oldSpots[k];
           return sp && typeof sp.u === 'number' && typeof sp.v === 'number'
-            ? { u: sp.u, v: sp.v } : null;
+            ? { u: sp.u, v: sp.v, r: sp.r ? 1 : 0 } : null;
         }),
       };
     });
@@ -4200,7 +4211,8 @@
         floorCtx.stroke();
         floorCtx.restore();
       }
-      drawProp(itemId, c, propScaleFor(itemId), tierOf(itemId));
+      drawProp(itemId, c, propScaleFor(itemId), tierOf(itemId),
+        turnedAt(room, index));
     });
 
     if (editing && editing.roomIndex === roomIndex) {
@@ -4231,7 +4243,8 @@
 
     floorCtx.save();
     floorCtx.globalAlpha = 0.82;
-    drawProp(held.itemId, { x: c.x, y: c.y - 10 }, propScaleFor(held.itemId), 1);
+    drawProp(held.itemId, { x: c.x, y: c.y - 10 }, propScaleFor(held.itemId), 1,
+      held.turned);
     floorCtx.restore();
   }
 
@@ -4523,7 +4536,7 @@
     }
   }
 
-  function drawProp(itemId, c, scale, tier) {
+  function drawProp(itemId, c, scale, tier, turned) {
     const catColor = CATEGORY_META[CATEGORY[itemId]].color;
     floorCtx.save();
     floorCtx.translate(c.x, c.y);
@@ -4573,6 +4586,18 @@
         floorCtx.fillStyle = hexA(catColor, 0.9);
         floorCtx.fill();
       }
+    }
+
+    // Turning a piece is a mirror about its own centre. It costs nothing and
+    // needs no second drawing of anything: the silhouette that comes out is
+    // exactly the piece lying along the other lattice axis. What it does not
+    // get right is the lighting, which mirrors with it, so a turned piece is
+    // lit from the other side -- at this size, and against art this flat,
+    // that is a trade worth making for a room you can actually arrange.
+    if (turned) {
+      floorCtx.translate(c.x, 0);
+      floorCtx.scale(-1, 1);
+      floorCtx.translate(-c.x, 0);
     }
 
     const sprite = itemSprites[itemId];
@@ -4813,10 +4838,13 @@
       itemId,
       roomIndex,
       spot: at,
+      // Picked up the way it was standing, so moving a turned piece does
+      // not quietly straighten it out.
+      turned: !!(spot && spot.r),
       // Where it stood when it was picked up -- the position itself, not the
       // snapped working copy, so cancelling a piece that was sitting between
       // two steps of the grid puts it back between them.
-      originSpot: { u: spot.u, v: spot.v },
+      originSpot: { u: spot.u, v: spot.v, r: spot && spot.r ? 1 : 0 },
       fromIndex: fromIndex === undefined ? null : fromIndex,
     };
     armedItemId = null;
@@ -4852,6 +4880,12 @@
     moveEditTo(editing.spot.u + du * SPOT_STEP, editing.spot.v + dv * SPOT_STEP);
   }
 
+  function turnEdit() {
+    if (!editing) return;
+    editing.turned = !editing.turned;
+    renderScene();
+  }
+
   function endEdit() {
     editing = null;
     refreshPlaceHud();
@@ -4872,7 +4906,8 @@
     if (slot === -1) { cancelEdit(); return; }
     if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
     room.layout[slot] = editing.itemId;
-    room.spots[slot] = editing.spot;
+    room.spots[slot] = {
+      u: editing.spot.u, v: editing.spot.v, r: editing.turned ? 1 : 0 };
     endEdit();
   }
 
@@ -5101,6 +5136,20 @@
     }
     if (placeStoreBtn) placeStoreBtn.hidden = editing.fromIndex === null;
   }
+
+  const placeTurnBtn = document.getElementById('btn-place-turn');
+  if (placeTurnBtn) placeTurnBtn.addEventListener('click', turnEdit);
+  // R for the same thing, because a piece being turned round is the sort of
+  // thing you do half a dozen times while laying a room out.
+  document.addEventListener('keydown', (e) => {
+    if (!editing || e.metaKey || e.ctrlKey || e.altKey) return;
+    const el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+    if (e.key === 'r' || e.key === 'R') {
+      e.preventDefault();
+      turnEdit();
+    }
+  });
 
   if (placeHudEl) {
     // Screen directions, not lattice ones: up moves the piece away from you

@@ -1051,3 +1051,16 @@
   background: linear-gradient(180deg, rgba(255, 205, 90, 0.26), rgba(255, 205, 90, 0.1));
   color: #ffe6a6;
 }
+
+
+/* Turn sits with Place and Cancel but is neither: it changes the piece
+   rather than committing or abandoning it, so it stays quiet. */
+.tycoon-place-btn.is-turn {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.82);
+}
+.tycoon-place-btn.is-turn:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+}
