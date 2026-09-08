@@ -1073,10 +1073,12 @@
     state.balance += direct;
     state.lifetime += direct;
     // A pile that has grown a size is a visible change on a floor that may
-    // not otherwise be repainting.
+    // not otherwise be repainting -- but not for somebody who has asked
+    // their system for less motion, whose gym stays still until they do
+    // something to it. The money still arrives; the picture of it waits.
     if (key !== pileLevelsKey) {
       pileLevelsKey = key;
-      renderScene();
+      if (!wantsStillness()) paintScene();
     }
   }
   // The cap for one piece, in dollars, and the level its pile is at now.
@@ -1088,6 +1090,20 @@
   }
   function floorCash() {
     return allRoomsEverywhere().reduce((sum, room) => sum + roomCash(room).reduce((a, b) => a + b, 0), 0);
+  }
+  // How many pieces have stopped earning because nobody has emptied them.
+  // Worth saying out loud: a full pile is money the gym is no longer making.
+  function fullPiles() {
+    let n = 0;
+    THEMES.forEach((t) => {
+      (state.themeRooms[t.id] || []).forEach((room, i) => {
+        const shape = roomShapeFor(t.id, i);
+        room.layout.forEach((id, k) => {
+          if (id && id !== 'frontdesk' && pileOf(room, shape, k).level >= 4) n++;
+        });
+      });
+    });
+    return n;
   }
   function collectPile(roomIndex, index) {
     const room = activeRooms()[roomIndex];
@@ -1688,13 +1704,13 @@
   // They are permanent. Franchising clears the gym; it does not clear these.
   const TROPHIES = [
     { id: 'first', name: 'First Rep', hint: 'Place a piece of gear on the floor',
-      cash: 120, got: (c) => c.placed >= 1 },
+      cash: 100, got: (c) => c.placed >= 1 },
     { id: 'ten', name: 'Kitted Out', hint: 'Have ten pieces on the floor at once',
-      cash: 3000, got: (c) => c.placed >= 10 },
+      cash: 400, got: (c) => c.placed >= 10 },
     { id: 'fullroom', name: 'Not An Inch Spare', hint: 'Fill every slot in one room',
-      cash: 30000, got: (c) => c.fullRoom >= 1 },
+      cash: 1500, got: (c) => c.fullRoom >= 1 },
     { id: 'synergy', name: 'Good Layout', hint: 'Get one piece to a +40% arrangement bonus',
-      cash: 60000, got: (c) => c.bestSynergy >= 1.4 },
+      cash: 2000, got: (c) => c.bestSynergy >= 1.4 },
     { id: 'vibe', name: 'Somewhere Nice', hint: 'Take a room to the top of the vibe scale',
       cash: 250000, got: (c) => c.bestVibe >= VIBE_MAX_POINTS },
     { id: 'fifty', name: 'Proper Gym', hint: 'Have fifty pieces on the floor at once',
@@ -1703,7 +1719,7 @@
       cash: 30000000, got: (c) => c.placed >= 100 },
 
     { id: 'lvl5', name: 'Getting Somewhere', hint: 'Reach level 5',
-      cash: 20000, got: (c) => c.level >= 5 },
+      cash: 3000, got: (c) => c.level >= 5 },
     { id: 'lvl10', name: 'Established', hint: 'Reach level 10',
       cash: 1500000, got: (c) => c.level >= 10 },
     { id: 'lvl20', name: 'Household Name', hint: 'Reach level 20',
@@ -1716,29 +1732,29 @@
     { id: 'themes', name: 'Three Addresses', hint: 'Have gear on the floor in three locations at once',
       cash: 900000, got: (c) => c.themesUsed >= 3 },
     { id: 'pier', name: 'Out On The Pier', hint: 'Open the Boardwalk and put gear on it',
-      cash: 250000000, got: (c) => c.themesUsed >= 4 },
+      cash: 50000000, got: (c) => c.themesUsed >= 4 },
 
     { id: 'open', name: 'Open For Business', hint: 'Put the Customer Desk on the floor',
       cash: 50, got: (c) => c.open },
     { id: 'staff1', name: 'On The Payroll', hint: 'Hire your first member of staff',
-      cash: 40000, got: (c) => c.staff >= 1 },
+      cash: 2000, got: (c) => c.staff >= 1 },
     { id: 'staffall', name: 'Full Team', hint: 'Employ every kind of staff at once',
-      cash: 4000000, got: (c) => c.roles >= STAFF_ROLES.length },
+      cash: 500000, got: (c) => c.roles >= STAFF_ROLES.length },
 
     { id: 'upgrade', name: 'Marked Up', hint: 'Upgrade a piece of gear to Mk II',
-      cash: 250000, got: (c) => c.topTier >= 2 },
-    { id: 'mkiv', name: 'Top Of The Range', hint: 'Take a piece all the way to Mk IV',
-      cash: 800000000, got: (c) => c.topTier >= MAX_TIER },
+      cash: 1500, got: (c) => c.topTier >= 2 },
+    { id: 'mkiv', name: 'Top Of The Range', hint: 'Take a piece costing $10K or more all the way to Mk IV',
+      cash: 3000000, got: (c) => c.topTierBig >= MAX_TIER },
 
     { id: 'jobs10', name: 'Reliable', hint: 'Finish ten jobs',
-      cash: 120000, got: (c) => c.jobsDone >= 10 },
+      cash: 25000, got: (c) => c.jobsDone >= 10 },
     { id: 'jobs50', name: 'Never Says No', hint: 'Finish fifty jobs',
-      cash: 60000000, got: (c) => c.jobsDone >= 50 },
+      cash: 5000000, got: (c) => c.jobsDone >= 50 },
     { id: 'rush5', name: 'Under Pressure', hint: 'Finish five rush orders before they run out',
-      cash: 2500000, got: (c) => c.rushDone >= 5 },
+      cash: 150000, got: (c) => c.rushDone >= 5 },
 
     { id: 'fran1', name: 'Second Location', hint: 'Franchise the gym out once',
-      cash: 3000000, got: (c) => c.runs >= 1 },
+      cash: 300000, got: (c) => c.runs >= 1 },
     { id: 'fran5', name: 'Franchise Group', hint: 'Franchise out five times',
       cash: 10000000000, got: (c) => c.runs >= 5 },
 
@@ -1768,8 +1784,14 @@
       if (chain.some((r) => r.layout.some(Boolean))) themesUsed++;
     });
     let topTier = 1;
+    // And the best tier reached on a piece that is not pocket change to
+    // upgrade: upgrading costs forty times the piece's price, so the tiers
+    // of the cheapest gear in the shop are bought with small change.
+    let topTierBig = 1;
     Object.keys(state.tiers || {}).forEach((id) => {
+      const item = itemById(id);
       if (state.tiers[id] > topTier) topTier = state.tiers[id];
+      if (item && item.baseCost >= 10000 && state.tiers[id] > topTierBig) topTierBig = state.tiers[id];
     });
     return {
       placed: tally.placed,
@@ -1786,6 +1808,7 @@
       roles: STAFF_ROLES.filter((r) => staffCount(r.id) > 0).length,
       open: THEMES.some((t) => deskPlacedIn(t.id)),
       topTier,
+      topTierBig,
       jobsDone: state.jobsDone || 0,
       rushDone: state.rushDone || 0,
       runs: (state.franchise && state.franchise.runs) || 0,
@@ -1997,7 +2020,10 @@
   // then somewhere else on the floor so the room is not a queueing system,
   // and now and then the room next door, which means a walk down the hallway
   // to get there.
-  const MEMBER_ROAM_CHANCE = 0.16;
+  // Raised with the rooms: a bigger floor with fewer people on it read as
+  // four separate rooms rather than one gym, because hardly anybody was
+  // ever in the hallway between them.
+  const MEMBER_ROAM_CHANCE = 0.28;
   function chooseTarget(m) {
     const rooms = activeRooms();
     let dest = m.room;
@@ -2680,7 +2706,11 @@
   function refreshHud() {
     hudTotal.textContent = '$' + formatNum(state.balance);
     hudGps.textContent = formatNum(gps) + '/s';
-    if (hudFloor) hudFloor.textContent = '$' + formatNum(floorCash());
+    if (hudFloor) {
+      const full = fullPiles();
+      hudFloor.textContent = '$' + formatNum(floorCash()) + (full ? ' · ' + full + ' full' : '');
+      hudFloor.classList.toggle('is-full', full > 0);
+    }
   }
 
   function recomputeStats() {
@@ -4965,6 +4995,9 @@
     const W = BASE_W;
     const H = BASE_H;
     floorCtx.clearRect(0, 0, W, H);
+    // Money tags are collected as the rooms are drawn and laid out once the
+    // whole plan is down, so this frame starts with none.
+    pileTags = [];
 
     // The canvas no longer paints its own full-bleed rectangle: the stage
     // window carries the ground colour, the canvas fades to transparent at
@@ -4991,6 +5024,14 @@
       });
     }
     pieces.sort((a, b) => a.depth - b.depth).forEach((p) => p.draw());
+
+    // The money tags, over everything in the plan: a tag is a label on the
+    // scene rather than a thing standing in it, and one hidden behind a
+    // machine would be money you could not see or reach. Not while a piece
+    // is in your hands, so a tap meant for the floor cannot collect
+    // something by accident.
+    pileTagRects = [];
+    if (!editing) layOutPileTags();
 
     // The hour of the day, laid over everything but under the vignette.
     const sky = skyWash();
@@ -5147,7 +5188,11 @@
       }
       drawProp(itemId, c, tierOf(itemId), turnAt(room, index));
       const pile = pileOf(room, shape, index);
-      if (pile.level > 0) drawCashPile(pileAnchor(place, room, shape, index), pile);
+      if (pile.level > 0) {
+        const foot = pileAnchor(place, room, shape, index);
+        drawCashStack(foot, pile);
+        queuePileTag(roomIndex, index, itemId, turnAt(room, index), c, foot, pile);
+      }
     });
 
     if (editing && editing.roomIndex === roomIndex) {
@@ -5162,8 +5207,14 @@
     const h = halfBoxOf(room.layout[index], turnAt(room, index));
     return isoPoint(place.gx0 + sp.u + h.u * 0.55, place.gy0 + sp.v + h.v + 0.45);
   }
-  const PILE_HIT = 15;
-  function drawCashPile(c, pile) {
+  // How far from the middle of the notes a tap still counts as reaching for
+  // them. The notes are small, so this is generous.
+  const PILE_HIT = 16;
+
+  // The notes themselves, on the floor at the piece's foot. This is the part
+  // that can end up behind something -- it is scenery, and the tag below is
+  // what guarantees the money is always visible and always reachable.
+  function drawCashStack(c, pile) {
     const ctx = floorCtx;
     const stacks = pile.level >= 4 ? 3 : pile.level;
     const full = pile.level >= 4;
@@ -5193,20 +5244,122 @@
       ctx.lineWidth = 0.8;
       ctx.strokeRect(x - 8, y - 4, 16, 5);
     }
-    // The figure, in a tag above the stack.
-    const label = '$' + formatNum(pile.amount);
-    ctx.font = 'bold 10px system-ui, sans-serif';
+  }
+
+  // Tags are collected during the scene pass and drawn after all of it, so
+  // a tag can never be hidden by a wall, a machine or somebody walking past
+  // -- which is the whole reason the amount does not live on the floor with
+  // the notes. `pileTags` is what was asked for this frame; `pileTagRects`
+  // is where they ended up, which is also what a tap is tested against.
+  let pileTags = [];
+  let pileTagRects = [];
+  function queuePileTag(roomIndex, index, itemId, turn, base, foot, pile) {
+    // A coin bubble over the machine, the way an idle game asks to be
+    // tapped: above the piece's own artwork so it is never mistaken for
+    // part of it, but no higher than a hand's reach above the floor it
+    // stands on, so a tall machine does not send its bubble to the ceiling.
+    const e = propCache.get(itemId + ':' + turn);
+    const top = e ? base.y - e.oy - 8 : base.y - 40;
+    pileTags.push({
+      roomIndex, index, pile, foot,
+      x: base.x,
+      y: Math.max(top, base.y - 78),
+      depth: base.y,
+    });
+  }
+  const TAG_H = 18;
+  function layOutPileTags() {
+    // Nearest the front first, so a tag that has to move gets out of the way
+    // of the one in front of it rather than the other way round.
+    pileTags.sort((a, b) => b.depth - a.depth);
+    const placed = [];
+    pileTagRects = [];
+    floorCtx.font = 'bold 10px system-ui, sans-serif';
+    pileTags.forEach((t) => {
+      const label = '$' + formatNum(t.pile.amount);
+      // Room for the coin as well as the figure.
+      const w = Math.max(40, floorCtx.measureText(label).width + 26);
+      const r = { x: t.x - w / 2, y: t.y - TAG_H, w, h: TAG_H };
+      // Up and out of the way of any tag already placed, so two pieces
+      // standing close together do not stack their tags on one another.
+      for (let guard = 0; guard < 40; guard++) {
+        const hit = placed.find((o) => r.x < o.x + o.w + 2 && o.x < r.x + r.w + 2
+          && r.y < o.y + o.h + 2 && o.y < r.y + r.h + 2);
+        if (!hit) break;
+        r.y = hit.y - r.h - 3;
+      }
+      placed.push(r);
+      pileTagRects.push({ rect: r, roomIndex: t.roomIndex, index: t.index });
+      drawPileTag(r, label, t);
+    });
+  }
+  function drawPileTag(r, label, t) {
+    const ctx = floorCtx;
+    const full = t.pile.level >= 4;
+    // A thread down to the money it is counting, so a bubble that has been
+    // pushed up out of the way of another one still points at its own
+    // machine. Not drawn when the bubble already sits over the piece.
+    const mid = r.y + r.h / 2;
+    if (mid < t.foot.y - 60) {
+      ctx.beginPath();
+      ctx.moveTo(t.x, r.y + r.h);
+      ctx.lineTo(t.foot.x, t.foot.y - 4);
+      ctx.strokeStyle = full ? 'rgba(255,183,3,0.45)' : 'rgba(255,255,255,0.22)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // The bubble, with a little tail pointing down at the machine.
+    ctx.beginPath();
+    ctx.moveTo(t.x - 4, r.y + r.h - 0.5);
+    ctx.lineTo(t.x + 4, r.y + r.h - 0.5);
+    ctx.lineTo(t.x, r.y + r.h + 4.5);
+    ctx.closePath();
+    ctx.fillStyle = full ? 'rgba(255,183,3,0.96)' : 'rgba(18,20,26,0.9)';
+    ctx.fill();
+
+    roundRectPath(ctx, r.x, r.y, r.w, r.h, r.h / 2);
+    ctx.fillStyle = full ? 'rgba(255,183,3,0.96)' : 'rgba(18,20,26,0.9)';
+    ctx.fill();
+    ctx.strokeStyle = full ? 'rgba(120,80,0,0.9)' : 'rgba(255,255,255,0.24)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // A coin at the near end: the thing you are being asked to collect.
+    const cx = r.x + r.h / 2 + 1;
+    const cy = r.y + r.h / 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 5.4, 0, Math.PI * 2);
+    ctx.fillStyle = full ? '#8a5a00' : '#e8c46a';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 5.4, 0, Math.PI * 2);
+    ctx.strokeStyle = full ? 'rgba(60,38,0,0.8)' : 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.font = 'bold 8px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const w = ctx.measureText(label).width + 10;
-    const ty = c.y - stacks * 4.2 - 10;
-    ctx.fillStyle = full ? 'rgba(255,183,3,0.95)' : 'rgba(20,22,28,0.85)';
-    roundRectPath(ctx, c.x - w / 2, ty - 7, w, 14, 7);
-    ctx.fill();
-    ctx.fillStyle = full ? '#1a1200' : '#fff';
-    ctx.fillText(label, c.x, ty + 0.5);
+    ctx.fillStyle = full ? '#f6d98f' : '#7a5a12';
+    ctx.fillText('$', cx, cy + 0.5);
+
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.fillStyle = full ? '#1a1200' : '#eafbef';
+    ctx.fillText(label, cx + 6 + (r.w - r.h - 6) / 2, cy + 0.5);
     ctx.textAlign = 'start';
     ctx.textBaseline = 'alphabetic';
+  }
+
+  // The tag under a point, if any -- tested last-drawn first, so the one on
+  // top is the one you get.
+  function pileTagAtPoint(px, py) {
+    for (let i = pileTagRects.length - 1; i >= 0; i--) {
+      const r = pileTagRects[i].rect;
+      if (px >= r.x - 3 && px <= r.x + r.w + 3 && py >= r.y - 3 && py <= r.y + r.h + 3) {
+        return { roomIndex: pileTagRects[i].roomIndex, index: pileTagRects[i].index };
+      }
+    }
+    return null;
   }
 
   // The pile under a point on the canvas, if any: the same circle the pile
@@ -5828,6 +5981,11 @@
       || (!!a && !!b && a.roomIndex === b.roomIndex && a.index === b.index);
   }
 
+  // Whether the pointer is over money -- a tag or the notes under it.
+  function overCash(px, py) {
+    return !editing && !!(pileTagAtPoint(px, py) || pileAtPoint(px, py));
+  }
+
   function setHoverCell(next) {
     if (samePiece(hoverCell, next)) return;
     hoverCell = next;
@@ -5836,19 +5994,22 @@
     renderScene();
   }
 
+  let cashUnderPointer = false;
   function restCursor() {
-    gestureEl.style.cursor = hoverCell ? 'pointer' : 'grab';
+    gestureEl.style.cursor = (hoverCell || cashUnderPointer) ? 'pointer' : 'grab';
   }
 
   gestureEl.addEventListener('pointermove', (e) => {
     if (e.pointerType !== 'mouse') return;
     if (dragState || pinchState || editing) { setHoverCell(null); return; }
     const p = pointFromEvent(e);
-    setHoverCell(pieceAtPoint(p.x, p.y));
+    cashUnderPointer = overCash(p.x, p.y);
+    setHoverCell(cashUnderPointer ? null : pieceAtPoint(p.x, p.y));
     restCursor();
   });
 
   gestureEl.addEventListener('pointerleave', () => {
+    cashUnderPointer = false;
     setHoverCell(null);
     restCursor();
   });
@@ -6180,8 +6341,9 @@
       if (hit && hit.roomIndex === editing.roomIndex) moveEditTo(hit.u, hit.v);
       return;
     }
-    // Cash first: a pile is the thing you are most likely reaching for.
-    const pile = pileAtPoint(px, py);
+    // Cash first: a pile is the thing you are most likely reaching for, and
+    // its tag -- which is drawn over everything -- before the notes.
+    const pile = pileTagAtPoint(px, py) || pileAtPoint(px, py);
     if (pile) {
       collectPile(pile.roomIndex, pile.index);
       return;
@@ -6255,18 +6417,19 @@
     });
   }
 
-  function refreshThemeRow() {
+  // The row of locations. Built once, because the tick refreshes it ten
+  // times a second: a row rebuilt between a press and its release swallows
+  // the click, which is why switching location used to take two goes.
+  const themeBtns = {};
+  function buildThemeRow() {
+    if (!themeRowEl) return;
     themeRowEl.innerHTML = '';
     THEMES.forEach((t) => {
-      const unlocked = unlockedFor(t);
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'tycoon-theme-btn' + (state.activeTheme === t.id ? ' is-active' : '') + (unlocked ? '' : ' is-locked');
-      btn.innerHTML = unlocked ? t.name
-        : t.name + ' <span class="btn-lock-icon">' + iconMarkup('lock', 11) + '</span> Lv ' + t.unlockLevel;
-      btn.disabled = !unlocked;
+      btn.className = 'tycoon-theme-btn';
       btn.addEventListener('click', () => {
-        if (state.activeTheme === t.id) return;
+        if (state.activeTheme === t.id || !unlockedFor(t)) return;
         state.activeTheme = t.id;
         state.activeRoomIndex = Math.min(state.activeRoomIndex, activeRooms().length - 1);
         rebuildPlan();
@@ -6275,9 +6438,26 @@
         refreshThemeRow();
         refreshSynergyText();
         refreshRoomActions();
+        refreshShopUI();
+        scrollToRoom(state.activeRoomIndex);
         save();
       });
       themeRowEl.appendChild(btn);
+      themeBtns[t.id] = btn;
+    });
+  }
+
+  function refreshThemeRow() {
+    THEMES.forEach((t) => {
+      const btn = themeBtns[t.id];
+      if (!btn) return;
+      const unlocked = unlockedFor(t);
+      const label = unlocked ? t.name
+        : t.name + ' <span class="btn-lock-icon">' + iconMarkup('lock', 11) + '</span> Lv ' + t.unlockLevel;
+      if (btn.innerHTML !== label) btn.innerHTML = label;
+      btn.classList.toggle('is-active', state.activeTheme === t.id);
+      btn.classList.toggle('is-locked', !unlocked);
+      btn.disabled = !unlocked;
     });
   }
 
@@ -6291,21 +6471,19 @@
   // plan you move around, and clicking any room's floor makes it the active
   // one -- so all that is left is the control for buying the next room.
   const roomActionsEl = document.getElementById('room-actions');
-  function refreshRoomActions() {
+  let addRoomBtn = null;
+  function buildRoomActions() {
     if (!roomActionsEl) return;
     roomActionsEl.innerHTML = '';
-    const rooms = activeRooms();
-    if (rooms.length >= MAX_ROOMS_PER_THEME) return;
-
-    const cost = ROOM_UNLOCK_COSTS[rooms.length];
-    const affordable = state.balance >= cost;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'tycoon-add-room' + (affordable ? '' : ' is-locked');
-    btn.textContent = '+ Add Room (' + slotCountFor(state.activeTheme, rooms.length)
-      + ' slots) — $' + formatNum(cost);
-    btn.disabled = !affordable;
-    btn.addEventListener('click', () => {
+    addRoomBtn = document.createElement('button');
+    addRoomBtn.type = 'button';
+    addRoomBtn.className = 'tycoon-add-room';
+    // Built once and only relabelled after, for the same reason the
+    // location buttons are: the tick refreshes this ten times a second.
+    addRoomBtn.addEventListener('click', () => {
+      const rooms = activeRooms();
+      if (rooms.length >= MAX_ROOMS_PER_THEME) return;
+      const cost = ROOM_UNLOCK_COSTS[rooms.length];
       if (state.balance < cost) return;
       const before = currentLevel();
       state.balance -= cost;
@@ -6326,7 +6504,24 @@
       scrollToRoom(state.activeRoomIndex);
       save();
     });
-    roomActionsEl.appendChild(btn);
+    roomActionsEl.appendChild(addRoomBtn);
+  }
+
+  function refreshRoomActions() {
+    if (!addRoomBtn) return;
+    const rooms = activeRooms();
+    if (rooms.length >= MAX_ROOMS_PER_THEME) {
+      addRoomBtn.hidden = true;
+      return;
+    }
+    const cost = ROOM_UNLOCK_COSTS[rooms.length];
+    const affordable = state.balance >= cost;
+    const label = '+ Add Room (' + slotCountFor(state.activeTheme, rooms.length)
+      + ' slots) — $' + formatNum(cost);
+    addRoomBtn.hidden = false;
+    if (addRoomBtn.textContent !== label) addRoomBtn.textContent = label;
+    addRoomBtn.classList.toggle('is-locked', !affordable);
+    addRoomBtn.disabled = !affordable;
   }
 
   // ---- The placement pad ----
@@ -6416,6 +6611,8 @@
 
   // ---- Init ----
   buildShop();
+  buildThemeRow();
+  buildRoomActions();
   buildStaffUI();
   buildTrophyUI();
   refreshFranchiseUI();
