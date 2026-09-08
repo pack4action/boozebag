@@ -3775,6 +3775,76 @@
     return [isoPoint(c.gx0, gy), isoPoint(c.gx0 + c.cols, gy)];
   }
 
+  // A hallway was paving and two walls: the gap between two rooms rather
+  // than a part of the building. What a corridor in a real gym has is a
+  // lane painted down it, somewhere to sit, and a fountain to stop at --
+  // so these get one of each.
+  //
+  // Nothing here is random. Everything is placed off the hallway's own
+  // position on the lattice, so a corridor is the same corridor on every
+  // repaint and between one session and the next.
+  function drawHallwayFittings(c, colors) {
+    const along = c.axis === 'gx' ? c.cols : c.rows;
+    const across = c.axis === 'gx' ? c.rows : c.cols;
+    // The garage's link between bays is two metres square -- a doorway with
+    // a floor, not a corridor. Furniture in it would sit half inside the
+    // wall of the room it opens into, so a hallway only gets furnished if
+    // there is somewhere in it to put anything. The paint goes down either
+    // way; that is what makes the short one read as a way through.
+    const roomy = along >= 8 && across >= 5;
+
+    // Two lanes of tape down the middle. `u` runs along the hallway and `v`
+    // across it, whichever way round the axis has them.
+    const at = (u, v) => (c.axis === 'gx'
+      ? isoPoint(c.gx0 + u, c.gy0 + v) : isoPoint(c.gx0 + v, c.gy0 + u));
+    const stripe = (v, width, color) => {
+      paintQuad([at(0.4, v), at(along - 0.4, v),
+        at(along - 0.4, v + width), at(0.4, v + width)], color, null, 0);
+    };
+    // Paint, not light: a pale wash of the floor's own colour, so it reads
+    // as something rolled onto the slabs rather than shone at them.
+    const tint = toRgb(shade(colors.floorA, 62));
+    const paint = 'rgba(' + tint.r + ',' + tint.g + ',' + tint.b + ',0.5)';
+    stripe(across * 0.40, 0.30, paint);
+    stripe(across * 0.68, 0.30, paint);
+
+    if (!roomy) return;
+
+    // Both against the back wall, which is the v = 0 edge on either axis --
+    // clear of the lane the crowd walks down the middle.
+    const benchLen = Math.min(4.6, along * 0.5);
+    // Kept away from the far end. A hallway runs into the next room's side
+    // wall, and that wall is drawn after the hallway and in front of it, so
+    // anything sitting too close to it is hidden behind it.
+    const benchAt = along * 0.30;
+    const fountainAt = along * 0.64;
+    const wood = shade(colors.floorA, 24);
+    const steel = '#9aa4b0';
+    // drawIsoBox takes half-extents along the two lattice axes, so which of
+    // them is the length depends on which way the hallway runs.
+    const box = (u, v, halfAlong, halfAcross, h, color, lift) => {
+      const base = at(u, v);
+      if (c.axis === 'gx') drawIsoBox(floorCtx, base, 0, 0, halfAlong, halfAcross, h, color, lift);
+      else drawIsoBox(floorCtx, base, 0, 0, halfAcross, halfAlong, h, color, lift);
+    };
+    // Bench: a plinth at each end, a seat across them and a back against
+    // the wall. The back is what makes it read as a bench rather than as a
+    // slab floating in front of a dark wall.
+    const seatH = 0.45 * PX_PER_METRE_TALL;
+    const legH = seatH * 0.76;
+    const SEAT_V = 2.0;
+    const BACK_V = 1.3;
+    box(benchAt - benchLen / 2 + 0.55, SEAT_V, 0.30, 0.44, legH, shade(steel, -46));
+    box(benchAt + benchLen / 2 - 0.55, SEAT_V, 0.30, 0.44, legH, shade(steel, -46));
+    box(benchAt, SEAT_V, benchLen / 2, 0.52, seatH * 0.24, wood, legH);
+    box(benchAt, BACK_V, benchLen / 2, 0.11, 0.34 * PX_PER_METRE_TALL, wood, legH);
+
+    // Fountain: a post with a basin on it, against the same wall.
+    const postH = 0.80 * PX_PER_METRE_TALL;
+    box(fountainAt, 1.5, 0.38, 0.38, postH, shade(steel, -30));
+    box(fountainAt, 1.5, 0.58, 0.58, postH * 0.14, steel, postH);
+  }
+
   function drawCorridorShell(c, colors) {
     drawPaving(c, colors, -8);
     drawSlabEdges(c, colors);
@@ -3815,6 +3885,8 @@
         drawWallRun([corner, far], ['gy'], ROOM.wallH, colors, ['open', 'open']);
       }
     }
+
+    drawHallwayFittings(c, colors);
 
     // Anyone walking between rooms is drawn by the hallway they are in, back
     // to front like everything else, so they pass behind its far wall and in
