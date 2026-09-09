@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=9" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=5" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=49" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=51" />
 </head>
 <body class="game-body">
 
@@ -82,6 +82,14 @@
   </div>
 
   <div class="game-toast" id="game-toast"></div>
+  <div class="tycoon-pop" id="trophy-pop" hidden role="status" aria-live="polite">
+    <span class="tycoon-pop-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3h12v2h3v3a5 5 0 0 1-4.4 4.96A6 6 0 0 1 13 16.9V19h3v2H8v-2h3v-2.1a6 6 0 0 1-3.6-3.94A5 5 0 0 1 3 8V5h3Zm-1 4v1a3 3 0 0 0 2 2.83V7Zm14 0h-2v3.83A3 3 0 0 0 19 8Z"/></svg></span>
+    <span class="tycoon-pop-text">
+      <span class="tycoon-pop-kicker">Trophy unlocked</span>
+      <span class="tycoon-pop-name"></span>
+    </span>
+    <span class="tycoon-pop-cash"></span>
+  </div>
 
   <div class="tycoon-designer">
     <div class="tycoon-toolbar">
@@ -203,8 +211,8 @@
         <summary>How it works</summary>
         <div class="tycoon-howto-body">
           <p><b>The loop.</b> Buy a machine. Put it on the floor. Tap the bubble over it to take the money. Everything else makes that bubble fill faster.</p>
-          <p><b>Opening up.</b> Put the Customer Desk down first. Nothing earns and nothing sells until it is. Every location gets one free. You never buy or sell one.</p>
-          <p><b>Bubbles.</b> A bubble holds about two minutes of takings. Full bubble, machine stops. Upgrade the desk to make them hold more, up to an hour.</p>
+          <p><b>Opening up.</b> Put the Customer Desk down first. Nothing earns and nothing sells until it is. The desk itself earns nothing. Every location gets one free. You never buy or sell one.</p>
+          <p><b>Bubbles.</b> Nothing pays into your balance by itself. A machine fills a bubble, and you tap it. A bubble holds about two minutes of takings; full bubble, machine stops. Upgrade the desk to make them hold more, up to an hour.</p>
           <p><b>Cashiers.</b> Hired into a room, up to three. They walk from bubble to bubble and take everything in each one they reach. More cashiers, faster rounds. Rooms you are not looking at still get their rounds.</p>
           <p><b>Placing.</b> Click a piece in Storage. Drag it, or use the arrow keys. R turns it. Enter places it. Escape puts it back. Place one and the next of the same kind is already in your hand. Two fingers pan and zoom while you hold something.</p>
           <p><b>Clear floor.</b> Each machine needs a strip of floor on the side you step on from. It shows as a dashed patch while you hold the piece. Nothing can stand in it.</p>
@@ -237,6 +245,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=96"></script>
+<script src="assets/js/gym-tycoon.js?v=97"></script>
 </body>
 </html>

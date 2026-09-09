@@ -1621,9 +1621,77 @@
   .tycoon-toolbar-end .tycoon-rush { flex: 1 1 100%; margin: 0 0 4px; width: auto; }
   .tycoon-toolbar-end .tycoon-room-actions,
   .tycoon-toolbar-end .tycoon-promo-btn {
-    flex: 1 1 calc(50% - 4px);
+    /* Half the row less the row's own 10px gap, or the pair is 2px too
+       wide and wraps. */
+    flex: 1 1 calc(50% - 10px);
     margin: 0;
     min-height: 0;
   }
   .tycoon-toolbar-end .tycoon-add-room { width: 100%; }
+}
+
+/* ---- The trophy card ----
+   Fixed to the top of the window, under the nav, so it is seen wherever
+   the page is scrolled to. It slides down in and back up out. */
+.tycoon-pop {
+  position: fixed;
+  top: 84px;
+  left: 50%;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 260px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px 10px 12px;
+  border: 2px solid #000;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #2a2412, #16130a);
+  box-shadow: 0 0 0 1.5px rgba(255, 209, 102, 0.55), 6px 6px 0 #000;
+  color: #f4f0ea;
+  transform: translate(-50%, -140%);
+  opacity: 0;
+  transition: transform 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.15), opacity 0.25s ease;
+  pointer-events: none;
+}
+.tycoon-pop[hidden] { display: none; }
+.tycoon-pop.is-in { transform: translate(-50%, 0); opacity: 1; }
+.tycoon-pop-icon {
+  display: flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe08a, #f0a91b 70%);
+  color: #3a2600;
+  flex: none;
+}
+.tycoon-pop-text { display: flex; flex-direction: column; min-width: 0; }
+.tycoon-pop-kicker {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #ffd166;
+}
+.tycoon-pop-name { font-size: 15px; font-weight: 800; line-height: 1.15; }
+.tycoon-pop-cash {
+  margin-left: auto;
+  font-family: 'Anton', sans-serif;
+  font-size: 18px;
+  color: #ffd166;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tycoon-pop { transition: opacity 0.2s ease; transform: translate(-50%, 0); }
+}
+@media (max-width: 560px) {
+  /* Near the full width on a phone, or the kicker and the name each wrap
+     and the card is three lines tall. */
+  .tycoon-pop { width: calc(100vw - 24px); min-width: 0; gap: 10px; padding: 9px 12px 9px 10px; }
+  .tycoon-pop-kicker { white-space: nowrap; letter-spacing: 0.8px; }
+  .tycoon-pop-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tycoon-pop-icon { width: 36px; height: 36px; }
+  .tycoon-pop-cash { font-size: 16px; }
 }

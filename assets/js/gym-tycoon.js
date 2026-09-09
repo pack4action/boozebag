@@ -11,39 +11,43 @@
     // a cent or sells you anything: the first is yours for nothing, and the
     // next locations each buy their own. It earns a trickle of membership
     // fees on its own, which is what the first dumbbell set is bought with.
-    { id: 'frontdesk', name: 'Customer Desk', baseCost: 2500, gps: 0.3, starter: true },
-    { id: 'dumbbell', name: 'Dumbbell Set', baseCost: 15, gps: 0.1 },
-    { id: 'dumbbellrack', name: 'Dumbbell Rack', baseCost: 35, gps: 0.22 },
-    { id: 'mat', name: 'Yoga Mat', baseCost: 60, gps: 0.5 },
-    { id: 'bench', name: 'Bench Press', baseCost: 200, gps: 2 },
-    { id: 'rack', name: 'Squat Rack', baseCost: 800, gps: 8 },
-    { id: 'cable', name: 'Cable Machine', baseCost: 3000, gps: 30 },
-    { id: 'treadmill', name: 'Treadmill', baseCost: 10000, gps: 100 },
+    // The desk earns nothing. It opens the doors, and that is all it does:
+    // the first money comes from the trophy for putting it down, and after
+    // that from tapping the bubbles. Nothing pays into the balance by
+    // itself until there is a cashier to carry it there.
+    { id: 'frontdesk', name: 'Customer Desk', baseCost: 2500, gps: 0, starter: true },
+    { id: 'dumbbell', name: 'Dumbbell Set', baseCost: 25, gps: 0.1 },
+    { id: 'dumbbellrack', name: 'Dumbbell Rack', baseCost: 60, gps: 0.22 },
+    { id: 'mat', name: 'Yoga Mat', baseCost: 100, gps: 0.5 },
+    { id: 'bench', name: 'Bench Press', baseCost: 320, gps: 2 },
+    { id: 'rack', name: 'Squat Rack', baseCost: 1200, gps: 8 },
+    { id: 'cable', name: 'Cable Machine', baseCost: 4500, gps: 30 },
+    { id: 'treadmill', name: 'Treadmill', baseCost: 15000, gps: 100 },
     // The counter. These earn on the floor like anything else, and on top of
     // that they make stock: you start a batch, it takes real time to run,
     // and what comes off the counter is what the delivery orders on the Jobs
     // tab ask for. Everything else in the game is a rate; this is the one
     // thing that is a queue.
-    { id: 'juicebar', name: 'Juice Bar', baseCost: 25000, gps: 250, unlockLevel: 3 },
-    { id: 'sauna', name: 'Sauna', baseCost: 150000, gps: 1500 },
-    { id: 'gearfridge', name: 'Gear Fridge', baseCost: 600000, gps: 6000 },
-    { id: 'proshop', name: 'Pro Shop', baseCost: 1500000, gps: 15000, unlockLevel: 7 },
-    { id: 'soundsystem', name: 'Hype Sound System', baseCost: 2500000, gps: 25000 },
+    { id: 'juicebar', name: 'Juice Bar', baseCost: 36000, gps: 250, unlockLevel: 3 },
+    { id: 'sauna', name: 'Sauna', baseCost: 220000, gps: 1500 },
+    { id: 'gearfridge', name: 'Gear Fridge', baseCost: 900000, gps: 6000 },
+    { id: 'proshop', name: 'Pro Shop', baseCost: 2200000, gps: 15000, unlockLevel: 7 },
+    { id: 'soundsystem', name: 'Hype Sound System', baseCost: 3600000, gps: 25000 },
     // Office tier: hidden in the shop until the gym is established enough to
     // need one -- the "then you hire people" stage after the core equipment.
-    { id: 'desk', name: "Manager's Desk", baseCost: 10000000, gps: 100000, unlockLevel: 6 },
-    { id: 'cubicle', name: 'Sales Cubicle', baseCost: 40000000, gps: 400000, unlockLevel: 8 },
-    { id: 'officepod', name: 'Corner Office Pod', baseCost: 160000000, gps: 1600000, unlockLevel: 10 },
+    { id: 'desk', name: "Manager's Desk", baseCost: 14000000, gps: 100000, unlockLevel: 6 },
+    { id: 'cubicle', name: 'Sales Cubicle', baseCost: 56000000, gps: 400000, unlockLevel: 8 },
+    { id: 'officepod', name: 'Corner Office Pod', baseCost: 220000000, gps: 1600000, unlockLevel: 10 },
 
     // Fittings. These earn nothing on their own -- what they do is make the
     // room somewhere people want to be, and a room people want to be in
     // works harder. Every one of them takes a slot a machine could have had,
     // which is the decision: floor space for a multiplier on the space that
     // is left.
-    { id: 'palm', name: 'Potted Palm', baseCost: 900, vibe: 1, unlockLevel: 2 },
-    { id: 'cooler', name: 'Water Cooler', baseCost: 7500, vibe: 2, unlockLevel: 3 },
-    { id: 'mirrorwall', name: 'Mirror Wall', baseCost: 90000, vibe: 3, unlockLevel: 5 },
-    { id: 'neon', name: 'Neon Sign', baseCost: 1200000, vibe: 5, unlockLevel: 7 },
+    { id: 'palm', name: 'Potted Palm', baseCost: 1400, vibe: 1, unlockLevel: 2 },
+    { id: 'cooler', name: 'Water Cooler', baseCost: 11000, vibe: 2, unlockLevel: 3 },
+    { id: 'mirrorwall', name: 'Mirror Wall', baseCost: 130000, vibe: 3, unlockLevel: 5 },
+    { id: 'neon', name: 'Neon Sign', baseCost: 1700000, vibe: 5, unlockLevel: 7 },
   ];
   // Gains per second is the headline number on every piece of gear, and a
   // fitting has none. Rather than scatter `item.gps || 0` through the
@@ -1120,7 +1124,8 @@
         rates.forEach((r, k) => {
           if (r <= 0) return;
           // Membership fees are paid at the desk, straight into the till.
-          if (room.layout[k] === 'frontdesk') { direct += r * dt; return; }
+          // The desk earns nothing, and nothing else pays in by itself.
+          if (room.layout[k] === 'frontdesk') return;
           const cap = niceCap(r * capS);
           cash[k] = Math.min(cap, cash[k] + r * dt);
           key += pileLevel(cash[k], cap);
@@ -2957,10 +2962,36 @@
     if (!won.length) return;
     refreshTrophyUI();
     refreshHud();
-    // One at a time: two toasts in the same breath and only the second is
-    // ever read.
-    toast(won[0].name + ' -- $' + formatNum(won[0].cash), 'good');
+    won.forEach(announceTrophy);
     save();
+  }
+
+  // ---- The trophy card ----
+  // Slides in from the top the way a console achievement does, holds long
+  // enough to read, and slides out. Several won at once queue up and show
+  // one after another rather than talking over each other.
+  const trophyPopEl = document.getElementById('trophy-pop');
+  const trophyQueue = [];
+  let trophyShowing = false;
+  function announceTrophy(t) {
+    if (!trophyPopEl) { toast(t.name + ' -- $' + formatNum(t.cash), 'good'); return; }
+    trophyQueue.push(t);
+    if (!trophyShowing) showNextTrophy();
+  }
+  function showNextTrophy() {
+    const t = trophyQueue.shift();
+    if (!t) { trophyShowing = false; return; }
+    trophyShowing = true;
+    setText(trophyPopEl.querySelector('.tycoon-pop-name'), t.name);
+    setText(trophyPopEl.querySelector('.tycoon-pop-cash'), '+$' + formatNum(t.cash));
+    trophyPopEl.hidden = false;
+    // Two frames: the first paints it off-screen, the second lets the
+    // transition carry it in. Without the gap it just appears.
+    requestAnimationFrame(() => requestAnimationFrame(() => trophyPopEl.classList.add('is-in')));
+    setTimeout(() => {
+      trophyPopEl.classList.remove('is-in');
+      setTimeout(() => { trophyPopEl.hidden = true; showNextTrophy(); }, 450);
+    }, 3600);
   }
 
   // The name is the player's, so it is kept the moment it is typed rather
@@ -3493,6 +3524,10 @@
   // has to say so where the gains/sec is said.
   function earnsLine(itemId) {
     const tier = tierOf(itemId);
+    if (itemById(itemId).starter) {
+      return 'Opens the location. Earns nothing itself'
+        + (tier > 1 ? ' \u00b7 bubbles hold ' + Math.round(pileCapSeconds() / 60) + ' min' : '');
+    }
     return '+' + formatNum(gpsOf(itemId)) + '/s on the floor'
       + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '')
       + (makesStock(itemId) ? ' \u00b7 makes ' + RECIPES_OF[itemId]
