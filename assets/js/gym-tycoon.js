@@ -538,6 +538,62 @@
     return currentLevel() >= (thing.unlockLevel || 1);
   }
 
+  // ---- What a level is worth ----
+  // Nothing new came into the shop past level ten, and the last location
+  // opened at fifteen, so the bar filled for nothing for most of its
+  // length. Every level brings something now. From eleven up, each one is
+  // two percent on everything -- the gym's reputation, which is what a
+  // well-known place charges for -- and the milestones widen what the gym
+  // can hold: more jobs on the board, a bigger larder, another Cashier to
+  // a room, busier busy hours, a shorter wait for the next Open Day.
+  const REPUTATION_FROM_LEVEL = 10;
+  const REPUTATION_PER_LEVEL = 0.02;
+  const LEVEL_PERKS = [
+    { level: 12, kind: 'jobs', amount: 1, text: 'a fourth job on the board' },
+    { level: 14, kind: 'larder', amount: 15, text: 'a larder that holds 40' },
+    { level: 16, kind: 'promo', amount: 300, text: 'an Open Day every 10 minutes' },
+    { level: 18, kind: 'cashiers', amount: 1, text: 'one more Cashier to a room' },
+    { level: 20, kind: 'rush', amount: 0.10, text: 'busy hours paying 30% more' },
+    { level: 22, kind: 'larder', amount: 10, text: 'a larder that holds 50' },
+    { level: 25, kind: 'jobs', amount: 1, text: 'a fifth job on the board' },
+    { level: 28, kind: 'promo', amount: 240, text: 'an Open Day every 6 minutes' },
+    { level: 30, kind: 'larder', amount: 10, text: 'a larder that holds 60' },
+    { level: 33, kind: 'rush', amount: 0.10, text: 'busy hours paying 40% more' },
+    { level: 35, kind: 'cashiers', amount: 1, text: 'one more Cashier to a room' },
+    { level: 40, kind: 'reputation', amount: 0.20, text: 'another 20% on everything, for good' },
+  ];
+  // The perks of one kind that a level has earned, added up. Asked with a
+  // level for the copy that says what a level will bring; without one for
+  // the game as it stands.
+  function levelPerk(kind, level) {
+    const at = level === undefined ? currentLevel() : level;
+    return LEVEL_PERKS.filter((perk) => perk.kind === kind && at >= perk.level)
+      .reduce((sum, perk) => sum + perk.amount, 0);
+  }
+  function reputationBonus(level) {
+    const at = level === undefined ? currentLevel() : level;
+    return Math.max(0, at - REPUTATION_FROM_LEVEL) * REPUTATION_PER_LEVEL
+      + levelPerk('reputation', at);
+  }
+  function reputationMultiplier() {
+    return 1 + reputationBonus();
+  }
+  // Everything one level brings, in words, for the level-up line and the
+  // card that says what the next one is for.
+  function levelBrings(level) {
+    const opened = ITEMS.filter((i) => i.unlockLevel === level).map((i) => i.name)
+      .concat(THEMES.filter((t) => t.unlockLevel === level).map((t) => t.name))
+      .concat(STAFF_ROLES.filter((r) => r.unlockLevel === level).map((r) => r.name + 's'))
+      .concat(level === UPGRADE_MIN_LEVEL ? ['upgrades'] : [])
+      .concat(level === RUSH_ORDER_MIN_LEVEL ? ['rush orders'] : [])
+      .concat(LEVEL_PERKS.filter((perk) => perk.level === level).map((perk) => perk.text));
+    if (level > REPUTATION_FROM_LEVEL) {
+      opened.push('+' + Math.round(REPUTATION_PER_LEVEL * 100) + '% on everything'
+        + (level === REPUTATION_FROM_LEVEL + 1 ? ' (reputation: every level from here adds it)' : ''));
+    }
+    return opened;
+  }
+
   // How much floor a piece takes up along its longest side, in metres, and
   // how big to draw it. They are the same number for a machine; they part
   // company for anything whose art is taller than the floor it stands on.
@@ -610,6 +666,10 @@
   // up here because reading a save asks what a product is.
   const QUEUE_SLOTS = 3;
   const LARDER_CAP = 25;
+  const LARDER_CAP_MAX = 60;
+  function larderCap() {
+    return Math.min(LARDER_CAP_MAX, LARDER_CAP + levelPerk('larder'));
+  }
   const PRODUCTS = {
     shake: { name: 'Protein Shake', from: 'juicebar', seconds: 45, color: '#e2724a' },
     smoothie: { name: 'Green Smoothie', from: 'juicebar', seconds: 420, color: '#5db56a' },
@@ -804,6 +864,168 @@
   // Per-slot multiplier from adjacent gear: +12% for each neighbour of the
   // same category.
 
+  // ---- Room goals ----
+  // The arrangement bonus is a few percent for standing like beside like,
+  // which is not enough to make anyone think about a room: a carefully
+  // planned floor earned about what a randomly filled one did, and the
+  // dragging and turning existed to serve nothing. Two goals a whole room
+  // can meet, each worth a real slice, and each said in the room details
+  // with what is missing when it is not met:
+  //
+  //   A specialist room: four or more machines and every one of them the
+  //   same kind -- a cardio room, a weights room, a recovery suite.
+  //
+  //   Easy to get around: three or more machines and every one of them can
+  //   be walked to from the door without squeezing between anything. That
+  //   is a real walk on a grid of the floor, not a guess: a machine whose
+  //   step-on floor is boxed in by its neighbours fails it, which is the
+  //   blind-corner layout that looks fine and is not.
+  const SPECIALIST_MIN = 4;
+  const SPECIALIST_BONUS = 0.15;
+  const CLEAR_WALK_MIN = 3;
+  const CLEAR_WALK_BONUS = 0.10;
+  // The floor is walked on a grid of half tiles, and a point on it is
+  // standing room only if it is this far from every piece: a passage
+  // narrower than about half a metre is not a passage.
+  const WALK_CELL = 0.5;
+  const WALK_CLEAR = 0.6;
+
+  // Which theme a room belongs to and where it stands in the chain, found
+  // by identity: the rooms are the saved objects themselves.
+  function whereIs(room) {
+    for (let t = 0; t < THEMES.length; t++) {
+      const rooms = state.themeRooms[THEMES[t].id] || [];
+      const i = rooms.indexOf(room);
+      if (i !== -1) return { themeId: THEMES[t].id, index: i, count: rooms.length };
+    }
+    return null;
+  }
+
+  // The doorways into a room from the hallways, on its two back walls, as
+  // spans in the room's own tiles. The open front is always a way in.
+  function roomDoors(themeId, index, count) {
+    const doors = [];
+    if (count < 2) return doors;
+    const pl = roomPlacements(themeId, count);
+    const me = pl[index];
+    [index - 1, index].forEach((k) => {
+      if (k < 0 || k + 1 >= count) return;
+      const c = corridorBetween(themeId, pl[k], pl[k + 1], roomDirFor(themeId, k));
+      if (c.doorRoom !== me) return;
+      if (c.axis === 'gx') doors.push({ wall: 'u0', from: c.gy0 - me.gy0, to: c.gy0 + c.rows - me.gy0 });
+      else doors.push({ wall: 'v0', from: c.gx0 - me.gx0, to: c.gx0 + c.cols - me.gx0 });
+    });
+    return doors;
+  }
+
+  // Every machine in the room that has step-on floor, with where it stands,
+  // and whether each can be reached. A walk from the doors and the open
+  // front across every half tile that is clear of every piece; a machine is
+  // reached when the walk gets onto its step-on floor.
+  function walkReach(room, shape, doors) {
+    const cols = Math.ceil(shape.cols / WALK_CELL);
+    const rows = Math.ceil(shape.rows / WALK_CELL);
+    const cut = cutRect(shape);
+    const boxes = [];
+    const targets = [];
+    room.layout.forEach((id, i) => {
+      if (!id) return;
+      const sp = spotOf(room, i, shape);
+      const t = turnAt(room, i);
+      boxes.push(boxRect(sp, halfBoxOf(id, t)));
+      const item = itemById(id);
+      const zone = accessZone(id, sp, t);
+      if (item && item.gps > 0 && zone) targets.push({ id, index: i, zone, reached: false });
+    });
+    const clear = new Uint8Array(cols * rows);
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        const u = (i + 0.5) * WALK_CELL;
+        const v = (j + 0.5) * WALK_CELL;
+        if (u > shape.cols || v > shape.rows) continue;
+        if (cut && inRect(cut, u, v)) continue;
+        let free = true;
+        for (let b = 0; b < boxes.length && free; b++) {
+          const bx = boxes[b];
+          if (u > bx.u0 - WALK_CLEAR && u < bx.u1 + WALK_CLEAR
+            && v > bx.v0 - WALK_CLEAR && v < bx.v1 + WALK_CLEAR) free = false;
+        }
+        clear[j * cols + i] = free ? 1 : 0;
+      }
+    }
+    // Where the walk starts: the cells along each doorway, and the whole of
+    // the open front -- the two edges nearest you, which have no wall.
+    const seen = new Uint8Array(cols * rows);
+    const queue = [];
+    const start = (i, j) => {
+      if (i < 0 || j < 0 || i >= cols || j >= rows) return;
+      const k = j * cols + i;
+      if (!clear[k] || seen[k]) return;
+      seen[k] = 1;
+      queue.push(k);
+    };
+    doors.forEach((d) => {
+      const lo = Math.floor(d.from / WALK_CELL);
+      const hi = Math.ceil(d.to / WALK_CELL);
+      for (let k = lo; k < hi; k++) {
+        if (d.wall === 'u0') start(0, k); else start(k, 0);
+      }
+    });
+    for (let i = 0; i < cols; i++) start(i, rows - 1);
+    for (let j = 0; j < rows; j++) start(cols - 1, j);
+    while (queue.length) {
+      const k = queue.shift();
+      const i = k % cols;
+      const j = (k - i) / cols;
+      const u = (i + 0.5) * WALK_CELL;
+      const v = (j + 0.5) * WALK_CELL;
+      targets.forEach((tg) => {
+        if (!tg.reached && u > tg.zone.u0 && u < tg.zone.u1 && v > tg.zone.v0 && v < tg.zone.v1) tg.reached = true;
+      });
+      start(i + 1, j); start(i - 1, j); start(i, j + 1); start(i, j - 1);
+    }
+    return targets;
+  }
+
+  // What a room's layout is worth beyond the sum of its pieces, and why.
+  // Remembered per layout, because the earnings ask ten times a second and
+  // the walk is the one sum here that is not a handful of multiplications.
+  const goalMemo = new Map();
+  function roomGoals(room, shape) {
+    const key = room.layout.join(',') + '|'
+      + (room.spots || []).map((sp) => (sp ? sp.u + ',' + sp.v + ',' + (sp.r || 0) : '')).join(';')
+      + '|' + shape.cols + 'x' + shape.rows;
+    const at = whereIs(room);
+    const fullKey = (at ? at.themeId + at.index + '/' + at.count : '?') + '#' + key;
+    const hit = goalMemo.get(room);
+    if (hit && hit.key === fullKey) return hit.goals;
+
+    const machines = room.layout.filter((id) => id && itemById(id) && itemById(id).gps > 0);
+    const kinds = [...new Set(machines.map((id) => CATEGORY[id]))];
+    const specialist = machines.length >= SPECIALIST_MIN && kinds.length === 1;
+    const targets = at
+      ? walkReach(room, shape, roomDoors(at.themeId, at.index, at.count))
+      : walkReach(room, shape, []);
+    const stuck = targets.filter((t) => !t.reached);
+    const clearWalk = targets.length >= CLEAR_WALK_MIN && stuck.length === 0;
+    const goals = {
+      specialist,
+      kind: kinds.length === 1 ? kinds[0] : null,
+      kinds,
+      machines: machines.length,
+      clearWalk,
+      walkers: targets.length,
+      stuck: stuck.map((t) => itemById(t.id).name),
+      // Added, not compounded, so the header, the two lines and the rows in
+      // the breakdown all say the same number.
+      multiplier: 1 + (specialist ? SPECIALIST_BONUS : 0) + (clearWalk ? CLEAR_WALK_BONUS : 0),
+    };
+    goalMemo.set(room, { key: fullKey, goals });
+    return goals;
+  }
+  function roomGoalMultiplier(room, shape) {
+    return roomGoals(room, shape).multiplier;
+  }
 
   // ---- Upgrades ----
   // A room has a fixed number of slots, so a gym that has filled its rooms
@@ -864,6 +1086,7 @@
     if (!state.tiers) state.tiers = {};
     state.tiers[id] = tierOf(id) + 1;
     addXp(xpForSpend(cost));
+    sfx.thunk();
     if (currentLevel() > before) announceLevel(currentLevel());
     else toast(itemById(id).name + ' upgraded to ' + TIER_NAMES[tierOf(id)], 'good');
     recomputeStats();
@@ -969,8 +1192,12 @@
   // would only follow the third about.
   const CASHIERS_PER_ROOM = 3;
   // A Corner Office Pod anywhere in the gym adds one more to every room.
+  // Three to a room, one more for a Corner Office Pod, and the levels add
+  // their own. The clamp a save is read through uses the most this can be.
+  const CASHIERS_PER_ROOM_MAX = 6;
   function cashiersPerRoom() {
-    return CASHIERS_PER_ROOM + gymEffect('cashiers');
+    return Math.min(CASHIERS_PER_ROOM_MAX,
+      CASHIERS_PER_ROOM + gymEffect('cashiers') + levelPerk('cashiers'));
   }
   function roomCashiers(room) {
     return (room && room.staff && room.staff.cashier) || 0;
@@ -1052,15 +1279,20 @@
     const t = at - Math.floor(at);
     return RUSH_BY_HOUR[lo] * (1 - t) + RUSH_BY_HOUR[hi] * t;
   }
+  // What the busiest hour pays over the quietest, before staff and
+  // fittings: the base, plus what the levels have added to it.
+  function rushBonus() {
+    return RUSH_BONUS + levelPerk('rush');
+  }
   function rushMultiplier() {
-    return 1 + RUSH_BONUS * (1 + staffEffect('receptionist')) * rushFactor();
+    return 1 + rushBonus() * (1 + staffEffect('receptionist')) * rushFactor();
   }
   // The same, for one room: a Mirror Wall makes the busy hours pay more
   // there, and a Sound System means the room is never Quiet.
   function rushMultiplierFor(room) {
     const floor = roomEffect(room, 'floor');
     const f = Math.max(rushFactor(), floor);
-    return 1 + RUSH_BONUS * (1 + staffEffect('receptionist') + roomEffect(room, 'rush')) * f;
+    return 1 + rushBonus() * (1 + staffEffect('receptionist') + roomEffect(room, 'rush')) * f;
   }
   // ---- Open day ----
   // The gym's own rhythm is the rush, and you cannot argue with it: the
@@ -1086,8 +1318,12 @@
   function promoSecondsLeft() {
     return Math.max(0, promoSeconds() - promoAgeSeconds());
   }
+  // The wait between Open Days, which the levels shorten.
+  function promoCooldownSeconds() {
+    return Math.max(60, PROMO_COOLDOWN_SECONDS - levelPerk('promo'));
+  }
   function promoReadyInSeconds() {
-    return Math.max(0, PROMO_COOLDOWN_SECONDS - promoAgeSeconds());
+    return Math.max(0, promoCooldownSeconds() - promoAgeSeconds());
   }
   function promoRunning() {
     return promoSecondsLeft() > 0;
@@ -1209,13 +1445,13 @@
   // is the rate the money actually arrives at.
   function roomMultiplier(room) {
     return (1 + roomEffect(room, 'room')) * vibeMultiplier(room) * rushMultiplierFor(room) * promoMultiplier()
-      * (1 + staffEffect('manager')) * franchiseMultiplier() * (1 - wageShare());
+      * (1 + staffEffect('manager')) * franchiseMultiplier() * reputationMultiplier() * (1 - wageShare());
   }
   // What each piece in a room makes a second, slot by slot -- this is what
   // lands in the pile at its foot.
   function pieceRates(room, shape) {
     const mult = synergyMultipliers(room, shape);
-    const rm = roomMultiplier(room);
+    const rm = roomMultiplier(room) * roomGoalMultiplier(room, shape);
     return room.layout.map((itemId, index) => (itemId ? gpsOf(itemId) * mult[index] * rm : 0));
   }
   function computeGps(room, shape) {
@@ -1378,6 +1614,7 @@
     state.balance += amount;
     state.lifetime += amount;
     refreshHud();
+    sfx.coin();
     toast('+$' + formatMoney(amount), 'legend-paper');
     renderScene();
     save();
@@ -1488,7 +1725,7 @@
         // through: a batch of something that no longer exists, and one in a
         // slot that has no counter in it any more.
         // Who works this room.
-        staff: { cashier: Math.max(0, Math.min(CASHIERS_PER_ROOM,
+        staff: { cashier: Math.max(0, Math.min(CASHIERS_PER_ROOM_MAX,
           (r && r.staff && r.staff.cashier) | 0)) },
         batches: new Array(n).fill(null).map((_, k) => {
           const id = old[k] || null;
@@ -1498,6 +1735,10 @@
           return q.filter((bt) => bt && PRODUCTS[bt.p] && PRODUCTS[bt.p].from === id
             && typeof bt.at === 'number' && isFinite(bt.at)).slice(0, QUEUE_SLOTS);
         }),
+        // The room's regular, if it has one yet: kept as saved, checked
+        // when they next come in.
+        regular: r && r.regular && typeof r.regular === 'object' && typeof r.regular.name === 'string'
+          ? r.regular : null,
       };
       settleRoom(themeId, i, room);
       return room;
@@ -1829,7 +2070,7 @@
     Object.keys(s.larder && typeof s.larder === 'object' ? s.larder : {}).forEach((p) => {
       if (!PRODUCTS[p]) return;
       const n = Math.floor(Number(s.larder[p]) || 0);
-      if (n > 0) stock[p] = Math.min(LARDER_CAP, n);
+      if (n > 0) stock[p] = Math.min(LARDER_CAP_MAX, n);
     });
     s.larder = stock;
     // What the time away is worth is settled after the state is in place,
@@ -1838,7 +2079,13 @@
     return s;
   }
 
+  // Loading a save code writes the new gym and reloads the page, and in the
+  // moment between the two the old page is still running: an autosave
+  // landing there would put the old gym straight back. So a load shuts the
+  // door behind it.
+  let saveLocked = false;
   function save() {
+    if (saveLocked) return;
     state.lastSaved = Date.now();
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
   }
@@ -1927,7 +2174,7 @@
     return Math.max(0, Math.floor(larder()[productId] || 0));
   }
   function larderRoom(productId) {
-    return Math.max(0, LARDER_CAP - larderCount(productId));
+    return Math.max(0, larderCap() - larderCount(productId));
   }
   function addToLarder(productId, n) {
     const took = Math.min(n, larderRoom(productId));
@@ -2060,6 +2307,9 @@
   // usually the thing that teaches how the game works -- arrange for
   // synergy, fill a room, get a category onto the floor.
   const JOBS_ON_BOARD = 3;
+  function jobsOnBoard() {
+    return JOBS_ON_BOARD + levelPerk('jobs');
+  }
 
   function allRoomsEverywhere() {
     return THEMES.reduce((list, t) => list.concat(state.themeRooms[t.id] || []), []);
@@ -2154,7 +2404,7 @@
         const p = pickOf(ctx.products);
         // Never more than the larder can hold, or the order could not be
         // filled however long you left it running.
-        const most = Math.min(LARDER_CAP, PRODUCTS[p].seconds > 300 ? 4 : 8);
+        const most = Math.min(larderCap(), PRODUCTS[p].seconds > 300 ? 4 : 8);
         return { product: p, target: Math.max(2, 2 + Math.floor(Math.random() * (most - 1))) };
       },
       text: (j) => 'Deliver ' + j.target + ' x ' + PRODUCTS[j.product].name,
@@ -2222,8 +2472,8 @@
   function refillJobs() {
     if (!Array.isArray(state.jobs)) state.jobs = [];
     state.jobs = state.jobs.filter((j) => j && JOB_KINDS[j.kind]);
-    const weights = [1, 1.7, 2.6];
-    while (state.jobs.length < JOBS_ON_BOARD) {
+    const weights = [1, 1.7, 2.6, 3.6, 4.8];
+    while (state.jobs.length < jobsOnBoard()) {
       state.jobs.push(makeJob(weights[state.jobs.length] || 1,
         state.jobs.map((j) => j.kind)));
     }
@@ -2302,6 +2552,7 @@
     state.balance += job.cash;
     state.lifetime += job.cash;
     addXp(job.xp);
+    sfx.cash();
     state.jobsDone = (state.jobsDone || 0) + 1;
     state.rushDone = (state.rushDone || 0) + 1;
     const r = rushState();
@@ -2587,6 +2838,65 @@
     };
   }
 
+  // ---- Regulars ----
+  // The crowd was a crowd: nobody in it was anybody. Each room now has one
+  // regular -- a name, a look that stays the same from one visit to the
+  // next, and a machine they come in for and head to first. They are worth
+  // no more than anyone else in the takings; they are worth something to
+  // look at, which is what a crowd was for.
+  const REGULAR_NAMES = ['Dee', 'Marco', 'Priya', 'Tomasz', 'Aisha', 'Big Ron', 'Kenji', 'Lena',
+    'Otis', 'Yara', 'Bram', 'Nia', 'Sol', 'Ivy', 'Dutch', 'Femi', 'Rosa', 'Jules', 'Hank', 'Mira'];
+  function machineSlots(room) {
+    const out = [];
+    room.layout.forEach((id, i) => {
+      if (id && itemById(id) && itemById(id).gps > 0) out.push(i);
+    });
+    return out;
+  }
+  // The room's regular, made the first time the room has a machine for
+  // them to come in for. The name is one no other room's regular has, and
+  // the look is rolled once and kept.
+  function regularOf(room) {
+    const machines = machineSlots(room);
+    if (!machines.length) return null;
+    if (!room.regular) {
+      const taken = allRoomsEverywhere().map((r) => r.regular && r.regular.name).filter(Boolean);
+      const free = REGULAR_NAMES.filter((n) => taken.indexOf(n) === -1);
+      room.regular = {
+        name: pickOf(free.length ? free : REGULAR_NAMES),
+        fav: null,
+        look: {
+          shirt: pickOf(MEMBER_SHIRTS),
+          skin: pickOf(MEMBER_SKINS),
+          hair: pickOf(MEMBER_HAIR),
+          hairStyle: pickOf(MEMBER_HAIRSTYLES.filter((h) => h !== 'cap')),
+          legs: pickOf(MEMBER_LEGS),
+          build: 0.93 + Math.random() * 0.14,
+          broad: 0.92 + Math.random() * 0.20,
+        },
+      };
+    }
+    // Their machine, or a new one if the old one has gone.
+    if (!room.regular.fav || room.layout.indexOf(room.regular.fav) === -1) {
+      room.regular.fav = room.layout[pickOf(machines)];
+    }
+    return room.regular;
+  }
+  // The regular's look, put onto a member.
+  function dressAsRegular(m, reg) {
+    const look = reg.look || {};
+    m.regular = reg.name;
+    m.shirt = look.shirt || m.shirt;
+    m.skin = look.skin || m.skin;
+    m.hair = look.hair || m.hair;
+    m.hairStyle = look.hairStyle || m.hairStyle;
+    m.legs = look.legs || m.legs;
+    m.build = look.build || m.build;
+    m.broad = look.broad || m.broad;
+    m.carry = 'bottle';
+    return m;
+  }
+
   // Rebuilt only when the crowd it was built for has changed -- a different
   // theme, or a room that has gained or lost something. Members already in a
   // room are kept exactly where they are, so buying something in one room
@@ -2614,6 +2924,13 @@
         : Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM, Math.round(draw)));
       const here = members.filter((m) => m.room === roomIndex && !m.staffRole).slice(0, want);
       while (here.length < want) here.push(spawnMember(roomIndex, place));
+      // One of them is the room's regular. Whoever already is stays so; a
+      // room that has nobody named yet names its first.
+      const reg = regularOf(room);
+      if (reg && here.length && !here.some((m) => m.regular === reg.name)) {
+        here.forEach((m) => { m.regular = null; });
+        dressAsRegular(here[0], reg);
+      }
       next.push(...here);
     });
 
@@ -2724,8 +3041,12 @@
     });
 
     let goal;
+    // The regular goes to their own machine when it is free, most of the
+    // time; everyone else takes whatever is free.
+    const reg = m.regular && dest === m.room ? room.regular : null;
+    const favSlot = reg && reg.fav ? free.find((i) => room.layout[i] === reg.fav) : undefined;
     if (free.length && Math.random() < 0.82) {
-      const i = pickOf(free);
+      const i = favSlot !== undefined && Math.random() < 0.75 ? favSlot : pickOf(free);
       const id = room.layout[i];
       const spot = spotOf(room, i, { cols: place.cols, rows: place.rows });
       const zone = accessZone(id, spot, turnAt(room, i));
@@ -2897,14 +3218,11 @@
   // What this level just opened up, so a level-up says something more useful
   // than a bigger number.
   function announceLevel(level) {
-    const opened = ITEMS.filter((i) => i.unlockLevel === level).map((i) => i.name)
-      .concat(THEMES.filter((t) => t.unlockLevel === level).map((t) => t.name))
-      .concat(STAFF_ROLES.filter((r) => r.unlockLevel === level).map((r) => r.name + 's'))
-      .concat(level === UPGRADE_MIN_LEVEL ? ['upgrades'] : [])
-      .concat(level === RUSH_ORDER_MIN_LEVEL ? ['rush orders'] : []);
+    sfx.level();
+    const opened = levelBrings(level);
     toast(opened.length
-      ? 'Level ' + level + '. ' + opened.join(' and ') + ' unlocked'
-      : 'Level ' + level, 'good');
+      ? 'Level ' + level + '. ' + opened.join(' and ')
+      : 'Level ' + level, 'good', opened.length > 1 ? 2600 : 1400);
     if (!levelWrapEl) return;
     levelWrapEl.classList.remove('is-up');
     // Reading the layout back forces the animation to start over rather than
@@ -2997,6 +3315,7 @@
     state.balance += job.cash;
     state.lifetime += job.cash;
     addXp(job.xp);
+    sfx.cash();
     state.jobs.splice(index, 1);
     state.jobsDone = (state.jobsDone || 0) + 1;
     refillJobs();
@@ -3299,6 +3618,7 @@
   const trophyQueue = [];
   let trophyShowing = false;
   function announceTrophy(t) {
+    sfx.fanfare();
     if (!trophyPopEl) { toast(t.name + '. $' + formatNum(t.cash), 'good'); return; }
     trophyQueue.push(t);
     if (!trophyShowing) showNextTrophy();
@@ -3482,7 +3802,7 @@
         + '<span class="tycoon-stock-n"></span>';
       pill.querySelector('.tycoon-stock-name').textContent = PRODUCTS[p].name;
       pill.querySelector('.tycoon-stock-n').textContent = larderCount(p)
-        + (larderCount(p) >= LARDER_CAP ? ' / full' : '');
+        + (larderCount(p) >= larderCap() ? ' / full' : '');
       larderEl.appendChild(pill);
     });
   }
@@ -3639,6 +3959,7 @@
     }
     const before = currentLevel();
     state.balance -= cost;
+    sfx.thunk();
     if (id === 'cashier') {
       const room = activeRoom();
       if (!room.staff) room.staff = {};
@@ -3702,7 +4023,7 @@
     if (rushEl.hidden !== shut) rushEl.hidden = shut;
     if (shut) return;
     const f = rushFactor();
-    const bonus = Math.round(RUSH_BONUS * f * 100);
+    const bonus = Math.round(rushBonus() * f * 100);
     const when = rushLabel();
     // Rebuilt only when what it says changes: rebuilding it every tick
     // would swallow the tap that opens it.
@@ -3727,7 +4048,7 @@
           + (bonus > 0 ? '+' + bonus + '%' : 'its normal rate') + '.</span>'
         + '<span>A day in the gym is an hour of real time. It fills up mornings and evenings. '
           + next + '</span>'
-        + '<span>Quiet is never a penalty. Rammed is +' + Math.round(RUSH_BONUS * 100) + '%.</span>'
+        + '<span>Quiet is never a penalty. Rammed is +' + Math.round(rushBonus() * 100) + '%.</span>'
       + '</span>';
   }
   if (rushEl) {
@@ -3789,7 +4110,7 @@
         + '<span>Runs a promotion for ' + promoSeconds() + ' seconds: a burst of new members, and everything earns x'
         + PROMO_MULT + ' while it lasts.</span>'
         + (gymEffect('promo') ? '<span>Your Neon Sign makes it ' + Math.round(gymEffect('promo') * 100) + '% longer.</span>' : '')
-        + '<span>Then it needs ' + Math.round(PROMO_COOLDOWN_SECONDS / 60) + ' minutes before the next one.</span>';
+        + '<span>Then it needs ' + Math.round(promoCooldownSeconds() / 60) + ' minutes before the next one.</span>';
     };
     fillPop();
     promoInfo.addEventListener('click', (e) => { e.stopPropagation(); fillPop(); promoWrap.classList.toggle('is-open'); });
@@ -3797,6 +4118,172 @@
   }
 
   const toastEl = document.getElementById('game-toast');
+  // ---- Sound ----
+  // Everything here is made in the browser from oscillators and noise: no
+  // files, nothing to load, nothing to fail. It is off until switched on,
+  // because a page that starts making noise is a page people close, and
+  // the choice is remembered. Three kinds of sound: a chime when you take
+  // money, a thunk when you spend it, and under it all a crowd murmur that
+  // thickens with the busy hours and thins to nothing at night.
+  const SOUND_KEY = 'gymTycoonSound';
+  const soundBtn = document.getElementById('btn-sound');
+  let soundOn = false;
+  try { soundOn = localStorage.getItem(SOUND_KEY) === 'on'; } catch (e) { soundOn = false; }
+  let audio = null;
+
+  // The context is made on the first click that wants it, which is the
+  // only time a browser will let a page start one.
+  function audioReady() {
+    if (!soundOn) return null;
+    if (audio) {
+      if (audio.ctx.state === 'suspended') audio.ctx.resume();
+      return audio;
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    const ctx = new AC();
+    const master = ctx.createGain();
+    master.gain.value = 0.55;
+    master.connect(ctx.destination);
+    audio = { ctx, master, murmur: null };
+    startMurmur();
+    return audio;
+  }
+  // One note: a waveform at a pitch, fading in a hair and out over `dur`,
+  // sliding to a second pitch if given.
+  function note(a, freq, when, dur, type, gain, slideTo) {
+    const osc = a.ctx.createOscillator();
+    const g = a.ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, when);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, when + dur);
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(gain, when + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    osc.connect(g);
+    g.connect(a.master);
+    osc.start(when);
+    osc.stop(when + dur + 0.02);
+  }
+  const sfx = {
+    // Money taken: two bright notes a fifth apart, the second a touch later.
+    coin() {
+      const a = audioReady();
+      if (!a) return;
+      const t = a.ctx.currentTime;
+      note(a, 1318, t, 0.09, 'triangle', 0.22);
+      note(a, 1976, t + 0.05, 0.14, 'triangle', 0.16);
+    },
+    // Money spent: a low thud with a click on the front of it.
+    thunk() {
+      const a = audioReady();
+      if (!a) return;
+      const t = a.ctx.currentTime;
+      note(a, 150, t, 0.16, 'sine', 0.5, 55);
+      note(a, 2400, t, 0.02, 'square', 0.05);
+    },
+    // A job handed in: the thunk and then the coins.
+    cash() {
+      if (!audioReady()) return;
+      sfx.thunk();
+      setTimeout(() => sfx.coin(), 110);
+    },
+    // Something won: four notes up a major chord.
+    fanfare() {
+      const a = audioReady();
+      if (!a) return;
+      const t = a.ctx.currentTime;
+      [523, 659, 784, 1047].forEach((f, i) => note(a, f, t + i * 0.09, 0.22, 'triangle', 0.18));
+    },
+    // A level: two notes, up.
+    level() {
+      const a = audioReady();
+      if (!a) return;
+      const t = a.ctx.currentTime;
+      note(a, 660, t, 0.12, 'triangle', 0.2);
+      note(a, 990, t + 0.1, 0.24, 'triangle', 0.2);
+    },
+  };
+  // The crowd. A loop of soft noise through a band-pass filter, which is
+  // what a room of people sounds like from the next room, with its volume
+  // set from how busy the gym is and how many people are on the floor.
+  function startMurmur() {
+    const { ctx, master } = audio;
+    const len = ctx.sampleRate * 2;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    // Pinkish rather than white: white noise reads as a hiss, not a room.
+    let b0 = 0;
+    let b1 = 0;
+    let b2 = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = 0.99765 * b0 + w * 0.0990460;
+      b1 = 0.96300 * b1 + w * 0.2965164;
+      b2 = 0.57000 * b2 + w * 1.0526913;
+      d[i] = (b0 + b1 + b2 + w * 0.1848) * 0.06;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const band = ctx.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = 420;
+    band.Q.value = 0.7;
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    // A slow wobble on the level, so it breathes like a crowd rather than
+    // holding one note.
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.frequency.value = 0.23;
+    lfoGain.gain.value = 0.012;
+    lfo.connect(lfoGain);
+    lfoGain.connect(g.gain);
+    src.connect(band);
+    band.connect(g);
+    g.connect(master);
+    src.start();
+    lfo.start();
+    audio.murmur = g;
+  }
+  function tickMurmur() {
+    if (!audio || !audio.murmur) return;
+    const open = gymOpen();
+    let target = 0;
+    if (open && soundOn && !document.hidden) {
+      const busy = Math.max(rushFactor(), 0.12);
+      const crowd = Math.min(1, members.length / 10);
+      target = 0.015 + 0.075 * busy * (0.35 + 0.65 * crowd);
+    }
+    audio.murmur.gain.setTargetAtTime(target, audio.ctx.currentTime, 0.9);
+  }
+  function refreshSoundBtn() {
+    if (!soundBtn) return;
+    soundBtn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    soundBtn.setAttribute('aria-label', soundOn ? 'Sound on' : 'Sound off');
+    soundBtn.title = soundOn ? 'Sound on' : 'Sound off';
+  }
+  if (soundBtn) {
+    soundBtn.addEventListener('click', () => {
+      soundOn = !soundOn;
+      try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch (e) { /* no store */ }
+      refreshSoundBtn();
+      if (soundOn) {
+        audioReady();
+        sfx.coin();
+      } else if (audio) {
+        audio.ctx.suspend();
+      }
+    });
+    refreshSoundBtn();
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!audio) return;
+    if (document.hidden) { if (audio.murmur) audio.murmur.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.2); }
+    else tickMurmur();
+  });
+
   function toast(msg, cls, ms) {
     toastEl.textContent = msg;
     toastEl.className = 'game-toast show' + (cls ? ' ' + cls : '');
@@ -3880,6 +4367,17 @@
       rows.push([label, '+' + pct + '%', '+' + formatNum(baseSum * (pct / 100) * from) + '/s']);
     };
     add('Arrangement', bonusPct, 1);
+    // The two goals a whole room can meet. Each is a slice of what the
+    // arranged pieces make, in the same terms as the rows around it.
+    const goals = roomGoals(room, shape);
+    if (goals.specialist) {
+      rows.push(['Specialist room', '+' + Math.round(SPECIALIST_BONUS * 100) + '%',
+        '+' + formatNum(arrangedGps * SPECIALIST_BONUS) + '/s']);
+    }
+    if (goals.clearWalk) {
+      rows.push(['Easy to get around', '+' + Math.round(CLEAR_WALK_BONUS * 100) + '%',
+        '+' + formatNum(arrangedGps * CLEAR_WALK_BONUS) + '/s']);
+    }
     if (vibe > 0) {
       rows.push(['Decor' + (vibe > VIBE_MAX_POINTS ? ' (at the cap)' : ''),
         '+' + vibePct + '%', '+' + formatNum(arrangedGps * (vibePct / 100)) + '/s']);
@@ -3911,7 +4409,7 @@
       + '<span class="tycoon-vibe-bar is-busy"><span class="tycoon-vibe-fill" style="width:'
         + Math.round(busyHere * 100) + '%"></span></span>'
       + '<p class="tycoon-vibe-note">It is ' + gameClockText() + ' in the gym. A day here is one real hour. '
-        + 'Mornings and evenings earn up to +' + Math.round(RUSH_BONUS * 100) + '%. '
+        + 'Mornings and evenings earn up to +' + Math.round(rushBonus() * 100) + '%. '
         + nextRush + (floorF > 0 && f < floorF ? ' The Sound System keeps this room busy.' : '') + '</p>'
       + '</div>';
     // The vibe meter, and what else the decor in this room is doing. Vibe
@@ -3934,8 +4432,42 @@
         ? '<ul class="tycoon-vibe-list">' + effectLines.map((l) => '<li>' + l + '</li>').join('') + '</ul>'
         : '')
       + '</div>';
+    const reg = regularOf(room);
+    const regHtml = reg
+      ? '<p class="tycoon-regular"><b>' + reg.name + '</b> is a regular here, and comes in for the '
+        + itemById(reg.fav).name + '.</p>'
+      : '';
+    const kindName = (k) => (CATEGORY_META[k] ? CATEGORY_META[k].name.toLowerCase() : k);
+    const specLine = goals.specialist
+      ? 'Specialist room: all ' + kindName(goals.kind) + '. +' + Math.round(SPECIALIST_BONUS * 100) + '%'
+      : goals.kinds.length > 1
+        ? 'Specialist room: mixed (' + goals.kinds.map(kindName).join(', ') + '). One kind of machine only'
+        : 'Specialist room: ' + goals.machines + ' of ' + SPECIALIST_MIN
+          + (goals.kind ? ' ' + kindName(goals.kind) : '') + ' machines';
+    const walkLine = goals.clearWalk
+      ? 'Easy to get around: every machine can be walked to. +' + Math.round(CLEAR_WALK_BONUS * 100) + '%'
+      : goals.stuck.length
+        ? 'Easy to get around: the ' + goals.stuck[0] + ' cannot be walked to'
+          + (goals.stuck.length > 1 ? ' (' + (goals.stuck.length - 1) + ' more)' : '')
+          + '. Leave a way through'
+        : 'Easy to get around: ' + goals.walkers + ' of ' + CLEAR_WALK_MIN + ' machines';
+    const goalPct = Math.round((goals.multiplier - 1) * 100);
+    const goalsHtml = '<div class="tycoon-goals">'
+      + '<div class="tycoon-vibe-top">'
+        + '<span class="tycoon-vibe-name">Room goals</span>'
+        + '<span class="tycoon-vibe-num' + (goalPct > 0 ? '' : ' is-none') + '">'
+          + (goalPct > 0 ? '+' + goalPct + '%' : 'none met') + '</span>'
+      + '</div>'
+      + '<ul class="tycoon-goal-list">'
+        + '<li class="' + (goals.specialist ? 'is-met' : '') + '">' + specLine + '</li>'
+        + '<li class="' + (goals.clearWalk ? 'is-met' : '') + '">' + walkLine + '</li>'
+      + '</ul>'
+      + '<p class="tycoon-vibe-note">Two things a whole room can do. One kind of machine, four or more, '
+        + 'is a specialist room. A clear walk from the door to every machine, with nothing to squeeze past, '
+        + 'is easy to get around.</p>'
+      + '</div>';
     const cell = (text, cls) => '<span class="' + cls + '"></span>';
-    synergyEl.innerHTML = busyHtml + vibeHtml + '<p class="tycoon-bd-head"></p>'
+    synergyEl.innerHTML = busyHtml + vibeHtml + goalsHtml + regHtml + '<p class="tycoon-bd-head"></p>'
       + rows.map(() => '<span class="tycoon-bd-row">' + cell('', 'tycoon-bd-label')
         + cell('', 'tycoon-bd-pct') + cell('', 'tycoon-bd-num') + '</span>').join('')
       + '<span class="tycoon-bd-row is-total">' + cell('', 'tycoon-bd-label')
@@ -4355,6 +4887,7 @@
     state.balance -= cost;
     state.owned[id] = (state.owned[id] || 0) + 1;
     addXp(xpForSpend(cost));
+    if (!item.starter) sfx.thunk();
     const after = currentLevel();
     if (after > before) announceLevel(after);
     if (item.starter) {
@@ -7783,6 +8316,31 @@
       bar(0.008 + lean, 0.948 - drop, 0.918 - drop, 0.152, m.capColor);
     }
     if (m.staffRole) drawStaffMark(c, m);
+    if (m.regular) drawNameTag(c, m, H);
+  }
+
+  // A regular's name on a small dark tag over their head, so the one person
+  // in the room who is somebody can be picked out at a glance.
+  function drawNameTag(c, m, H) {
+    const ctx = floorCtx;
+    const size = Math.max(7, Math.min(11, H * 0.11));
+    ctx.save();
+    ctx.font = '700 ' + size + 'px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const w = ctx.measureText(m.regular).width + size * 1.1;
+    const h = size * 1.6;
+    const x = c.x - w / 2;
+    const y = c.y - H - h - size * 0.5;
+    roundRectPath(ctx, x, y, w, h, h / 2);
+    ctx.fillStyle = 'rgba(12, 11, 16, 0.82)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 209, 102, 0.55)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#ffd166';
+    ctx.fillText(m.regular, c.x, y + h / 2 + 0.5);
+    ctx.restore();
   }
 
   // A small gold diamond over every member of staff. It is the one thing
@@ -8791,6 +9349,7 @@
     }
     const before = currentLevel();
     state.balance -= cost;
+    sfx.thunk();
     // Taking on a room is progress like any other purchase, and a big one.
     addXp(xpForSpend(cost));
     rooms.push(emptyGymRoom(state.activeTheme, rooms.length));
@@ -8971,6 +9530,111 @@
     });
   }
 
+  // ---- Save code ----
+  // The gym lives in one browser storage key, and one cleared browser ended
+  // a long game with no way back. The code is the whole save, as text: a
+  // prefix that names the format, the save itself in base64 of its UTF-8
+  // bytes (JSON can carry any character a gym is named with), and a short
+  // hash on the end so a code pasted with a piece missing is refused rather
+  // than half-loaded.
+  const SAVE_CODE_TAG = 'GYM1';
+  function hashOf(text) {
+    // FNV-1a, 32 bits, as eight hex digits. Not security, just a check
+    // that what was pasted is what was copied.
+    let h = 0x811c9dc5;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return ('0000000' + h.toString(16)).slice(-8);
+  }
+  function toBase64(text) {
+    const bytes = new TextEncoder().encode(text);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function fromBase64(b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+  function saveCode() {
+    save();
+    const body = toBase64(JSON.stringify(state));
+    return SAVE_CODE_TAG + '.' + body + '.' + hashOf(body);
+  }
+  // What a pasted code holds, or the reason it cannot be used.
+  function readSaveCode(text) {
+    const parts = String(text || '').trim().replace(/\s+/g, '').split('.');
+    if (parts.length !== 3 || parts[0] !== SAVE_CODE_TAG) return { error: 'That is not a save code.' };
+    if (hashOf(parts[1]) !== parts[2]) return { error: 'The code is damaged: part of it is missing or changed.' };
+    let saved;
+    try {
+      saved = JSON.parse(fromBase64(parts[1]));
+    } catch (e) {
+      return { error: 'The code could not be read.' };
+    }
+    if (!saved || typeof saved !== 'object' || !saved.themeRooms) return { error: 'That code holds no gym.' };
+    return { saved };
+  }
+  const saveBox = document.getElementById('savebox');
+  const saveCodeEl = document.getElementById('save-code');
+  const saveWhenEl = document.getElementById('save-when');
+  const loadCodeEl = document.getElementById('load-code');
+  const loadSayEl = document.getElementById('load-say');
+  function refreshSaveCode() {
+    if (!saveCodeEl) return;
+    saveCodeEl.value = saveCode();
+    setText(saveWhenEl, 'As of now. Open this fold again for a newer one.');
+  }
+  if (saveBox) {
+    // Made when the fold opens, so it is the gym as it stands rather than
+    // as it stood when the page loaded.
+    saveBox.addEventListener('toggle', () => { if (saveBox.open) refreshSaveCode(); });
+  }
+  const copyBtn = document.getElementById('btn-save-copy');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      refreshSaveCode();
+      const text = saveCodeEl.value;
+      const done = () => {
+        setText(copyBtn, 'Copied');
+        setTimeout(() => setText(copyBtn, 'Copy code'), 1600);
+      };
+      const byHand = () => {
+        saveCodeEl.focus();
+        saveCodeEl.select();
+        try { document.execCommand('copy'); done(); } catch (e) {
+          setText(saveWhenEl, 'Select the code and copy it yourself.');
+        }
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, byHand);
+      } else {
+        byHand();
+      }
+    });
+  }
+  const loadBtn = document.getElementById('btn-save-load');
+  if (loadBtn) {
+    loadBtn.addEventListener('click', () => {
+      const read = readSaveCode(loadCodeEl.value);
+      loadSayEl.classList.toggle('is-bad', !!read.error);
+      if (read.error) { setText(loadSayEl, read.error); return; }
+      const name = read.saved.gymName ? '"' + read.saved.gymName + '"' : 'that gym';
+      if (!confirm('Load ' + name + '? The gym in this browser now will be replaced.')) return;
+      // Written raw and then read back through load(), which is where every
+      // migration lives: a code from an older version of the game gets the
+      // same treatment as an older save would.
+      saveLocked = true;
+      localStorage.setItem(SAVE_KEY, JSON.stringify(read.saved));
+      setText(loadSayEl, 'Loading\u2026');
+      location.reload();
+    });
+  }
+
   document.getElementById('btn-reset').addEventListener('click', () => {
     if (!confirm("Reset all Gym Tycoon progress on this browser? This can't be undone.")) return;
     localStorage.removeItem(SAVE_KEY);
@@ -9018,6 +9682,7 @@
       const before = currentLevel();
       state.balance -= item.cost;
       addXp(xpForSpend(item.cost));
+      sfx.thunk();
       if (ownedMap) ownedMap[id] = true;
       if (currentLevel() > before) announceLevel(currentLevel());
     }
@@ -9230,11 +9895,7 @@
   let overviewTotalEl = null;
   // What the next level opens, in the same words the level-up toast uses.
   function nextLevelBrings(level) {
-    const opened = ITEMS.filter((i) => i.unlockLevel === level).map((i) => i.name)
-      .concat(THEMES.filter((t) => t.unlockLevel === level).map((t) => t.name))
-      .concat(STAFF_ROLES.filter((r) => r.unlockLevel === level).map((r) => r.name + 's'))
-      .concat(level === UPGRADE_MIN_LEVEL ? ['upgrades'] : [])
-      .concat(level === RUSH_ORDER_MIN_LEVEL ? ['rush orders'] : []);
+    const opened = levelBrings(level);
     return opened.length ? opened.join(', ') : null;
   }
 
@@ -9246,19 +9907,23 @@
     setText(levelCardEl.querySelector('.tycoon-lvl-now'), 'Level ' + level);
     levelCardEl.querySelector('.tycoon-lvl-fill').style.width =
       Math.round(p.frac * 100) + '%';
+    // What the levels so far are worth, standing: the reputation line is
+    // the running total of every level past ten.
+    const rep = Math.round(reputationBonus() * 100);
+    const repLine = rep > 0 ? ' Reputation: +' + rep + '% on everything.' : '';
     if (p.capped) {
       setText(levelCardEl.querySelector('.tycoon-lvl-xp'), 'Top level');
       setText(levelCardEl.querySelector('.tycoon-lvl-next'),
-        'There is no level above this one. Everything is open.');
+        'There is no level above this one.' + repLine);
       return;
     }
     const into = Math.max(0, (state.xp || 0) - p.from);
     setText(levelCardEl.querySelector('.tycoon-lvl-xp'),
       formatNum(into) + ' / ' + formatNum(p.to - p.from) + ' XP to level ' + (level + 1));
     const brings = nextLevelBrings(level + 1);
-    setText(levelCardEl.querySelector('.tycoon-lvl-next'), brings
-      ? 'Level ' + (level + 1) + ' opens ' + brings + '.'
-      : 'Buying and upgrading gear is what earns XP. Dearer kit earns more.');
+    setText(levelCardEl.querySelector('.tycoon-lvl-next'), (brings
+      ? 'Level ' + (level + 1) + ' brings ' + brings + '.'
+      : 'Buying and upgrading gear is what earns XP. Dearer kit earns more.') + repLine);
   }
 
   function buildOverview() {
@@ -9458,6 +10123,7 @@
     save();
     updateLeaderboardEntry();
   }, 5000);
+  setInterval(tickMurmur, 1000);
 
   // The stage window is sized off the viewport on desktop, so dragging a
   // browser window between a laptop screen and a monitor changes how much

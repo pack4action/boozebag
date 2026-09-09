@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=11" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=6" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=88" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=89" />
 </head>
 <body class="game-body">
 
@@ -104,9 +104,16 @@
            The next room is bought by tapping the sign on its plot, and how
            busy the gym is lives in Room details. -->
       <div class="tycoon-corners">
-        <div class="tycoon-clock" id="tycoon-clock" title="The time in the gym. A day here is an hour of real time.">
-          <svg class="tycoon-clock-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.2V8l2.6 1.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <span class="tycoon-clock-time" id="tycoon-clock-time">--:--</span>
+        <div class="tycoon-corner-left">
+          <div class="tycoon-clock" id="tycoon-clock" title="The time in the gym. A day here is an hour of real time.">
+            <svg class="tycoon-clock-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.2V8l2.6 1.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span class="tycoon-clock-time" id="tycoon-clock-time">--:--</span>
+          </div>
+          <!-- Sound is off until you switch it on, and stays how you left it. -->
+          <button class="tycoon-sound" id="btn-sound" type="button" aria-pressed="false" aria-label="Sound off" title="Sound off">
+            <svg class="tycoon-sound-icon is-off" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 6h2.6L8.5 3v10L5.1 10H2.5Z" fill="currentColor"/><path d="M10.6 6.2l3 3.6M13.6 6.2l-3 3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <svg class="tycoon-sound-icon is-on" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 6h2.6L8.5 3v10L5.1 10H2.5Z" fill="currentColor"/><path d="M10.4 5.6a3.4 3.4 0 0 1 0 4.8M12.3 3.7a6 6 0 0 1 0 8.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
         </div>
         <span class="tycoon-promo-wrap" id="promo-wrap">
           <button class="tycoon-promo-btn" id="btn-promo" type="button"></button>
@@ -239,20 +246,45 @@
         <div class="tycoon-trophy-grid" id="trophy-grid"></div>
       </details>
 
+      <!-- The whole gym lives in this browser's storage. This is the way out
+           of that: a code that carries all of it, to keep somewhere or to
+           paste into another browser. -->
+      <details class="tycoon-savebox" id="savebox">
+        <summary>Save code</summary>
+        <div class="tycoon-savebox-body">
+          <p class="tycoon-savebox-note">Your gym lives in this browser only. Copy this code somewhere safe. Paste it back here, on any device, to get the gym back.</p>
+          <textarea class="tycoon-savebox-code" id="save-code" readonly rows="3" spellcheck="false" aria-label="Your save code"></textarea>
+          <div class="tycoon-savebox-row">
+            <button class="tycoon-savebox-btn" id="btn-save-copy" type="button">Copy code</button>
+            <span class="tycoon-savebox-when" id="save-when"></span>
+          </div>
+          <textarea class="tycoon-savebox-code is-paste" id="load-code" rows="3" spellcheck="false" placeholder="Paste a save code here" aria-label="A save code to load"></textarea>
+          <div class="tycoon-savebox-row">
+            <button class="tycoon-savebox-btn is-load" id="btn-save-load" type="button">Load code</button>
+            <span class="tycoon-savebox-when" id="load-say"></span>
+          </div>
+        </div>
+      </details>
+
       <details class="tycoon-howto">
         <summary>How it works</summary>
         <div class="tycoon-howto-body">
           <p><b>The loop.</b> Buy a machine. It goes to Storage. Put it down in a room. Tap the bubble over it to take the money. Everything else makes that bubble fill faster.</p>
           <p><b>Opening up.</b> Take the free Customer Desk from the Shop and put it down. Nothing earns and nothing sells until it is. The desk itself earns nothing. Each location gets its own, free, and it can never be stored or sold.</p>
-          <p><b>Bubbles.</b> Nothing pays into your balance by itself. A machine fills a bubble, and you tap it. A bubble holds about two minutes of takings; full bubble, machine stops. Upgrade the desk to make them hold more, up to an hour.</p>
-          <p><b>Cashiers.</b> Hired into a room, up to three. They walk from bubble to bubble and take everything in each one they reach. More cashiers, faster rounds. Rooms you are not looking at still get their rounds.</p>
+          <p><b>Bubbles.</b> Nothing pays into your balance by itself. A machine fills a bubble, and you tap it. A bubble holds about two minutes of takings; full bubble, machine stops. Upgrade the desk to make them hold more, up to three hours.</p>
+          <p><b>Time away.</b> The bubbles keep filling while the tab is shut, up to what they hold, and stop there. A night away and a fortnight away come back to the same full bubbles. A better desk is what makes a night away worth more.</p>
+          <p><b>Cashiers.</b> Hired into a room, three to begin with and more at higher levels. They walk from bubble to bubble and take everything in each one they reach. More cashiers, faster rounds. Rooms you are not looking at still get their rounds.</p>
           <p><b>Placing.</b> Click a piece in Storage. Drag it, or use the arrow keys. R turns it. Enter places it. Escape puts it back. Place one and the next of the same kind is already in your hand. Two fingers pan and zoom while you hold something.</p>
           <p><b>Clear floor.</b> Each machine needs a strip of floor on the side you step on from. It shows as a dashed patch while you hold the piece. Nothing can stand in it.</p>
           <p><b>Arrangement.</b> Same category within two metres: +12% each. Decor takes no part in it. Room details, under the plan, shows what your layout earns.</p>
+          <p><b>Room goals.</b> Two things a whole room can do. Four or more machines all of one kind is a specialist room, +15%. A clear walk from the door to every machine, with nothing to squeeze past, is easy to get around, +10%. Room details says which you have met and what is missing.</p>
           <p><b>Decoration.</b> Only gym equipment earns money. Decoration earns nothing and each piece does one thing instead. A palm raises the room's vibe. A cooler makes its bubbles hold more. A mirror makes busy hours pay more there. A fridge speeds up its counters. A sound system means the room is never quiet. Neon makes promos last longer. A Juice Bar lifts everything its room earns. A desk cuts wages, a cubicle raises job pay, a Pro Shop earns more XP, and an office pod adds a cashier to every room. Those four count once for the whole gym.</p>
           <p><b>Vibe.</b> How nice a room is to train in. It lifts everything the room earns, and it fills a bar in Room details. There is a cap.</p>
-          <p><b>Upgrades.</b> Own a machine and its shop row has an Upgrade button. Each tier is worth 2.2 times the last. Three tiers.</p>
-          <p><b>The counter.</b> A Juice Bar or Pro Shop is decoration that makes stock. Start batches on the Counter tab; they run whether you are here or not, and delivery orders pay double for what comes off. A Juice Bar also lifts everything its room earns by a quarter, and a Pro Shop earns the whole gym a quarter more XP.</p>
+          <p><b>Upgrades.</b> Own a machine and its shop row has an Upgrade button. Each mark is worth 2.2 times the last. Five marks. The Customer Desk has marks too: each one makes every bubble hold more.</p>
+          <p><b>Levels.</b> Buying and upgrading is what earns XP. Every level brings something. Past level ten each one adds 2% to everything, and the milestones widen the gym: more jobs on the board, a bigger larder, more cashiers to a room, busier busy hours, shorter waits for an Open Day.</p>
+          <p><b>The counter.</b> A Juice Bar or Pro Shop is decoration that makes stock. Start batches on the Counter tab; they run whether you are here or not, and delivery orders pay double for what comes off. A Juice Bar also lifts everything its room earns by 15%, and a Pro Shop earns the whole gym a quarter more XP.</p>
+          <p><b>Sound.</b> Off until you switch it on, with the speaker button by the clock. A chime when you take money, a thunk when you spend it, and a crowd that gets louder in the busy hours.</p>
+          <p><b>Your save.</b> The gym lives in this browser. Open Save code on this tab to copy a code that carries all of it, and paste one back to restore it anywhere.</p>
           <p><b>Jobs.</b> Three at a time, pay stated up front. From level 3, one rush order at a time on an eight-minute clock, worth triple.</p>
           <p><b>Levels.</b> Buying and upgrading gear earns XP. Levels open locations, staff and the bigger machines. Nothing else does.</p>
           <p><b>Other staff.</b> Cleaners lift vibe. Receptionists make busy hours busier. A Floor Manager adds to everything. These work the whole gym, and each extra hire does less. Anyone can be let go.</p>
@@ -280,6 +312,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=136"></script>
+<script src="assets/js/gym-tycoon.js?v=137"></script>
 </body>
 </html>
