@@ -979,22 +979,8 @@
 }
 .tycoon-theme-btn.is-shut .theme-rate { color: #e8837a; opacity: 0.9; }
 
-/* Buy, and buy ten. */
 .shop-item-buy { display: flex; gap: 6px; align-items: stretch; }
 .shop-item-buy .shop-buy-btn { flex: 1 1 auto; }
-.shop-bulk-btn {
-  flex: none;
-  border: 0;
-  border-radius: 10px;
-  padding: 0 11px;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-  color: #06231a;
-  background: rgba(126, 216, 168, 0.85);
-}
-.shop-bulk-btn[hidden] { display: none !important; }
 .tycoon-inv-sell.is-all { opacity: 0.8; }
 
 /* The one line telling you what is worth doing. It sits under the plan
@@ -1906,29 +1892,76 @@
 }
 
 /* ---- Promo, explained ----
-   The card opens on hover for a mouse, and from the ? chip for a finger,
-   because tapping the button itself runs the promo. */
-.tycoon-promo-wrap { position: relative; display: inline-flex; align-items: center; gap: 5px; flex: none; }
-.tycoon-toolbar-end .tycoon-promo-wrap .tycoon-promo-btn { margin: 0; }
-.tycoon-info {
-  width: 20px; height: 20px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+   One pill with two halves: the left half runs the promo, the ? on the
+   right opens a card that says what it does. The card opens from the ?
+   only -- never on hover, so the one thing the pill does on a mouse is
+   the same thing it does under a finger. */
+.tycoon-promo-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 205, 90, 0.45);
+  background: rgba(255, 205, 90, 0.1);
+  overflow: visible;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.tycoon-promo-wrap[hidden] { display: none !important; }
+.tycoon-toolbar-end .tycoon-promo-wrap .tycoon-promo-btn,
+.tycoon-promo-wrap .tycoon-promo-btn {
+  margin: 0;
+  border: none;
   background: transparent;
-  color: var(--muted, #8b8b93);
+  border-radius: 999px 0 0 999px;
+  padding: 7px 9px 7px 14px;
+  transition: none;
+}
+.tycoon-promo-wrap .tycoon-promo-btn:hover:not(:disabled) { background: transparent; }
+.tycoon-promo-wrap .tycoon-promo-btn:active:not(:disabled) { transform: none; }
+.tycoon-promo-wrap .tycoon-promo-btn.is-running:disabled { background: transparent; }
+.tycoon-info {
+  width: auto;
+  height: auto;
+  align-self: stretch;
+  border-radius: 0 999px 999px 0;
+  border: none;
+  border-left: 1px solid rgba(255, 205, 90, 0.35);
+  background: transparent;
+  color: #ffd97a;
   font: inherit;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 800;
   cursor: pointer;
-  padding: 0;
+  padding: 0 11px 0 9px;
   flex: none;
 }
-.tycoon-info:hover, .tycoon-info:focus-visible { color: #ffd166; border-color: #ffd166; outline: none; }
-.tycoon-info-pop { top: calc(100% + 8px); right: 0; left: auto; transform: none; }
-@media (hover: hover) {
-  .tycoon-promo-wrap:hover .tycoon-info-pop { display: flex; }
+.tycoon-info:hover, .tycoon-info:focus-visible { color: #ffe6a6; background: rgba(255, 205, 90, 0.16); outline: none; }
+/* The pill takes the colour of the button inside it. */
+.tycoon-promo-wrap:has(.tycoon-promo-btn:not(:disabled):hover) {
+  background: rgba(255, 205, 90, 0.2);
+  border-color: rgba(255, 205, 90, 0.75);
 }
+.tycoon-promo-wrap:has(.tycoon-promo-btn:disabled) {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.03);
+}
+.tycoon-promo-wrap:has(.tycoon-promo-btn:disabled) .tycoon-info { border-left-color: rgba(255, 255, 255, 0.12); }
+.tycoon-promo-wrap:has(.tycoon-promo-btn.is-running:disabled) {
+  border-color: rgba(255, 205, 90, 0.6);
+  background: linear-gradient(180deg, rgba(255, 205, 90, 0.26), rgba(255, 205, 90, 0.1));
+}
+.tycoon-promo-wrap:has(.tycoon-promo-btn.is-running:disabled) .tycoon-info { border-left-color: rgba(255, 205, 90, 0.4); }
+.tycoon-promo-wrap.is-open { border-color: rgba(255, 209, 102, 0.6); }
+.tycoon-info-pop { top: calc(100% + 8px); right: 0; left: auto; transform: none; }
 .tycoon-promo-wrap.is-open .tycoon-info-pop { display: flex; }
+@media (max-width: 560px) {
+  /* On a phone the pill shares a row with Add Room: it takes that half,
+     and the button inside takes all of the pill but the ? */
+  .tycoon-toolbar-end .tycoon-promo-wrap { flex: 1 1 calc(50% - 10px); min-width: 0; }
+  .tycoon-toolbar-end .tycoon-promo-wrap .tycoon-promo-btn { flex: 1 1 auto; min-width: 0; padding: 6px 6px 6px 10px; }
+}
 
 /* ---- The filter menu ---- */
 .tycoon-filters { overflow: visible; justify-content: center; }
@@ -1958,3 +1991,42 @@
   outline: none;
 }
 .tycoon-filter-select option { background: #16141c; color: #e9e9ee; }
+
+/* The row never scrolls, at any width: a scroll container clips the cards
+   that hang from the busy badge and the ? -- they opened, invisibly,
+   under the floor plan. */
+.tycoon-toolbar-end { overflow: visible; justify-content: safe center; }
+
+/* ---- The clock ----
+   A small chip at the head of the toolbar, always there, open or shut.
+   Same pill as the busy badge next to it, since they are the same clock. */
+.tycoon-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text, #e9e9ee);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tycoon-clock-icon { width: 13px; height: 13px; color: #ffd166; flex: none; }
+@media (max-width: 560px) {
+  /* Clock and busy badge share the first row; Add Room and Promo the next.
+     Two rows of two, never one row that runs off the edge, and nothing in
+     a pill wraps inside it. */
+  .tycoon-toolbar-end { flex-wrap: wrap; row-gap: 4px; }
+  .tycoon-toolbar-end .tycoon-clock { flex: none; margin: 0; }
+  .tycoon-toolbar-end .tycoon-rush { flex: 1 1 calc(100% - 96px); flex-wrap: nowrap; margin: 0; }
+  .tycoon-toolbar-end .tycoon-room-actions { flex: 1 1 calc(50% - 10px); min-width: 0; }
+  .tycoon-clock { padding: 5px 10px; }
+}
+@media (max-width: 1079px) {
+  .tycoon-clock { padding: 5px 10px; }
+}

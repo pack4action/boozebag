@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=10" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=5" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=60" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=61" />
 </head>
 <body class="game-body">
 
@@ -95,6 +95,10 @@
     <div class="tycoon-toolbar">
       <div class="tycoon-theme-row" id="theme-row"></div>
       <div class="tycoon-toolbar-end">
+        <div class="tycoon-clock" id="tycoon-clock" title="The time. The gym gets busy mornings and evenings on this clock.">
+          <svg class="tycoon-clock-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.2V8l2.6 1.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span class="tycoon-clock-time" id="tycoon-clock-time">--:--</span>
+        </div>
         <div class="tycoon-rush" id="rush-badge" role="button" tabindex="0" aria-label="How busy the gym is right now, and the bonus"></div>
         <div class="tycoon-room-actions" id="room-actions"></div>
         <span class="tycoon-promo-wrap" id="promo-wrap">
@@ -252,6 +256,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=102"></script>
+<script src="assets/js/gym-tycoon.js?v=103"></script>
 </body>
 </html>

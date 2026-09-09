@@ -3312,7 +3312,17 @@
   }
 
   const rushEl = document.getElementById('rush-badge');
+  // The clock the whole day runs on: busy hours, the sky, the lamps. It
+  // was invisible, so the gym filling up looked like weather.
+  const clockEl = document.getElementById('tycoon-clock-time');
+  function refreshClock() {
+    if (!clockEl) return;
+    const d = new Date();
+    const text = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    if (clockEl.textContent !== text) clockEl.textContent = text;
+  }
   function refreshRushUI() {
+    refreshClock();
     if (!rushEl) return;
     const shut = !gymOpen();
     if (rushEl.hidden !== shut) rushEl.hidden = shut;
@@ -3322,7 +3332,7 @@
     const when = rushLabel();
     // Rebuilt only when what it says changes: rebuilding it every tick
     // would swallow the tap that opens it.
-    const sig = when + '|' + bonus + '|' + (f * 100).toFixed(0);
+    const sig = when + '|' + bonus + '|' + (f * 100).toFixed(0) + '|' + new Date().getMinutes();
     if (rushEl.dataset.sig === sig) return;
     rushEl.dataset.sig = sig;
     const hour = new Date().getHours();
@@ -3339,7 +3349,8 @@
       + '<span class="tycoon-rush-hint" aria-hidden="true">?</span>'
       + '<span class="tycoon-rush-pop" role="note">'
         + '<b>How busy the gym is right now</b>'
-        + '<span>' + when + ' \u2014 everything is earning '
+        + '<span>It is ' + String(hour).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0')
+          + '. ' + when + ' \u2014 everything is earning '
           + (bonus > 0 ? '+' + bonus + '%' : 'its normal rate') + '.</span>'
         + '<span>The gym fills up mornings and evenings, on your clock. '
           + next + '</span>'
@@ -3359,14 +3370,17 @@
 
   // ---- Open day button ----
   const promoBtn = document.getElementById('btn-promo');
+  const promoWrap = document.getElementById('promo-wrap');
   // Whether one was running last tick, so its ending can be noticed.
   let promoWasRunning = false;
   function refreshPromoUI() {
     if (!promoBtn) return;
     // Nothing to multiply until the gym is open, and a bright button that
-    // does nothing is the loudest thing on a new player's screen.
+    // does nothing is the loudest thing on a new player's screen. The
+    // whole pill goes, ? and all.
     const shut = !gymOpen();
-    if (promoBtn.hidden !== shut) promoBtn.hidden = shut;
+    const pill = promoWrap || promoBtn;
+    if (pill.hidden !== shut) pill.hidden = shut;
     if (shut) return;
     const left = promoSecondsLeft();
     const cooling = promoReadyInSeconds();
@@ -3376,7 +3390,7 @@
       ? 'Promo x' + PROMO_MULT + ' \u00b7 ' + Math.ceil(left) + 's'
       : cooling > 0
         ? 'Promo in ' + clockOf(cooling)
-        : 'Promo<span class="promo-detail"> \u00b7 x' + PROMO_MULT + ' for ' + PROMO_SECONDS + 's</span>';
+        : 'Promo';
     if (promoBtn.innerHTML !== html) promoBtn.innerHTML = html;
   }
 
@@ -3394,7 +3408,6 @@
   }
 
   if (promoBtn) promoBtn.addEventListener('click', runOpenDay);
-  const promoWrap = document.getElementById('promo-wrap');
   const promoInfo = document.getElementById('promo-info');
   if (promoWrap && promoInfo) {
     const pop = promoWrap.querySelector('.tycoon-info-pop');
@@ -3606,27 +3619,15 @@
           : earnsLine(item.id)) + '</span>' +
         '<div class="shop-item-buy">' +
           '<button class="shop-buy-btn" type="button">Buy</button>' +
-          '<button class="shop-bulk-btn" type="button" hidden title="Buy ten">x10</button>' +
         '</div>' +
         '<button class="shop-upgrade-btn" type="button" hidden></button>';
       const buyBtn = el.querySelector('.shop-buy-btn');
-      const bulkBtn = el.querySelector('.shop-bulk-btn');
       const upBtn = el.querySelector('.shop-upgrade-btn');
       buyBtn.addEventListener('click', () => buyItem(item.id));
-      // Ten of something cheap is ten clicks otherwise. Each one costs a
-      // little more than the last, so this buys them one at a time and
-      // stops the moment the next is out of reach.
-      bulkBtn.addEventListener('click', () => {
-        for (let i = 0; i < 10; i++) {
-          if (state.balance < costFor(item)) break;
-          buyItem(item.id);
-        }
-      });
       upBtn.addEventListener('click', () => upgradeItem(item.id));
       shopGrid.appendChild(el);
       shopEls[item.id] = {
         root: el,
-        bulkBtn,
         ownedEl: el.querySelector('.shop-item-owned'),
         gpsEl: el.querySelector('.shop-item-gps'),
         tierEl: el.querySelector('.shop-item-name'),
@@ -3754,18 +3755,12 @@
         els.buyBtn.disabled = true;
         els.root.classList.remove('is-affordable');
         els.upBtn.hidden = true;
-        els.bulkBtn.hidden = true;
         return;
       }
       els.buyBtn.textContent = item.starter ? 'Take it · free' : 'Buy — $' + formatNum(cost);
       const affordable = item.starter || state.balance >= cost;
       els.buyBtn.disabled = !affordable;
       els.root.classList.toggle('is-affordable', affordable);
-      // Ten only shows up when ten are genuinely within reach, so it is
-      // never a button that buys three and stops.
-      const tenCost = cost * (Math.pow(COST_GROWTH, 10) - 1) / (COST_GROWTH - 1);
-      const bulk = !item.starter && affordable && state.balance >= tenCost;
-      if (els.bulkBtn.hidden !== !bulk) els.bulkBtn.hidden = !bulk;
 
       // What it earns now, which is not what it says on the tin once it has
       // been upgraded, and the control to take it further.
