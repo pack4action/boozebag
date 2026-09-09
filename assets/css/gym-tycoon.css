@@ -2448,3 +2448,65 @@
   .tycoon-swatch { padding: 7px 5px; font-size: 11px; }
   .tycoon-swatch-chip { width: 28px; height: 28px; }
 }
+
+/* ---- Trying a design on ----
+   The swatch being previewed is marked, and a bar at the top of the panel
+   carries the one button that pays for it. */
+.tycoon-swatch.is-preview { border-color: #7fd8e6; box-shadow: 0 0 0 2px rgba(127, 216, 230, 0.3); }
+.tycoon-swatch.is-preview .tycoon-swatch-price { color: #7fd8e6; }
+.tycoon-preview-bar {
+  position: sticky;
+  top: 44px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px solid rgba(127, 216, 230, 0.55);
+  border-radius: 12px;
+  background: #101a1f;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  color: var(--text, #e9e9ee);
+}
+.tycoon-preview-text b { color: #7fd8e6; }
+.tycoon-preview-actions { display: flex; gap: 6px; margin-left: auto; }
+.tycoon-preview-buy,
+.tycoon-preview-cancel {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 6px 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tycoon-preview-buy { border: 2px solid #000; background: var(--amber, #ffb703); color: #1a1200; box-shadow: 2px 2px 0 #000; }
+.tycoon-preview-cancel { border: 1px solid rgba(255, 255, 255, 0.2); background: transparent; color: var(--muted, #8b8b93); }
+.tycoon-preview-cancel:hover { color: var(--text, #e9e9ee); border-color: rgba(255, 255, 255, 0.4); }
+@media (max-width: 1079px) { .tycoon-preview-bar { top: 6px; } }
+
+/* ---- The corners stay inside the frame ----
+   The plan window carries a bottom margin inside its wrapper, and the
+   corner chips were placed against the wrapper's bottom, which put them
+   half over the frame's edge. The margin moves to the wrapper. */
+.tycoon-stage-wrap { margin-bottom: 14px; }
+.tycoon-stage-wrap > .tycoon-room-stage { margin-bottom: 0; }
+@media (min-width: 1080px) {
+  .tycoon-stage-wrap { margin-bottom: 16px; }
+  .tycoon-stage-wrap > .tycoon-room-stage { margin-bottom: 0; }
+}
+
+/* Below desktop width the plan window is centred at 560px wide inside a
+   wrapper that spans the column, and the corner chips were placed against
+   the wrapper's edges, off the plan on any screen between phone and
+   desktop. They hug the window's own edges instead. */
+@media (max-width: 1079px) {
+  .tycoon-corners {
+    left: max(10px, calc(50% - 270px));
+    right: max(10px, calc(50% - 270px));
+  }
+}

@@ -1556,6 +1556,15 @@
       walls: {}, floors: {}, art: {}, finish: 'standard',
     };
   }
+  // Something from the design shop tried on before it is paid for: shown
+  // on the plan for the location you are in, saved nowhere, and gone the
+  // moment you buy it, cancel it, or look at another location.
+  let designPreview = null;
+  function previewFor(kind, theme) {
+    if (!designPreview || designPreview.kind !== kind) return null;
+    if (kind !== 'finish' && designPreview.theme !== theme) return null;
+    return designPreview.id;
+  }
   function designState() {
     if (!state.design) state.design = defaultDesign();
     const d = state.design;
@@ -4412,8 +4421,8 @@
   function colorsFor(theme) {
     const base = THEME_COLORS[theme] || THEME_COLORS.garage;
     const d = designState();
-    const wall = WALL_PAINTS.find((w) => w.id === d.walls[theme]);
-    const floor = FLOOR_PAINTS.find((f) => f.id === d.floors[theme]);
+    const wall = WALL_PAINTS.find((w) => w.id === (previewFor('wall', theme) || d.walls[theme]));
+    const floor = FLOOR_PAINTS.find((f) => f.id === (previewFor('floor', theme) || d.floors[theme]));
     if (!wall && !floor) return base;
     const out = Object.assign({}, base);
     if (wall) { out.wallL = wall.color; out.wallR = shade(wall.color, -22); }
@@ -4841,7 +4850,7 @@
   function finishFor(itemId) {
     const cat = CATEGORY[itemId];
     if (cat !== 'strength' && cat !== 'cardio' && cat !== 'recovery') return 'standard';
-    return designState().finish || 'standard';
+    return previewFor('finish') || designState().finish || 'standard';
   }
   function applyFinish(id) {
     const f = FINISHES.find((x) => x.id === id) || FINISHES[0];
@@ -5995,7 +6004,7 @@
 
   // Art bought in the design shop, on top of whatever the theme hangs.
   function drawBoughtArt(theme, north, east, west, doors) {
-    const art = designState().art[theme];
+    const art = previewFor('art', theme) || designState().art[theme];
     if (!art) return;
     if (art === 'posters') {
       // Three posters along the back-left wall, stepping round a doorway.
@@ -7752,6 +7761,17 @@
     }
     if (pointers.size > 2) return;
 
+    // Holding a piece, a drag that starts on the piece carries it. A drag
+    // that starts anywhere else pans the view, the same as with empty
+    // hands -- so the plan can still be moved about while a piece is held.
+    let carrying = false;
+    if (editing) {
+      const p = pointFromEvent(e);
+      const hit = spotFromPoint(p.x, p.y);
+      const reach = drawSizeOf(editing.itemId) * TILES_PER_METRE * 0.7 + 1.2;
+      carrying = !!hit && hit.roomIndex === editing.roomIndex
+        && Math.hypot(hit.u - editing.spot.u, hit.v - editing.spot.v) <= reach;
+    }
     dragState = {
       pointerId: e.pointerId,
       startClientX: e.clientX,
@@ -7760,11 +7780,9 @@
       startScrollTop: stageScrollEl.scrollTop,
       pageScrolled: 0,
       moved: 0,
-      // Holding a piece turns a drag into carrying it. Panning is still
-      // there -- it is just what a drag does when your hands are empty.
-      carrying: !!editing,
+      carrying,
     };
-    gestureEl.style.cursor = editing ? 'grabbing' : 'grabbing';
+    gestureEl.style.cursor = 'grabbing';
   });
 
   gestureEl.addEventListener('pointermove', (e) => {
@@ -8651,6 +8669,7 @@
     else if (kind === 'floor') d.floors[theme] = id;
     else if (kind === 'art') d.art[theme] = id;
     else d.finish = id;
+    designPreview = null;
     if (kind === 'finish') propCache.clear();
     toast(kind === 'finish' ? item.name + ' on every machine'
       : item.name + (kind === 'art' ? ' in the ' : ' for the ') + designThemeName(), 'good');
@@ -8661,7 +8680,21 @@
     renderScene();
     save();
   }
+  function setDesignPreview(kind, id) {
+    designPreview = { kind, id, theme: state.activeTheme };
+    designSig = '';
+    refreshDesignUI();
+    renderScene();
+  }
+  function clearDesignPreview() {
+    if (!designPreview) return;
+    designPreview = null;
+    designSig = '';
+    refreshDesignUI();
+    renderScene();
+  }
   function clearDesign(kind) {
+    designPreview = null;
     const d = designState();
     if (kind === 'wall') delete d.walls[state.activeTheme];
     else if (kind === 'floor') delete d.floors[state.activeTheme];
@@ -8676,19 +8709,28 @@
     const d = designState();
     const theme = state.activeTheme;
     const bal = state.balance;
-    const sig = [theme, d.walls[theme] || '', d.floors[theme] || '', d.art[theme] || '', d.finish,
+    // A preview belongs to the location it was tried on: look at another
+    // one and it is dropped.
+    if (designPreview && designPreview.kind !== 'finish' && designPreview.theme !== theme) {
+      designPreview = null;
+      renderScene();
+    }
+    const pv = designPreview ? designPreview.kind + ':' + designPreview.id : '';
+    const sig = [theme, d.walls[theme] || '', d.floors[theme] || '', d.art[theme] || '', d.finish, pv,
       Object.keys(d.ownedWalls).join(','), Object.keys(d.ownedFloors).join(','), Object.keys(d.ownedFinishes).join(','),
       Math.floor(bal / 1000)].join('|');
     if (sig === designSig) return;
     designSig = sig;
+    const isPv = (kind, id) => !!designPreview && designPreview.kind === kind && designPreview.id === id;
     const priceOf = (owned, cost) => owned ? 'Owned' : '$' + formatNum(cost);
     const swatch = (kind, item, chosen, owned, bg) => {
       const can = owned || bal >= item.cost;
-      return '<button class="tycoon-swatch' + (chosen ? ' is-on' : '') + (can ? '' : ' is-poor') + '" type="button"'
+      const pvHere = isPv(kind, item.id);
+      return '<button class="tycoon-swatch' + (chosen ? ' is-on' : '') + (pvHere ? ' is-preview' : '') + (can ? '' : ' is-poor') + '" type="button"'
         + ' data-kind="' + kind + '" data-id="' + item.id + '" title="' + item.name + '">'
         + '<span class="tycoon-swatch-chip" style="background:' + bg + '"></span>'
         + '<span class="tycoon-swatch-name">' + item.name + '</span>'
-        + '<span class="tycoon-swatch-price">' + (chosen ? 'On' : priceOf(owned, item.cost)) + '</span>'
+        + '<span class="tycoon-swatch-price">' + (chosen ? 'On' : pvHere ? 'Preview' : priceOf(owned, item.cost)) + '</span>'
         + '</button>';
     };
     const base = THEME_COLORS[theme] || THEME_COLORS.garage;
@@ -8707,22 +8749,39 @@
       + WALL_ART.map((a) => {
         const chosen = d.art[theme] === a.id;
         const can = chosen || bal >= a.cost;
-        return '<button class="tycoon-swatch is-wide' + (chosen ? ' is-on' : '') + (can ? '' : ' is-poor') + '" type="button" data-kind="art" data-id="' + a.id + '">'
+        const pvHere = isPv('art', a.id);
+        return '<button class="tycoon-swatch is-wide' + (chosen ? ' is-on' : '') + (pvHere ? ' is-preview' : '') + (can ? '' : ' is-poor') + '" type="button" data-kind="art" data-id="' + a.id + '">'
           + '<span class="tycoon-swatch-chip is-' + a.id + '"></span>'
           + '<span class="tycoon-swatch-name">' + a.name + '<small>' + a.note + '</small></span>'
-          + '<span class="tycoon-swatch-price">' + (chosen ? 'On' : '$' + formatNum(a.cost)) + '</span></button>';
+          + '<span class="tycoon-swatch-price">' + (chosen ? 'On' : pvHere ? 'Preview' : '$' + formatNum(a.cost)) + '</span></button>';
       }).join('');
     const finishRow = FINISHES.map((f) => {
       const chosen = d.finish === f.id;
       const owned = !!d.ownedFinishes[f.id];
       const can = owned || bal >= f.cost;
+      const pvHere = isPv('finish', f.id);
       const chip = f.palette.STEEL || STOCK_PALETTE.STEEL;
-      return '<button class="tycoon-swatch is-wide' + (chosen ? ' is-on' : '') + (can ? '' : ' is-poor') + '" type="button" data-kind="finish" data-id="' + f.id + '">'
+      return '<button class="tycoon-swatch is-wide' + (chosen ? ' is-on' : '') + (pvHere ? ' is-preview' : '') + (can ? '' : ' is-poor') + '" type="button" data-kind="finish" data-id="' + f.id + '">'
         + '<span class="tycoon-swatch-chip" style="background:linear-gradient(135deg,' + (f.palette.STEEL_LT || STOCK_PALETTE.STEEL_LT) + ',' + chip + ' 60%,' + (f.palette.FRAME_DK || STOCK_PALETTE.FRAME_DK) + ')"></span>'
         + '<span class="tycoon-swatch-name">' + f.name + '<small>' + f.note + '</small></span>'
-        + '<span class="tycoon-swatch-price">' + (chosen ? 'On' : owned ? 'Owned' : f.cost ? '$' + formatNum(f.cost) : 'Free') + '</span></button>';
+        + '<span class="tycoon-swatch-price">' + (chosen ? 'On' : pvHere ? 'Preview' : owned ? 'Owned' : f.cost ? '$' + formatNum(f.cost) : 'Free') + '</span></button>';
     }).join('');
-    designEl.innerHTML = '<p class="tycoon-panel-note">Paint and art go on the location you are in. A finish goes on every machine. Buy a colour once, use it anywhere.</p>'
+    // What is being tried on, with the one button that pays for it.
+    let previewBar = '';
+    if (designPreview) {
+      const item = designItem(designPreview.kind, designPreview.id);
+      if (item) {
+        previewBar = '<div class="tycoon-preview-bar" id="design-preview">'
+          + '<span class="tycoon-preview-text">Previewing <b>' + item.name + '</b>'
+            + (designPreview.kind === 'finish' ? ' on every machine' : ' in the ' + designThemeName()) + '</span>'
+          + '<span class="tycoon-preview-actions">'
+            + '<button class="tycoon-preview-buy" type="button" id="design-buy">Buy for $' + formatNum(item.cost) + '</button>'
+            + '<button class="tycoon-preview-cancel" type="button" id="design-cancel">Cancel</button>'
+          + '</span></div>';
+      }
+    }
+    designEl.innerHTML = previewBar
+      + '<p class="tycoon-panel-note">Paint and art go on the location you are in. A finish goes on every machine. Click one you can afford to see it on the plan, then buy it. Buy a colour once, use it anywhere.</p>'
       + '<h3 class="tycoon-panel-title">Walls <span class="tycoon-panel-sub">' + designThemeName() + '</span></h3>'
       + '<div class="tycoon-swatches">' + wallRow + '</div>'
       + '<h3 class="tycoon-panel-title">Floor <span class="tycoon-panel-sub">' + designThemeName() + '</span></h3>'
@@ -8732,14 +8791,39 @@
       + '<h3 class="tycoon-panel-title">Gear finish <span class="tycoon-panel-sub">whole gym</span></h3>'
       + '<div class="tycoon-swatches is-list">' + finishRow + '</div>';
   }
+  // Whether a piece of the design shop is already paid for.
+  function designOwned(kind, id) {
+    const d = designState();
+    if (kind === 'wall') return !!d.ownedWalls[id];
+    if (kind === 'floor') return !!d.ownedFloors[id];
+    if (kind === 'finish') return !!d.ownedFinishes[id];
+    return d.art[state.activeTheme] === id;
+  }
+  function designItem(kind, id) {
+    const list = kind === 'wall' ? WALL_PAINTS : kind === 'floor' ? FLOOR_PAINTS : kind === 'art' ? WALL_ART : FINISHES;
+    return list.find((x) => x.id === id);
+  }
   if (designEl) {
     designEl.addEventListener('click', (e) => {
+      if (e.target.closest('#design-buy')) {
+        if (designPreview) buyDesign(designPreview.kind, designPreview.id);
+        return;
+      }
+      if (e.target.closest('#design-cancel')) { clearDesignPreview(); return; }
       const btn = e.target.closest('.tycoon-swatch');
       if (!btn) return;
       const kind = btn.dataset.kind;
       const id = btn.dataset.id;
       if (!id) { if (kind !== 'finish') clearDesign(kind); return; }
-      buyDesign(kind, id);
+      // Owned already: it goes straight on, for nothing. Not owned: tried on
+      // first, and only if it can be paid for -- there is nothing to look at
+      // in something you cannot buy, and nothing is bought by one click.
+      if (designOwned(kind, id)) { buyDesign(kind, id); return; }
+      const item = designItem(kind, id);
+      if (!item) return;
+      if (state.balance < item.cost) { toast(item.name + ' costs $' + formatNum(item.cost), null); return; }
+      if (designPreview && designPreview.kind === kind && designPreview.id === id) { clearDesignPreview(); return; }
+      setDesignPreview(kind, id);
     });
   }
 
