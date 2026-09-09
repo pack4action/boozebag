@@ -42,9 +42,9 @@
       effect: { kind: 'vibe', amount: 2 } },
     { id: 'cooler', name: 'Water Cooler', baseCost: 11000, unlockLevel: 3,
       effect: { kind: 'cap', amount: 0.25, max: 1 } },
-    { id: 'mirrorwall', name: 'Mirror Wall', baseCost: 130000, unlockLevel: 5,
+    { id: 'mirrorwall', name: 'Mirror Wall', baseCost: 130000, unlockLevel: 4,
       effect: { kind: 'rush', amount: 0.5, max: 1 } },
-    { id: 'gearfridge', name: 'Gear Fridge', baseCost: 900000, unlockLevel: 4,
+    { id: 'gearfridge', name: 'Gear Fridge', baseCost: 900000, unlockLevel: 5,
       effect: { kind: 'stock', amount: 0.3, max: 0.6 } },
     { id: 'neon', name: 'Neon Sign', baseCost: 1700000, unlockLevel: 6,
       effect: { kind: 'promo', amount: 0.5, gym: true } },
@@ -786,11 +786,12 @@
   // that type you have -- which makes the real question wide or tall. Wide
   // is more units and so more neighbours to earn synergy from; tall is
   // fewer, better ones. Slots are what make it a question at all.
-  const MAX_TIER = 4;
+  const MAX_TIER = 3;
   const TIER_STEP = 2.2;
   const TIER_NAMES = ['', 'Mk I', 'Mk II', 'Mk III', 'Mk IV'];
-  const UPGRADE_MIN_LEVEL = 4;
-  const UPGRADE_MIN_OWNED = 3;
+  // Any machine you own can be upgraded, from the first one you buy.
+  const UPGRADE_MIN_LEVEL = 1;
+  const UPGRADE_MIN_OWNED = 1;
   function tierOf(id) {
     return (state.tiers && state.tiers[id]) || 1;
   }
@@ -2794,8 +2795,9 @@
   const jobsDotEl = document.getElementById('tab-dot-jobs');
   function refreshJobsDot() {
     if (!jobsDotEl) return;
-    const ready = !!document.querySelector('#jobs-list .tycoon-job.is-ready')
-      || !!document.querySelector('#rush-order .tycoon-job.is-ready');
+    // A hidden row cannot be claimed, so it must not light the dot.
+    const ready = !!document.querySelector('#jobs-list .tycoon-job.is-ready:not([hidden])')
+      || !!document.querySelector('#rush-order .tycoon-job.is-ready:not([hidden])');
     if (jobsDotEl.hidden === ready) jobsDotEl.hidden = !ready;
   }
 
@@ -2841,6 +2843,10 @@
     state.jobs.splice(index, 1);
     state.jobsDone = (state.jobsDone || 0) + 1;
     refillJobs();
+    // Rebuild the board whatever the new job looks like: a replacement
+    // that happened to read the same as the one just claimed kept the old
+    // row, ready state and all.
+    jobsSignature = '';
     if (currentLevel() > before) announceLevel(currentLevel());
     else toast('Job done. $' + formatNum(job.cash) + ' and ' + job.xp + ' XP', 'good');
     refreshHud();
@@ -2895,6 +2901,7 @@
     const job = rushOrder();
     if (!job) {
       rushRow.row.hidden = true;
+      rushRow.row.classList.remove('is-ready');
       rushRow.wait.hidden = false;
       rushRow.wait.textContent = 'Next rush order in ' + clockOf(rushNextInSeconds());
       rushSignature = '';
@@ -3683,7 +3690,7 @@
     // The vibe is reported separately from the arrangement bonus: they are
     // two different things you can do to a room, and rolling them into one
     // percentage hides which of them is doing the work.
-    const rushPct = Math.round((rushMultiplier() - 1) * 100);
+    const rushPct = Math.round((rushMultiplierFor(room) - 1) * 100);
     // Asked of the arrangement itself rather than worked back out of the
     // room's rate by dividing the other multipliers off it: that only ever
     // divided off the two it named, so the wage bill, the franchise bonus
@@ -3713,6 +3720,32 @@
       const before = arrangedGps * (1 + vibePct / 100);
       rows.push(['Busy hour', '+' + rushPct + '%', '+' + formatNum(before * (rushPct / 100)) + '/s']);
     }
+    // How busy the gym is, as a bar: this is what the busy-hour row above
+    // comes from, and it used to be a badge in the toolbar with nowhere to
+    // explain itself.
+    const f = rushFactor();
+    const floorF = roomEffect(room, 'floor');
+    const busyHere = Math.max(f, floorF);
+    const when = rushLabel();
+    const hourNow = Math.floor(gameHourFloat());
+    const nextRush = hourNow < 7 ? 'The morning rush starts around 7.'
+      : hourNow < 9 ? 'This is the morning rush.'
+        : hourNow < 17 ? 'The evening rush starts around 5.'
+          : hourNow < 20 ? 'This is the evening rush.'
+            : 'It quietens down for the night from here.';
+    const busyHtml = '<div class="tycoon-busy" id="busy-meter">'
+      + '<div class="tycoon-vibe-top">'
+        + '<span class="tycoon-vibe-name">Busy hours</span>'
+        + '<span class="tycoon-vibe-num"><span class="tycoon-rush-when">' + when + '</span>'
+          + ' \u00b7 <span class="tycoon-rush-bonus' + (rushPct > 0 ? '' : ' is-none') + '">'
+          + (rushPct > 0 ? '+' + rushPct + '%' : 'no bonus') + '</span></span>'
+      + '</div>'
+      + '<span class="tycoon-vibe-bar is-busy"><span class="tycoon-vibe-fill" style="width:'
+        + Math.round(busyHere * 100) + '%"></span></span>'
+      + '<p class="tycoon-vibe-note">It is ' + gameClockText() + ' in the gym. A day here is one real hour. '
+        + 'Mornings and evenings earn up to +' + Math.round(RUSH_BONUS * 100) + '%. '
+        + nextRush + (floorF > 0 && f < floorF ? ' The Sound System keeps this room busy.' : '') + '</p>'
+      + '</div>';
     // The vibe meter, and what else the decor in this room is doing. Vibe
     // is a number with a ceiling, so it reads as a bar rather than a
     // figure: how full it is says how much of it is left to buy.
@@ -3734,7 +3767,7 @@
         : '')
       + '</div>';
     const cell = (text, cls) => '<span class="' + cls + '"></span>';
-    synergyEl.innerHTML = vibeHtml + '<p class="tycoon-bd-head"></p>'
+    synergyEl.innerHTML = busyHtml + vibeHtml + '<p class="tycoon-bd-head"></p>'
       + rows.map(() => '<span class="tycoon-bd-row">' + cell('', 'tycoon-bd-label')
         + cell('', 'tycoon-bd-pct') + cell('', 'tycoon-bd-num') + '</span>').join('')
       + '<span class="tycoon-bd-row is-total">' + cell('', 'tycoon-bd-label')
@@ -3808,7 +3841,7 @@
       return 'Makes ' + RECIPES_OF[itemId].map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ')
         + '. Earns nothing itself';
     }
-    return '+' + formatNum(gpsOf(itemId)) + '/s on the floor'
+    return '+' + formatNum(gpsOf(itemId)) + '/s once placed'
       + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '');
   }
 
@@ -4682,6 +4715,12 @@
     neon: 1.6,
   };
   const DEFAULT_FOOTPRINT = 1.4;
+  // How much of a shadow a piece casts, as a share of the usual one. Flat
+  // things cast none; things on a slim base cast a little.
+  const SHADOW_SCALE = {
+    mat: 0, boxingring: 0,
+    dumbbell: 0.55, palm: 0.6, cooler: 0.6, neon: 0.45, mirrorwall: 0.55, climbingwall: 0.6,
+  };
 
   // The size a piece is drawn at, along its longest side. The same as its
   // footprint now that every piece is built to its own dimensions.
@@ -6503,11 +6542,17 @@
     return corners;
   }
 
+  // Where the sign was last drawn, in the plan's own coordinates, so a tap
+  // on it can be told from a tap on the floor around it. Also written onto
+  // the canvas, so a test can find it.
+  let plotSignHit = null;
   function drawPlotSign(centre, index, cost, affordable, accent) {
     const postH = 30;
-    const panelW = 104;
-    const panelH = 50;
+    const panelW = 108;
+    const panelH = 64;
     const top = { x: centre.x, y: centre.y - postH - panelH };
+    plotSignHit = { x0: top.x - panelW / 2, y0: top.y, x1: top.x + panelW / 2, y1: top.y + panelH, index };
+    floorCanvas.dataset.plotSign = JSON.stringify(plotSignHit);
 
     [-panelW * 0.3, panelW * 0.3].forEach((dx) => {
       paintQuad([
@@ -6543,10 +6588,14 @@
     floorCtx.fillStyle = affordable ? '#ffd66b' : 'rgba(244,240,234,0.5)';
     floorCtx.font = '800 12px Inter, system-ui, sans-serif';
     floorCtx.fillText('$' + formatNum(cost), top.x, top.y + 41);
+    floorCtx.fillStyle = affordable ? '#ffb703' : 'rgba(244,240,234,0.4)';
+    floorCtx.font = '800 9px Inter, system-ui, sans-serif';
+    floorCtx.fillText(affordable ? 'TAP TO BUY' : 'NOT YET', top.x, top.y + 55);
     floorCtx.restore();
   }
 
   function drawRoomPreview(rect, corridor, colors, index) {
+    plotSignHit = null;
     const cost = ROOM_UNLOCK_COSTS[index];
     const affordable = state.balance >= cost;
     const accent = affordable ? '#ffb703' : 'rgba(168,159,176,0.5)';
@@ -7357,18 +7406,24 @@
     // the rim rather than an ellipse run through a blur filter: a canvas
     // filter re-rasterises the region it touches, and with one under every
     // piece of gear that single call cost nine tenths of the entire frame.
-    const shadowRX = tiles * ROOM.tileW * 0.25;
-    const shadowRY = tiles * ROOM.tileH * 0.27;
+    // A thing lying flat on the floor casts no shadow, and a thing on a
+    // narrow foot casts a small one. A mat with a machine's shadow under
+    // it read as a mat floating over the floor.
+    const shadowScale = SHADOW_SCALE[itemId] == null ? 1 : SHADOW_SCALE[itemId];
+    const shadowRX = tiles * ROOM.tileW * 0.25 * shadowScale;
+    const shadowRY = tiles * ROOM.tileH * 0.27 * shadowScale;
     const shadowY = c.y + 2;
-    const soft = floorCtx.createRadialGradient(c.x, shadowY, shadowRX * 0.08,
-      c.x, shadowY, shadowRX);
-    soft.addColorStop(0, 'rgba(0,0,0,0.55)');
-    soft.addColorStop(0.45, 'rgba(0,0,0,0.34)');
-    soft.addColorStop(1, 'rgba(0,0,0,0)');
-    floorCtx.beginPath();
-    floorCtx.ellipse(c.x, shadowY, shadowRX, shadowRY, 0, 0, Math.PI * 2);
-    floorCtx.fillStyle = soft;
-    floorCtx.fill();
+    if (shadowScale > 0) {
+      const soft = floorCtx.createRadialGradient(c.x, shadowY, shadowRX * 0.08,
+        c.x, shadowY, shadowRX);
+      soft.addColorStop(0, 'rgba(0,0,0,0.55)');
+      soft.addColorStop(0.45, 'rgba(0,0,0,0.34)');
+      soft.addColorStop(1, 'rgba(0,0,0,0)');
+      floorCtx.beginPath();
+      floorCtx.ellipse(c.x, shadowY, shadowRX, shadowRY, 0, 0, Math.PI * 2);
+      floorCtx.fillStyle = soft;
+      floorCtx.fill();
+    }
 
     // An upgraded piece carries its mark: one stripe per tier above the
     // first, painted on the floor in front of it, so a room of Mk III
@@ -8065,6 +8120,12 @@
       }
       return;
     }
+    // The sign on the next room's plot: tapping it buys the room.
+    if (plotSignHit && px >= plotSignHit.x0 && px <= plotSignHit.x1
+      && py >= plotSignHit.y0 && py <= plotSignHit.y1) {
+      buyNextRoom();
+      return;
+    }
     // Cash first: the bubble over a machine is the thing you are most
     // likely reaching for, and it is drawn over everything.
     const pile = pileTagAtPoint(px, py);
@@ -8231,6 +8292,38 @@
   // at. Panning and pinching does that job better -- the whole chain is one
   // plan you move around, and clicking any room's floor makes it the active
   // one -- so all that is left is the control for buying the next room.
+  // Buying the next room happens on the plan: the marked-out plot for it
+  // carries a sign with the price, and tapping the sign buys it. There is
+  // no button for it in the bar any more.
+  function buyNextRoom() {
+    const rooms = activeRooms();
+    if (rooms.length >= MAX_ROOMS_PER_THEME || !gymOpen()) return false;
+    const cost = ROOM_UNLOCK_COSTS[rooms.length];
+    if (state.balance < cost) {
+      toast('Room ' + (rooms.length + 1) + ' costs $' + formatNum(cost), null);
+      return false;
+    }
+    const before = currentLevel();
+    state.balance -= cost;
+    // Taking on a room is progress like any other purchase, and a big one.
+    state.xp = (state.xp || 0) + xpForSpend(cost);
+    rooms.push(emptyGymRoom(state.activeTheme, rooms.length));
+    state.activeRoomIndex = rooms.length - 1;
+    if (currentLevel() > before) announceLevel(currentLevel());
+    rebuildPlan();
+    refreshHud();
+    refreshLevelUI();
+    refreshShopUI();
+    renderScene();
+    renderInventory();
+    refreshThemeRow();
+    refreshSynergyText();
+    refreshRoomActions();
+    scrollToRoom(state.activeRoomIndex);
+    save();
+    return true;
+  }
+
   const roomActionsEl = document.getElementById('room-actions');
   let addRoomBtn = null;
   function buildRoomActions() {
@@ -8296,9 +8389,11 @@
   const placeStoreBtn = document.getElementById('btn-place-store');
   const placeConfirmBtn = document.getElementById('btn-place-confirm');
 
+  const stageWrapEl = document.querySelector('.tycoon-stage-wrap');
   function refreshPlaceHud() {
     if (!placeHudEl) return;
     placeHudEl.hidden = !editing;
+    if (stageWrapEl) stageWrapEl.classList.toggle('is-editing', !!editing);
     if (!editing) return;
     const item = itemById(editing.itemId);
     const blocker = editOverlaps();

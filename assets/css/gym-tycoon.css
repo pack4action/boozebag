@@ -2340,3 +2340,53 @@
 /* The badge is the button, so the card must not be clipped by the pill it
    hangs from. */
 .tycoon-rush.is-open { overflow: visible; }
+
+/* ---- Corners of the plan ----
+   The clock bottom-left, Promo bottom-right. Both leave while a piece is
+   being placed, because that is where the pad goes. */
+.tycoon-corners {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+.tycoon-corners > * { pointer-events: auto; }
+.tycoon-stage-wrap.is-editing .tycoon-corners { display: none; }
+.tycoon-corners .tycoon-clock,
+.tycoon-corners .tycoon-promo-wrap {
+  background-color: rgba(12, 11, 16, 0.82);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+.tycoon-corners .tycoon-promo-wrap .tycoon-promo-btn { background-color: transparent; backdrop-filter: none; box-shadow: none; }
+/* The Promo card opens upward now, above the pill in the corner. */
+.tycoon-corners .tycoon-info-pop { top: auto; bottom: calc(100% + 8px); right: 0; left: auto; transform: none; }
+.tycoon-corners .tycoon-promo-wrap[hidden] { display: none !important; }
+/* With the locations alone in it, the bar is one row. */
+.tycoon-designer .tycoon-toolbar .tycoon-theme-row { margin: 0; }
+@media (max-width: 560px) {
+  .tycoon-corners { left: 6px; right: 6px; bottom: 6px; }
+  .tycoon-corners .tycoon-clock { padding: 4px 8px; font-size: 10px; gap: 4px; }
+  .tycoon-corners .tycoon-clock-icon { width: 11px; height: 11px; }
+  .tycoon-corners .tycoon-promo-btn { font-size: 10px; padding: 5px 9px; }
+  .tycoon-corners .tycoon-info { font-size: 10px; padding: 0 9px 0 7px; }
+}
+
+/* The busy meter in Room details, on the vibe meter's pattern. */
+.tycoon-busy {
+  border: 1px solid var(--panel-border, #2a2732);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 9px 11px 10px;
+  margin: 0 0 10px;
+  text-align: left;
+}
+.tycoon-busy .tycoon-vibe-num { color: #ffd166; }
+.tycoon-busy .tycoon-rush-bonus.is-none { color: var(--muted, #8b8b93); }
+.tycoon-vibe-bar.is-busy .tycoon-vibe-fill { background: linear-gradient(90deg, #7fd8e6, #ffd166); }
