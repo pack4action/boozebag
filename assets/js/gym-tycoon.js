@@ -4127,8 +4127,12 @@
   // thickens with the busy hours and thins to nothing at night.
   const SOUND_KEY = 'gymTycoonSound';
   const soundBtn = document.getElementById('btn-sound');
-  let soundOn = false;
-  try { soundOn = localStorage.getItem(SOUND_KEY) === 'on'; } catch (e) { soundOn = false; }
+  // On unless it has been switched off. A browser will not let a page make
+  // a sound before the first click anyway, so nothing is heard until
+  // something is done -- which is the part that made starting muted worth
+  // it, and it holds either way.
+  let soundOn = true;
+  try { soundOn = localStorage.getItem(SOUND_KEY) !== 'off'; } catch (e) { soundOn = true; }
   let audio = null;
 
   // The context is made on the first click that wants it, which is the
@@ -4202,6 +4206,29 @@
       const t = a.ctx.currentTime;
       note(a, 660, t, 0.12, 'triangle', 0.2);
       note(a, 990, t + 0.1, 0.24, 'triangle', 0.2);
+    },
+    // A piece lifted off the floor: a short rising blip, light, so it reads
+    // as picking something up rather than dropping it.
+    lift() {
+      const a = audioReady();
+      if (!a) return;
+      note(a, 420, a.ctx.currentTime, 0.07, 'sine', 0.14, 700);
+    },
+    // A piece set down: the same the other way, with a soft knock under it.
+    place() {
+      const a = audioReady();
+      if (!a) return;
+      const t = a.ctx.currentTime;
+      note(a, 700, t, 0.06, 'sine', 0.13, 400);
+      note(a, 180, t + 0.02, 0.10, 'sine', 0.26, 110);
+    },
+    // Walking into another location: a door, low and open.
+    door() {
+      const a = audioReady();
+      if (!a) return;
+      const t = a.ctx.currentTime;
+      note(a, 300, t, 0.16, 'triangle', 0.16, 460);
+      note(a, 120, t + 0.04, 0.18, 'sine', 0.2);
     },
   };
   // The crowd. A loop of soft noise through a band-pass filter, which is
@@ -8847,6 +8874,7 @@
     const spot = spotOf(room, index, shape);
     room.layout[index] = null;
     if (room.spots) room.spots[index] = null;
+    sfx.lift();
     beginEdit(itemId, roomIndex, spot, index);
     recomputeStats();
   }
@@ -9009,6 +9037,7 @@
     room.layout[slot] = itemId;
     room.spots[slot] = { u: editing.spot.u, v: editing.spot.v, r: turn };
     const at = { u: editing.spot.u, v: editing.spot.v };
+    sfx.place();
     endEdit();
 
     // Straight on to the next one. Only for a piece that came out of
@@ -9214,6 +9243,7 @@
         const shape = roomShapeFor(state.activeTheme, idx);
         // It appears in the middle of the room you are looking at, which is
         // both visible and somewhere you can drag it from.
+        sfx.lift();
         beginEdit(item.id, idx, { u: shape.cols / 2, v: shape.rows / 2 }, null);
         scrollToRoom(idx);
       });
@@ -9286,6 +9316,7 @@
         }
         hideTip();
         if (state.activeTheme === t.id) return;
+        sfx.door();
         state.activeTheme = t.id;
         state.activeRoomIndex = Math.min(state.activeRoomIndex, activeRooms().length - 1);
         rebuildPlan();
@@ -9940,6 +9971,7 @@
         + '<span class="ov-meta"></span></span><span class="ov-rate"></span>';
       row.addEventListener('click', () => {
         if (!unlockedFor(t) || state.activeTheme === t.id) return;
+        sfx.door();
         state.activeTheme = t.id;
         state.activeRoomIndex = Math.min(state.activeRoomIndex, activeRooms().length - 1);
         rebuildPlan();
