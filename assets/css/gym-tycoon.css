@@ -162,10 +162,15 @@
   position: absolute;
   top: 0;
   left: 0;
-  cursor: grab;
+  /* Inherited, not its own: the cursor is decided by what is under the
+     pointer, and the code that knows that sets it on the stage. A rule of
+     its own here quietly won, so the hand never became a finger over a
+     bubble or the plot sign. */
+  cursor: inherit;
   user-select: none;
   -webkit-user-select: none;
 }
+#room-zoom-wrap { cursor: inherit; }
 
 /* The room's takings, broken out a line at a time. This is the answer to
    "why is this room worth what it is worth", and as one running sentence it
@@ -428,7 +433,6 @@
 
   .tycoon-page .game-head,
   .tycoon-page .game-switcher,
-  .tycoon-page .wallet-bar,
   .tycoon-page .game-hud,
   .tycoon-page > .game-toast { grid-column: 1 / -1; }
 
@@ -448,18 +452,6 @@
 
   .tycoon-page .game-sub { max-width: 880px; margin-bottom: 16px; font-size: 14.5px; }
   .tycoon-page .game-switcher { margin-bottom: 16px; }
-
-  /* Every row above the floor plan is a row of plan you cannot see without
-     scrolling, so the wallet button leaves the stack and sits in the top
-     corner the way an account control usually does. */
-  .tycoon-page .wallet-bar {
-    position: absolute;
-    top: 26px;
-    right: 36px;
-    margin: 0;
-    z-index: 45;
-  }
-  .tycoon-page .wallet-picker { left: auto; right: 0; }
 
 
 
@@ -2661,4 +2653,25 @@
 @media (min-width: 1080px) {
   /* Over the plan's own column, not the middle of the page. */
   .tycoon-page > .game-toast { left: calc(50% - 200px); }
+}
+
+/* ---- The tabs, on a phone ----
+   Six tabs across a 360-pixel screen left each one 48 pixels for a word
+   that wanted 62, so the labels ran into their neighbours and Counter was
+   cut to "Counte" -- which is how the Staff tab came to look like it had
+   gone. Three to a row instead, on two rows, every word whole and every
+   tab still one tap away. This is below the plan, not over it, so the
+   second row costs nothing you were looking at. */
+@media (max-width: 620px) {
+  .tycoon-tabs {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .tycoon-tab {
+    flex: 1 1 calc(33.333% - 4px);
+    font-size: 13px;
+    letter-spacing: 0.4px;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
 }

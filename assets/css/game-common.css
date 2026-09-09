@@ -1,4 +1,4 @@
-/* Shared chrome for all minigame pages: wallet bar, HUD, toast, overlay,
+/* Shared chrome for all minigame pages: HUD, toast, overlay,
    legend chips, leaderboard. Game-specific canvas/color rules stay in each
    game's own stylesheet (e.g. degen-pong.css, gains-stacker.css). */
 
@@ -57,91 +57,6 @@
   line-height: 1.6;
 }
 
-.wallet-bar {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-/* .btn and the flex/absolute display rules below would otherwise beat the
-   browser's default [hidden]{display:none}, since author CSS always wins
-   over the UA stylesheet regardless of specificity -- see the game-overlay
-   fix for the same issue. */
-.wallet-bar [hidden] { display: none !important; }
-
-.wallet-toggle { display: inline-flex; align-items: center; gap: 8px; }
-.wallet-chevron { color: var(--muted); transition: transform 0.15s ease; }
-.wallet-toggle[aria-expanded="true"] .wallet-chevron { transform: rotate(180deg); }
-
-.wallet-picker {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 160px;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 12px;
-  padding: 6px;
-  box-shadow: var(--shadow-hard);
-}
-.wallet-picker button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: inherit;
-  font-weight: 800;
-  font-size: 13px;
-  color: var(--text);
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  padding: 9px 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  text-align: left;
-}
-.wallet-picker button:hover { background: rgba(255,255,255,0.06); color: var(--amber); }
-.wallet-icon { flex-shrink: 0; border-radius: 6px; }
-
-.wallet-connected {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 999px;
-  padding: 7px 8px 7px 14px;
-  font-size: 13px;
-}
-.wallet-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #6fb98f;
-  box-shadow: 0 0 8px #6fb98f;
-  flex-shrink: 0;
-}
-.wallet-address {
-  font-weight: 800;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-.wallet-disconnect {
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--muted);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 4px 6px;
-}
-.wallet-disconnect:hover { color: var(--red); }
 
 .game-hud {
   display: flex;
@@ -403,10 +318,6 @@
   .game-rail-left { grid-column: 1; grid-row: 4; }
   .game-stage { grid-column: 2; grid-row: 3 / 5; }
   .game-rail-right { grid-column: 3; grid-row: 3 / 5; }
-
-  /* The wallet button is centred on a phone; in a rail it reads as a
-     control belonging to the panel below it, so it hugs the left edge. */
-  .game-rail-left .wallet-bar { justify-content: flex-start; margin-bottom: 0; }
 
   /* A row of chips becomes a scoreboard: one line per stat, label left,
      number right, tabular figures already keeping the digits from

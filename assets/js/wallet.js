@@ -85,13 +85,19 @@
   // #wallet-connected, #wallet-address, #btn-disconnect) that every game
   // page includes identically, so each game doesn't re-implement the same
   // toggle/outside-click/connect/disconnect plumbing.
-  function attachUI({ onChange, onError }) {
+  // Guarded because the wallet now lives in the site navigation, which is on
+  // every page: a game page wires it up with its own callbacks, and the
+  // fallback below wires up the pages that have no game.
+  let attached = false;
+  function attachUI({ onChange, onError } = {}) {
+    if (attached) return;
     const btnConnect = document.getElementById('btn-connect');
     const walletPicker = document.getElementById('wallet-picker');
     const walletConnected = document.getElementById('wallet-connected');
     const walletAddress = document.getElementById('wallet-address');
     const btnDisconnect = document.getElementById('btn-disconnect');
     if (!btnConnect) return;
+    attached = true;
 
     function setWalletUI(address) {
       if (address) {
@@ -142,4 +148,12 @@
   }
 
   window.BoozebagWallet = { connect, tryReconnect, disconnect, getSaved, short, attachUI };
+
+  // Pages with no game still have the button in the bar, so wire it up once
+  // everything else has had its chance to claim it.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => attachUI());
+  } else {
+    setTimeout(() => attachUI(), 0);
+  }
 })();

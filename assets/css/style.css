@@ -153,10 +153,116 @@ img { max-width: 100%; display: block; }
   border-radius: 2px;
 }
 
+/* Wallet, in the bar itself.
+   It used to sit in the page under each game's title, which meant three
+   different spots on three pages and none at all on the front page. As
+   part of the navigation it is in one place on the whole site. */
+.nav-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.nav-wallet { position: relative; display: flex; }
+/* .btn and the flex rules below beat the browser's own [hidden] rule,
+   since author CSS wins over the UA stylesheet whatever the specificity. */
+.nav-wallet [hidden] { display: none !important; }
+
+.wallet-toggle { display: inline-flex; align-items: center; gap: 7px; }
+.wallet-glyph { flex-shrink: 0; opacity: 0.9; }
+.wallet-chevron { color: var(--muted); transition: transform 0.15s ease; }
+.wallet-toggle[aria-expanded="true"] .wallet-chevron { transform: rotate(180deg); }
+
+.wallet-picker {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 168px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: var(--shadow-hard);
+}
+.wallet-picker button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: left;
+}
+.wallet-picker button:hover { background: rgba(255,255,255,0.06); color: var(--amber); }
+.wallet-icon { flex-shrink: 0; border-radius: 6px; }
+
+.wallet-connected {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 6px 8px 6px 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.wallet-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6fb98f;
+  box-shadow: 0 0 8px #6fb98f;
+  flex-shrink: 0;
+}
+.wallet-address {
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.wallet-disconnect {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 4px 6px;
+}
+.wallet-disconnect:hover { color: var(--red); }
+
+/* The bar has a fixed amount of room, and four things now want it. Measured
+   at every width rather than guessed: the wallet keeps its icon and drops its
+   word until there is room for both, and the links fold into the menu button
+   until they fit beside everything else. Before this the bar simply ran off
+   the right of the screen between about 780 and 950 pixels. */
+@media (max-width: 1240px) {
+  .wallet-label { display: none; }
+  .wallet-chevron { display: none; }
+  .nav-wallet .wallet-toggle { padding: 11px; }
+  .wallet-disconnect { display: none; }
+}
+@media (max-width: 1200px) {
+  .nav-links { gap: 20px; }
+}
+
 @media (min-width: 760px) {
   .nav-cta { display: inline-flex; }
 }
-@media (max-width: 760px) {
+@media (max-width: 1040px) {
   .nav-toggle { display: flex; }
   .nav-links {
     position: absolute;

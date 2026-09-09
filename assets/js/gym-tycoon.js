@@ -21,19 +21,12 @@
     { id: 'cable', name: 'Cable Machine', baseCost: 4500, gps: 30 },
     { id: 'treadmill', name: 'Treadmill', baseCost: 15000, gps: 100 },
     { id: 'rower', name: 'Rowing Machine', baseCost: 50000, gps: 350, unlockLevel: 3 },
-    { id: 'sauna', name: 'Sauna', baseCost: 220000, gps: 1500 },
+    { id: 'sauna', name: 'Sauna', baseCost: 220000, gps: 1500, unlockLevel: 4 },
     { id: 'boxingring', name: 'Boxing Ring', baseCost: 900000, gps: 6000, unlockLevel: 4 },
     { id: 'climbingwall', name: 'Climbing Wall', baseCost: 3600000, gps: 25000, unlockLevel: 6 },
     { id: 'stairclimber', name: 'Stair Climber', baseCost: 14000000, gps: 100000, unlockLevel: 7 },
     { id: 'cryo', name: 'Cryo Chamber', baseCost: 56000000, gps: 400000, unlockLevel: 8 },
 
-    // The counters are decoration too: they earn nothing standing there.
-    // What they do is make stock for the delivery orders on the Jobs tab,
-    // and each one is worth having for its own sake as well.
-    { id: 'juicebar', name: 'Juice Bar', baseCost: 36000, unlockLevel: 3,
-      effect: { kind: 'room', amount: 0.25, max: 0.5 } },
-    { id: 'proshop', name: 'Pro Shop', baseCost: 2200000, unlockLevel: 7,
-      effect: { kind: 'xp', amount: 0.25, gym: true } },
 
     // Decor. None of it earns a cent, and every piece takes floor a machine
     // could have had. Each one does one thing, and the thing is different:
@@ -58,6 +51,15 @@
       effect: { kind: 'jobs', amount: 0.25, gym: true } },
     { id: 'officepod', name: 'Corner Office Pod', baseCost: 220000000, unlockLevel: 10,
       effect: { kind: 'cashiers', amount: 1, gym: true } },
+
+    // The counters close the list. They are decoration as well -- they earn
+    // nothing standing there -- but they also make stock for the delivery
+    // orders on the Jobs tab, so they read as the last and biggest thing a
+    // room can have rather than the first.
+    { id: 'juicebar', name: 'Juice Bar', baseCost: 36000, unlockLevel: 3,
+      effect: { kind: 'room', amount: 0.15, max: 0.15 } },
+    { id: 'proshop', name: 'Pro Shop', baseCost: 2200000, unlockLevel: 7,
+      effect: { kind: 'xp', amount: 0.25, gym: true } },
   ];
   // Gains per second is the headline number on every piece of gear, and a
   // fitting has none. Rather than scatter `item.gps || 0` through the
@@ -66,6 +68,18 @@
   function isDecor(id) {
     const item = itemById(id);
     return !!(item && item.effect);
+  }
+  // One of each fitting per room. Two Water Coolers in one room were never
+  // twice as good -- the caps saw to that -- they were just the cheapest way
+  // to fill a room with the same thing. The Potted Palm is the exception,
+  // because a room full of plants is a look.
+  const CROWDABLE = { palm: true };
+  function onePerRoom(id) {
+    return isDecor(id) && !CROWDABLE[id];
+  }
+  function roomAlreadyHas(room, itemId) {
+    if (!room || !onePerRoom(itemId)) return false;
+    return room.layout.some((id) => id === itemId);
   }
   // What a piece of decor does, in one line, for the shop row and the
   // Storage chip. Written once here so the two never disagree.
@@ -3915,7 +3929,8 @@
     if (item.effect) {
       return effectLine(item)
         + (makesStock(itemId) ? '. Makes ' + RECIPES_OF[itemId]
-          .map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ') : '');
+          .map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ') : '')
+        + (onePerRoom(itemId) ? '. Max one per room' : '');
     }
     return '+' + formatNum(gpsOf(itemId)) + '/s once placed'
       + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '');
@@ -4014,9 +4029,31 @@
     return CATEGORY[itemId] === 'decor' ? 'decor' : 'gear';
   }
   const shopHeadEls = {};
+  // The order the shop lists things in, which is not the order they are
+  // declared in. Within a section it runs by the level that opens it and
+  // then by price, so the list reads as the order you will actually buy
+  // things in: everything you can afford today at the top, the next thing
+  // to work towards right under it. The Customer Desk is pinned first --
+  // it is free, and nothing else in the location works without it.
+  function shopOrder() {
+    const rank = (item) => [
+      sectionOf(item.id) === 'gear' ? 0 : 1,
+      item.starter ? 0 : 1,
+      item.unlockLevel || 1,
+      item.baseCost,
+    ];
+    return ITEMS.slice().sort((a, b) => {
+      const ra = rank(a);
+      const rb = rank(b);
+      for (let i = 0; i < ra.length; i++) {
+        if (ra[i] !== rb[i]) return ra[i] - rb[i];
+      }
+      return 0;
+    });
+  }
   function buildShop() {
     let section = null;
-    ITEMS.forEach((item) => {
+    shopOrder().forEach((item) => {
       const here = sectionOf(item.id);
       if (here !== section) {
         section = here;
@@ -4095,21 +4132,11 @@
     if (idle) {
       return ['The ' + itemById(idle.itemId).name + ' is idle. Start a batch.', 'counter'];
     }
-    const hire = STAFF_ROLES.find((r) => unlockedFor(r) && staffCount(r.id) === 0
-      && state.balance >= staffHireCost(r.id));
-    if (hire) {
-      return ['You can afford a ' + hire.name + ': ' + hire.note(1) + '.', 'staff'];
-    }
-    const up = ITEMS.find((i) => canUpgrade(i.id) && state.balance >= upgradeCost(i.id));
-    if (up) {
-      return ['You can upgrade the ' + up.name + ' to ' + TIER_NAMES[tierOf(up.id) + 1] + '.', 'shop'];
-    }
-    const buy = ITEMS.filter((i) => unlockedFor(i) && !i.starter && state.balance >= costFor(i))
-      .sort((a, b) => costFor(b) - costFor(a))[0];
-    if (buy) {
-      return ['You can afford a ' + buy.name + '.', 'shop'];
-    }
-    return ['Nothing waiting. Let it earn.', null];
+    // Nothing about what you can afford: the Shop already greys out what you
+    // cannot buy, so a line saying you can buy a Potted Palm is the screen
+    // reading itself out loud. The bar only speaks when something is waiting
+    // somewhere you are not looking.
+    return null;
   }
 
   function refreshNextStep() {
@@ -4137,9 +4164,8 @@
     openHintEl.hidden = open;
     if (open) return;
     const theme = THEMES.find((t) => t.id === state.activeTheme);
-    openHintEl.textContent = availableCount('frontdesk') > 0
-      ? 'The ' + theme.name + ' is closed. Take its free Customer Desk from the Shop and put it down.'
-      : 'The ' + theme.name + ' is closed. Take its free Customer Desk from the Shop and put it down.';
+    openHintEl.textContent = 'The ' + theme.name
+      + ' is closed. Take its free Customer Desk from the Shop and put it down.';
   }
 
   function refreshShopUI() {
@@ -6793,7 +6819,7 @@
   // posts, the hallway that will reach it, and a site board naming what it
   // is and what it costs. It lights up amber the moment it is affordable.
 
-  function plotOutline(rect, accent, faint) {
+  function plotOutline(rect, accent, faint, lit) {
     for (let ry = 0; ry < rect.rows; ry++) {
       for (let rx = 0; rx < rect.cols; rx++) {
         const gx = rect.gx0 + rx;
@@ -6802,13 +6828,13 @@
         paintQuad([
           isoPoint(gx, gy), isoPoint(gx + 1, gy),
           isoPoint(gx + 1, gy + 1), isoPoint(gx, gy + 1),
-        ], faint, 'rgba(255,255,255,0.05)', 1);
+        ], faint, lit ? 'rgba(255,209,102,0.22)' : 'rgba(255,255,255,0.05)', 1);
       }
     }
     const corners = floorPolygon(rect).map(([gx, gy]) => isoPoint(gx, gy));
     floorCtx.save();
     floorCtx.setLineDash([8, 7]);
-    paintQuad(corners, null, accent, 2);
+    paintQuad(corners, null, accent, lit ? 3 : 2);
     floorCtx.restore();
     return corners;
   }
@@ -6865,7 +6891,8 @@
     floorCtx.fillStyle = 'rgba(244,240,234,0.78)';
     floorCtx.font = '700 14px Inter, system-ui, sans-serif';
     floorCtx.fillText(slotCountFor(state.activeTheme, index) + ' slots', top.x, top.y + 35);
-    floorCtx.fillStyle = affordable ? '#ffd66b' : 'rgba(244,240,234,0.5)';
+    floorCtx.fillStyle = signHovered && affordable ? '#ffb703'
+      : affordable ? '#ffd66b' : 'rgba(244,240,234,0.5)';
     floorCtx.font = '800 16px Inter, system-ui, sans-serif';
     floorCtx.fillText('$' + formatNum(cost), top.x, top.y + 54);
     floorCtx.restore();
@@ -6875,11 +6902,13 @@
     plotSignHit = null;
     const cost = ROOM_UNLOCK_COSTS[index];
     const affordable = state.balance >= cost;
+    const lit = signHovered && affordable;
     const accent = affordable ? '#ffb703' : 'rgba(168,159,176,0.5)';
-    const faint = affordable ? 'rgba(255,183,3,0.05)' : 'rgba(255,255,255,0.022)';
+    const faint = lit ? 'rgba(255,183,3,0.16)'
+      : affordable ? 'rgba(255,183,3,0.05)' : 'rgba(255,255,255,0.022)';
 
-    if (corridor) plotOutline(corridor, accent, faint);
-    const corners = plotOutline(rect, accent, faint);
+    if (corridor) plotOutline(corridor, accent, faint, lit);
+    const corners = plotOutline(rect, accent, faint, lit);
 
     // Corner stakes, so the plot reads as marked out rather than painted on.
     corners.forEach((p) => {
@@ -8220,6 +8249,13 @@
   function blockerName(blocker) {
     return blocker === 'edge' ? 'edge of the floor' : itemById(blocker).name;
   }
+  // A second one of the same fitting is not an overlap -- it fits fine, it
+  // is simply not allowed -- so it is asked about separately and said
+  // differently.
+  function editDuplicate() {
+    if (!editing) return false;
+    return roomAlreadyHas(activeRooms()[editing.roomIndex], editing.itemId);
+  }
 
   // Carry the held piece into another room: it keeps its turn, and lands
   // wherever in that room the pointer is, clamped onto its floor.
@@ -8276,6 +8312,10 @@
       toast("Won't fit. It would overlap the " + blockerName(blocker), null);
       return;
     }
+    if (editDuplicate()) {
+      toast('One ' + itemById(editing.itemId).name + ' per room. This one has one', null);
+      return;
+    }
     const room = activeRooms()[editing.roomIndex];
     // Back into the slot it came from where there is one, so moving a piece
     // does not quietly reshuffle a full room -- but a piece carried into
@@ -8303,6 +8343,8 @@
     if (!fromTray || availableCount(itemId) <= 0) return;
     // One desk per location, so putting one down is the end of it.
     if (itemById(itemId) && itemById(itemId).starter) return;
+    // Same for a fitting: the room it would land in already has one.
+    if (onePerRoom(itemId)) return;
     const shape = roomShapeFor(state.activeTheme, roomIndex);
     const next = findFreeSpot(activeRooms()[roomIndex], shape, itemId, turn, at);
     if (!next) return;
@@ -8551,8 +8593,25 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'tycoon-theme-btn';
+      // A locked chip says "Lv 5" and nothing else, which reads as a
+      // label rather than a condition. Hovering it, or tapping it on a
+      // phone, spells it out. It is aria-disabled rather than disabled
+      // because a disabled button swallows the hover along with the click,
+      // so the explanation would never appear on the one chip that needs it.
+      const tellLock = () => {
+        if (btn.dataset.tip) showTip(btn, btn.dataset.tip);
+      };
+      btn.addEventListener('mouseenter', tellLock);
+      btn.addEventListener('focus', tellLock);
+      btn.addEventListener('mouseleave', hideTip);
+      btn.addEventListener('blur', hideTip);
       btn.addEventListener('click', () => {
-        if (state.activeTheme === t.id || !unlockedFor(t)) return;
+        if (!unlockedFor(t)) {
+          if (tipEl.hidden) tellLock(); else hideTip();
+          return;
+        }
+        hideTip();
+        if (state.activeTheme === t.id) return;
         state.activeTheme = t.id;
         state.activeRoomIndex = Math.min(state.activeRoomIndex, activeRooms().length - 1);
         rebuildPlan();
@@ -8589,7 +8648,8 @@
       btn.classList.toggle('is-active', state.activeTheme === t.id);
       btn.classList.toggle('is-locked', !unlocked);
       btn.classList.toggle('is-shut', unlocked && !open);
-      btn.disabled = !unlocked;
+      btn.setAttribute('aria-disabled', unlocked ? 'false' : 'true');
+      btn.dataset.tip = unlocked ? '' : 'Unlocks at level ' + t.unlockLevel;
     });
   }
 
@@ -8707,13 +8767,15 @@
     if (!editing) return;
     const item = itemById(editing.itemId);
     const blocker = editOverlaps();
+    const dupe = editDuplicate();
     if (placeLabelEl) {
       const where = activeRooms().length > 1 ? ' in ' + roomLabel(editing.roomIndex) : '';
       placeLabelEl.textContent = (item ? item.name : 'Gear')
         + (blocker ? ' \u00b7 too close to the ' + blockerName(blocker)
+          : dupe ? ' \u00b7 this room already has one'
           : where + ' \u00b7 drag, then Place');
     }
-    if (placeConfirmBtn) placeConfirmBtn.disabled = !!blocker;
+    if (placeConfirmBtn) placeConfirmBtn.disabled = !!blocker || dupe;
     if (placeStoreBtn) placeStoreBtn.hidden = editing.fromIndex === null;
   }
 
