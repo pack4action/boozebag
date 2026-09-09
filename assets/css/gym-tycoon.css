@@ -1695,3 +1695,66 @@
   .tycoon-pop-icon { width: 36px; height: 36px; }
   .tycoon-pop-cash { font-size: 16px; }
 }
+
+/* ---- One line, always ----
+   Last in the file so it wins. Nothing here may drop onto a second row:
+   a row that wraps costs the height of another row, permanently, and
+   the stat bar is sticky so it took that height off the plan for the
+   whole session. Where a row is too narrow it scrolls sideways instead. */
+.tycoon-page .game-hud {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 190px));
+  justify-content: center;
+  gap: 10px;
+}
+.tycoon-page .hud-stat { width: auto; min-width: 0; }
+.tycoon-theme-row,
+.tycoon-filters {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  justify-content: flex-start;
+}
+.tycoon-theme-row::-webkit-scrollbar,
+.tycoon-filters::-webkit-scrollbar { display: none; }
+.tycoon-theme-btn, .tycoon-filter { flex: none; white-space: nowrap; }
+.tycoon-tabs { flex-wrap: nowrap; }
+.tycoon-tab { white-space: nowrap; min-width: 0; padding-left: 6px; padding-right: 6px; }
+.game-switcher { flex-wrap: nowrap; }
+.game-switch-tab { white-space: nowrap; }
+
+/* Between a phone and a desktop the page is one column, and it was laid
+   out like a phone: everything centred and capped at phone width, so
+   three Storage chips sat one per row down the middle of a wide screen. */
+@media (max-width: 1079px) {
+  .tycoon-panel-note { display: none; }
+  .tycoon-inventory { max-width: none; justify-content: flex-start; }
+  .tycoon-synergy { margin-left: 0; }
+  .tycoon-toolbar-end { justify-content: flex-start; }
+  .tycoon-page .game-hud { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 820px; margin-left: auto; margin-right: auto; }
+}
+@media (max-width: 560px) {
+  .tycoon-page .game-hud { gap: 6px; }
+}
+/* The toolbar too: busy meter, Add Room and Open day on one line at every
+   width, scrolling sideways on a phone rather than stacking. A chip's name
+   stays on one line as well. */
+.tycoon-toolbar-end {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 8px;
+}
+.tycoon-toolbar-end::-webkit-scrollbar { display: none; }
+.tycoon-toolbar-end .tycoon-rush,
+.tycoon-toolbar-end .tycoon-room-actions,
+.tycoon-toolbar-end .tycoon-promo-btn,
+.tycoon-toolbar-end .tycoon-add-room { flex: none; width: auto; margin: 0; white-space: nowrap; }
+.tycoon-toolbar-end .tycoon-rush { min-width: 0; }
+.tycoon-inv-arm, .tycoon-inv-item { white-space: nowrap; }
+@media (max-width: 1079px) {
+  .tycoon-toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 8px; }
+  .tycoon-toolbar::-webkit-scrollbar { display: none; }
+  .tycoon-toolbar .tycoon-theme-row { flex: none; overflow: visible; margin: 0; }
+  .tycoon-toolbar-end { flex: none; overflow: visible; }
+}
