@@ -163,10 +163,10 @@
     // A second location is a mid-game thing, not a level-2 thing: the first
     // gym should be half built before there is another one to think about.
     { id: 'basement', name: 'Basement', unlockLevel: 5 },
-    { id: 'rooftop', name: 'Rooftop', unlockLevel: 8 },
+    { id: 'rooftop', name: 'Rooftop', unlockLevel: 10 },
     // The far end of the ladder. Nothing else unlocks past level ten, and
     // forty levels of nothing to look forward to is a long way to walk.
-    { id: 'boardwalk', name: 'Boardwalk', unlockLevel: 12 },
+    { id: 'boardwalk', name: 'Boardwalk', unlockLevel: 15 },
   ];
 
   // Grid the rooms are laid out on. Moved up here (rather than living with
@@ -5909,10 +5909,21 @@
     walls.forEach(([from, to]) => {
       const railA = wallPoint(from, to, 0.05, 0.92);
       const railB = wallPoint(from, to, 0.95, 0.92);
+      // A soft line of light along the rail, then the rail itself over it.
+      floorCtx.save();
+      floorCtx.globalCompositeOperation = 'lighter';
       floorCtx.beginPath();
       floorCtx.moveTo(railA.x, railA.y);
       floorCtx.lineTo(railB.x, railB.y);
-      floorCtx.strokeStyle = 'rgba(198, 214, 228, 0.28)';
+      floorCtx.strokeStyle = hexA(bulbColor, 0.10);
+      floorCtx.lineWidth = 9;
+      floorCtx.lineCap = 'round';
+      floorCtx.stroke();
+      floorCtx.restore();
+      floorCtx.beginPath();
+      floorCtx.moveTo(railA.x, railA.y);
+      floorCtx.lineTo(railB.x, railB.y);
+      floorCtx.strokeStyle = 'rgba(198, 214, 228, 0.3)';
       floorCtx.lineWidth = 2.5;
       floorCtx.stroke();
 
@@ -5923,42 +5934,70 @@
       for (let i = 0; i < lamps; i++) {
         const t = 0.2 + (i * 0.6) / (lamps - 1);
         const lamp = wallPoint(from, to, t, 0.9);
+        const foot = wallPoint(from, to, t, 0);
 
-        // Wash of light down the wall below the lamp.
-        const spread = 0.11;
-        const cone = wallQuad(from, to, t - spread * 0.45, t + spread * 0.45, 0.9, 0.08);
+        // The wash down the wall. It used to be one flat cone with a
+        // straight top-to-bottom gradient, which read as a grey triangle
+        // stuck on the wall: hard down both sides and cut off square at the
+        // floor. Now the shape is a wide cone used only as a mask, and the
+        // light inside it falls away from the lamp in every direction, so
+        // it reaches zero well before the mask's own edges.
+        const spread = 0.22;
         const wide = [
-          cone[0],
-          cone[1],
-          wallPoint(from, to, t + spread, 0.08),
-          wallPoint(from, to, t - spread, 0.08),
+          wallPoint(from, to, t - spread * 0.16, 0.99),
+          wallPoint(from, to, t + spread * 0.16, 0.99),
+          wallPoint(from, to, t + spread, -0.02),
+          wallPoint(from, to, t - spread, -0.02),
         ];
-        const grad = floorCtx.createLinearGradient(lamp.x, lamp.y, lamp.x, wide[2].y);
-        grad.addColorStop(0, hexA(bulbColor, 0.28));
-        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        const reach = Math.hypot(foot.x - lamp.x, foot.y - lamp.y) * 1.25;
+        const wash = floorCtx.createRadialGradient(lamp.x, lamp.y, 1, lamp.x, lamp.y, reach);
+        wash.addColorStop(0, hexA(bulbColor, 0.34));
+        wash.addColorStop(0.22, hexA(bulbColor, 0.19));
+        wash.addColorStop(0.55, hexA(bulbColor, 0.07));
+        wash.addColorStop(0.82, hexA(bulbColor, 0.02));
+        wash.addColorStop(1, 'rgba(255,255,255,0)');
         floorCtx.save();
         floorCtx.globalCompositeOperation = 'lighter';
-        paintQuad(wide, grad, null);
+        floorCtx.beginPath();
+        floorCtx.moveTo(wide[0].x, wide[0].y);
+        for (let k = 1; k < wide.length; k++) floorCtx.lineTo(wide[k].x, wide[k].y);
+        floorCtx.closePath();
+        floorCtx.clip();
+        floorCtx.fillStyle = wash;
+        floorCtx.fillRect(lamp.x - reach, lamp.y - reach, reach * 2, reach * 2);
         floorCtx.restore();
 
+        // The lamp: a soft bloom around a small bright core, rather than a
+        // hard dot with a shadow on it.
+        floorCtx.save();
+        floorCtx.globalCompositeOperation = 'lighter';
+        const halo = floorCtx.createRadialGradient(lamp.x, lamp.y, 0.5, lamp.x, lamp.y, 16);
+        halo.addColorStop(0, hexA(bulbColor, 0.55));
+        halo.addColorStop(0.35, hexA(bulbColor, 0.22));
+        halo.addColorStop(1, 'rgba(255,255,255,0)');
+        floorCtx.fillStyle = halo;
         floorCtx.beginPath();
-        floorCtx.ellipse(lamp.x, lamp.y, 5, 3.4, 0, 0, Math.PI * 2);
-        floorCtx.fillStyle = bulbColor;
-        floorCtx.shadowColor = bulbColor;
-        floorCtx.shadowBlur = 9;
+        floorCtx.ellipse(lamp.x, lamp.y, 16, 10, 0, 0, Math.PI * 2);
         floorCtx.fill();
-        floorCtx.shadowBlur = 0;
+        floorCtx.restore();
+        floorCtx.beginPath();
+        floorCtx.ellipse(lamp.x, lamp.y, 4.2, 2.8, 0, 0, Math.PI * 2);
+        floorCtx.fillStyle = bulbColor;
+        floorCtx.fill();
 
-        // And a pool on the floor at the foot of the wall under it.
-        const foot = wallPoint(from, to, t, 0);
-        const pool = floorCtx.createRadialGradient(foot.x, foot.y, 2, foot.x, foot.y, ROOM.tileW * 1.15);
-        pool.addColorStop(0, scaleAlpha(light.glow, lampBoost() * 0.9));
+        // And a pool on the floor at the foot of the wall under it, wider
+        // and softer than the wash so the two meet rather than stack.
+        const poolR = ROOM.tileW * 1.5;
+        const pool = floorCtx.createRadialGradient(foot.x, foot.y, 2, foot.x, foot.y, poolR);
+        pool.addColorStop(0, scaleAlpha(light.glow, lampBoost() * 0.85));
+        pool.addColorStop(0.45, scaleAlpha(light.glow, lampBoost() * 0.34));
+        pool.addColorStop(0.78, scaleAlpha(light.glow, lampBoost() * 0.09));
         pool.addColorStop(1, 'rgba(0,0,0,0)');
         floorCtx.save();
         floorCtx.globalCompositeOperation = 'lighter';
         floorCtx.fillStyle = pool;
         floorCtx.beginPath();
-        floorCtx.ellipse(foot.x, foot.y, ROOM.tileW * 1.15, ROOM.tileH * 1.15, 0, 0, Math.PI * 2);
+        floorCtx.ellipse(foot.x, foot.y, poolR, ROOM.tileH * 1.5, 0, 0, Math.PI * 2);
         floorCtx.fill();
         floorCtx.restore();
       }
@@ -6778,10 +6817,17 @@
   // on it can be told from a tap on the floor around it. Also written onto
   // the canvas, so a test can find it.
   let plotSignHit = null;
+  // Whether the pointer is on the sign, so it can be drawn as a thing you
+  // are about to press rather than as a label.
+  let signHovered = false;
+  function overPlotSign(px, py) {
+    return !!plotSignHit && px >= plotSignHit.x0 && px <= plotSignHit.x1
+      && py >= plotSignHit.y0 && py <= plotSignHit.y1;
+  }
   function drawPlotSign(centre, index, cost, affordable, accent) {
     const postH = 30;
-    const panelW = 108;
-    const panelH = 64;
+    const panelW = 132;
+    const panelH = 66;
     const top = { x: centre.x, y: centre.y - postH - panelH };
     plotSignHit = { x0: top.x - panelW / 2, y0: top.y, x1: top.x + panelW / 2, y1: top.y + panelH, index };
     floorCanvas.dataset.plotSign = JSON.stringify(plotSignHit);
@@ -6798,31 +6844,30 @@
     floorCtx.save();
     if (affordable) {
       floorCtx.shadowColor = 'rgba(255,183,3,0.5)';
-      floorCtx.shadowBlur = 16;
+      floorCtx.shadowBlur = signHovered ? 26 : 16;
     }
+    // Under the pointer it lifts: a brighter face, a thicker edge and a
+    // little more glow, so a sign you can press looks like one.
     paintQuad([
       { x: top.x - panelW / 2, y: top.y },
       { x: top.x + panelW / 2, y: top.y },
       { x: top.x + panelW / 2, y: top.y + panelH },
       { x: top.x - panelW / 2, y: top.y + panelH },
-    ], 'rgba(16,15,21,0.94)', accent, 2);
+    ], signHovered ? 'rgba(38,31,16,0.97)' : 'rgba(16,15,21,0.94)', accent, signHovered ? 3 : 2);
     floorCtx.restore();
 
     floorCtx.save();
     floorCtx.textAlign = 'center';
     floorCtx.textBaseline = 'middle';
     floorCtx.fillStyle = accent;
-    floorCtx.font = '800 13px Inter, system-ui, sans-serif';
-    floorCtx.fillText('ROOM ' + (index + 1), top.x, top.y + 13);
-    floorCtx.fillStyle = 'rgba(244,240,234,0.72)';
-    floorCtx.font = '700 10px Inter, system-ui, sans-serif';
-    floorCtx.fillText(slotCountFor(state.activeTheme, index) + ' SLOTS', top.x, top.y + 27);
+    floorCtx.font = '800 17px Inter, system-ui, sans-serif';
+    floorCtx.fillText('Room ' + (index + 1), top.x, top.y + 16);
+    floorCtx.fillStyle = 'rgba(244,240,234,0.78)';
+    floorCtx.font = '700 14px Inter, system-ui, sans-serif';
+    floorCtx.fillText(slotCountFor(state.activeTheme, index) + ' slots', top.x, top.y + 35);
     floorCtx.fillStyle = affordable ? '#ffd66b' : 'rgba(244,240,234,0.5)';
-    floorCtx.font = '800 12px Inter, system-ui, sans-serif';
-    floorCtx.fillText('$' + formatNum(cost), top.x, top.y + 41);
-    floorCtx.fillStyle = affordable ? '#ffb703' : 'rgba(244,240,234,0.4)';
-    floorCtx.font = '800 9px Inter, system-ui, sans-serif';
-    floorCtx.fillText(affordable ? 'TAP TO BUY' : 'NOT YET', top.x, top.y + 55);
+    floorCtx.font = '800 16px Inter, system-ui, sans-serif';
+    floorCtx.fillText('$' + formatNum(cost), top.x, top.y + 54);
     floorCtx.restore();
   }
 
@@ -7932,15 +7977,24 @@
 
   let cashUnderPointer = false;
   function restCursor() {
-    gestureEl.style.cursor = (hoverCell || cashUnderPointer) ? 'pointer' : 'grab';
+    gestureEl.style.cursor = (hoverCell || cashUnderPointer || signHovered) ? 'pointer' : 'grab';
   }
 
   gestureEl.addEventListener('pointermove', (e) => {
     if (e.pointerType !== 'mouse') return;
-    if (dragState || pinchState || editing) { setHoverCell(null); return; }
+    if (dragState || pinchState || editing) {
+      if (signHovered) { signHovered = false; renderScene(); }
+      setHoverCell(null);
+      return;
+    }
     const p = pointFromEvent(e);
     cashUnderPointer = overCash(p.x, p.y);
-    setHoverCell(cashUnderPointer ? null : pieceAtPoint(p.x, p.y));
+    const onSign = overPlotSign(p.x, p.y);
+    if (onSign !== signHovered) {
+      signHovered = onSign;
+      renderScene();
+    }
+    setHoverCell(cashUnderPointer || onSign ? null : pieceAtPoint(p.x, p.y));
     restCursor();
   });
 
@@ -7952,6 +8006,7 @@
 
   gestureEl.addEventListener('pointerleave', () => {
     cashUnderPointer = false;
+    if (signHovered) { signHovered = false; renderScene(); }
     setHoverCell(null);
     restCursor();
   });
@@ -8507,7 +8562,7 @@
         refreshSynergyText();
         refreshRoomActions();
         refreshShopUI();
-        scrollToRoom(state.activeRoomIndex);
+        scrollToRoom(state.activeRoomIndex, true);
         save();
       });
       themeRowEl.appendChild(btn);
