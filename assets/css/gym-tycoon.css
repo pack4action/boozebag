@@ -103,8 +103,10 @@
   max-width: 560px;
   /* Sized off the viewport rather than pinned at one height: a tall phone
      gets a taller window, a short one is not left with a letterbox, and
-     both are capped so the shop below stays within reach of a scroll. */
-  height: clamp(320px, 54vh, 460px);
+     both are capped so the shop below stays within reach of a scroll. The
+     stats moved out from over the plan, so the window takes that room
+     back and then some -- the plan is the thing you came to look at. */
+  height: clamp(380px, 66vh, 620px);
   margin: 0 auto 14px;
   border-radius: 18px;
   border: 3px solid #000;
@@ -503,15 +505,14 @@
      window, so a bigger window simply frames the plan larger. */
   .tycoon-room-stage {
     max-width: none;
-    /* The sticky stat bar and the nav above it come to about 154px, so the
-       cap is what still fits under them once the header has scrolled away. */
-    height: clamp(440px, calc(100vh - 330px), 780px);
+    /* Only the site nav stands above the plan now that the stats sit under
+       it, so the window is what fits beneath that. */
+    height: clamp(520px, calc(100vh - 210px), 900px);
     margin-bottom: 16px;
   }
   .tycoon-synergy { max-width: 420px; }
   .tycoon-inventory { max-width: none; }
   .tycoon-designer-hint { max-width: 780px; margin-bottom: 0; }
-  .tycoon-page .leaderboard-sub { display: inline; }
 }
 
 /* ---- Placing gear ----
@@ -2613,3 +2614,23 @@
 .tycoon-panel-title { text-transform: none; letter-spacing: 0.2px; }
 .tycoon-shop-head-name { text-transform: none; }
 .leaderboard-title { text-transform: none; letter-spacing: 0.2px; }
+
+/* ---- A description belongs under its title ----
+   Set beside one, a short description reads as part of the heading and
+   pushes it off centre. Every one of them goes on its own line. */
+.tycoon-panel-sub,
+.tycoon-shop-head-note,
+.leaderboard-sub {
+  display: block;
+  margin-top: 3px;
+}
+.tycoon-shop-head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+.tycoon-tray-head .tycoon-panel-title,
+.tycoon-panel-title { line-height: 1.15; }
+/* Where the heading is centred, its description is too. */
+.tycoon-panel-title { text-align: inherit; }
+.tycoon-shop-head-note { line-height: 1.3; }

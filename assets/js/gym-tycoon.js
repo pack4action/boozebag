@@ -2042,7 +2042,7 @@
         return { cat, target: now + 2 + Math.floor(Math.random() * 3) };
       },
       text: (j) => 'Have ' + j.target + ' ' + CATEGORY_META[j.cat].name.toLowerCase()
-        + ' pieces on the floor at once',
+        + ' pieces placed at once',
       done: (j, tally) => tally.byCat[j.cat] || 0,
     },
     gps: {
@@ -2246,9 +2246,9 @@
   //
   // They are permanent. Franchising clears the gym; it does not clear these.
   const TROPHIES = [
-    { id: 'open', name: 'Open For Business', hint: 'Put the Customer Desk on the floor',
+    { id: 'open', name: 'Open For Business', hint: 'Put the Customer Desk down',
       cash: 50, got: (c) => c.open },
-    { id: 'ten', name: 'Kitted Out', hint: 'Have ten pieces on the floor at once',
+    { id: 'ten', name: 'Kitted Out', hint: 'Have ten pieces placed at once',
       cash: 400, got: (c) => c.placed >= 10 },
     { id: 'fullroom', name: 'Not An Inch Spare', hint: 'Fill every slot in one room',
       cash: 1500, got: (c) => c.fullRoom >= 1 },
@@ -2256,9 +2256,9 @@
       cash: 2000, got: (c) => c.bestSynergy >= 1.4 },
     { id: 'vibe', name: 'Somewhere Nice', hint: 'Take a room to the top of the vibe scale',
       cash: 250000, got: (c) => c.bestVibe >= VIBE_MAX_POINTS },
-    { id: 'fifty', name: 'Proper Gym', hint: 'Have fifty pieces on the floor at once',
+    { id: 'fifty', name: 'Proper Gym', hint: 'Have fifty pieces placed at once',
       cash: 500000, got: (c) => c.placed >= 50 },
-    { id: 'hundred', name: 'Chain Material', hint: 'Have a hundred pieces on the floor at once',
+    { id: 'hundred', name: 'Chain Material', hint: 'Have a hundred pieces placed at once',
       cash: 30000000, got: (c) => c.placed >= 100 },
 
     { id: 'lvl5', name: 'Getting Somewhere', hint: 'Reach level 5',
@@ -2272,7 +2272,7 @@
 
     { id: 'rooms', name: 'Knocked Through', hint: 'Open all four rooms in one location',
       cash: 6000000, got: (c) => c.mostRooms >= MAX_ROOMS_PER_THEME },
-    { id: 'themes', name: 'Three Addresses', hint: 'Have gear on the floor in three locations at once',
+    { id: 'themes', name: 'Three Addresses', hint: 'Have gear placed in three locations at once',
       cash: 900000, got: (c) => c.themesUsed >= 3 },
     { id: 'pier', name: 'Out On The Pier', hint: 'Open the Boardwalk and put gear on it',
       cash: 50000000, got: (c) => c.themesUsed >= 4 },
@@ -3315,7 +3315,7 @@
     if (!counters.length) {
       const none = document.createElement('p');
       none.className = 'tycoon-counter-empty';
-      none.textContent = 'No counter on a floor yet.';
+      none.textContent = 'No counter placed yet.';
       counterListEl.appendChild(none);
       return;
     }
@@ -3782,7 +3782,7 @@
     // gives it up to nobody. Same numbers, one per line, so the three
     // bonuses can be read against each other and against the base.
     let vibeHtml = '';
-    const rows = [['Gear on the floor', '', formatNum(baseSum) + '/s']];
+    const rows = [['Gear in this room', '', formatNum(baseSum) + '/s']];
     const add = (label, pct, from) => {
       if (pct <= 0) return;
       rows.push([label, '+' + pct + '%', '+' + formatNum(baseSum * (pct / 100) * from) + '/s']);
@@ -4007,7 +4007,7 @@
   // that does everything else. A heading goes in above the first row of
   // each, and hides with the rows if the filter puts them all away.
   const SHOP_SECTIONS = [
-    { id: 'gear', name: 'Gym Equipment', note: 'Earns money on the floor' },
+    { id: 'gear', name: 'Gym Equipment', note: 'Earns money once placed' },
     { id: 'decor', name: 'Decoration', note: 'Earns nothing. Each piece does one thing' },
   ];
   function sectionOf(itemId) {
@@ -4086,11 +4086,8 @@
     if (deskless.length && deskless[0].id !== state.activeTheme) {
       return ['The ' + deskless[0].name + ' has no desk yet. Go there and take its free desk from the Shop.', null];
     }
-    const waiting = ITEMS.reduce((n, item) => n + (item.starter ? 0 : availableCount(item.id)), 0);
-    if (waiting) {
-      return [waiting === 1 ? 'One piece in Storage is earning nothing. Put it down.'
-        : waiting + ' pieces in Storage are earning nothing. Put them down.', null];
-    }
+    // Nothing here about gear waiting in Storage: the fold says how many
+    // are in there, and nagging about it every tick is not advice.
     const inBubbles = floorCash();
     if (inBubbles >= 1) {
       return ['$' + formatMoney(inBubbles) + ' is in the bubbles. Tap them.', null];
@@ -4143,8 +4140,8 @@
     if (open) return;
     const theme = THEMES.find((t) => t.id === state.activeTheme);
     openHintEl.textContent = availableCount('frontdesk') > 0
-      ? 'The ' + theme.name + ' is closed. Take its free Customer Desk from the Shop and put it on the floor.'
-      : 'The ' + theme.name + ' is closed. Take its free Customer Desk from the Shop and put it on the floor.';
+      ? 'The ' + theme.name + ' is closed. Take its free Customer Desk from the Shop and put it down.'
+      : 'The ' + theme.name + ' is closed. Take its free Customer Desk from the Shop and put it down.';
   }
 
   function refreshShopUI() {
@@ -4276,6 +4273,11 @@
   const BLEED_BOTTOM = 120;
   let PLAN_W = 480;
   let PLAN_H = 380;
+  // The same, for the rooms that actually exist: the plot marked out for
+  // the next room is part of the plan, but framing the view around it left
+  // the gym small in the middle of a lot of empty ground.
+  let BUILT_W = 480;
+  let BUILT_H = 380;
   // The plan's extent in tiles, which is what the site is built around.
   const planBounds = { gx0: 0, gy0: 0, gx1: 4, gy1: 3 };
   let placements = [];
@@ -4318,6 +4320,16 @@
       minGy = Math.min(minGy, r.gy0);
       maxGy = Math.max(maxGy, r.gy0 + r.rows);
     });
+    let bMinGx = Infinity;
+    let bMaxGx = -Infinity;
+    let bMinGy = Infinity;
+    let bMaxGy = -Infinity;
+    placements.concat(corridors).forEach((r) => {
+      bMinGx = Math.min(bMinGx, r.gx0);
+      bMaxGx = Math.max(bMaxGx, r.gx0 + r.cols);
+      bMinGy = Math.min(bMinGy, r.gy0);
+      bMaxGy = Math.max(bMaxGy, r.gy0 + r.rows);
+    });
 
     const halfW = ROOM.tileW / 2;
     const halfH = ROOM.tileH / 2;
@@ -4329,6 +4341,8 @@
     const yMax = (maxGx + maxGy) * halfH + WORLD_PAD;
     PLAN_W = Math.round(xMax - xMin);
     PLAN_H = Math.round(yMax - yMin);
+    BUILT_W = Math.round(((bMaxGx - bMinGy) - (bMinGx - bMaxGy)) * halfW + WORLD_PAD * 2);
+    BUILT_H = Math.round(((bMaxGx + bMaxGy) - (bMinGx + bMinGy)) * halfH + ROOM.wallH + WORLD_PAD * 2);
     planBounds.gx0 = minGx;
     planBounds.gy0 = minGy;
     planBounds.gx1 = maxGx;
@@ -4382,9 +4396,12 @@
     // fitted edge to edge hides all of it. The margin scales with the window
     // so a phone, where every pixel of plan counts, gives up almost none.
     const margin = Math.min(70, availW * 0.08);
+    // Framed on the rooms that are built, with a little of the plot beside
+    // them showing: fitting the whole plan, plot included, drew the gym at
+    // half the size it could be and left bands of empty ground around it.
     const fit = Math.min(
-      availW / (PLAN_W + margin * 2),
-      availH / (PLAN_H + margin * 2),
+      availW / (BUILT_W + margin * 2),
+      availH / (BUILT_H + margin * 2),
       FIT_MAX,
     );
     zoomLevel = Math.max(ZOOM_MIN, Math.round(fit * 100) / 100);
@@ -4394,6 +4411,11 @@
     // Sized before the ground is measured against it, since the ground is
     // drawn from where this puts the plan canvas.
     queueGroundPaint();
+    // Once the window knows its size, put the gym in the middle of it.
+    if (!viewParked && stageScrollEl && stageScrollEl.clientWidth) {
+      viewParked = true;
+      setTimeout(parkView, 0);
+    }
     if (zoomWrapEl) {
       zoomWrapEl.style.width = (BASE_W * zoomLevel) + 'px';
       zoomWrapEl.style.height = (BASE_H * zoomLevel) + 'px';
@@ -4420,7 +4442,7 @@
     queueResolutionRepaint();
   }
 
-  function scrollToRoom(index) {
+  function scrollToRoom(index, jump) {
     if (!stageScrollEl) return;
     const place = placements[index];
     if (!place) return;
@@ -4430,8 +4452,19 @@
     stageScrollEl.scrollTo({
       left: Math.max(0, centerX - stageScrollEl.clientWidth / 2),
       top: Math.max(0, centerY - stageScrollEl.clientHeight / 2),
-      behavior: 'smooth',
+      behavior: jump ? 'auto' : 'smooth',
     });
+  }
+
+  // The view is framed on the rooms that are built, which are now drawn
+  // bigger than the window: without this the plan opens on the empty
+  // ground in the top corner rather than on the gym. Only while the zoom
+  // is the one the game chose -- once it has been pinched or wheeled, the
+  // view is the player's to place.
+  let viewParked = false;
+  function parkView() {
+    if (userSetZoom || !stageScrollEl) return;
+    scrollToRoom(state.activeRoomIndex, true);
   }
 
   // Zoom is a CSS transform on the canvas, so a fixed bitmap would be blown
@@ -8357,7 +8390,7 @@
       const p = document.createElement('p');
       p.className = 'tycoon-inv-empty';
       p.textContent = THEMES.some((t) => state.themeRooms[t.id].some((r) => r.layout.some(Boolean)))
-        ? 'Empty. Everything you own is on a floor.'
+        ? 'Empty. Everything you own is placed.'
         : 'Empty. Buy gear from the shop and it lands here.';
       inventoryEl.appendChild(p);
       return;
@@ -9019,7 +9052,7 @@
       els.root.disabled = !unlocked;
     });
     setText(overviewTotalEl, places + (places === 1 ? ' location open' : ' locations open')
-      + ' · ' + pieces + (pieces === 1 ? ' piece on the floor' : ' pieces on the floor')
+      + ' · ' + pieces + (pieces === 1 ? ' piece placed' : ' pieces placed')
       + ' · ' + formatNum(gps) + '/s');
   }
   // Writing the same string back into the DOM ten times a second is a lot of
@@ -9149,7 +9182,7 @@
   let resizeTimer = null;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(renderScene, 120);
+    resizeTimer = setTimeout(() => { renderScene(); parkView(); }, 120);
   });
 
   // ---- The place in motion ----
