@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=11" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=6" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=90" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=91" />
 </head>
 <body class="game-body">
 
@@ -122,6 +122,14 @@
         </span>
       </div>
 
+      <!-- The one thing a new player has to do, said on the plan itself
+           where they are looking, not only in the Shop panel below. -->
+      <div class="tycoon-shut" id="shut-card" hidden>
+        <span class="tycoon-shut-title">This location is closed</span>
+        <p class="tycoon-shut-note" id="shut-note"></p>
+        <button class="tycoon-shut-btn" id="btn-shut-go" type="button">Open the Shop</button>
+      </div>
+
       <div class="tycoon-place-hud" id="place-hud" hidden>
         <p class="tycoon-place-label" id="place-label"></p>
         <div class="tycoon-place-row">
@@ -157,11 +165,12 @@
         <div class="hud-stat" title="What every location together earns each second, right now."><span class="hud-label">Per second</span><span class="hud-value" id="hud-gps">0</span></div>
         <div class="hud-stat" title="Money sitting in the coin bubbles, waiting for you to tap it."><span class="hud-label">To collect</span><span class="hud-value" id="hud-floor">$0</span></div>
       </div>
-      <div class="hud-level" title="Buying and upgrading gear earns experience. Levels open locations, staff and the bigger machines.">
+      <button class="hud-level" id="hud-level-btn" type="button" aria-expanded="false"
+        title="What your level is worth, and what the next one brings.">
         <span class="hud-level-now">Level <b id="hud-level">1</b></span>
         <span class="hud-xp-bar"><span class="hud-xp-fill" id="hud-xp-fill"></span></span>
         <span class="hud-xp-text" id="hud-xp-text">0 / 60 XP</span>
-      </div>
+      </button>
     </div>
 
     <p class="tycoon-open-hint" id="open-hint" hidden></p>
@@ -312,6 +321,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=138"></script>
+<script src="assets/js/gym-tycoon.js?v=139"></script>
 </body>
 </html>

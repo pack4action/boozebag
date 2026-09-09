@@ -2907,3 +2907,144 @@
   text-align: left;
 }
 .tycoon-regular b { color: #ffd166; font-weight: 800; }
+
+/* ---- A closed location ----
+   The desk is the one thing that has to happen before anything else works,
+   and a new player was told so only in the Shop panel, below the fold. This
+   sits on the plan, where they are already looking. */
+.tycoon-shut {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  width: min(300px, calc(100% - 32px));
+  padding: 14px 16px 15px;
+  border: 1px solid rgba(255, 183, 3, 0.5);
+  border-radius: 14px;
+  background: rgba(14, 12, 18, 0.92);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  text-align: center;
+}
+.tycoon-shut[hidden] { display: none !important; }
+.tycoon-stage-wrap.is-editing .tycoon-shut { display: none; }
+.tycoon-shut-title {
+  display: block;
+  font-family: 'Anton', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.4px;
+  color: #ffd166;
+}
+.tycoon-shut-note {
+  margin: 6px 0 11px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text, #e9e9ee);
+}
+.tycoon-shut-btn {
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 12px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 2px solid #000;
+  background: var(--amber, #ffb703);
+  color: #1a1200;
+  box-shadow: 3px 3px 0 #000;
+  cursor: pointer;
+}
+.tycoon-shut-btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 #000; }
+
+/* ---- The level chip, and the card it opens ---- */
+.tycoon-page .hud-level {
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.tycoon-page .hud-level:hover { border-color: rgba(255, 209, 102, 0.5); }
+.tycoon-page .hud-level[aria-expanded="true"] { border-color: var(--amber, #ffb703); }
+
+.tycoon-level-pop {
+  position: fixed;
+  z-index: 95;
+  width: min(300px, calc(100vw - 24px));
+  padding: 12px 14px 13px;
+  border: 1px solid rgba(255, 205, 90, 0.45);
+  border-radius: 12px;
+  background: #16141c;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.65);
+  color: var(--text, #e9e9ee);
+  text-align: left;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.tycoon-level-pop.is-on { opacity: 1; }
+.tycoon-level-pop[hidden] { display: none !important; }
+.tycoon-level-pop-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tycoon-level-pop-now {
+  font-family: 'Anton', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.4px;
+  color: #ffd166;
+}
+.tycoon-level-pop-xp {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #8b8b93);
+  font-variant-numeric: tabular-nums;
+}
+.tycoon-level-pop-bar {
+  display: block;
+  height: 6px;
+  margin: 7px 0 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+  overflow: hidden;
+}
+.tycoon-level-pop-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7ee0b0, #ffd166);
+}
+.tycoon-level-pop-rep,
+.tycoon-level-pop-next,
+.tycoon-level-pop-note {
+  margin: 0 0 7px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-level-pop-rep b, .tycoon-level-pop-next b { color: #ffd166; font-weight: 800; }
+.tycoon-level-pop-note { margin-bottom: 0; }
+.tycoon-level-pop-head2 {
+  margin: 9px 0 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-level-pop-list {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-level-pop-list li { display: flex; gap: 8px; }
+.tycoon-level-pop-list b {
+  flex: none;
+  min-width: 20px;
+  color: #ffd166;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}

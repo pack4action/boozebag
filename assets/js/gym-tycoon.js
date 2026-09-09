@@ -74,6 +74,32 @@
   // to fill a room with the same thing. The Potted Palm is the exception,
   // because a room full of plants is a look.
   const CROWDABLE = { palm: true };
+  // And a cap per location on the big machines. A gym with four boxing
+  // rings in it is not a gym, and the cheapest way to a big number was
+  // always to fill every room with whatever earned most. One ring to a
+  // location; the rest of the top end is two. Everything not named here is
+  // unlimited, which is most of the shop.
+  const MAX_PER_LOCATION = {
+    boxingring: 1,
+    climbingwall: 1,
+    cryo: 1,
+    proshop: 1,
+    sauna: 2,
+    stairclimber: 2,
+    juicebar: 2,
+  };
+  function maxPerLocation(itemId) {
+    return MAX_PER_LOCATION[itemId] || 0;
+  }
+  function placedInTheme(themeId, itemId) {
+    return (state.themeRooms[themeId] || []).reduce(
+      (sum, room) => sum + room.layout.filter((x) => x === itemId).length, 0);
+  }
+  // Whether this location already has as many of a piece as it may have.
+  function locationFull(themeId, itemId) {
+    const cap = maxPerLocation(itemId);
+    return cap > 0 && placedInTheme(themeId, itemId) >= cap;
+  }
   function onePerRoom(id) {
     return isDecor(id) && !CROWDABLE[id];
   }
@@ -551,15 +577,20 @@
   const LEVEL_PERKS = [
     { level: 12, kind: 'jobs', amount: 1, text: 'a fourth job on the board' },
     { level: 14, kind: 'larder', amount: 15, text: 'a larder that holds 40' },
+    { level: 15, kind: 'promopower', amount: 0.5, text: 'an Open Day worth x3' },
     { level: 16, kind: 'promo', amount: 300, text: 'an Open Day every 10 minutes' },
     { level: 18, kind: 'cashiers', amount: 1, text: 'one more Cashier to a room' },
     { level: 20, kind: 'rush', amount: 0.10, text: 'busy hours paying 30% more' },
+    { level: 21, kind: 'promolong', amount: 0.5, text: 'an Open Day half again as long' },
     { level: 22, kind: 'larder', amount: 10, text: 'a larder that holds 50' },
+    { level: 24, kind: 'staff', amount: 1, text: 'one more of every kind of staff' },
     { level: 25, kind: 'jobs', amount: 1, text: 'a fifth job on the board' },
     { level: 28, kind: 'promo', amount: 240, text: 'an Open Day every 6 minutes' },
+    { level: 26, kind: 'promopower', amount: 0.5, text: 'an Open Day worth x3.5' },
     { level: 30, kind: 'larder', amount: 10, text: 'a larder that holds 60' },
     { level: 33, kind: 'rush', amount: 0.10, text: 'busy hours paying 40% more' },
     { level: 35, kind: 'cashiers', amount: 1, text: 'one more Cashier to a room' },
+    { level: 37, kind: 'staff', amount: 1, text: 'one more of every kind of staff again' },
     { level: 40, kind: 'reputation', amount: 0.20, text: 'another 20% on everything, for good' },
   ];
   // The perks of one kind that a level has earned, added up. Asked with a
@@ -1163,6 +1194,7 @@
       // Keeps every room nicer than it would otherwise be: vibe points on
       // top of the fittings, and so subject to the same ceiling.
       first: 2,
+      max: 4,
       note: (n) => '+' + staffEffect('cleaner', n).toFixed(1) + ' vibe in every room',
     },
     {
@@ -1173,6 +1205,7 @@
       // Works the front desk, so more of the rush actually gets through the
       // door: the peak bonus itself is bigger.
       first: 0.3,
+      max: 3,
       note: (n) => 'busy-hour bonus +' + Math.round(staffEffect('receptionist', n) * 100) + '%',
     },
     {
@@ -1181,6 +1214,7 @@
       baseCost: 250000,
       unlockLevel: 7,
       first: 0.18,
+      max: 3,
       note: (n) => '+' + Math.round(staffEffect('manager', n) * 100) + '% on everything',
     },
   ];
@@ -1195,6 +1229,18 @@
   // Three to a room, one more for a Corner Office Pod, and the levels add
   // their own. The clamp a save is read through uses the most this can be.
   const CASHIERS_PER_ROOM_MAX = 6;
+  // How many of a role you may have. A cashier's cap is per room; the rest
+  // are for the whole gym. Levels raise them, so a payroll grows with the
+  // place rather than being one number for the whole game.
+  function staffCap(id) {
+    const role = staffRole(id);
+    if (!role || role.perRoom) return 0;
+    return (role.max || 0) + levelPerk('staff');
+  }
+  function staffFull(id) {
+    const cap = staffCap(id);
+    return cap > 0 && staffCount(id) >= cap;
+  }
   function cashiersPerRoom() {
     return Math.min(CASHIERS_PER_ROOM_MAX,
       CASHIERS_PER_ROOM + gymEffect('cashiers') + levelPerk('cashiers'));
@@ -1301,7 +1347,13 @@
   // that belongs to the player -- free, short, and on a long enough
   // cooldown that it is worth coming back for rather than something to sit
   // and spam.
+  // What an Open Day is worth while it runs. The base, plus whatever the
+  // levels have added to it: the Neon Sign makes one longer, the levels
+  // make it stronger, sooner and longer still.
   const PROMO_MULT = 2.5;
+  function promoPower() {
+    return PROMO_MULT + levelPerk('promopower');
+  }
   const PROMO_SECONDS = 90;
   const PROMO_COOLDOWN_SECONDS = 15 * 60;
 
@@ -1313,7 +1365,7 @@
   }
   // How long one runs: the base, plus what a Neon Sign adds.
   function promoSeconds() {
-    return Math.round(PROMO_SECONDS * (1 + gymEffect('promo')));
+    return Math.round(PROMO_SECONDS * (1 + gymEffect('promo') + levelPerk('promolong')));
   }
   function promoSecondsLeft() {
     return Math.max(0, promoSeconds() - promoAgeSeconds());
@@ -1329,7 +1381,7 @@
     return promoSecondsLeft() > 0;
   }
   function promoMultiplier() {
-    return promoRunning() ? PROMO_MULT : 1;
+    return promoRunning() ? promoPower() : 1;
   }
   function clockOf(seconds) {
     const s = Math.ceil(seconds);
@@ -1958,6 +2010,21 @@
     // Decor no longer earns, so any upgrade tier bought for a piece that
     // has become decor buys nothing and is cleared.
     dropDeadTiers(s.tiers);
+    // Staff have caps now. A save from before them keeps what it can and is
+    // paid back for the rest at what they cost to hire.
+    if (s.staff && typeof s.staff === 'object') {
+      STAFF_ROLES.forEach((role) => {
+        if (role.perRoom) return;
+        const cap = role.max || 0;
+        if (!cap) return;
+        const had = Math.max(0, s.staff[role.id] | 0);
+        if (had <= cap) return;
+        s.staff[role.id] = cap;
+        for (let k = cap; k < had; k++) {
+          s.balance = (s.balance || 0) + Math.ceil(role.baseCost * Math.pow(1.6, k));
+        }
+      });
+    }
     s.design = Object.assign(defaultDesign(), saved.design || {});
 
     // The Personal Trainer is gone: at a third of a square metre it earned
@@ -2797,8 +2864,33 @@
     return [to];
   }
 
+  // What a member looks like, in one string. Two people with the same one
+  // are the same person as far as anyone watching is concerned.
+  function lookKey(m) {
+    return [m.shirt, m.skin, m.hair, m.hairStyle, m.legs, m.capColor].join('|');
+  }
+  // Roll a look nobody else in the room already has. There are thousands of
+  // combinations and four people to a room, so this almost always takes one
+  // go; the loop is for the times it does not.
+  function freshLook(roomIndex) {
+    const taken = members.filter((m) => m.room === roomIndex).map(lookKey);
+    let look = null;
+    for (let tries = 0; tries < 24; tries++) {
+      look = {
+        shirt: pickOf(MEMBER_SHIRTS),
+        skin: pickOf(MEMBER_SKINS),
+        hair: pickOf(MEMBER_HAIR),
+        hairStyle: pickOf(MEMBER_HAIRSTYLES),
+        legs: pickOf(MEMBER_LEGS),
+        capColor: pickOf(MEMBER_CAPS),
+      };
+      if (taken.indexOf(lookKey(look)) === -1) break;
+    }
+    return look;
+  }
   function spawnMember(room, place, staffRoleId) {
     const at = randomFloorSpot(place);
+    const look = freshLook(room);
     return {
       // Where a member is, is a point on the world lattice, not a point in
       // some room -- they walk out of one room, down a hallway and into the
@@ -2813,9 +2905,9 @@
       phase: Math.random() * Math.PI * 2,
       facing: 1,
       staffRole: staffRoleId || null,
-      shirt: staffRoleId ? STAFF_SHIRT : pickOf(MEMBER_SHIRTS),
-      skin: pickOf(MEMBER_SKINS),
-      hair: pickOf(MEMBER_HAIR),
+      shirt: staffRoleId ? STAFF_SHIRT : look.shirt,
+      skin: look.skin,
+      hair: look.hair,
       speed: MEMBER_WALK * (staffRoleId === 'cashier' ? 1.05 : staffRoleId ? 0.75 : 0.85 + Math.random() * 0.35),
       // Which piece they are on, once they get there, so the figure knows
       // whether it is running, curling or sitting in a sauna.
@@ -2824,11 +2916,11 @@
       // height between frames.
       build: 0.93 + Math.random() * 0.14,
       broad: 0.92 + Math.random() * 0.20,
-      legs: staffRoleId ? STAFF_TROUSERS : pickOf(MEMBER_LEGS),
+      legs: staffRoleId ? STAFF_TROUSERS : look.legs,
       shortsLen: Math.random() < 0.35 ? 0.345 : 0.415,
       // Everyone on staff wears the cap. Members get whatever hair they have.
-      hairStyle: staffRoleId ? 'cap' : pickOf(MEMBER_HAIRSTYLES),
-      capColor: staffRoleId ? STAFF_CAP : pickOf(MEMBER_CAPS),
+      hairStyle: staffRoleId ? 'cap' : look.hairStyle,
+      capColor: staffRoleId ? STAFF_CAP : look.capColor,
       bagColor: pickOf(MEMBER_BAGS),
       // Staff are at work, not on their way to it: no gym bag, but a towel
       // over the shoulder is exactly what somebody working a floor carries.
@@ -2927,9 +3019,20 @@
       // One of them is the room's regular. Whoever already is stays so; a
       // room that has nobody named yet names its first.
       const reg = regularOf(room);
-      if (reg && here.length && !here.some((m) => m.regular === reg.name)) {
-        here.forEach((m) => { m.regular = null; });
-        dressAsRegular(here[0], reg);
+      if (reg && here.length) {
+        // A regular who has wandered into the room next door is still that
+        // regular, and nobody else may take the name while they are out.
+        const away = members.some((m) => m.regular === reg.name && m.room !== roomIndex);
+        const mine = here.filter((m) => m.regular === reg.name);
+        // Anyone here wearing another room's name gives it back.
+        here.forEach((m) => {
+          if (m.regular && m.regular !== reg.name) {
+            const owner = rooms.find((r) => r.regular && r.regular.name === m.regular);
+            if (!owner) m.regular = null;
+          }
+        });
+        if (mine.length > 1) mine.slice(1).forEach((m) => { m.regular = null; });
+        if (!mine.length && !away) dressAsRegular(here[0], reg);
       }
       next.push(...here);
     });
@@ -3205,6 +3308,10 @@
   const xpFillEl = document.getElementById('hud-xp-fill');
   const xpTextEl = document.getElementById('hud-xp-text');
   function refreshLevelUI() {
+    if (levelPop && !levelPop.hidden) {
+      levelPop.innerHTML = levelPopHtml();
+      placeLevelPop();
+    }
     if (!levelValueEl) return;
     const p = levelProgress();
     levelValueEl.textContent = p.level;
@@ -3913,6 +4020,14 @@
         els.btn.disabled = full || state.balance < cost;
         return;
       }
+      const cap = staffCap(role.id);
+      if (cap > 0) els.count.textContent = ' ' + have + ' of ' + cap;
+      if (staffFull(role.id)) {
+        els.note.textContent = role.note(have) + ' \u00b7 that is the most you can have';
+        els.btn.textContent = 'Full';
+        els.btn.disabled = true;
+        return;
+      }
       // What they are worth now, and what one more would add on top.
       const next = staffEffect(role.id, have + 1) - staffEffect(role.id, have);
       els.note.textContent = (have ? role.note(have) + ' \u00b7 ' : '')
@@ -3951,6 +4066,7 @@
   function hireStaff(id) {
     const role = staffRole(id);
     if (!role || !unlockedFor(role)) return;
+    if (staffFull(id)) return;
     const cost = staffHireCost(id);
     if (state.balance < cost) return;
     if (id === 'cashier') {
@@ -4081,7 +4197,7 @@
     promoBtn.classList.toggle('is-running', left > 0);
     promoBtn.disabled = cooling > 0;
     const html = left > 0
-      ? 'Promo x' + PROMO_MULT + ' \u00b7 ' + Math.ceil(left) + 's'
+      ? 'Promo x' + promoPower() + ' \u00b7 ' + Math.ceil(left) + 's'
       : cooling > 0
         ? 'Promo in ' + clockOf(cooling)
         : 'Promo';
@@ -4106,10 +4222,15 @@
   if (promoWrap && promoInfo) {
     const pop = promoWrap.querySelector('.tycoon-info-pop');
     const fillPop = () => {
+      const longer = gymEffect('promo') + levelPerk('promolong');
       pop.innerHTML = '<b>Promo</b>'
         + '<span>Runs a promotion for ' + promoSeconds() + ' seconds: a burst of new members, and everything earns x'
-        + PROMO_MULT + ' while it lasts.</span>'
-        + (gymEffect('promo') ? '<span>Your Neon Sign makes it ' + Math.round(gymEffect('promo') * 100) + '% longer.</span>' : '')
+        + promoPower() + ' while it lasts.</span>'
+        + (longer ? '<span>' + (gymEffect('promo') ? 'Your Neon Sign' : 'Your level')
+          + (gymEffect('promo') && levelPerk('promolong') ? ' and your level make' : ' makes')
+          + ' it ' + Math.round(longer * 100) + '% longer.</span>' : '')
+        + (levelPerk('promopower') ? '<span>Your level is worth x'
+          + levelPerk('promopower').toFixed(1) + ' more while it runs.</span>' : '')
         + '<span>Then it needs ' + Math.round(promoCooldownSeconds() / 60) + ' minutes before the next one.</span>';
     };
     fillPop();
@@ -4582,15 +4703,21 @@
       const long = effectLine(item)
         + (makesStock(itemId) ? '. Makes ' + RECIPES_OF[itemId]
           .map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ') : '')
-        + (onePerRoom(itemId) ? '. Max one per room' : '');
+        + (onePerRoom(itemId) ? '. Max one per room' : '')
+        + (maxPerLocation(itemId) ? '. Max ' + maxPerLocation(itemId) + ' per location' : '');
       const short = effectLine(item, true)
         + (makesStock(itemId) ? ' \u00b7 makes stock' : '')
-        + (onePerRoom(itemId) ? ' \u00b7 1 per room' : '');
+        + (onePerRoom(itemId) ? ' \u00b7 1 per room' : '')
+        + (maxPerLocation(itemId) ? ' \u00b7 ' + maxPerLocation(itemId) + '/location' : '');
       return '<span class="btn-long">' + long + '</span>'
         + '<span class="btn-short">' + short + '</span>';
     }
     return '+' + formatNum(gpsOf(itemId)) + '/s once placed'
-      + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '');
+      + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '')
+      + (maxPerLocation(itemId)
+        ? '<span class="btn-long">. Max ' + maxPerLocation(itemId) + ' per location</span>'
+          + '<span class="btn-short"> \u00b7 ' + maxPerLocation(itemId) + '/location</span>'
+        : '');
   }
 
   // Which categories the shop is hiding. Empty is everything shown, which
@@ -4815,14 +4942,53 @@
   }
 
   const openHintEl = document.getElementById('open-hint');
+  const shutCardEl = document.getElementById('shut-card');
+  const shutNoteEl = document.getElementById('shut-note');
+  const shutGoBtn = document.getElementById('btn-shut-go');
   function refreshOpenHint() {
-    if (!openHintEl) return;
     const open = gymOpen();
-    openHintEl.hidden = open;
-    if (open) return;
-    const theme = THEMES.find((t) => t.id === state.activeTheme);
-    openHintEl.textContent = 'The ' + theme.name
-      + ' is closed. Take its free Customer Desk from the Shop and put it down.';
+    const theme = THEMES.find((t) => t.id === state.activeTheme) || { name: 'This location' };
+    const line = 'Take the free Customer Desk from the Shop and put it down. '
+      + 'Nothing earns and nothing sells until it is standing.';
+    if (openHintEl) {
+      openHintEl.hidden = open;
+      if (!open) {
+        openHintEl.textContent = 'The ' + theme.name
+          + ' is closed. Take its free Customer Desk from the Shop and put it down.';
+      }
+    }
+    // The same thing on the plan, which is where somebody who has never
+    // played is looking. It steps aside while a piece is being carried.
+    if (shutCardEl) {
+      const show = !open && !editing;
+      if (shutCardEl.hidden !== !show) shutCardEl.hidden = !show;
+      if (show) {
+        setText(shutCardEl.querySelector('.tycoon-shut-title'), 'The ' + theme.name + ' is closed');
+        setText(shutNoteEl, line);
+      }
+    }
+  }
+  if (shutGoBtn) {
+    shutGoBtn.addEventListener('click', () => {
+      showPanel('shop');
+      const row = shopEls.frontdesk && shopEls.frontdesk.root;
+      if (row) row.scrollIntoView({ block: 'center' });
+    });
+  }
+  // Anything done to a closed gym says why nothing happened. Rate-limited
+  // to once every couple of seconds, because a tap on the plan while it is
+  // shut is exactly the thing somebody does five times in a row.
+  let shutSaidAt = 0;
+  function sayShut() {
+    if (gymOpen()) return false;
+    const now = Date.now();
+    if (now - shutSaidAt > 2200) {
+      shutSaidAt = now;
+      const theme = THEMES.find((t) => t.id === state.activeTheme) || { name: 'This location' };
+      toast('The ' + theme.name + ' is closed. Put the Customer Desk down first', null, 2600);
+      showPanel('shop');
+    }
+    return true;
   }
 
   // The upgrade control on one shop row: what the next mark costs and what
@@ -4891,9 +5057,12 @@
           : '<span class="btn-long">Place the desk first</span>'
             + '<span class="btn-short">Desk first</span>');
         els.buyBtn.disabled = true;
+        // Disabled buttons swallow the click, so the row itself answers.
+        els.root.onclick = item.starter ? null : sayShut;
         els.root.classList.remove('is-affordable');
         return;
       }
+      els.root.onclick = null;
       setHtml(els.buyBtn, item.starter ? 'Take it, free'
         : 'Buy<span class="btn-long"> for</span> $' + formatNum(cost));
       const affordable = item.starter || state.balance >= cost;
@@ -8954,9 +9123,27 @@
   // A second one of the same fitting is not an overlap -- it fits fine, it
   // is simply not allowed -- so it is asked about separately and said
   // differently.
-  function editDuplicate() {
-    if (!editing) return false;
-    return roomAlreadyHas(activeRooms()[editing.roomIndex], editing.itemId);
+  // Why the held piece cannot go down where it is, other than something
+  // being in the way: one fitting to a room, and a cap per location on the
+  // big machines. Returns the sentence to say, or null.
+  function editRefusal() {
+    if (!editing) return null;
+    const item = itemById(editing.itemId);
+    if (roomAlreadyHas(activeRooms()[editing.roomIndex], editing.itemId)) {
+      return { short: 'this room already has one',
+        long: 'One ' + item.name + ' per room. This one has one' };
+    }
+    if (locationFull(state.activeTheme, editing.itemId)) {
+      const cap = maxPerLocation(editing.itemId);
+      const where = (THEMES.find((t) => t.id === state.activeTheme) || {}).name || 'this location';
+      return {
+        short: cap === 1 ? 'one to a location' : cap + ' to a location',
+        long: cap === 1
+          ? 'One ' + item.name + ' to a location. The ' + where + ' has one'
+          : 'Only ' + cap + ' ' + item.name + ' to a location. The ' + where + ' has ' + cap,
+      };
+    }
+    return null;
   }
 
   // Carry the held piece into another room: it keeps its turn, and lands
@@ -9014,8 +9201,9 @@
       toast("Won't fit. It would overlap the " + blockerName(blocker), null);
       return;
     }
-    if (editDuplicate()) {
-      toast('One ' + itemById(editing.itemId).name + ' per room. This one has one', null);
+    const refusal = editRefusal();
+    if (refusal) {
+      toast(refusal.long, null);
       return;
     }
     const room = activeRooms()[editing.roomIndex];
@@ -9048,6 +9236,8 @@
     if (itemById(itemId) && itemById(itemId).starter) return;
     // Same for a fitting: the room it would land in already has one.
     if (onePerRoom(itemId)) return;
+    // And for anything capped, once the location has its fill.
+    if (locationFull(state.activeTheme, itemId)) return;
     const shape = roomShapeFor(state.activeTheme, roomIndex);
     const next = findFreeSpot(activeRooms()[roomIndex], shape, itemId, turn, at);
     if (!next) return;
@@ -9158,6 +9348,7 @@
   // pick up the piece you tapped, or just make that room the active one.
   function onFloorTap(px, py) {
     const hit = spotFromPoint(px, py);
+    if (!editing && sayShut()) return;
     if (editing) {
       if (hit) {
         if (hit.roomIndex !== editing.roomIndex) carryEditTo(hit.roomIndex, hit.u, hit.v);
@@ -9467,18 +9658,19 @@
 
   const stageWrapEl = document.querySelector('.tycoon-stage-wrap');
   function refreshPlaceHud() {
+    if (shutCardEl && !gymOpen()) refreshOpenHint();
     if (!placeHudEl) return;
     placeHudEl.hidden = !editing;
     if (stageWrapEl) stageWrapEl.classList.toggle('is-editing', !!editing);
     if (!editing) return;
     const item = itemById(editing.itemId);
     const blocker = editOverlaps();
-    const dupe = editDuplicate();
+    const dupe = editRefusal();
     if (placeLabelEl) {
       const where = activeRooms().length > 1 ? ' in ' + roomLabel(editing.roomIndex) : '';
       placeLabelEl.textContent = (item ? item.name : 'Gear')
         + (blocker ? ' \u00b7 too close to the ' + blockerName(blocker)
-          : dupe ? ' \u00b7 this room already has one'
+          : dupe ? ' \u00b7 ' + dupe.short
           : where + ' \u00b7 drag, then Place');
     }
     if (placeConfirmBtn) placeConfirmBtn.disabled = !!blocker || dupe;
@@ -9928,6 +10120,97 @@
   function nextLevelBrings(level) {
     const opened = levelBrings(level);
     return opened.length ? opened.join(', ') : null;
+  }
+
+  // ---- The level chip opens what it is worth ----
+  // The stats strip says "Level 12" and a bar, which is a number without an
+  // answer to "so what". Tapping it opens the same card the Gym tab has,
+  // over the strip, so the answer is one tap from where the question is
+  // asked rather than a tab and a scroll away.
+  const levelBtn = document.getElementById('hud-level-btn');
+  const levelPop = (() => {
+    if (!levelBtn) return null;
+    const el = document.createElement('div');
+    el.className = 'tycoon-level-pop';
+    el.setAttribute('role', 'note');
+    el.hidden = true;
+    document.body.appendChild(el);
+    return el;
+  })();
+  function levelPopHtml() {
+    const level = currentLevel();
+    const p = levelProgress();
+    const rep = Math.round(reputationBonus() * 100);
+    const brings = p.capped ? null : levelBrings(level + 1);
+    const perks = LEVEL_PERKS.filter((perk) => perk.level > level).slice(0, 3);
+    return '<div class="tycoon-level-pop-head">'
+      + '<span class="tycoon-level-pop-now">Level ' + level + '</span>'
+      + '<span class="tycoon-level-pop-xp">' + (p.capped ? 'Top level'
+        : formatNum(Math.floor((state.xp || 0) - p.from)) + ' / ' + formatNum(p.to - p.from) + ' XP')
+      + '</span></div>'
+      + '<span class="tycoon-level-pop-bar"><span class="tycoon-level-pop-fill" style="width:'
+        + Math.round(p.frac * 100) + '%"></span></span>'
+      + (rep > 0 ? '<p class="tycoon-level-pop-rep">Reputation: <b>+' + rep
+        + '%</b> on everything, from every level past ' + REPUTATION_FROM_LEVEL + '.</p>' : '')
+      + (brings && brings.length
+        ? '<p class="tycoon-level-pop-next"><b>Level ' + (level + 1) + '</b> brings '
+          + brings.join(', ') + '.</p>'
+        : '<p class="tycoon-level-pop-next">There is no level above this one.</p>')
+      + (perks.length
+        ? '<p class="tycoon-level-pop-head2">Coming up</p>'
+          + '<ul class="tycoon-level-pop-list">'
+          + perks.map((perk) => '<li><b>' + perk.level + '</b> ' + perk.text + '</li>').join('')
+          + '</ul>'
+        : '')
+      + '<p class="tycoon-level-pop-note">Buying and upgrading gear is what earns XP. '
+        + 'Dearer kit earns more.</p>';
+  }
+  function placeLevelPop() {
+    if (!levelPop || levelPop.hidden) return;
+    const box = levelBtn.getBoundingClientRect();
+    const pop = levelPop.getBoundingClientRect();
+    const pad = 8;
+    let left = box.left + box.width / 2 - pop.width / 2;
+    left = Math.max(pad, Math.min(left, window.innerWidth - pop.width - pad));
+    let top = box.bottom + 8;
+    if (top + pop.height > window.innerHeight - pad) top = Math.max(pad, box.top - pop.height - 8);
+    levelPop.style.left = Math.round(left) + 'px';
+    levelPop.style.top = Math.round(top) + 'px';
+  }
+  function setLevelPop(open) {
+    if (!levelPop) return;
+    if (open) {
+      levelPop.innerHTML = levelPopHtml();
+      levelPop.hidden = false;
+      placeLevelPop();
+      requestAnimationFrame(() => levelPop.classList.add('is-on'));
+    } else {
+      levelPop.classList.remove('is-on');
+      levelPop.hidden = true;
+    }
+    levelBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  if (levelBtn && levelPop) {
+    levelBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setLevelPop(levelPop.hidden);
+    });
+    document.addEventListener('click', (e) => {
+      if (!levelPop.hidden && e.target !== levelBtn && !levelBtn.contains(e.target)
+        && !levelPop.contains(e.target)) setLevelPop(false);
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setLevelPop(false); });
+    window.addEventListener('resize', placeLevelPop);
+    // The card is fixed to the window and pinned to the chip, so a scroll
+    // moves it rather than closing it -- clicking the chip scrolls the page
+    // a little by itself, which used to shut the card in the same gesture
+    // that opened it. It closes only once the chip has left the screen.
+    window.addEventListener('scroll', () => {
+      if (levelPop.hidden) return;
+      const box = levelBtn.getBoundingClientRect();
+      if (box.bottom < 0 || box.top > window.innerHeight) setLevelPop(false);
+      else placeLevelPop();
+    }, { passive: true });
   }
 
   const levelCardEl = document.getElementById('level-card');
