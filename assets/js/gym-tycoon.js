@@ -3927,10 +3927,18 @@
     // Decor earns nothing. What it does instead is the reason to buy it,
     // so that is what its row says.
     if (item.effect) {
-      return effectLine(item)
+      // Two lengths of the same sentence. A fitting's line runs to three
+      // clauses, which is three lines of a phone's shop row, so the phone
+      // gets the short form of each: the stylesheet picks.
+      const long = effectLine(item)
         + (makesStock(itemId) ? '. Makes ' + RECIPES_OF[itemId]
           .map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ') : '')
         + (onePerRoom(itemId) ? '. Max one per room' : '');
+      const short = effectLine(item, true)
+        + (makesStock(itemId) ? ' \u00b7 makes stock' : '')
+        + (onePerRoom(itemId) ? ' \u00b7 1 per room' : '');
+      return '<span class="btn-long">' + long + '</span>'
+        + '<span class="btn-short">' + short + '</span>';
     }
     return '+' + formatNum(gpsOf(itemId)) + '/s once placed'
       + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '');
@@ -4187,7 +4195,9 @@
       els.root.classList.toggle('is-locked', !unlocked);
       if (!unlocked) {
         els.ownedEl.textContent = '';
-        els.buyBtn.innerHTML = '<span class="btn-lock-icon">' + iconMarkup('lock', 13) + '</span> Unlocks at level ' + item.unlockLevel;
+        setHtml(els.buyBtn, '<span class="btn-lock-icon">' + iconMarkup('lock', 13) + '</span> '
+          + '<span class="btn-long">Unlocks at level ' + item.unlockLevel + '</span>'
+          + '<span class="btn-short">Level ' + item.unlockLevel + '</span>');
         els.buyBtn.disabled = true;
         els.root.classList.remove('is-affordable');
         return;
@@ -4202,13 +4212,16 @@
       const shut = item.starter ? !deskWanted() : !gymOpen();
       els.root.classList.toggle('is-shut', shut);
       if (shut) {
-        els.buyBtn.textContent = item.starter ? 'Placed here' : 'Place the desk first';
+        setHtml(els.buyBtn, item.starter ? 'Placed here'
+          : '<span class="btn-long">Place the desk first</span>'
+            + '<span class="btn-short">Desk first</span>');
         els.buyBtn.disabled = true;
         els.root.classList.remove('is-affordable');
         els.upBtn.hidden = true;
         return;
       }
-      els.buyBtn.textContent = item.starter ? 'Take it, free' : 'Buy for $' + formatNum(cost);
+      setHtml(els.buyBtn, item.starter ? 'Take it, free'
+        : 'Buy<span class="btn-long"> for</span> $' + formatNum(cost));
       const affordable = item.starter || state.balance >= cost;
       els.buyBtn.disabled = !affordable;
       els.root.classList.toggle('is-affordable', affordable);
@@ -4217,13 +4230,14 @@
       // been upgraded, and the control to take it further.
       const tier = tierOf(item.id);
       els.tierEl.textContent = item.name + (tier > 1 ? ' ' + TIER_NAMES[tier] : '');
-      els.gpsEl.textContent = earnsLine(item.id);
+      setHtml(els.gpsEl, earnsLine(item.id));
       const upgradable = canUpgrade(item.id);
       els.upBtn.hidden = !upgradable;
       if (upgradable) {
         const upCost = upgradeCost(item.id);
-        els.upBtn.textContent = 'Upgrade to ' + TIER_NAMES[tier + 1] + ' for $' + formatNum(upCost)
-          + ' (x' + TIER_STEP.toFixed(1) + ')';
+        setHtml(els.upBtn, '<span class="btn-long">Upgrade to </span>' + TIER_NAMES[tier + 1]
+          + '<span class="btn-long"> for</span> $' + formatNum(upCost)
+          + '<span class="btn-long"> (x' + TIER_STEP.toFixed(1) + ')</span>');
         els.upBtn.disabled = state.balance < upCost;
       }
     });
@@ -9196,6 +9210,9 @@
   // needless layout work, so nothing is written unless it changed.
   function setText(el, text) {
     if (el && el.textContent !== text) el.textContent = text;
+  }
+  function setHtml(el, html) {
+    if (el && el.innerHTML !== html) el.innerHTML = html;
   }
 
   // ---- Init ----

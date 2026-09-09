@@ -2675,3 +2675,55 @@
     padding-right: 4px;
   }
 }
+
+/* ---- The shop, on a phone ----
+   A row was a card: name, then line, then a full-width Buy, then a
+   full-width Upgrade. Four stacked bands meant three items filled the
+   screen and the shop was all scrolling. The row is two columns instead --
+   what it is on the left, what you can do about it on the right -- so a
+   screen holds six or seven and you can compare them without scrolling.
+
+   Every long button label carries a short twin in the markup and this is
+   where the choice is made: a third of a phone row is no place for
+   "Upgrade to Mk II for $1.00K (x2.2)". */
+.btn-short { display: none; }
+@media (max-width: 620px) {
+  .btn-long { display: none; }
+  .btn-short { display: inline; }
+
+  .tycoon-shop { gap: 8px; }
+  .shop-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(92px, 124px);
+    grid-template-areas:
+      "icon name act"
+      "count line up";
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 2px;
+    padding: 9px 11px;
+    border-radius: 12px;
+  }
+  /* The head is a box of its own only on a wide screen. Here its three
+     parts take their own places in the row's grid, which gets the count
+     out from beside the name and gives the name the width it needs to
+     stay on one line. */
+  .shop-item-head { display: contents; }
+  .shop-item-icon { grid-area: icon; }
+  .shop-item-name { grid-area: name; font-size: 12.5px; }
+  .shop-item-owned { grid-area: count; margin-left: 0; font-size: 10.5px; }
+  .shop-item-gps { grid-area: line; font-size: 11px; line-height: 1.35; }
+  .shop-item-buy { grid-area: act; align-self: center; }
+  .shop-upgrade-btn { grid-area: up; width: 100%; margin-top: 0; }
+  .shop-buy-btn {
+    margin-top: 0;
+    width: 100%;
+    font-size: 12px;
+    padding: 8px 6px;
+    border-width: 1.5px;
+    box-shadow: 2px 2px 0 #000;
+  }
+  .shop-buy-btn:hover:not(:disabled) { box-shadow: 3px 3px 0 #000; }
+  .shop-item.is-shut .shop-buy-btn { font-size: 11px; }
+  .shop-upgrade-btn { font-size: 10.5px; padding: 6px 6px; }
+}
