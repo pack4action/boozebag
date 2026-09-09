@@ -3069,7 +3069,7 @@
       el.querySelector('.tycoon-trophy-hint').textContent = t.hint;
       // What it was for, on hover or a long press, so a won trophy is
       // still a record of what you did rather than the word "Done".
-      el.dataset.goal = t.hint + '. Paid $' + formatNum(t.cash);
+      el.dataset.goal = t.hint + '. +$' + formatNum(t.cash);
       el.tabIndex = 0;
       const tell = () => showTip(el, el.dataset.goal);
       el.addEventListener('mouseenter', tell);
@@ -3096,7 +3096,7 @@
       // winning adds is the payout under it.
       el.querySelector('.tycoon-trophy-hint').textContent = t.hint;
       const got = el.querySelector('.tycoon-trophy-got');
-      got.textContent = 'Done. Paid $' + formatNum(t.cash);
+      got.textContent = 'Done. +$' + formatNum(t.cash);
       if (got.hidden !== !won) got.hidden = !won;
     });
     trophyCountEl.textContent = trophiesWon() + ' of ' + TROPHIES.length;
