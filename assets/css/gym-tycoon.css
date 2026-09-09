@@ -1363,6 +1363,39 @@
   color: rgba(255, 255, 255, 0.42);
 }
 .tycoon-trophy.is-won .tycoon-trophy-hint { color: rgba(255, 255, 255, 0.6); }
+.tycoon-trophy-got {
+  margin-top: 2px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #ffd97a;
+}
+.tycoon-trophy-got[hidden] { display: none !important; }
+
+/* Point at a trophy and it says what it was for and what it paid, won or
+   not. A won card used to replace its objective with the word "Done".
+   The card floats above the page rather than inside the trophy grid: the
+   shop panel scrolls, and anything drawn inside it is cut off at its edge. */
+.tycoon-trophy { position: relative; cursor: help; }
+.tycoon-trophy:focus-visible { outline: 2px solid #ffd166; outline-offset: 2px; }
+.tycoon-tip {
+  position: fixed;
+  z-index: 90;
+  max-width: 250px;
+  padding: 8px 11px;
+  border: 1px solid rgba(255, 205, 90, 0.45);
+  border-radius: 10px;
+  background: #16141c;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.6);
+  color: var(--text, #e9e9ee);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.tycoon-tip.is-on { opacity: 1; }
+.tycoon-tip[hidden] { display: none !important; }
 
 
 /* ---- Open day ---- */

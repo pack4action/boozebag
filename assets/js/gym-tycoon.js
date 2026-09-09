@@ -3025,6 +3025,37 @@
   const gymNameEl = document.getElementById('gym-name');
   const trophyEls = {};
 
+  // One floating card, shared by every trophy: it is fixed to the window,
+  // so the scrolling panel the trophies sit in cannot clip it.
+  const tipEl = (() => {
+    const el = document.createElement('div');
+    el.className = 'tycoon-tip';
+    el.setAttribute('role', 'note');
+    el.hidden = true;
+    document.body.appendChild(el);
+    return el;
+  })();
+  function showTip(target, text) {
+    if (!text) return;
+    tipEl.textContent = text;
+    tipEl.hidden = false;
+    const box = target.getBoundingClientRect();
+    const tip = tipEl.getBoundingClientRect();
+    const pad = 8;
+    let left = box.left + box.width / 2 - tip.width / 2;
+    left = Math.max(pad, Math.min(left, window.innerWidth - tip.width - pad));
+    // Above the card, or below it when there is no room above.
+    let top = box.top - tip.height - 8;
+    if (top < pad) top = Math.min(box.bottom + 8, window.innerHeight - tip.height - pad);
+    tipEl.style.left = Math.round(left) + 'px';
+    tipEl.style.top = Math.round(top) + 'px';
+    tipEl.classList.add('is-on');
+  }
+  function hideTip() {
+    tipEl.classList.remove('is-on');
+    tipEl.hidden = true;
+  }
+
   function buildTrophyUI() {
     if (!trophyGridEl) return;
     trophyGridEl.innerHTML = '';
@@ -3032,9 +3063,23 @@
       const el = document.createElement('div');
       el.className = 'tycoon-trophy';
       el.innerHTML = '<span class="tycoon-trophy-name"></span>'
-        + '<span class="tycoon-trophy-hint"></span>';
+        + '<span class="tycoon-trophy-hint"></span>'
+        + '<span class="tycoon-trophy-got" hidden></span>';
       el.querySelector('.tycoon-trophy-name').textContent = t.name;
       el.querySelector('.tycoon-trophy-hint').textContent = t.hint;
+      // What it was for, on hover or a long press, so a won trophy is
+      // still a record of what you did rather than the word "Done".
+      el.dataset.goal = t.hint + '. Paid $' + formatNum(t.cash);
+      el.tabIndex = 0;
+      const tell = () => showTip(el, el.dataset.goal);
+      el.addEventListener('mouseenter', tell);
+      el.addEventListener('focus', tell);
+      el.addEventListener('mouseleave', hideTip);
+      el.addEventListener('blur', hideTip);
+      // A finger has no hover, so a tap says the same thing.
+      el.addEventListener('click', () => {
+        if (tipEl.hidden) tell(); else hideTip();
+      });
       trophyGridEl.appendChild(el);
       trophyEls[t.id] = el;
     });
@@ -3047,8 +3092,12 @@
       if (!el) return;
       const won = hasTrophy(t.id);
       el.classList.toggle('is-won', won);
-      el.querySelector('.tycoon-trophy-hint').textContent = won
-        ? 'Done. $' + formatNum(t.cash) : t.hint;
+      // The objective stays on the card whether it is won or not; what
+      // winning adds is the payout under it.
+      el.querySelector('.tycoon-trophy-hint').textContent = t.hint;
+      const got = el.querySelector('.tycoon-trophy-got');
+      got.textContent = 'Done. Paid $' + formatNum(t.cash);
+      if (got.hidden !== !won) got.hidden = !won;
     });
     trophyCountEl.textContent = trophiesWon() + ' of ' + TROPHIES.length;
   }
