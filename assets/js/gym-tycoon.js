@@ -5099,10 +5099,27 @@
       save();
       return;
     }
-    // What you buy goes to Storage. Where it stands is a decision, and
-    // dropping it into the first free slot made that decision for you --
-    // then moved the piece you were looking at out from under the cursor.
-    toast(item.name + ' is in Storage', 'good');
+    // What you buy goes straight into your hands, standing on the plan
+    // where you can see it, ready to be dragged somewhere and put down.
+    // The trip through Storage was a step that always ended the same way:
+    // buy, scroll down, find the chip, pick it up.
+    //
+    // It still drops into Storage rather than your hands where it cannot go
+    // anywhere: your hands are already full, or this room has its one
+    // fitting, or this location has its fill of that machine. Where it
+    // stands is still a decision -- nothing is ever dropped into a slot for
+    // you, which is what made the old shop deal a piece into a room and
+    // move the one you were looking at out from under the cursor.
+    const idx = state.activeRoomIndex;
+    const room = activeRooms()[idx];
+    const holdIt = !editing && !roomAlreadyHas(room, id) && !locationFull(state.activeTheme, id);
+    if (holdIt) {
+      const shape = roomShapeFor(state.activeTheme, idx);
+      beginEdit(id, idx, { u: shape.cols / 2, v: shape.rows / 2 }, null);
+      scrollToRoom(idx);
+    } else {
+      toast(item.name + (editing ? ' is in Storage. Your hands are full' : ' is in Storage'), 'good');
+    }
     recomputeStats();
     refreshShopUI();
     refreshLevelUI();
@@ -9383,14 +9400,28 @@
 
   // The folded-up line: how many pieces are waiting, so it can be left
   // shut without wondering whether anything is in there.
+  // What is in Storage, in one pass: how many pieces, and what they would
+  // add to the takings if every one of them were standing.
+  function storageTally() {
+    let pieces = 0;
+    let rate = 0;
+    ITEMS.forEach((item) => {
+      if (item.starter) return;
+      // Clamped per item: a piece standing on a floor that the save never
+      // recorded as owned counts as none waiting, not as minus one.
+      const n = Math.max(0, availableCount(item.id));
+      pieces += n;
+      rate += n * gpsOf(item.id);
+    });
+    return { pieces, rate };
+  }
   function refreshStorageSummary() {
     const sum = document.getElementById('storage-sum');
     if (!sum) return;
-    // Clamped per item: a piece standing on a floor that the save never
-    // recorded as owned counts as none waiting, not as minus one.
-    const n = ITEMS.reduce((k, item) => k
-      + (item.starter ? 0 : Math.max(0, availableCount(item.id))), 0);
-    setText(sum, n === 0 ? 'Empty' : n === 1 ? '1 piece waiting' : n + ' pieces waiting');
+    const { pieces, rate } = storageTally();
+    setText(sum, pieces === 0 ? 'Empty'
+      : (pieces === 1 ? '1 piece' : pieces + ' pieces')
+        + (rate > 0 ? ' \u00b7 +' + formatNum(rate) + '/s unplaced' : ' waiting'));
   }
 
   function renderInventory() {
@@ -9401,29 +9432,65 @@
       const p = document.createElement('p');
       p.className = 'tycoon-inv-empty';
       p.textContent = THEMES.some((t) => state.themeRooms[t.id].some((r) => r.layout.some(Boolean)))
-        ? 'Empty. Everything you own is placed.'
-        : 'Empty. Buy gear from the shop and it lands here.';
+        ? 'Empty. Everything you own is standing somewhere.'
+        : 'Empty. What you buy lands in your hands; anything you put back waits here.';
       inventoryEl.appendChild(p);
       return;
     }
-    ownedItems.forEach((item) => {
-      const cat = CATEGORY_META[CATEGORY[item.id]];
-      // A wrapping div rather than a button, since it holds two separate
-      // clickable controls (arm-to-place, and sell) -- buttons can't nest.
-      const chip = document.createElement('div');
-      const held = editing && editing.itemId === item.id && editing.fromIndex === null;
-      chip.className = 'tycoon-inv-item' + (held ? ' is-armed' : '')
-        + (item.starter && !gymOpen() && !held ? ' is-needed' : '');
 
+    // A line across the top answering the two things you come here to know:
+    // how much is waiting, and what it is worth on the floor. It used to be
+    // a wrap of identical pills with none of that in it.
+    const { pieces, rate } = storageTally();
+    const head = document.createElement('div');
+    head.className = 'tycoon-store-head';
+    head.innerHTML = '<span class="tycoon-store-count">'
+      + (pieces === 1 ? '1 piece waiting' : pieces + ' pieces waiting') + '</span>'
+      + (rate > 0 ? '<span class="tycoon-store-worth">+' + formatNum(rate) + '/s once placed</span>' : '');
+    inventoryEl.appendChild(head);
+
+    // Grouped and ordered the way the shop is, so a tray of ten things
+    // reads as machines and then fittings rather than as ten pills in
+    // whatever order they were bought.
+    const order = shopOrder().filter((item) => ownedItems.indexOf(item) !== -1);
+    let section = null;
+    order.forEach((item) => {
+      const here = sectionOf(item.id);
+      if (here !== section) {
+        section = here;
+        const meta = SHOP_SECTIONS.find((x) => x.id === here);
+        const h = document.createElement('p');
+        h.className = 'tycoon-store-sect';
+        h.textContent = meta ? meta.name : here;
+        inventoryEl.appendChild(h);
+      }
+      const cat = CATEGORY_META[CATEGORY[item.id]];
+      const spare = availableCount(item.id);
+      const held = editing && editing.itemId === item.id && editing.fromIndex === null;
+      // A row rather than a pill, since it holds two separate controls --
+      // take it out, and sell it -- and a line about what it does. Buttons
+      // cannot nest, so the row is a div with buttons inside it.
+      const chip = document.createElement('div');
+      chip.className = 'tycoon-inv-item' + (held ? ' is-armed' : '');
+
+      // The whole left side is the control that puts it in your hands: a
+      // bigger target than the old pill, and the obvious thing to press.
       const armBtn = document.createElement('button');
       armBtn.type = 'button';
       armBtn.className = 'tycoon-inv-arm';
+      const note = item.effect ? effectLine(item, true)
+        : '+' + formatNum(gpsOf(item.id)) + '/s once placed';
       armBtn.innerHTML = '<span class="inv-cat-dot" style="background:' + cat.color + '"></span>'
-        + '<span class="inv-icon">' + iconMarkup(item.id, 15) + '</span> '
-        + item.name + ' <span class="inv-count">x' + availableCount(item.id) + '</span>';
-      // What it does is on its shop row and in the fold's own line; a rate
-      // on every chip made a row of them unreadable.
-      armBtn.title = item.effect ? effectLine(item) : '+' + formatNum(gpsOf(item.id)) + '/s once placed';
+        + '<span class="inv-icon" style="color:' + cat.color + '">' + iconMarkup(item.id, 19) + '</span>'
+        + '<span class="inv-main">'
+          + '<span class="inv-line">'
+            + '<span class="inv-name">' + item.name + '</span>'
+            + '<span class="inv-count">x' + spare + '</span>'
+          + '</span>'
+          + '<span class="inv-note">' + note + '</span>'
+        + '</span>'
+        + '<span class="inv-take">' + (held ? 'Holding' : 'Place') + '</span>';
+      armBtn.title = held ? 'Put it back' : 'Take one out and stand it somewhere';
       armBtn.addEventListener('click', () => {
         if (editing && editing.itemId === item.id && editing.fromIndex === null) {
           cancelEdit();
@@ -9440,39 +9507,37 @@
       });
       chip.appendChild(armBtn);
 
-      // The desk is not for sale: a location cannot run without one.
-      if (!item.starter) {
-        const sellBtn = document.createElement('button');
-        sellBtn.type = 'button';
-        sellBtn.className = 'tycoon-inv-sell';
-        sellBtn.textContent = 'Sell +$' + formatNum(sellPrice(item));
-        sellBtn.title = 'Sell one back for 60% of what you paid for it';
-        sellBtn.addEventListener('click', () => sellItem(item.id));
-        chip.appendChild(sellBtn);
-        // Clearing out a stack of six meant six clicks.
-        const spare = availableCount(item.id);
-        if (spare > 1) {
-          const allBtn = document.createElement('button');
-          allBtn.type = 'button';
-          allBtn.className = 'tycoon-inv-sell is-all';
-          // What the lot is worth, worked out one at a time because each
-          // sale drops the price of the next.
-          let take = 0;
-          let owned = state.owned[item.id] || 0;
-          for (let i = 0; i < spare; i++) {
-            take += Math.floor(Math.ceil(item.baseCost * Math.pow(COST_GROWTH, owned - 1)) * SELL_REFUND_RATE);
-            owned--;
-          }
-          allBtn.textContent = 'Sell all';
-          allBtn.title = 'Sell all ' + spare + ' spare for $' + formatNum(take);
-          allBtn.dataset.pays = '$' + formatNum(take);
-          allBtn.addEventListener('click', () => {
-            for (let i = 0; i < spare; i++) sellItem(item.id);
-          });
-          chip.appendChild(allBtn);
+      const acts = document.createElement('span');
+      acts.className = 'tycoon-inv-acts';
+      const sellBtn = document.createElement('button');
+      sellBtn.type = 'button';
+      sellBtn.className = 'tycoon-inv-sell';
+      sellBtn.textContent = 'Sell $' + formatNum(sellPrice(item));
+      sellBtn.title = 'Sell one back for 60% of what you paid for it';
+      sellBtn.addEventListener('click', () => sellItem(item.id));
+      acts.appendChild(sellBtn);
+      // Clearing out a stack of six meant six clicks.
+      if (spare > 1) {
+        const allBtn = document.createElement('button');
+        allBtn.type = 'button';
+        allBtn.className = 'tycoon-inv-sell is-all';
+        // What the lot is worth, worked out one at a time because each
+        // sale drops the price of the next.
+        let take = 0;
+        let owned = state.owned[item.id] || 0;
+        for (let i = 0; i < spare; i++) {
+          take += Math.floor(Math.ceil(item.baseCost * Math.pow(COST_GROWTH, owned - 1)) * SELL_REFUND_RATE);
+          owned--;
         }
+        allBtn.textContent = 'Sell all';
+        allBtn.title = 'Sell all ' + spare + ' spare for $' + formatNum(take);
+        allBtn.dataset.pays = '$' + formatNum(take);
+        allBtn.addEventListener('click', () => {
+          for (let i = 0; i < spare; i++) sellItem(item.id);
+        });
+        acts.appendChild(allBtn);
       }
-
+      chip.appendChild(acts);
       inventoryEl.appendChild(chip);
     });
   }

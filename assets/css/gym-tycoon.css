@@ -3048,3 +3048,127 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- Storage ----
+   It used to be a wrap of identical pills: ten things you owned read as ten
+   pills, in the order you happened to buy them, none of them saying what it
+   was or what it was worth. Now it is a list, grouped and ordered the way
+   the shop is, one row a piece: what it is on the left with a line about
+   what it does, and what you can do with it on the right. */
+.tycoon-inventory {
+  display: block;
+  max-width: none;
+  margin: 0;
+  text-align: left;
+}
+.tycoon-store-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px 7px;
+  border-bottom: 1px solid var(--panel-border, #2a2732);
+  margin-bottom: 4px;
+}
+.tycoon-store-count { font-size: 11.5px; font-weight: 800; color: var(--text, #e9e9ee); }
+.tycoon-store-worth {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #7fd8a8;
+  font-variant-numeric: tabular-nums;
+}
+.tycoon-store-sect {
+  margin: 9px 0 3px;
+  padding: 0 2px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-store-sect:first-of-type { margin-top: 4px; }
+
+.tycoon-inv-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px 4px 4px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+}
+.tycoon-inv-item + .tycoon-inv-item { border-top: 1px solid rgba(255, 255, 255, 0.05); }
+.tycoon-inv-item:hover { background: rgba(255, 255, 255, 0.04); border-color: transparent; }
+.tycoon-inv-item.is-armed {
+  background: rgba(255, 183, 3, 0.14);
+  border-color: rgba(255, 183, 3, 0.55);
+  color: inherit;
+}
+
+.tycoon-inv-arm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 4px;
+  font-family: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+.tycoon-inv-arm .inv-cat-dot { margin: 0; }
+.tycoon-inv-arm .inv-icon { flex: none; }
+.inv-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+/* The name may be trimmed to fit; the count never is, or a row of six
+   dumbbells reads as a row of one. */
+.inv-line { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
+.inv-name {
+  font-weight: 800;
+  font-size: 12.5px;
+  color: var(--text, #e9e9ee);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inv-line .inv-count { flex: none; margin: 0; }
+.tycoon-inv-item.is-armed .inv-name { color: #ffd166; }
+.inv-note {
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--muted, #8b8b93);
+}
+.inv-take {
+  margin-left: auto;
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--amber, #ffb703);
+}
+.tycoon-inv-item.is-armed .inv-take { color: #ffd166; }
+.tycoon-inv-arm:hover .inv-take { color: var(--text, #e9e9ee); }
+
+.tycoon-inv-acts { display: flex; align-items: center; gap: 5px; flex: none; }
+.tycoon-inv-item .tycoon-inv-sell { font-size: 10.5px; padding: 4px 8px; }
+
+/* On a phone a row is two lines: what it is, then what you can do with it.
+   Three controls and a name on one line meant the name was trimmed to
+   "Rowing Machin..." and the count fell off the end. The head goes too --
+   the fold's own summary already carries both its numbers. */
+@media (max-width: 620px) {
+  .tycoon-store-head { display: none; }
+  .tycoon-inv-item {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    padding: 5px 6px 7px;
+  }
+  .tycoon-inv-arm { flex: 1 1 100%; padding: 4px 2px; gap: 7px; }
+  .inv-note { font-size: 10px; }
+  .tycoon-inv-acts { margin-left: auto; }
+  .tycoon-inv-item .tycoon-inv-sell { padding: 4px 9px; }
+}
