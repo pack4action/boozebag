@@ -3390,11 +3390,12 @@
     // below are describing.
     const roomLabel = () => 'Room ' + (state.activeRoomIndex + 1);
     const placed = layout.filter(Boolean).length;
-    if (placed === 0) {
-      synergyEl.innerHTML = '<p class="tycoon-bd-empty"></p>';
-      synergyEl.firstChild.textContent = roomLabel() + ' is empty. Click a piece in Storage to put it down.';
-      return;
-    }
+    // An empty room has no takings to break down, so there is nothing to
+    // show. It used to say "Room 1 is empty" here, which the hint box and
+    // the Storage tray were already saying in their own words.
+    const nothing = !gymOpen() || placed === 0;
+    if (synergyEl.hidden !== nothing) synergyEl.hidden = nothing;
+    if (nothing) return;
     const baseSum = layout.reduce((sum, id) => sum + (id ? gpsOf(id) : 0), 0);
     const room = activeRoom();
     const shape = roomShapeFor(state.activeTheme, state.activeRoomIndex);
@@ -3590,7 +3591,13 @@
     if (readyCounter) {
       return ['Stock is ready on the ' + itemById(readyCounter.itemId).name + '.', 'counter'];
     }
-    const waiting = ITEMS.reduce((n, item) => n + availableCount(item.id), 0);
+    // A spare desk in Storage belongs to a location that has none yet, and
+    // the useful thing to say about it is which one.
+    const deskless = THEMES.filter((t) => unlockedFor(t) && !deskPlacedIn(t.id));
+    if (deskless.length && availableCount('frontdesk') > 0 && deskless[0].id !== state.activeTheme) {
+      return ['The ' + deskless[0].name + ' has no desk down yet, so it earns nothing.', null];
+    }
+    const waiting = ITEMS.reduce((n, item) => n + (item.starter ? 0 : availableCount(item.id)), 0);
     if (waiting) {
       return [waiting === 1 ? 'One piece in Storage is earning nothing. Put it down.'
         : waiting + ' pieces in Storage are earning nothing. Put them down.', null];

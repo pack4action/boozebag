@@ -374,15 +374,51 @@
    and trim the type instead so it stays one line. Scoped to this page: the
    other games have no sticky room under their HUD. */
 @media (max-width: 560px) {
-  .tycoon-page .game-hud { gap: 8px; }
+  /* One line each, or nothing: on a phone every row above the shop is a
+     row of shop you cannot see. The tab notes repeat what the page already
+     shows, the Storage caption repeats the empty-room line, and the
+     category name on a shop row repeats the colour of its icon. */
+  .tycoon-panel-note { display: none; }
+  .tycoon-tray-head .tycoon-panel-sub { display: none; }
+  .shop-item-cat { display: none; }
+  .shop-item { padding: 12px 14px; gap: 4px; }
+  .shop-item-gps { font-size: 11.5px; }
+  /* The filter chips run off the edge in one row you can swipe, rather
+     than wrapping into two rows that push the shop down. */
+  .tycoon-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -6vw 10px;
+    padding: 0 6vw;
+  }
+  .tycoon-filters::-webkit-scrollbar { display: none; }
+  .tycoon-filter { flex: none; }
+  .tycoon-synergy { margin-bottom: 10px; }
+  .tycoon-tray-head { margin-bottom: 6px; }
+  .tycoon-next { font-size: 12px; padding: 8px 12px; }
+  .tycoon-open-hint { font-size: 12.5px; padding: 8px 12px; }
+  /* Four equal boxes. As a flex row the level box, with its XP bar, took
+     the width the other three needed and their labels clipped to "PER S…". */
+  .tycoon-page .game-hud {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
   .tycoon-page .hud-stat {
-    flex: 1 1 0;
+    width: auto;
     min-width: 0;
-    padding: 7px 8px;
+    padding: 7px 4px;
     text-align: center;
   }
-  .tycoon-page .hud-label { font-size: 9px; letter-spacing: 0.4px; }
-  .tycoon-page .hud-value { font-size: 19px; }
+  .tycoon-page .hud-label { font-size: 8.5px; letter-spacing: 0.3px; }
+  .tycoon-page .hud-value { font-size: 18px; }
+  .tycoon-page .hud-xp-text { font-size: 8.5px; }
+  /* The busy meter, Add Room and Open day were three rows on a phone. Two
+     buttons share a row; the meter keeps its own. */
+  .tycoon-toolbar-end { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tycoon-toolbar-end > * { flex: 1 1 auto; }
+  .tycoon-add-room, .tycoon-promo-btn { font-size: 11px; padding: 6px 10px; }
 }
 
 /* ---- Desktop ---------------------------------------------------------
@@ -1574,4 +1610,20 @@
   border: 1px solid rgba(255, 183, 3, 0.35);
   font-size: 12.5px;
   color: var(--text);
+}
+
+/* ---- Phone toolbar ----
+   Last in the file on purpose: the three controls each carry their own
+   full-width margins from the rules above, and the phone layout has to
+   beat them. The busy meter keeps a row to itself; Add Room and Open day
+   share the next one. */
+@media (max-width: 560px) {
+  .tycoon-toolbar-end .tycoon-rush { flex: 1 1 100%; margin: 0 0 4px; width: auto; }
+  .tycoon-toolbar-end .tycoon-room-actions,
+  .tycoon-toolbar-end .tycoon-promo-btn {
+    flex: 1 1 calc(50% - 4px);
+    margin: 0;
+    min-height: 0;
+  }
+  .tycoon-toolbar-end .tycoon-add-room { width: 100%; }
 }
