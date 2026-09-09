@@ -8337,7 +8337,20 @@
     if (piece) liftPiece(piece.roomIndex, piece.index);
   }
 
+  // The folded-up line: how many pieces are waiting, so it can be left
+  // shut without wondering whether anything is in there.
+  function refreshStorageSummary() {
+    const sum = document.getElementById('storage-sum');
+    if (!sum) return;
+    // Clamped per item: a piece standing on a floor that the save never
+    // recorded as owned counts as none waiting, not as minus one.
+    const n = ITEMS.reduce((k, item) => k
+      + (item.starter ? 0 : Math.max(0, availableCount(item.id))), 0);
+    setText(sum, n === 0 ? 'Empty' : n === 1 ? '1 piece waiting' : n + ' pieces waiting');
+  }
+
   function renderInventory() {
+    refreshStorageSummary();
     inventoryEl.innerHTML = '';
     const ownedItems = ITEMS.filter((item) => !item.starter && availableCount(item.id) > 0);
     if (ownedItems.length === 0) {
@@ -8363,13 +8376,10 @@
       armBtn.className = 'tycoon-inv-arm';
       armBtn.innerHTML = '<span class="inv-cat-dot" style="background:' + cat.color + '"></span>'
         + '<span class="inv-icon">' + iconMarkup(item.id, 15) + '</span> '
-        + item.name + ' <span class="inv-count">x' + availableCount(item.id) + '</span>'
-        + '<span class="inv-rate"></span>';
-      // What it will be worth once it is down, so the choice of what to
-      // place first can be made here rather than back in the shop.
-      armBtn.querySelector('.inv-rate').textContent = item.effect
-        ? effectLine(item, true)
-        : formatNum(gpsOf(item.id)) + '/s';
+        + item.name + ' <span class="inv-count">x' + availableCount(item.id) + '</span>';
+      // What it does is on its shop row and in the fold's own line; a rate
+      // on every chip made a row of them unreadable.
+      armBtn.title = item.effect ? effectLine(item) : '+' + formatNum(gpsOf(item.id)) + '/s once placed';
       armBtn.addEventListener('click', () => {
         if (editing && editing.itemId === item.id && editing.fromIndex === null) {
           cancelEdit();
@@ -8764,37 +8774,46 @@
     designSig = sig;
     const isPv = (kind, id) => !!designPreview && designPreview.kind === kind && designPreview.id === id;
     const priceOf = (owned, cost) => owned ? 'Owned' : '$' + formatNum(cost);
+    // A swatch you are trying on grows the button that pays for it, so
+    // buying is one more click in the same place rather than a bar
+    // somewhere else on the panel.
+    const buyBtn = (kind, item) => '<span class="tycoon-swatch-buy" data-buy="' + kind + '" data-id="' + item.id + '"'
+      + ' role="button" tabindex="0">Buy $' + formatNum(item.cost) + '</span>';
     const swatch = (kind, item, chosen, owned, bg) => {
       const can = owned || bal >= item.cost;
       const pvHere = isPv(kind, item.id);
-      return '<button class="tycoon-swatch' + (chosen ? ' is-on' : '') + (pvHere ? ' is-preview' : '') + (can ? '' : ' is-poor') + '" type="button"'
+      return '<div class="tycoon-swatch' + (chosen ? ' is-on' : '') + (pvHere ? ' is-preview' : '') + (can ? '' : ' is-poor') + '"'
+        + ' role="button" tabindex="0"'
         + ' data-kind="' + kind + '" data-id="' + item.id + '" title="' + item.name + '">'
         + '<span class="tycoon-swatch-chip" style="background:' + bg + '"></span>'
         + '<span class="tycoon-swatch-name">' + item.name + '</span>'
-        + '<span class="tycoon-swatch-price">' + (chosen ? 'On' : pvHere ? 'Preview' : priceOf(owned, item.cost)) + '</span>'
-        + '</button>';
+        + (pvHere ? buyBtn(kind, item)
+          : '<span class="tycoon-swatch-price">' + (chosen ? 'On' : priceOf(owned, item.cost)) + '</span>')
+        + '</div>';
     };
     const base = THEME_COLORS[theme] || THEME_COLORS.garage;
-    const wallRow = '<button class="tycoon-swatch' + (!d.walls[theme] ? ' is-on' : '') + '" type="button" data-kind="wall" data-id="">'
+    const wallRow = '<div class="tycoon-swatch' + (!d.walls[theme] ? ' is-on' : '') + '" role="button" tabindex="0" data-kind="wall" data-id="">'
       + '<span class="tycoon-swatch-chip" style="background:' + base.wallL + '"></span>'
-      + '<span class="tycoon-swatch-name">As built</span><span class="tycoon-swatch-price">' + (!d.walls[theme] ? 'On' : 'Free') + '</span></button>'
+      + '<span class="tycoon-swatch-name">As built</span><span class="tycoon-swatch-price">' + (!d.walls[theme] ? 'On' : 'Free') + '</span></div>'
       + WALL_PAINTS.map((w) => swatch('wall', w, d.walls[theme] === w.id, !!d.ownedWalls[w.id], w.color)).join('');
-    const floorRow = '<button class="tycoon-swatch' + (!d.floors[theme] ? ' is-on' : '') + '" type="button" data-kind="floor" data-id="">'
+    const floorRow = '<div class="tycoon-swatch' + (!d.floors[theme] ? ' is-on' : '') + '" role="button" tabindex="0" data-kind="floor" data-id="">'
       + '<span class="tycoon-swatch-chip" style="background:linear-gradient(135deg,' + base.floorA + ' 50%,' + base.floorB + ' 50%)"></span>'
-      + '<span class="tycoon-swatch-name">As built</span><span class="tycoon-swatch-price">' + (!d.floors[theme] ? 'On' : 'Free') + '</span></button>'
+      + '<span class="tycoon-swatch-name">As built</span><span class="tycoon-swatch-price">' + (!d.floors[theme] ? 'On' : 'Free') + '</span></div>'
       + FLOOR_PAINTS.map((f) => swatch('floor', f, d.floors[theme] === f.id, !!d.ownedFloors[f.id],
         'linear-gradient(135deg,' + f.a + ' 50%,' + f.b + ' 50%)')).join('');
-    const artRow = '<button class="tycoon-swatch is-wide' + (!d.art[theme] ? ' is-on' : '') + '" type="button" data-kind="art" data-id="">'
+    const artRow = '<div class="tycoon-swatch is-wide' + (!d.art[theme] ? ' is-on' : '') + '" role="button" tabindex="0" data-kind="art" data-id="">'
       + '<span class="tycoon-swatch-chip is-none"></span>'
-      + '<span class="tycoon-swatch-name">Bare walls</span><span class="tycoon-swatch-price">' + (!d.art[theme] ? 'On' : 'Free') + '</span></button>'
+      + '<span class="tycoon-swatch-name">Bare walls</span><span class="tycoon-swatch-price">' + (!d.art[theme] ? 'On' : 'Free') + '</span></div>'
       + WALL_ART.map((a) => {
         const chosen = d.art[theme] === a.id;
         const can = chosen || bal >= a.cost;
         const pvHere = isPv('art', a.id);
-        return '<button class="tycoon-swatch is-wide' + (chosen ? ' is-on' : '') + (pvHere ? ' is-preview' : '') + (can ? '' : ' is-poor') + '" type="button" data-kind="art" data-id="' + a.id + '">'
+        return '<div class="tycoon-swatch is-wide' + (chosen ? ' is-on' : '') + (pvHere ? ' is-preview' : '') + (can ? '' : ' is-poor') + '"'
+          + ' role="button" tabindex="0" data-kind="art" data-id="' + a.id + '">'
           + '<span class="tycoon-swatch-chip is-' + a.id + '"></span>'
           + '<span class="tycoon-swatch-name">' + a.name + '<small>' + a.note + '</small></span>'
-          + '<span class="tycoon-swatch-price">' + (chosen ? 'On' : pvHere ? 'Preview' : '$' + formatNum(a.cost)) + '</span></button>';
+          + (pvHere ? buyBtn('art', a)
+            : '<span class="tycoon-swatch-price">' + (chosen ? 'On' : '$' + formatNum(a.cost)) + '</span>') + '</div>';
       }).join('');
     const finishRow = FINISHES.map((f) => {
       const chosen = d.finish === f.id;
@@ -8802,27 +8821,14 @@
       const can = owned || bal >= f.cost;
       const pvHere = isPv('finish', f.id);
       const chip = f.palette.STEEL || STOCK_PALETTE.STEEL;
-      return '<button class="tycoon-swatch is-wide' + (chosen ? ' is-on' : '') + (pvHere ? ' is-preview' : '') + (can ? '' : ' is-poor') + '" type="button" data-kind="finish" data-id="' + f.id + '">'
+      return '<div class="tycoon-swatch is-wide' + (chosen ? ' is-on' : '') + (pvHere ? ' is-preview' : '') + (can ? '' : ' is-poor') + '"'
+        + ' role="button" tabindex="0" data-kind="finish" data-id="' + f.id + '">'
         + '<span class="tycoon-swatch-chip" style="background:linear-gradient(135deg,' + (f.palette.STEEL_LT || STOCK_PALETTE.STEEL_LT) + ',' + chip + ' 60%,' + (f.palette.FRAME_DK || STOCK_PALETTE.FRAME_DK) + ')"></span>'
         + '<span class="tycoon-swatch-name">' + f.name + '<small>' + f.note + '</small></span>'
-        + '<span class="tycoon-swatch-price">' + (chosen ? 'On' : pvHere ? 'Preview' : owned ? 'Owned' : f.cost ? '$' + formatNum(f.cost) : 'Free') + '</span></button>';
+        + (pvHere ? buyBtn('finish', f)
+          : '<span class="tycoon-swatch-price">' + (chosen ? 'On' : owned ? 'Owned' : f.cost ? '$' + formatNum(f.cost) : 'Free') + '</span>') + '</div>';
     }).join('');
-    // What is being tried on, with the one button that pays for it.
-    let previewBar = '';
-    if (designPreview) {
-      const item = designItem(designPreview.kind, designPreview.id);
-      if (item) {
-        previewBar = '<div class="tycoon-preview-bar" id="design-preview">'
-          + '<span class="tycoon-preview-text">Previewing <b>' + item.name + '</b>'
-            + (designPreview.kind === 'finish' ? ' on every machine' : ' in the ' + designThemeName()) + '</span>'
-          + '<span class="tycoon-preview-actions">'
-            + '<button class="tycoon-preview-buy" type="button" id="design-buy">Buy for $' + formatNum(item.cost) + '</button>'
-            + '<button class="tycoon-preview-cancel" type="button" id="design-cancel">Cancel</button>'
-          + '</span></div>';
-      }
-    }
-    designEl.innerHTML = previewBar
-      + '<p class="tycoon-panel-note">Paint and art go on the location you are in. A finish goes on every machine. Click one you can afford to see it on the plan, then buy it. Buy a colour once, use it anywhere.</p>'
+    designEl.innerHTML = '<p class="tycoon-panel-note">Paint and art go on the location you are in. A finish goes on every machine. Click one to see it on the plan, then press its Buy button to keep it. Buy a colour once, use it anywhere.</p>'
       + '<h3 class="tycoon-panel-title">Walls <span class="tycoon-panel-sub">' + designThemeName() + '</span></h3>'
       + '<div class="tycoon-swatches">' + wallRow + '</div>'
       + '<h3 class="tycoon-panel-title">Floor <span class="tycoon-panel-sub">' + designThemeName() + '</span></h3>'
@@ -8845,12 +8851,22 @@
     return list.find((x) => x.id === id);
   }
   if (designEl) {
+    designEl.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const hit = e.target.closest('.tycoon-swatch-buy, .tycoon-swatch');
+      if (!hit) return;
+      e.preventDefault();
+      hit.click();
+    });
     designEl.addEventListener('click', (e) => {
-      if (e.target.closest('#design-buy')) {
-        if (designPreview) buyDesign(designPreview.kind, designPreview.id);
+      // The Buy button sits inside the swatch it belongs to, so it has to
+      // be looked at before the swatch under it.
+      const buy = e.target.closest('.tycoon-swatch-buy');
+      if (buy) {
+        e.stopPropagation();
+        buyDesign(buy.dataset.buy, buy.dataset.id);
         return;
       }
-      if (e.target.closest('#design-cancel')) { clearDesignPreview(); return; }
       const btn = e.target.closest('.tycoon-swatch');
       if (!btn) return;
       const kind = btn.dataset.kind;

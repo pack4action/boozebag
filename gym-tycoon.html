@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=10" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=5" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=78" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=80" />
 </head>
 <body class="game-body">
 
@@ -157,12 +157,10 @@
       <span class="tycoon-next-text"></span>
       <button class="tycoon-next-go" type="button" hidden></button>
     </div>
-    <div class="tycoon-tray">
-      <div class="tycoon-tray-head">
-        <h3 class="tycoon-panel-title">Storage <span class="tycoon-panel-sub">click a piece to put it down</span></h3>
-      </div>
+    <details class="tycoon-room-details tycoon-tray" id="storage-fold" open>
+      <summary><span class="tycoon-rd-label">Storage</span><span class="tycoon-rd-sum" id="storage-sum"></span></summary>
       <div class="tycoon-inventory" id="tycoon-inventory"></div>
-    </div>
+    </details>
     <details class="tycoon-room-details" id="room-details" hidden>
       <summary><span class="tycoon-rd-label">Room details</span><span class="tycoon-rd-sum" id="room-details-sum"></span></summary>
       <div class="tycoon-synergy" id="tycoon-synergy"></div>
@@ -273,6 +271,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=120"></script>
+<script src="assets/js/gym-tycoon.js?v=122"></script>
 </body>
 </html>
