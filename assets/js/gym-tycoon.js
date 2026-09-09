@@ -128,6 +128,9 @@
     if (!tiers) return tiers;
     Object.keys(tiers).forEach((id) => {
       const item = itemById(id);
+      // The desk is the exception: it earns nothing and its mark is still
+      // worth keeping, because the bubble cap is read off it.
+      if (item && item.starter) return;
       if (!item || item.effect || item.gps <= 0) delete tiers[id];
     });
     return tiers;
@@ -810,9 +813,12 @@
   // that type you have -- which makes the real question wide or tall. Wide
   // is more units and so more neighbours to earn synergy from; tall is
   // fewer, better ones. Slots are what make it a question at all.
-  const MAX_TIER = 3;
+  // Five marks rather than three. The gear ladder used to end at level 8,
+  // where the last machine unlocks, leaving the rest of the levels with
+  // nothing to spend on; two more marks carry it the rest of the way.
+  const MAX_TIER = 5;
   const TIER_STEP = 2.2;
-  const TIER_NAMES = ['', 'Mk I', 'Mk II', 'Mk III', 'Mk IV'];
+  const TIER_NAMES = ['', 'Mk I', 'Mk II', 'Mk III', 'Mk IV', 'Mk V'];
   // Any machine you own can be upgraded, from the first one you buy.
   const UPGRADE_MIN_LEVEL = 1;
   const UPGRADE_MIN_OWNED = 1;
@@ -832,9 +838,20 @@
     const item = itemById(id);
     return Math.ceil(item.baseCost * 40 * Math.pow(3.2, tierOf(id) - 1));
   }
+  // The Customer Desk earns nothing, so it used to be the one thing in the
+  // shop that could not be improved -- and the bubble cap, which is read
+  // off its mark, was stuck at two minutes for the whole game as a result.
+  // Its marks buy holding room instead of takings, which is what makes a
+  // night away worth anything.
+  function upgradeIsCap(id) {
+    const item = itemById(id);
+    return !!item && !!item.starter;
+  }
   function canUpgrade(id) {
     const item = itemById(id);
-    return !!item && !item.effect && item.gps > 0 && tierOf(id) < MAX_TIER
+    if (!item || item.effect) return false;
+    if (!(item.gps > 0 || upgradeIsCap(id))) return false;
+    return tierOf(id) < MAX_TIER
       && currentLevel() >= UPGRADE_MIN_LEVEL
       && (state.owned[id] || 0) >= UPGRADE_MIN_OWNED;
   }
@@ -1222,7 +1239,7 @@
   // to begin with, more as the Customer Desk is upgraded, and a piece whose
   // pile is full earns nothing until it is cleared. That is the whole loop
   // of the early game, and hiring your way out of it is the mid game.
-  const PILE_CAP_SECONDS = [0, 120, 360, 1200, 3600];
+  const PILE_CAP_SECONDS = [0, 120, 360, 1200, 3600, 10800];
   function pileCapSeconds() {
     return PILE_CAP_SECONDS[tierOf('frontdesk')] || PILE_CAP_SECONDS[1];
   }
@@ -1815,9 +1832,9 @@
       if (n > 0) stock[p] = Math.min(LARDER_CAP, n);
     });
     s.larder = stock;
-    // Nothing is credited for the time the tab was gone: gear earns while
-    // you are watching it and not otherwise. lastSaved is still written --
-    // it dates the save -- it just no longer buys anything.
+    // What the time away is worth is settled after the state is in place,
+    // by creditTimeAway() below: the sums need the whole gym, and the whole
+    // gym is not assembled until this function has returned.
     return s;
   }
 
@@ -1827,6 +1844,56 @@
   }
 
   let state = load();
+
+  // ---- What happened while you were away ----
+  // Gear used to earn only while you were watching it, so a gym left
+  // overnight was a gym that had done nothing, and there was no reason to
+  // open it again in the morning. Time away now fills the coin bubbles
+  // exactly as watching would, and stops where they stop.
+  //
+  // That last part is what makes this safe rather than a second economy: a
+  // bubble holds a couple of minutes of its machine's takings to begin
+  // with and a full hour of them once the Customer Desk is at its best, so
+  // a night away and a fortnight away come back to the same full bubbles.
+  // Nothing is paid into the balance behind your back either -- it is all
+  // still standing on the floor, waiting for you or a Cashier to fetch it.
+  // Upgrading the desk is what turns a night away into real money, which is
+  // the point: it was the dullest upgrade in the shop.
+  const AWAY_CAP_SECONDS = 14 * 24 * 3600;
+  function secondsAway() {
+    const since = Number(state.lastSaved);
+    if (!since) return 0;
+    // A clock that has gone backwards -- a machine woken from sleep, a
+    // timezone that moved -- credits nothing rather than something strange.
+    const away = Math.floor((Date.now() - since) / 1000);
+    return away > 0 ? Math.min(AWAY_CAP_SECONDS, away) : 0;
+  }
+  function creditTimeAway() {
+    const away = secondsAway();
+    // Under a minute is a page reload, not a night out.
+    if (away < 60) return 0;
+    let filled = 0;
+    THEMES.forEach((t) => {
+      const rooms = state.themeRooms[t.id] || [];
+      if (!chainHasDesk(rooms)) return;
+      rooms.forEach((room, i) => {
+        const rates = pieceRates(room, roomShapeFor(t.id, i));
+        const cash = roomCash(room);
+        const capS = pileCapSecondsFor(room);
+        rates.forEach((r, k) => {
+          if (r <= 0 || room.layout[k] === 'frontdesk') return;
+          const cap = niceCap(r * capS);
+          const before = cash[k] || 0;
+          cash[k] = Math.min(cap, before + r * away);
+          filled += cash[k] - before;
+        });
+      });
+    });
+    return filled;
+  }
+  const awayFor = secondsAway();
+  const awayCash = creditTimeAway();
+
   // The current theme's own chain of rooms, and whichever one in it is
   // focused for placement/shop/synergy purposes.
   function activeRooms() {
@@ -3730,11 +3797,22 @@
   }
 
   const toastEl = document.getElementById('game-toast');
-  function toast(msg, cls) {
+  function toast(msg, cls, ms) {
     toastEl.textContent = msg;
     toastEl.className = 'game-toast show' + (cls ? ' ' + cls : '');
     clearTimeout(toast._t);
-    toast._t = setTimeout(() => { toastEl.classList.remove('show'); }, 1100);
+    toast._t = setTimeout(() => { toastEl.classList.remove('show'); }, ms || 1100);
+  }
+
+  // A stretch of time in the words a person would use for it. Rounded hard,
+  // because "away for about 8 hours" is the whole of what anybody wants.
+  function awayWords(secs) {
+    const mins = Math.round(secs / 60);
+    if (mins < 60) return mins + (mins === 1 ? ' minute' : ' minutes');
+    const hours = Math.round(secs / 3600);
+    if (hours < 36) return hours + (hours === 1 ? ' hour' : ' hours');
+    const days = Math.round(secs / 86400);
+    return days + (days === 1 ? ' day' : ' days');
   }
 
   // ---- HUD ----
@@ -3917,12 +3995,24 @@
   // What a shop row says a piece does. A counter earns like anything else
   // and also makes stock, and the stock is the reason to buy one, so the row
   // has to say so where the gains/sec is said.
+  function capWords(secs) {
+    return secs >= 3600
+      ? Math.round(secs / 360) / 10 + ' hr'
+      : Math.round(secs / 60) + ' min';
+  }
   function earnsLine(itemId) {
     const item = itemById(itemId);
     const tier = tierOf(itemId);
     if (item.starter) {
-      return 'Opens the location. Earns nothing itself'
-        + (tier > 1 ? ' \u00b7 bubbles hold ' + Math.round(pileCapSeconds() / 60) + ' min' : '');
+      // The desk is the one thing whose mark buys holding room rather than
+      // takings, and that is the whole reason to improve it, so it is what
+      // the row says instead of a rate.
+      const long = 'Opens the location. Bubbles hold ' + capWords(pileCapSeconds())
+        + ' of what a machine makes'
+        + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '');
+      const short = 'Opens up \u00b7 bubbles hold ' + capWords(pileCapSeconds());
+      return '<span class="btn-long">' + long + '</span>'
+        + '<span class="btn-short">' + short + '</span>';
     }
     // Decor earns nothing. What it does instead is the reason to buy it,
     // so that is what its row says.
@@ -4176,6 +4266,23 @@
       + ' is closed. Take its free Customer Desk from the Shop and put it down.';
   }
 
+  // The upgrade control on one shop row: what the next mark costs and what
+  // it buys, which is takings for a machine and holding room for the desk.
+  function refreshUpgradeBtn(btn, itemId) {
+    const upgradable = canUpgrade(itemId);
+    btn.hidden = !upgradable;
+    if (!upgradable) return;
+    const tier = tierOf(itemId);
+    const upCost = upgradeCost(itemId);
+    const gain = upgradeIsCap(itemId)
+      ? 'bubbles ' + capWords(PILE_CAP_SECONDS[tier + 1] || pileCapSeconds())
+      : 'x' + TIER_STEP.toFixed(1);
+    setHtml(btn, '<span class="btn-long">Upgrade to </span>' + TIER_NAMES[tier + 1]
+      + '<span class="btn-long"> for</span> $' + formatNum(upCost)
+      + '<span class="btn-long"> (' + gain + ')</span>');
+    btn.disabled = state.balance < upCost;
+  }
+
   function refreshShopUI() {
     refreshOpenHint();
     // A heading with nothing under it is noise, so each one follows its
@@ -4200,6 +4307,7 @@
           + '<span class="btn-short">Level ' + item.unlockLevel + '</span>');
         els.buyBtn.disabled = true;
         els.root.classList.remove('is-affordable');
+        els.upBtn.hidden = true;
         return;
       }
       const owned = state.owned[item.id] || 0;
@@ -4207,6 +4315,14 @@
       // "x0" on every row you own none of is noise; the count only shows
       // once there is one to count.
       els.ownedEl.textContent = owned ? 'x' + owned : '';
+      // The mark, the line and the upgrade first: they are true of the row
+      // whether or not there is anything left to buy on it, and a placed
+      // desk -- which has nothing left to buy -- is exactly the row whose
+      // mark you want to see.
+      const tier = tierOf(item.id);
+      els.tierEl.textContent = item.name + (tier > 1 ? ' ' + TIER_NAMES[tier] : '');
+      setHtml(els.gpsEl, earnsLine(item.id));
+      refreshUpgradeBtn(els.upBtn, item.id);
       // Shut until the Customer Desk is down, apart from the desk itself --
       // which is only for sale while some location still has none.
       const shut = item.starter ? !deskWanted() : !gymOpen();
@@ -4217,7 +4333,6 @@
             + '<span class="btn-short">Desk first</span>');
         els.buyBtn.disabled = true;
         els.root.classList.remove('is-affordable');
-        els.upBtn.hidden = true;
         return;
       }
       setHtml(els.buyBtn, item.starter ? 'Take it, free'
@@ -4226,20 +4341,7 @@
       els.buyBtn.disabled = !affordable;
       els.root.classList.toggle('is-affordable', affordable);
 
-      // What it earns now, which is not what it says on the tin once it has
-      // been upgraded, and the control to take it further.
-      const tier = tierOf(item.id);
-      els.tierEl.textContent = item.name + (tier > 1 ? ' ' + TIER_NAMES[tier] : '');
-      setHtml(els.gpsEl, earnsLine(item.id));
-      const upgradable = canUpgrade(item.id);
-      els.upBtn.hidden = !upgradable;
-      if (upgradable) {
-        const upCost = upgradeCost(item.id);
-        setHtml(els.upBtn, '<span class="btn-long">Upgrade to </span>' + TIER_NAMES[tier + 1]
-          + '<span class="btn-long"> for</span> $' + formatNum(upCost)
-          + '<span class="btn-long"> (x' + TIER_STEP.toFixed(1) + ')</span>');
-        els.upBtn.disabled = state.balance < upCost;
-      }
+
     });
   }
 
@@ -8850,6 +8952,25 @@
   }
 
   // ---- Reset ----
+  // TESTING ONLY. Delete this block, and the button marked the same way in
+  // gym-tycoon.html, when you are done poking at the numbers. It pays into
+  // the balance and nothing else: no experience, so it cannot quietly walk
+  // the level up and unlock things you have not earned.
+  const cheatBtn = document.getElementById('btn-cheat');
+  if (cheatBtn) {
+    cheatBtn.addEventListener('click', () => {
+      state.balance += 1e12;
+      state.lifetime += 1e12;
+      refreshHud();
+      refreshShopUI();
+      refreshStaffUI();
+      refreshRoomActions();
+      renderScene();
+      save();
+      toast('+$1.00T', 'good');
+    });
+  }
+
   document.getElementById('btn-reset').addEventListener('click', () => {
     if (!confirm("Reset all Gym Tycoon progress on this browser? This can't be undone.")) return;
     localStorage.removeItem(SAVE_KEY);
@@ -9249,6 +9370,16 @@
   // qualifies for something opens showing it rather than winning it a
   // second and a half after the page settles.
   checkTrophies(true);
+
+  // What was earned while the tab was shut, said once, and held on screen
+  // long enough to read. A gym that filled nothing -- no gear down yet, or
+  // every bubble already full when you left -- says nothing at all.
+  if (awayCash >= 1) {
+    setTimeout(() => {
+      toast('Away ' + awayWords(awayFor) + '. $' + formatNum(awayCash)
+        + ' waiting in the bubbles', 'good', 4200);
+    }, 700);
+  }
 
   // The plot sign for the next room lights up once you can afford it, so the
   // scene has to be redrawn on the tick that crosses the price -- the loop
