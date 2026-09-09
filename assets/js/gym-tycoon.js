@@ -3426,7 +3426,8 @@
     // show. It used to say "Room 1 is empty" here, which the hint box and
     // the Storage tray were already saying in their own words.
     const nothing = !gymOpen() || placed === 0;
-    if (synergyEl.hidden !== nothing) synergyEl.hidden = nothing;
+    const box = document.getElementById('room-details');
+    if (box && box.hidden !== nothing) box.hidden = nothing;
     if (nothing) return;
     const baseSum = layout.reduce((sum, id) => sum + (id ? gpsOf(id) : 0), 0);
     const room = activeRoom();
@@ -3474,6 +3475,10 @@
       + cell('', 'tycoon-bd-pct') + cell('', 'tycoon-bd-num') + '</span>';
     synergyEl.querySelector('.tycoon-bd-head').textContent =
       roomLabel() + ' \u00b7 ' + placed + '/' + layout.length + ' slots filled';
+    // The folded-up line says the one thing worth knowing without opening
+    // it: which room, and what it earns.
+    setText(document.getElementById('room-details-sum'),
+      roomLabel() + ' \u00b7 ' + formatNum(roomGps) + '/s');
     const rowEls = synergyEl.querySelectorAll('.tycoon-bd-row');
     rows.concat([['This room earns', '', formatNum(roomGps) + '/s']]).forEach((r, i) => {
       const el = rowEls[i];

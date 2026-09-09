@@ -1789,3 +1789,67 @@
   /* "$502.04B" is eight characters; at 18px it clipped the box. */
   .tycoon-page .hud-value { font-size: 15px; }
 }
+
+/* ---- Boxes, and a fold ----
+   Storage is a card with a heading, not a heading floating over a row of
+   chips. The room breakdown folds up into one line -- which room, what it
+   earns -- and opens when you want the working. Everything under the plan
+   is centred in the column. */
+.tycoon-tray {
+  border: 1px solid var(--panel-border, #2a2732);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 12px 14px 12px;
+  margin: 0 0 10px;
+}
+.tycoon-tray-head { justify-content: center; position: relative; margin-bottom: 10px; }
+.tycoon-tray-head .tycoon-panel-title { margin: 0; text-align: center; }
+.tycoon-tray-head .tycoon-place-all { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+.tycoon-inventory { justify-content: center; max-width: none; margin: 0; }
+
+.tycoon-room-details {
+  border: 1px solid var(--panel-border, #2a2732);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+  margin: 0 0 10px;
+}
+.tycoon-room-details[hidden] { display: none; }
+.tycoon-room-details > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted, #8b8b93);
+  user-select: none;
+}
+.tycoon-room-details > summary::-webkit-details-marker { display: none; }
+.tycoon-room-details > summary::after {
+  content: '';
+  width: 7px; height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 0.15s ease;
+}
+.tycoon-room-details[open] > summary::after { transform: rotate(-135deg) translateY(-2px); }
+.tycoon-rd-sum { color: #ffd166; text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.tycoon-room-details .tycoon-synergy { margin: 0 auto; padding: 0 16px 12px; max-width: 440px; }
+.tycoon-room-details .tycoon-bd-head { display: none; }
+.tycoon-next, .tycoon-open-hint { margin-left: auto; margin-right: auto; }
+@media (max-width: 1079px) {
+  .tycoon-inventory { justify-content: center; }
+  .tycoon-tray-head .tycoon-panel-sub { display: none; }
+}
+@media (max-width: 560px) {
+  /* "Per second" and "In bubbles" in full, on two short lines rather than
+     clipped to "PER SECO…". */
+  .tycoon-page .hud-label { white-space: normal; line-height: 1.1; letter-spacing: 0.2px; }
+  .tycoon-page .hud-stat { display: flex; flex-direction: column; justify-content: flex-end; }
+}
