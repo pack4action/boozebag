@@ -4230,8 +4230,13 @@
   function fitZoomToStage() {
     if (!stageScrollEl || userSetZoom) return;
     const availW = stageScrollEl.clientWidth;
-    const availH = stageScrollEl.clientHeight;
-    if (!availW || !availH) return;
+    // clientHeight counts the padding that keeps the plan clear of the bar
+    // of controls standing on it. Fitting against that padding made the
+    // plan bigger than the space it actually has, so it overflowed the
+    // window and the view scrolled under the drag.
+    const padTop = parseFloat(getComputedStyle(stageScrollEl).paddingTop) || 0;
+    const availH = stageScrollEl.clientHeight - padTop;
+    if (!availW || availH <= 0) return;
     // Frame the plan with a little of what it stands in, rather than butting
     // it against the edges: the site around it is drawn now, and a plan
     // fitted edge to edge hides all of it. The margin scales with the window
