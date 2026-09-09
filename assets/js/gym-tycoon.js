@@ -837,8 +837,7 @@
       // the first collects half of everything as it is earned, and by the
       // third nothing waits on the floor at all.
       first: 0.5,
-      note: (n) => 'empties ' + Math.round(Math.min(1, staffEffect('cashier', n)) * 100)
-        + '% of the coin bubbles for you, so you tap less',
+      note: (n) => 'collects ' + Math.round(Math.min(1, staffEffect('cashier', n)) * 100) + '% of the bubbles for you',
     },
     {
       id: 'cleaner',
@@ -848,8 +847,7 @@
       // Keeps every room nicer than it would otherwise be: vibe points on
       // top of the fittings, and so subject to the same ceiling.
       first: 2,
-      note: (n) => '+' + staffEffect('cleaner', n).toFixed(1)
-        + ' vibe in every room, which lifts what the room earns',
+      note: (n) => '+' + staffEffect('cleaner', n).toFixed(1) + ' vibe in every room',
     },
     {
       id: 'receptionist',
@@ -859,8 +857,7 @@
       // Works the front desk, so more of the rush actually gets through the
       // door: the peak bonus itself is bigger.
       first: 0.3,
-      note: (n) => 'busy-hour bonus is ' + Math.round(staffEffect('receptionist', n) * 100)
-        + '% bigger than it would be',
+      note: (n) => 'busy-hour bonus +' + Math.round(staffEffect('receptionist', n) * 100) + '%',
     },
     {
       id: 'manager',
@@ -868,7 +865,7 @@
       baseCost: 250000,
       unlockLevel: 7,
       first: 0.18,
-      note: (n) => '+' + Math.round(staffEffect('manager', n) * 100) + '% on everything the gym earns',
+      note: (n) => '+' + Math.round(staffEffect('manager', n) * 100) + '% on everything',
     },
   ];
   function staffRole(id) {
@@ -2903,7 +2900,7 @@
     if (!counters.length) {
       const none = document.createElement('p');
       none.className = 'tycoon-counter-empty';
-      none.textContent = 'Put a Juice Bar or a Pro Shop on a floor and it can start making stock.';
+      none.textContent = 'No counter on a floor yet.';
       counterListEl.appendChild(none);
       return;
     }
@@ -2976,7 +2973,7 @@
     if (!held.length) {
       const none = document.createElement('span');
       none.className = 'tycoon-larder-empty';
-      none.textContent = 'The larder is empty.';
+      none.textContent = 'Larder empty.';
       larderEl.appendChild(none);
       return;
     }
@@ -3046,8 +3043,8 @@
       setText(row.state, ready
         ? ready + (ready === 1 ? ' batch ready' : ' batches ready')
         : q.length
-          ? 'Next in ' + secondsText(nextDone) + ', ' + q.length + ' of ' + QUEUE_SLOTS + ' on'
-          : 'Nothing on. The counter is free.');
+          ? 'Next in ' + secondsText(nextDone) + ' \u00b7 ' + q.length + ' of ' + QUEUE_SLOTS + ' on'
+          : 'Idle.');
       row.collect.hidden = ready === 0;
       row.makeBtns.forEach((mb) => {
         const full = q.length >= QUEUE_SLOTS;
@@ -3084,27 +3081,25 @@
       els.count.textContent = have ? ' x' + have : '';
       els.letGo.hidden = !have;
       if (!unlocked) {
-        els.note.textContent = 'You can hire these from level ' + role.unlockLevel;
+        els.note.textContent = 'From level ' + role.unlockLevel;
         els.btn.textContent = 'Locked';
         els.btn.disabled = true;
         return;
       }
       // What they are worth now, and what one more would add on top.
       const next = staffEffect(role.id, have + 1) - staffEffect(role.id, have);
-      els.note.textContent = (have ? role.note(have) + '. ' : '')
-        + 'One more adds ' + (role.id === 'cleaner'
+      els.note.textContent = (have ? role.note(have) + ' \u00b7 ' : '')
+        + 'next +' + (role.id === 'cleaner'
           ? next.toFixed(1) + ' vibe' : Math.round(next * 100) + '%')
-        + ' on top, and costs ' + Math.round(WAGE_SHARE_EACH * 100)
-        + '% of the takings in wages.';
+        + ' for ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings';
       els.btn.textContent = 'Hire -- $' + formatNum(cost);
       els.btn.disabled = state.balance < cost;
     });
     const share = wageShare();
     staffWagesEl.textContent = share > 0
-      ? 'You have ' + staffTotal() + (staffTotal() === 1 ? ' person' : ' people')
-        + ' on, taking ' + Math.round(share * 100) + '% of the takings in wages'
-        + (share >= WAGE_SHARE_MAX ? ', which is the most wages can ever be.' : '.')
-      : 'Nobody on the payroll yet, so no wages.';
+      ? staffTotal() + ' on staff. Wages: ' + Math.round(share * 100) + '% of the takings'
+        + (share >= WAGE_SHARE_MAX ? ' (the cap).' : '.')
+      : 'No wages yet.';
   }
 
   // Free to do, and no severance: over-hiring should be a mistake you can
@@ -3153,7 +3148,7 @@
       + '<span class="tycoon-rush-meter"><span class="tycoon-rush-fill" style="width:'
       + (f * 100).toFixed(0) + '%"></span></span>'
       + '<span class="tycoon-rush-bonus' + (bonus > 0 ? '' : ' is-none') + '">'
-      + (bonus > 0 ? '+' + bonus + '% while it lasts' : 'no bonus at this hour') + '</span>';
+      + (bonus > 0 ? '+' + bonus + '%' : 'no bonus') + '</span>';
   }
 
   // ---- Open day button ----
@@ -3172,10 +3167,10 @@
     promoBtn.classList.toggle('is-running', left > 0);
     promoBtn.disabled = cooling > 0;
     promoBtn.textContent = left > 0
-      ? 'Open day -- x' + PROMO_MULT + ' for ' + Math.ceil(left) + 's'
+      ? 'Open day x' + PROMO_MULT + ' \u00b7 ' + Math.ceil(left) + 's'
       : cooling > 0
-        ? 'Next open day in ' + clockOf(cooling)
-        : 'Run an open day -- x' + PROMO_MULT + ' for ' + PROMO_SECONDS + 's';
+        ? 'Open day in ' + clockOf(cooling)
+        : 'Open day \u00b7 x' + PROMO_MULT + ' for ' + PROMO_SECONDS + 's';
   }
 
   function runOpenDay() {
@@ -3188,7 +3183,7 @@
     refreshPromoUI();
     renderScene();
     save();
-    toast('Open day -- x' + PROMO_MULT + ' for ' + PROMO_SECONDS + ' seconds', 'good');
+    toast('Open day: x' + PROMO_MULT + ' for ' + PROMO_SECONDS + 's', 'good');
   }
 
   if (promoBtn) promoBtn.addEventListener('click', runOpenDay);
@@ -3230,8 +3225,7 @@
     const placed = layout.filter(Boolean).length;
     if (placed === 0) {
       synergyEl.innerHTML = '<p class="tycoon-bd-empty"></p>';
-      synergyEl.firstChild.textContent = roomLabel() + ' is empty, so it earns nothing. '
-        + 'Pick something out of Storage above, drag it where you want it, and press Place.';
+      synergyEl.firstChild.textContent = roomLabel() + ' is empty. Click a piece in Storage to put it down.';
       return;
     }
     const baseSum = layout.reduce((sum, id) => sum + (id ? gpsOf(id) : 0), 0);
@@ -3331,10 +3325,10 @@
   // has to say so where the gains/sec is said.
   function earnsLine(itemId) {
     const tier = tierOf(itemId);
-    return '+' + formatNum(gpsOf(itemId)) + ' gains/sec when placed'
+    return '+' + formatNum(gpsOf(itemId)) + '/s on the floor'
       + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '')
-      + (makesStock(itemId) ? ', and makes ' + RECIPES_OF[itemId]
-        .map((p) => PRODUCTS[p].name.toLowerCase()).join(' and ') + ' to order' : '');
+      + (makesStock(itemId) ? ' \u00b7 makes ' + RECIPES_OF[itemId]
+        .map((p) => PRODUCTS[p].name.toLowerCase() + 's').join(' and ') : '');
   }
 
   // Which category the shop is showing. Null is everything, which is where
@@ -3374,7 +3368,7 @@
         '</div>' +
         '<span class="shop-item-cat" style="color:' + cat.color + '">' + cat.name + '</span>' +
         '<span class="shop-item-gps">' + (item.vibe
-          ? '+' + Math.round(item.vibe * VIBE_PER_POINT * 100) + '% to everything its room earns'
+          ? '+' + Math.round(item.vibe * VIBE_PER_POINT * 100) + '% vibe for its room'
           : earnsLine(item.id)) + '</span>' +
         '<div class="shop-item-buy">' +
           '<button class="shop-buy-btn" type="button">Buy</button>' +
@@ -3420,47 +3414,44 @@
     const readyJobs = (state.jobs || []).filter((j) => jobProgress(j, tally).ready).length;
     const rush = rushOrder();
     if (rush && jobProgress(rush, tally).ready) {
-      return ['Your rush order is finished -- hand it in on the Jobs tab before the clock runs out.', 'jobs'];
+      return ['Rush order done. Hand it in before the clock runs out.', 'jobs'];
     }
     if (readyJobs) {
-      return [readyJobs === 1 ? 'A job is finished and waiting to be handed in.'
-        : readyJobs + ' jobs are finished and waiting to be handed in.', 'jobs'];
+      return [readyJobs === 1 ? 'A job is done. Hand it in.' : readyJobs + ' jobs are done. Hand them in.', 'jobs'];
     }
     const readyCounter = countersPlaced().find((c) => readyAt(c.room, c.index) > 0);
     if (readyCounter) {
-      return ['There is stock ready on the ' + itemById(readyCounter.itemId).name
-        + '. Collect it before the counter fills up.', 'counter'];
+      return ['Stock is ready on the ' + itemById(readyCounter.itemId).name + '.', 'counter'];
     }
     const waiting = ITEMS.reduce((n, item) => n + availableCount(item.id), 0);
     if (waiting) {
-      return [waiting === 1 ? 'One piece is sitting in Storage earning nothing. Put it on a floor.'
-        : waiting + ' pieces are sitting in Storage earning nothing. Put them on a floor.', null];
+      return [waiting === 1 ? 'One piece in Storage is earning nothing. Put it down.'
+        : waiting + ' pieces in Storage are earning nothing. Put them down.', null];
     }
     const inBubbles = floorCash();
     if (inBubbles >= 1) {
-      return ['$' + formatMoney(inBubbles) + ' is waiting in the coin bubbles. Tap them to collect it.', null];
+      return ['$' + formatMoney(inBubbles) + ' is in the bubbles. Tap them.', null];
     }
     // Nothing is waiting, so the question becomes what to spend on.
     const idle = countersPlaced().find((c) => queueAt(c.room, c.index).length === 0);
     if (idle) {
-      return ['The ' + itemById(idle.itemId).name + ' has nothing on. Start a batch and it runs while you play.', 'counter'];
+      return ['The ' + itemById(idle.itemId).name + ' is idle. Start a batch.', 'counter'];
     }
     const hire = STAFF_ROLES.find((r) => unlockedFor(r) && staffCount(r.id) === 0
       && state.balance >= staffHireCost(r.id));
     if (hire) {
-      return ['You can afford your first ' + hire.name + '. ' + hire.note(1) + '.', 'staff'];
+      return ['You can afford a ' + hire.name + ': ' + hire.note(1) + '.', 'staff'];
     }
     const up = ITEMS.find((i) => canUpgrade(i.id) && state.balance >= upgradeCost(i.id));
     if (up) {
-      return ['You can upgrade every ' + up.name + ' you own to '
-        + TIER_NAMES[tierOf(up.id) + 1] + ', which is worth 2.2 times as much.', 'shop'];
+      return ['You can upgrade the ' + up.name + ' to ' + TIER_NAMES[tierOf(up.id) + 1] + '.', 'shop'];
     }
     const buy = ITEMS.filter((i) => unlockedFor(i) && !i.starter && state.balance >= costFor(i))
       .sort((a, b) => costFor(b) - costFor(a))[0];
     if (buy) {
-      return ['The best thing you can afford right now is a ' + buy.name + '.', 'shop'];
+      return ['You can afford a ' + buy.name + '.', 'shop'];
     }
-    return ['Nothing to do but let it earn. Come back when there is money in the bubbles.', null];
+    return ['Nothing waiting. Let it earn.', null];
   }
 
   function refreshNextStep() {
@@ -3489,8 +3480,8 @@
     if (open) return;
     const theme = THEMES.find((t) => t.id === state.activeTheme);
     openHintEl.textContent = availableCount('frontdesk') > 0
-      ? 'The ' + theme.name + ' is closed. Your Customer Desk is in Storage, just under the plan: put it on the floor to open the doors. Until it is down, nothing earns and the shop stays shut.'
-      : 'The ' + theme.name + ' is closed. Every location comes with its own Customer Desk, free -- put it on this floor to open the doors.';
+      ? 'The ' + theme.name + ' is closed. Put the Customer Desk from Storage on the floor to open it.'
+      : 'The ' + theme.name + ' is closed. It needs its Customer Desk on the floor.';
   }
 
   function refreshShopUI() {
@@ -3511,14 +3502,15 @@
       }
       const owned = state.owned[item.id] || 0;
       const cost = costFor(item);
-      els.ownedEl.textContent = 'x' + owned;
+      // "x0" on every row you own none of is noise; the count only shows
+      // once there is one to count.
+      els.ownedEl.textContent = owned ? 'x' + owned : '';
       // Shut until the Customer Desk is down, apart from the desk itself --
       // which is only for sale while some location still has none.
       const shut = item.starter ? !deskWanted() : !gymOpen();
       els.root.classList.toggle('is-shut', shut);
       if (shut) {
-        els.buyBtn.textContent = item.starter
-          ? 'Free with every location' : 'Place your Customer Desk first';
+        els.buyBtn.textContent = item.starter ? 'Free with every location' : 'Place the desk first';
         els.buyBtn.disabled = true;
         els.root.classList.remove('is-affordable');
         els.upBtn.hidden = true;
@@ -7425,8 +7417,8 @@
       const p = document.createElement('p');
       p.className = 'tycoon-inv-empty';
       p.textContent = THEMES.some((t) => state.themeRooms[t.id].some((r) => r.layout.some(Boolean)))
-        ? 'Storage is empty -- everything you own is out on a floor, earning.'
-        : 'Put the Customer Desk down to open up, then buy some gear and stand it on the floor.';
+        ? 'Empty. Everything you own is on a floor.'
+        : 'Empty. Buy gear from the shop and it lands here.';
       inventoryEl.appendChild(p);
       return;
     }
@@ -7604,8 +7596,8 @@
     }
     const cost = ROOM_UNLOCK_COSTS[rooms.length];
     const affordable = state.balance >= cost;
-    const label = '+ Add Room (' + slotCountFor(state.activeTheme, rooms.length)
-      + ' slots) — $' + formatNum(cost);
+    const label = '+ Room \u00b7 ' + slotCountFor(state.activeTheme, rooms.length)
+      + ' slots \u00b7 $' + formatNum(cost);
     addRoomBtn.hidden = false;
     if (addRoomBtn.textContent !== label) addRoomBtn.textContent = label;
     addRoomBtn.classList.toggle('is-locked', !affordable);
@@ -7630,9 +7622,8 @@
     if (placeLabelEl) {
       const where = activeRooms().length > 1 ? ' in ' + roomLabel(editing.roomIndex) : '';
       placeLabelEl.textContent = (item ? item.name : 'Gear')
-        + (blocker ? ' -- too close to the ' + blockerName(blocker) + ', move it clear'
-          : editing.fromIndex === null ? where + ' -- drag it where you want it, then press Place'
-            : where + ' -- moving it. Press Place to set it down.');
+        + (blocker ? ' \u00b7 too close to the ' + blockerName(blocker)
+          : where + ' \u00b7 drag, then Place');
     }
     if (placeConfirmBtn) placeConfirmBtn.disabled = !!blocker;
     if (placeStoreBtn) placeStoreBtn.hidden = editing.fromIndex === null;

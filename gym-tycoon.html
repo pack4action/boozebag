@@ -38,7 +38,7 @@
 <main class="game-page tycoon-page">
   <div class="game-head">
     <h1 class="game-title">GYM <span class="hl">TYCOON</span></h1>
-    <p class="game-sub">Open a gym and fill it with kit. Buy a machine, stand it on the floor, and tap the coin bubble over it to take the money. Where you put things matters as much as what you buy.</p>
+    <p class="game-sub">Buy gear. Put it on the floor. Tap the bubble to take the money.</p>
   </div>
 
   <div class="game-switcher">
@@ -133,7 +133,7 @@
     </div>
     <div class="tycoon-tray">
       <div class="tycoon-tray-head">
-        <h3 class="tycoon-panel-title">Storage <span class="tycoon-panel-sub">bought but not standing anywhere, so earning nothing</span></h3>
+        <h3 class="tycoon-panel-title">Storage <span class="tycoon-panel-sub">click a piece to put it down</span></h3>
         <button class="tycoon-place-all" id="btn-place-all" type="button" hidden></button>
       </div>
       <div class="tycoon-inventory" id="tycoon-inventory"></div>
@@ -151,25 +151,25 @@
     </div>
 
     <section class="tycoon-panel" data-panel="shop">
-      <p class="tycoon-panel-note">Buying a piece puts it in Storage, just under the plan. It earns nothing until you stand it on the floor.</p>
+      <p class="tycoon-panel-note">What you buy lands in Storage. It only earns on the floor.</p>
       <div class="tycoon-filters" id="shop-filter"></div>
       <div class="tycoon-shop" id="shop-grid"></div>
     </section>
 
     <section class="tycoon-panel tycoon-jobs" data-panel="jobs" hidden>
-      <p class="tycoon-panel-note">Three jobs at a time, each paying cash and XP. They wait for you. From level 3 there is also one rush order on a clock, worth three times as much.</p>
+      <p class="tycoon-panel-note">Three jobs at a time. Do one, get paid, another takes its place.</p>
       <div class="tycoon-rush-order" id="rush-order" hidden></div>
       <div class="tycoon-jobs-list" id="jobs-list"></div>
     </section>
 
     <section class="tycoon-panel tycoon-counter" data-panel="counter" hidden>
-      <p class="tycoon-panel-note">Start a batch and it runs in real time, three back to back, whether the tab is open or not. Collect it into the larder, then sell it through a delivery order on the Jobs tab.</p>
+      <p class="tycoon-panel-note">Start a batch. It runs on its own. Delivery orders on the Jobs tab pay for the stock.</p>
       <div class="tycoon-larder" id="larder"></div>
       <div class="tycoon-counter-list" id="counter-list"></div>
     </section>
 
     <section class="tycoon-panel tycoon-staff" data-panel="staff" hidden>
-      <p class="tycoon-panel-note">You pay cash to hire, then a share of the takings as wages. Each extra hire in a role does less than the one before, so there is a point where the next one costs more than they bring in. <span id="staff-wages">no wages to pay</span></p>
+      <p class="tycoon-panel-note">Hire for cash, then pay wages out of the takings. Each extra hire does less than the last. <span id="staff-wages">no wages to pay</span></p>
       <div class="tycoon-staff-list" id="staff-list"></div>
     </section>
 
@@ -185,7 +185,7 @@
 
       <input class="tycoon-gym-name" id="gym-name" type="text" maxlength="28"
         placeholder="Name your gym" aria-label="Gym name" autocomplete="off" spellcheck="false" />
-      <h3 class="tycoon-panel-title">Your locations <span class="tycoon-panel-sub">four separate gyms &mdash; click one to go and look at it</span></h3>
+      <h3 class="tycoon-panel-title">Your locations <span class="tycoon-panel-sub">click one to go there</span></h3>
       <div class="tycoon-overview" id="overview"></div>
 
       <div class="tycoon-franchise" id="franchise-panel" hidden>
@@ -202,57 +202,40 @@
       <details class="tycoon-howto">
         <summary>How it works</summary>
         <div class="tycoon-howto-body">
-          <p><b>The short version.</b> Buy a machine. Stand it on the floor. Money collects in a bubble over it, and you tap the bubble to take it. Everything else is a way of making that bubble fill faster.</p>
-
-          <p><b>Opening up.</b> You start with a Customer Desk and nothing else. Put it down and the doors open: it earns membership fees on its own, and the shop unlocks with it. Nothing earns and nothing can be bought until it is standing on the floor. Every location comes with a desk of its own, free, the moment you unlock it. You never buy one, you can never own a spare, and a desk can never be sold.</p>
-
-          <p><b>Getting paid.</b> A machine does not pay straight into your balance. What it takes fills a coin bubble above it, and you tap the bubble to collect. A bubble holds a round figure, about two minutes of that machine's takings, and once it is full the machine stops earning until you empty it. That is the whole early game: come back, tap, come back.</p>
-
-          <p><b>Getting out of tapping.</b> Two things fix it. Upgrading the Customer Desk raises what every bubble can hold, from two minutes up to a full hour at Mk IV. Hiring Cashiers collects a share of the takings for you as they are earned, and three of them means nothing waits at all.</p>
-
-          <p><b>Putting things down.</b> Click a piece in Storage to pick it up, drag it or nudge it with the arrow keys, press R to turn it, then Enter or Place to set it down. Escape puts it back. It stands exactly where you leave it, not in a grid square, and if you own another of the same it comes straight to hand so you can lay out a row without going back to Storage. Two fingers pan and pinch the view while you are still holding something. Click a piece already on the floor to move it again or put it back in Storage. Storage sells back at 60% of what you paid.</p>
-
-          <p><b>Room to use it.</b> Every machine keeps a strip of clear floor on the side you step onto it from. While you are holding a piece that strip is drawn as a dashed patch, and nothing may stand in it. Two treadmills side by side are fine. One parked directly behind another is not, because nobody could get on the back one.</p>
-
-          <p><b>Arrangement.</b> Each piece belongs to a category, shown by the coloured dot on its shop row. Two pieces of the same category standing within about two metres of each other are worth +12% each. A Gear Fridge or a Hype Sound System next to something from a different category is worth +20%. The room breakdown under the plan shows what your layout is actually earning you.</p>
-
-          <p><b>Fittings.</b> A palm, a water cooler, a mirror wall or a neon sign earns nothing by itself. What it does is raise that room's vibe, which lifts everything else in the room and pulls in a bigger crowd. Each one takes floor a machine could have had. That is the trade, and there is a cap, so a room of nothing but palms is wasted.</p>
-
-          <p><b>Upgrades.</b> From level 4, once you own three of something, its shop row grows an Upgrade button. Upgrading lifts every one of that piece you own, not just one, and each tier is worth 2.2 times the last. Four tiers, Mk I to Mk IV. An upgraded piece is marked with a stripe on the floor in front of it.</p>
-
-          <p><b>The counter.</b> A Juice Bar or a Pro Shop earns on the floor like anything else and also makes stock. Start a batch on the Counter tab and it runs in real time whether you are watching or not, three back to back. The quick recipe suits somebody sitting there filling an order; the slow one is most of an hour of stock for somebody closing the tab. Finished batches keep in the larder, 25 of each at most.</p>
-
-          <p><b>Jobs.</b> Three jobs on the Jobs tab at any time, with the cash and the XP stated before you start. Finish one and another takes its place. Delivery orders are the ones that ask for stock off the counter, and they pay about double. From level 3 there is also one rush order at a time, worth three times a standing job, with eight minutes on it. Miss one and the board goes quiet for twenty minutes.</p>
-
-          <p><b>Levels.</b> Buying and upgrading gear earns XP, and dearer kit earns more. Levelling is what opens the other three locations, the office tier, the staff roles and the upgrade button. It is the only thing that does.</p>
-
-          <p><b>Staff.</b> Cashiers collect for you, Cleaners lift every room's vibe, Receptionists make the busy hours busier, and a Floor Manager adds to everything. Each extra hire in a role is worth less than the one before while the wage stays the same, so watch for the point where the next one costs more than they bring in. Anyone can be let go.</p>
-
-          <p><b>Busy hours.</b> The gym fills up in the morning and again in the evening, on your own clock, and everything earns a bonus while it lasts. A quiet hour is never a penalty, only a smaller bonus. An open day is the same thing on demand, once the cooldown allows.</p>
-
-          <p><b>Locations and rooms.</b> The Garage, Basement, Rooftop and Boardwalk are four separate gyms, each unlocked by level and each growing its own chain of rooms joined by hallways. Gear stays where you left it when you switch. Drag to pan the plan, scroll or pinch to zoom.</p>
-
-          <p><b>Franchising.</b> When the shop runs out there is nothing left to buy but more of the same. Franchising cashes the whole gym in for points that multiply everything from then on. You keep your level, everything it unlocked, your trophies and your points.</p>
+          <p><b>The loop.</b> Buy a machine. Put it on the floor. Tap the bubble over it to take the money. Everything else makes that bubble fill faster.</p>
+          <p><b>Opening up.</b> Put the Customer Desk down first. Nothing earns and nothing sells until it is. Every location gets one free. You never buy or sell one.</p>
+          <p><b>Bubbles.</b> A bubble holds about two minutes of takings. Full bubble, machine stops. Upgrade the desk to make them hold more, up to an hour. Hire Cashiers to empty them for you.</p>
+          <p><b>Placing.</b> Click a piece in Storage. Drag it, or use the arrow keys. R turns it. Enter places it. Escape puts it back. Place one and the next of the same kind is already in your hand. Two fingers pan and zoom while you hold something.</p>
+          <p><b>Clear floor.</b> Each machine needs a strip of floor on the side you step on from. It shows as a dashed patch while you hold the piece. Nothing can stand in it.</p>
+          <p><b>Arrangement.</b> Same category within two metres: +12% each. A Gear Fridge or Sound System next to a different category: +20%. The breakdown under the plan shows what your layout earns.</p>
+          <p><b>Fittings.</b> Palms, coolers, mirrors and neon earn nothing. They raise the room's vibe, which lifts everything in it. There is a cap.</p>
+          <p><b>Upgrades.</b> From level 4, own three of a piece and its row grows an Upgrade button. Each tier is worth 2.2 times the last. Four tiers.</p>
+          <p><b>The counter.</b> A Juice Bar or Pro Shop makes stock while it earns. Start batches on the Counter tab. They run whether you are here or not. Delivery orders pay double for the stock.</p>
+          <p><b>Jobs.</b> Three at a time, pay stated up front. From level 3, one rush order at a time on an eight-minute clock, worth triple.</p>
+          <p><b>Levels.</b> Buying and upgrading gear earns XP. Levels open locations, staff and the office tier. Nothing else does.</p>
+          <p><b>Staff.</b> Cashiers collect. Cleaners lift vibe. Receptionists make busy hours busier. A Floor Manager adds to everything. Each extra hire does less. Anyone can be let go.</p>
+          <p><b>Busy hours.</b> Mornings and evenings on your clock earn a bonus. Quiet hours are never a penalty. An open day is the same on demand.</p>
+          <p><b>Locations.</b> Four separate gyms, each unlocked by level. Drag to pan, scroll or pinch to zoom.</p>
+          <p><b>Franchising.</b> When the shop runs out, cash the gym in for points that multiply everything after. You keep your level and trophies.</p>
         </div>
       </details>
     </section>
   </div>
 
-  <p class="game-hint">Your progress saves to this browser on its own. The gym only earns while this tab is open and on screen, so closing it or switching away pauses everything until you come back. The one exception is the counter: a batch you have started keeps running. Connect a wallet to put your total on the leaderboard.</p>
+  <p class="game-hint">Saves on its own. Earns only while this tab is open. Counter batches keep running either way.</p>
 
   <div class="leaderboard">
     <h3 class="leaderboard-title">Leaderboard <span class="leaderboard-sub">this browser, for now</span></h3>
     <ol class="leaderboard-list" id="leaderboard-list"></ol>
-    <p class="leaderboard-empty" id="leaderboard-empty">Nobody's on the board yet. Connect a wallet and start stacking gains/sec.</p>
+    <p class="leaderboard-empty" id="leaderboard-empty">Nobody on the board yet. Connect a wallet to get on it.</p>
   </div>
 
-  <p class="game-footnote">Wallet sign-in is live; progress saves to this browser for now. A real shared leaderboard with $BOOZEBAG giveaways for top players is coming. <button class="tycoon-reset-link" id="btn-reset" type="button">Reset my progress</button></p>
-  <p class="game-footnote">Some equipment icons by <a href="https://www.flaticon.com" target="_blank" rel="noopener">Flaticon</a>.</p>
+  <p class="game-footnote">A shared leaderboard with $BOOZEBAG giveaways is coming. Some icons by <a href="https://www.flaticon.com" target="_blank" rel="noopener">Flaticon</a>. <button class="tycoon-reset-link" id="btn-reset" type="button">Reset my progress</button></p>
 </main>
 
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=90"></script>
+<script src="assets/js/gym-tycoon.js?v=91"></script>
 </body>
 </html>
