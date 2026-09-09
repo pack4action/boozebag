@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=10" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=5" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=61" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=65" />
 </head>
 <body class="game-body">
 
@@ -92,24 +92,28 @@
   </div>
 
   <div class="tycoon-designer">
-    <div class="tycoon-toolbar">
-      <div class="tycoon-theme-row" id="theme-row"></div>
-      <div class="tycoon-toolbar-end">
-        <div class="tycoon-clock" id="tycoon-clock" title="The time. The gym gets busy mornings and evenings on this clock.">
-          <svg class="tycoon-clock-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.2V8l2.6 1.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <span class="tycoon-clock-time" id="tycoon-clock-time">--:--</span>
-        </div>
-        <div class="tycoon-rush" id="rush-badge" role="button" tabindex="0" aria-label="How busy the gym is right now, and the bonus"></div>
-        <div class="tycoon-room-actions" id="room-actions"></div>
-        <span class="tycoon-promo-wrap" id="promo-wrap">
-          <button class="tycoon-promo-btn" id="btn-promo" type="button"></button>
-          <button class="tycoon-info" id="promo-info" type="button" aria-label="What a promo does">?</button>
-          <span class="tycoon-rush-pop tycoon-info-pop" role="note"></span>
-        </span>
-      </div>
-    </div>
     <div class="tycoon-stage-wrap">
       <canvas class="tycoon-ground" id="tycoon-ground" aria-hidden="true"></canvas>
+      <!-- The controls live on the plan itself. They used to sit in a row
+           above it, where the sticky money bar covered them the moment you
+           scrolled down to the shop. -->
+      <div class="tycoon-toolbar">
+        <div class="tycoon-theme-row" id="theme-row"></div>
+        <div class="tycoon-toolbar-end">
+          <div class="tycoon-clock" id="tycoon-clock" title="The time. The gym gets busy mornings and evenings on this clock.">
+            <svg class="tycoon-clock-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.2V8l2.6 1.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span class="tycoon-clock-time" id="tycoon-clock-time">--:--</span>
+          </div>
+          <div class="tycoon-rush" id="rush-badge" role="button" tabindex="0" aria-label="How busy the gym is right now, and the bonus"></div>
+          <div class="tycoon-room-actions" id="room-actions"></div>
+          <span class="tycoon-promo-wrap" id="promo-wrap">
+            <button class="tycoon-promo-btn" id="btn-promo" type="button"></button>
+            <button class="tycoon-info" id="promo-info" type="button" aria-label="What a promo does">?</button>
+            <span class="tycoon-rush-pop tycoon-info-pop" role="note"></span>
+          </span>
+        </div>
+      </div>
+
       <div class="tycoon-room-stage" id="room-stage-scroll">
         <div class="tycoon-room-zoom-wrap" id="room-zoom-wrap">
           <canvas id="tycoon-floor" width="480" height="340" aria-label="Your gym, isometric view"></canvas>
@@ -150,7 +154,6 @@
     <div class="tycoon-tray">
       <div class="tycoon-tray-head">
         <h3 class="tycoon-panel-title">Storage <span class="tycoon-panel-sub">click a piece to put it down</span></h3>
-        <button class="tycoon-place-all" id="btn-place-all" type="button" hidden></button>
       </div>
       <div class="tycoon-inventory" id="tycoon-inventory"></div>
     </div>
@@ -221,20 +224,21 @@
       <details class="tycoon-howto">
         <summary>How it works</summary>
         <div class="tycoon-howto-body">
-          <p><b>The loop.</b> Buy a machine. Put it on the floor. Tap the bubble over it to take the money. Everything else makes that bubble fill faster.</p>
+          <p><b>The loop.</b> Buy a machine. It goes to Storage. Put it on the floor. Tap the bubble over it to take the money. Everything else makes that bubble fill faster.</p>
           <p><b>Opening up.</b> Take the free Customer Desk from the Shop and put it down. Nothing earns and nothing sells until it is. The desk itself earns nothing. Each location gets its own, free, and it can never be stored or sold.</p>
           <p><b>Bubbles.</b> Nothing pays into your balance by itself. A machine fills a bubble, and you tap it. A bubble holds about two minutes of takings; full bubble, machine stops. Upgrade the desk to make them hold more, up to an hour.</p>
           <p><b>Cashiers.</b> Hired into a room, up to three. They walk from bubble to bubble and take everything in each one they reach. More cashiers, faster rounds. Rooms you are not looking at still get their rounds.</p>
           <p><b>Placing.</b> Click a piece in Storage. Drag it, or use the arrow keys. R turns it. Enter places it. Escape puts it back. Place one and the next of the same kind is already in your hand. Two fingers pan and zoom while you hold something.</p>
           <p><b>Clear floor.</b> Each machine needs a strip of floor on the side you step on from. It shows as a dashed patch while you hold the piece. Nothing can stand in it.</p>
-          <p><b>Arrangement.</b> Same category within two metres: +12% each. A Gear Fridge or Sound System next to a different category: +20%. The breakdown under the plan shows what your layout earns.</p>
-          <p><b>Fittings.</b> Palms, coolers, mirrors and neon earn nothing. They raise the room's vibe, which lifts everything in it. There is a cap.</p>
+          <p><b>Arrangement.</b> Same category within two metres: +12% each. Decor takes no part in it. Room details, under the plan, shows what your layout earns.</p>
+          <p><b>Decor.</b> Only gym equipment earns money. Decor earns nothing and each piece does one thing instead. A palm raises the room's vibe. A cooler makes its bubbles hold more. A mirror makes busy hours pay more there. A fridge speeds up its counters. A sound system means the room is never quiet. Neon makes promos last longer. A desk cuts wages, a cubicle raises job pay, and an office pod adds a cashier to every room. The last three count once for the whole gym.</p>
+          <p><b>Vibe.</b> How nice a room is to train in. It lifts everything the room earns, and it fills a bar in Room details. There is a cap.</p>
           <p><b>Upgrades.</b> From level 4, own three of a piece and its row grows an Upgrade button. Each tier is worth 2.2 times the last. Four tiers.</p>
-          <p><b>The counter.</b> A Juice Bar or Pro Shop makes stock while it earns. Start batches on the Counter tab. They run whether you are here or not. Delivery orders pay double for the stock.</p>
+          <p><b>The counter.</b> A Juice Bar or Pro Shop earns nothing. What it does is make stock. Start batches on the Counter tab. They run whether you are here or not. Delivery orders pay double for the stock.</p>
           <p><b>Jobs.</b> Three at a time, pay stated up front. From level 3, one rush order at a time on an eight-minute clock, worth triple.</p>
-          <p><b>Levels.</b> Buying and upgrading gear earns XP. Levels open locations, staff and the office tier. Nothing else does.</p>
+          <p><b>Levels.</b> Buying and upgrading gear earns XP. Levels open locations, staff and the bigger machines. Nothing else does.</p>
           <p><b>Other staff.</b> Cleaners lift vibe. Receptionists make busy hours busier. A Floor Manager adds to everything. These work the whole gym, and each extra hire does less. Anyone can be let go.</p>
-          <p><b>Busy hours.</b> Mornings and evenings on your clock earn a bonus. Quiet hours are never a penalty. A promo is the same on demand: x2.5 for 90 seconds, then a 15-minute wait.</p>
+          <p><b>Busy hours.</b> Mornings and evenings on the clock in the toolbar earn a bonus. Quiet hours are never a penalty. A promo is the same on demand: x2.5 for 90 seconds, then a 15-minute wait.</p>
           <p><b>Locations.</b> Four separate gyms, each unlocked by level. Drag to pan, scroll or pinch to zoom.</p>
           <p><b>Franchising.</b> When the shop runs out, cash the gym in for points that multiply everything after. You keep your level and trophies.</p>
         </div>
@@ -256,6 +260,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=103"></script>
+<script src="assets/js/gym-tycoon.js?v=107"></script>
 </body>
 </html>

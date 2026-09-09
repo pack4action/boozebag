@@ -383,17 +383,8 @@
   .shop-item-cat { display: none; }
   .shop-item { padding: 12px 14px; gap: 4px; }
   .shop-item-gps { font-size: 11.5px; }
-  /* The filter chips run off the edge in one row you can swipe, rather
-     than wrapping into two rows that push the shop down. */
-  .tycoon-filters {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    margin: 0 -6vw 10px;
-    padding: 0 6vw;
-  }
-  .tycoon-filters::-webkit-scrollbar { display: none; }
-  .tycoon-filter { flex: none; }
+  .tycoon-filters { padding: 8px 10px 10px; }
+  .tycoon-filter-box { font-size: 11px; padding: 4px 9px 4px 7px; }
   .tycoon-synergy { margin-bottom: 10px; }
   .tycoon-tray-head { margin-bottom: 6px; }
   .tycoon-next { font-size: 12px; padding: 8px 12px; }
@@ -902,19 +893,6 @@
   margin-bottom: 8px;
 }
 .tycoon-tray-head .tycoon-panel-title { margin: 0; }
-.tycoon-place-all {
-  flex: none;
-  border: 0;
-  border-radius: 8px;
-  padding: 5px 11px;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-  color: #06231a;
-  background: linear-gradient(180deg, #8fe9be, #5ec9a0);
-}
-.tycoon-place-all[hidden] { display: none !important; }
 
 /* Level, and what the next one brings. The Gym tab used to open on a name
    field, which is not the question anybody has when they get there. */
@@ -1694,19 +1672,27 @@
   gap: 10px;
 }
 .tycoon-page .hud-stat { width: auto; min-width: 0; }
-.tycoon-theme-row,
-.tycoon-filters {
+.tycoon-theme-row {
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
   justify-content: flex-start;
 }
-.tycoon-theme-row::-webkit-scrollbar,
-.tycoon-filters::-webkit-scrollbar { display: none; }
-.tycoon-theme-btn, .tycoon-filter { flex: none; white-space: nowrap; }
+.tycoon-theme-row::-webkit-scrollbar { display: none; }
+.tycoon-theme-btn { flex: none; white-space: nowrap; }
 .tycoon-tabs { flex-wrap: nowrap; }
 .tycoon-tab { white-space: nowrap; min-width: 0; padding-left: 6px; padding-right: 6px; }
-.game-switcher { flex-wrap: nowrap; }
+.game-switcher {
+  /* Its own scroll container, so the row of other games never widens the
+     page itself: a body that scrolls sideways by four pixels moves the
+     whole layout under your thumb. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  justify-content: flex-start;
+  max-width: 100%;
+}
+.game-switcher::-webkit-scrollbar { display: none; }
 .game-switch-tab { white-space: nowrap; }
 
 /* Between a phone and a desktop the page is one column, and it was laid
@@ -1790,7 +1776,6 @@
 }
 .tycoon-tray-head { justify-content: center; position: relative; margin-bottom: 10px; }
 .tycoon-tray-head .tycoon-panel-title { margin: 0; text-align: center; }
-.tycoon-tray-head .tycoon-place-all { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
 .tycoon-inventory { justify-content: center; max-width: none; margin: 0; }
 
 .tycoon-room-details {
@@ -1963,34 +1948,155 @@
   .tycoon-toolbar-end .tycoon-promo-wrap .tycoon-promo-btn { flex: 1 1 auto; min-width: 0; padding: 6px 6px 6px 10px; }
 }
 
-/* ---- The filter menu ---- */
-.tycoon-filters { overflow: visible; justify-content: center; }
+/* ---- The filter ----
+   A box per category, ticked, in a card of their own. A menu could show
+   one category at a time; shopping is usually "everything except". */
+.tycoon-filters {
+  display: block;
+  overflow: visible;
+  border: 1px solid var(--panel-border, #2a2732);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 9px 12px 11px;
+  margin: 0 0 12px;
+}
+.tycoon-filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--muted, #8b8b93);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.tycoon-filters.is-on .tycoon-filter-head { color: #ffd166; }
+.tycoon-filter-reset {
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #ffd166;
+  background: transparent;
+  border: 1px solid rgba(255, 209, 102, 0.5);
+  border-radius: 999px;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+.tycoon-filter-reset[hidden] { display: none !important; }
+.tycoon-filter-reset:hover { background: rgba(255, 209, 102, 0.14); }
+.tycoon-filter-boxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
 .tycoon-filter-box {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 10px 5px 11px;
+  gap: 6px;
+  padding: 5px 11px 5px 8px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: var(--text, #e9e9ee);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.tycoon-filter-box input { position: absolute; opacity: 0; width: 0; height: 0; }
+.tycoon-filter-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  flex: none;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: #ffd166;
+  color: #241d05;
+}
+.tycoon-filter-tick svg { width: 11px; height: 11px; }
+.tycoon-filter-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.tycoon-filter-box.is-off { color: var(--muted, #8b8b93); opacity: 0.7; }
+.tycoon-filter-box.is-off .tycoon-filter-tick { background: transparent; color: transparent; }
+.tycoon-filter-box.is-off .tycoon-filter-dot { opacity: 0.4; }
+.tycoon-filter-box:focus-within { border-color: #ffd166; }
+
+/* ---- The vibe meter ----
+   Vibe is a number with a ceiling, so it reads as a bar: how full it is
+   says how much of it is left to buy. Under it, what else the decor in
+   this room is doing. */
+.tycoon-vibe {
+  border: 1px solid var(--panel-border, #2a2732);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 9px 11px 10px;
+  margin: 0 0 10px;
+  text-align: left;
+}
+.tycoon-vibe-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.tycoon-vibe-name {
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
   color: var(--muted, #8b8b93);
-  background: rgba(255, 255, 255, 0.03);
-  cursor: pointer;
 }
-.tycoon-filters.is-on .tycoon-filter-box { color: #ffd166; border-color: rgba(255, 209, 102, 0.6); }
-.tycoon-filter-select {
-  font: inherit;
+.tycoon-vibe-num { font-size: 12px; font-weight: 800; color: #7fd8a8; font-variant-numeric: tabular-nums; }
+.tycoon-vibe-bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.tycoon-vibe-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4fc38a, #7fd8a8);
+}
+.tycoon-vibe-note { margin: 7px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--muted, #8b8b93); }
+.tycoon-vibe-list { margin: 7px 0 0; padding: 0 0 0 15px; font-size: 11.5px; line-height: 1.5; color: var(--muted, #8b8b93); }
+.tycoon-vibe-list li { margin: 1px 0; }
+
+/* What Sell all pays, shown when you point at it or hold it. */
+.tycoon-inv-sell.is-all { position: relative; }
+.tycoon-inv-sell.is-all::after {
+  content: attr(data-pays);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 209, 102, 0.5);
+  background: #16141c;
+  color: #ffd166;
+  font-size: 11px;
   font-weight: 800;
-  color: #e9e9ee;
-  background: transparent;
-  border: 0;
-  padding: 0 2px;
-  cursor: pointer;
-  outline: none;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  z-index: 20;
 }
-.tycoon-filter-select option { background: #16141c; color: #e9e9ee; }
+.tycoon-inv-sell.is-all:hover::after,
+.tycoon-inv-sell.is-all:focus-visible::after { opacity: 1; }
 
 /* The row never scrolls, at any width: a scroll container clips the cards
    that hang from the busy badge and the ? -- they opened, invisibly,
@@ -2029,4 +2135,107 @@
 }
 @media (max-width: 1079px) {
   .tycoon-clock { padding: 5px 10px; }
+}
+
+/* ---- Storage on a phone ----
+   A chip carries a name, a count, what it earns and two sell buttons, and
+   at 400px that ran off the side of the card. One chip a row, its buttons
+   pushed to the right, and nothing leaves the box. */
+@media (max-width: 560px) {
+  .tycoon-inventory { flex-direction: column; align-items: stretch; gap: 6px; }
+  .tycoon-inv-item {
+    width: 100%;
+    justify-content: space-between;
+    padding: 4px 5px 4px 10px;
+    font-size: 11.5px;
+    min-width: 0;
+  }
+  .tycoon-inv-arm {
+    font-size: 11.5px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tycoon-inv-sell { font-size: 10.5px; padding: 4px 7px; }
+}
+
+/* ---- The controls sit on the plan ----
+   They used to be a row above it, which the sticky money bar covered the
+   moment you scrolled to the shop -- so the locations, the clock, the busy
+   badge and Promo were all hidden exactly when you were using the page.
+   On the plan they are always where the plan is. */
+.tycoon-designer .tycoon-toolbar {
+  /* Sticky rather than pinned to the top of the plan: as the page scrolls
+     the bar slides down and parks just under the money stats, so it is
+     never the thing they cover. It takes no layout height -- the negative
+     margin cancels its own -- and the plan is given the same height back
+     as padding, so nothing stands underneath it. */
+  position: sticky;
+  top: var(--tycoon-stick-top, 180px);
+  z-index: 3;
+  margin: 0 0 calc(-1 * var(--tycoon-bar-h, 66px));
+  padding: 8px 8px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  /* The plan is dragged and pinched: the bar itself must never swallow a
+     gesture, only its own buttons. */
+  pointer-events: none;
+}
+.tycoon-designer .tycoon-toolbar > * { pointer-events: auto; }
+.tycoon-designer .tycoon-toolbar .tycoon-theme-row,
+.tycoon-designer .tycoon-toolbar-end {
+  justify-content: center;
+  flex-wrap: wrap;
+  row-gap: 6px;
+  max-width: 100%;
+}
+/* Over a lit floor a flat chip disappears, so everything on the plan gets a
+   dark backing and a real edge. */
+.tycoon-designer .tycoon-toolbar .tycoon-theme-btn,
+.tycoon-designer .tycoon-toolbar .tycoon-clock,
+.tycoon-designer .tycoon-toolbar .tycoon-rush,
+.tycoon-designer .tycoon-toolbar .tycoon-add-room,
+.tycoon-designer .tycoon-toolbar .tycoon-promo-wrap {
+  background-color: rgba(12, 11, 16, 0.82);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+.tycoon-designer .tycoon-toolbar .tycoon-theme-btn.is-active {
+  background-color: var(--amber, #ffb703);
+}
+.tycoon-designer .tycoon-toolbar .tycoon-promo-wrap .tycoon-promo-btn {
+  background-color: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+/* The cards these open hang below their chip, over the plan. */
+.tycoon-designer .tycoon-rush-pop { z-index: 6; }
+
+/* The plan needs headroom so the controls are not standing on the gym. */
+.tycoon-room-stage { padding-top: calc(var(--tycoon-bar-h, 66px) + 10px); }
+@media (max-width: 560px) {
+  .tycoon-designer .tycoon-toolbar { padding: 5px 5px 0; gap: 4px; }
+}
+
+/* On a phone the bar is standing on the gym, so it is made as small as it
+   can be and still be read: four locations on one line, then the clock and
+   the busy badge, then Add Room and Promo. Three short rows. */
+@media (max-width: 560px) {
+  .tycoon-designer .tycoon-toolbar .tycoon-theme-row { gap: 4px; flex-wrap: nowrap; }
+  .tycoon-designer .tycoon-toolbar .tycoon-theme-btn {
+    padding: 4px 7px;
+    font-size: 10px;
+    letter-spacing: 0;
+    min-width: 0;
+  }
+  .tycoon-designer .tycoon-toolbar .tycoon-theme-btn .btn-lock-icon svg { width: 9px; height: 9px; }
+  .tycoon-designer .tycoon-toolbar-end { gap: 4px; }
+  .tycoon-designer .tycoon-toolbar .tycoon-clock { padding: 4px 8px; font-size: 10px; gap: 4px; }
+  .tycoon-designer .tycoon-toolbar .tycoon-clock-icon { width: 11px; height: 11px; }
+  .tycoon-designer .tycoon-toolbar .tycoon-rush { padding: 4px 9px; font-size: 10px; gap: 5px; }
+  .tycoon-designer .tycoon-toolbar .tycoon-add-room,
+  .tycoon-designer .tycoon-toolbar .tycoon-promo-btn { font-size: 10px; padding: 5px 9px; }
+  .tycoon-designer .tycoon-toolbar .tycoon-info { font-size: 10px; padding: 0 9px 0 7px; }
 }
