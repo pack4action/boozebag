@@ -27,11 +27,13 @@
     { id: 'stairclimber', name: 'Stair Climber', baseCost: 14000000, gps: 100000, unlockLevel: 7 },
     { id: 'cryo', name: 'Cryo Chamber', baseCost: 56000000, gps: 400000, unlockLevel: 8 },
 
-    // The counters. They earn nothing on the floor. What they do is make
-    // stock: you start a batch, it takes real time, and what comes off the
-    // counter is what the delivery orders on the Jobs tab ask for.
-    { id: 'juicebar', name: 'Juice Bar', baseCost: 36000, gps: 0, unlockLevel: 3 },
-    { id: 'proshop', name: 'Pro Shop', baseCost: 2200000, gps: 0, unlockLevel: 7 },
+    // The counters are decoration too: they earn nothing standing there.
+    // What they do is make stock for the delivery orders on the Jobs tab,
+    // and each one is worth having for its own sake as well.
+    { id: 'juicebar', name: 'Juice Bar', baseCost: 36000, unlockLevel: 3,
+      effect: { kind: 'room', amount: 0.25, max: 0.5 } },
+    { id: 'proshop', name: 'Pro Shop', baseCost: 2200000, unlockLevel: 7,
+      effect: { kind: 'xp', amount: 0.25, gym: true } },
 
     // Decor. None of it earns a cent, and every piece takes floor a machine
     // could have had. Each one does one thing, and the thing is different:
@@ -82,6 +84,10 @@
     jobs: (a) => ['Jobs pay ' + Math.round(a * 100) + '% more', 'jobs +' + Math.round(a * 100) + '%'],
     cashiers: (a) => [(a === 1 ? 'One more cashier' : a + ' more cashiers') + ' in every room',
       '+' + a + ' cashier'],
+    room: (a) => ['Everything in its room earns +' + Math.round(a * 100) + '%',
+      'room +' + Math.round(a * 100) + '%'],
+    xp: (a) => ['Everything earns ' + Math.round(a * 100) + '% more XP',
+      'XP +' + Math.round(a * 100) + '%'],
   };
   function effectLine(item, short) {
     if (!item || !item.effect) return '';
@@ -442,7 +448,7 @@
     dumbbell: 'strength', dumbbellrack: 'strength', bench: 'strength', rack: 'strength', cable: 'strength',
     boxingring: 'strength', climbingwall: 'strength',
     treadmill: 'cardio', rower: 'cardio', stairclimber: 'cardio',
-    juicebar: 'counter', proshop: 'counter',
+    juicebar: 'decor', proshop: 'decor',
     mat: 'recovery', sauna: 'recovery', cryo: 'recovery',
     frontdesk: 'front',
     palm: 'decor', cooler: 'decor', mirrorwall: 'decor', gearfridge: 'decor', neon: 'decor',
@@ -453,7 +459,6 @@
     cardio: { name: 'Cardio', color: '#3fa0c9' },
     recovery: { name: 'Recovery', color: '#3fa87e' },
     front: { name: 'Front of house', color: '#e8b04b' },
-    counter: { name: 'Counter', color: '#e2724a' },
     decor: { name: 'Decor', color: '#4fc38a' },
   };
   const SAME_CATEGORY_BONUS = 0.12;
@@ -473,6 +478,11 @@
   // of gear ten times the price is worth about twice the experience -- enough
   // that better kit is the faster way up, not so much that the early game is
   // worth nothing.
+  // Experience, wherever it comes from, with whatever is lifting it. A Pro
+  // Shop anywhere in the gym pays a quarter more on everything.
+  function addXp(n) {
+    state.xp = (state.xp || 0) + n * (1 + gymEffect('xp'));
+  }
   function xpForSpend(cost) {
     return Math.max(1, Math.round(Math.pow(Math.max(1, cost), 0.34)));
   }
@@ -822,7 +832,7 @@
     state.balance -= cost;
     if (!state.tiers) state.tiers = {};
     state.tiers[id] = tierOf(id) + 1;
-    state.xp = (state.xp || 0) + xpForSpend(cost);
+    addXp(xpForSpend(cost));
     if (currentLevel() > before) announceLevel(currentLevel());
     else toast(itemById(id).name + ' upgraded to ' + TIER_NAMES[tierOf(id)], 'good');
     recomputeStats();
@@ -1167,7 +1177,7 @@
   // wage bill comes off every figure the game shows, so the rate in the HUD
   // is the rate the money actually arrives at.
   function roomMultiplier(room) {
-    return vibeMultiplier(room) * rushMultiplierFor(room) * promoMultiplier()
+    return (1 + roomEffect(room, 'room')) * vibeMultiplier(room) * rushMultiplierFor(room) * promoMultiplier()
       * (1 + staffEffect('manager')) * franchiseMultiplier() * (1 - wageShare());
   }
   // What each piece in a room makes a second, slot by slot -- this is what
@@ -2210,7 +2220,7 @@
     const before = currentLevel();
     state.balance += job.cash;
     state.lifetime += job.cash;
-    state.xp = (state.xp || 0) + job.xp;
+    addXp(job.xp);
     state.jobsDone = (state.jobsDone || 0) + 1;
     state.rushDone = (state.rushDone || 0) + 1;
     const r = rushState();
@@ -2796,7 +2806,7 @@
     if (!levelValueEl) return;
     const p = levelProgress();
     levelValueEl.textContent = p.level;
-    levelWrapEl.classList.toggle('is-capped', p.capped);
+    if (levelWrapEl) levelWrapEl.classList.toggle('is-capped', p.capped);
     xpFillEl.style.width = (p.frac * 100).toFixed(1) + '%';
     xpTextEl.textContent = p.capped
       ? formatNum(Math.floor(state.xp || 0)) + ' XP'
@@ -2905,7 +2915,7 @@
     const before = currentLevel();
     state.balance += job.cash;
     state.lifetime += job.cash;
-    state.xp = (state.xp || 0) + job.xp;
+    addXp(job.xp);
     state.jobs.splice(index, 1);
     state.jobsDone = (state.jobsDone || 0) + 1;
     refillJobs();
@@ -3449,7 +3459,7 @@
         ? ready + (ready === 1 ? ' batch ready' : ' batches ready')
         : q.length
           ? 'Next in ' + secondsText(nextDone) + ' \u00b7 ' + q.length + ' of ' + QUEUE_SLOTS + ' on'
-          : 'Idle.');
+          : 'Nothing on');
       row.collect.hidden = ready === 0;
       row.makeBtns.forEach((mb) => {
         const full = q.length >= QUEUE_SLOTS;
@@ -3556,7 +3566,7 @@
       if (!state.staff) state.staff = {};
       state.staff[id] = staffCount(id) + 1;
     }
-    state.xp = (state.xp || 0) + xpForSpend(cost);
+    addXp(xpForSpend(cost));
     if (currentLevel() > before) announceLevel(currentLevel());
     else toast(role.name + ' hired', 'good');
     membersKey = '';
@@ -3902,10 +3912,10 @@
     }
     // Decor earns nothing. What it does instead is the reason to buy it,
     // so that is what its row says.
-    if (item.effect) return effectLine(item);
-    if (makesStock(itemId)) {
-      return 'Makes ' + RECIPES_OF[itemId].map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ')
-        + '. Earns nothing itself';
+    if (item.effect) {
+      return effectLine(item)
+        + (makesStock(itemId) ? '. Makes ' + RECIPES_OF[itemId]
+          .map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ') : '');
     }
     return '+' + formatNum(gpsOf(itemId)) + '/s once placed'
       + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '');
@@ -3993,8 +4003,31 @@
     sync();
   }
 
+  // The shop reads as two shops: the machines that earn, and the decor
+  // that does everything else. A heading goes in above the first row of
+  // each, and hides with the rows if the filter puts them all away.
+  const SHOP_SECTIONS = [
+    { id: 'gear', name: 'Gym Equipment', note: 'Earns money on the floor' },
+    { id: 'decor', name: 'Decoration', note: 'Earns nothing. Each piece does one thing' },
+  ];
+  function sectionOf(itemId) {
+    return CATEGORY[itemId] === 'decor' ? 'decor' : 'gear';
+  }
+  const shopHeadEls = {};
   function buildShop() {
+    let section = null;
     ITEMS.forEach((item) => {
+      const here = sectionOf(item.id);
+      if (here !== section) {
+        section = here;
+        const meta = SHOP_SECTIONS.find((x) => x.id === here);
+        const head = document.createElement('h3');
+        head.className = 'tycoon-shop-head';
+        head.innerHTML = '<span class="tycoon-shop-head-name">' + meta.name + '</span>'
+          + '<span class="tycoon-shop-head-note">' + meta.note + '</span>';
+        shopGrid.appendChild(head);
+        shopHeadEls[here] = head;
+      }
       const el = document.createElement('div');
       el.className = 'shop-item';
       const cat = CATEGORY_META[CATEGORY[item.id]];
@@ -4116,6 +4149,14 @@
 
   function refreshShopUI() {
     refreshOpenHint();
+    // A heading with nothing under it is noise, so each one follows its
+    // own rows.
+    SHOP_SECTIONS.forEach((sec) => {
+      const head = shopHeadEls[sec.id];
+      if (!head) return;
+      const any = ITEMS.some((item) => sectionOf(item.id) === sec.id && !shopHidden[CATEGORY[item.id]]);
+      if (head.hidden !== !any) head.hidden = !any;
+    });
     ITEMS.forEach((item) => {
       const els = shopEls[item.id];
       const shown = !shopHidden[CATEGORY[item.id]];
@@ -4176,7 +4217,7 @@
     const before = currentLevel();
     state.balance -= cost;
     state.owned[id] = (state.owned[id] || 0) + 1;
-    state.xp = (state.xp || 0) + xpForSpend(cost);
+    addXp(xpForSpend(cost));
     const after = currentLevel();
     if (after > before) announceLevel(after);
     if (item.starter) {
@@ -8457,7 +8498,7 @@
     const before = currentLevel();
     state.balance -= cost;
     // Taking on a room is progress like any other purchase, and a big one.
-    state.xp = (state.xp || 0) + xpForSpend(cost);
+    addXp(xpForSpend(cost));
     rooms.push(emptyGymRoom(state.activeTheme, rooms.length));
     state.activeRoomIndex = rooms.length - 1;
     if (currentLevel() > before) announceLevel(currentLevel());
@@ -8493,7 +8534,7 @@
       const before = currentLevel();
       state.balance -= cost;
       // Taking on a room is progress like any other purchase, and a big one.
-      state.xp = (state.xp || 0) + xpForSpend(cost);
+      addXp(xpForSpend(cost));
       rooms.push(emptyGymRoom(state.activeTheme, rooms.length));
       state.activeRoomIndex = rooms.length - 1;
       if (currentLevel() > before) announceLevel(currentLevel());
@@ -8661,7 +8702,7 @@
       if (state.balance < item.cost) { toast(item.name + ' costs $' + formatNum(item.cost), null); return; }
       const before = currentLevel();
       state.balance -= item.cost;
-      state.xp = (state.xp || 0) + xpForSpend(item.cost);
+      addXp(xpForSpend(item.cost));
       if (ownedMap) ownedMap[id] = true;
       if (currentLevel() > before) announceLevel(currentLevel());
     }
