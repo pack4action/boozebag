@@ -833,11 +833,12 @@
       name: 'Cashier',
       baseCost: 6000,
       unlockLevel: 2,
-      // Goes round the floor picking up the takings so you do not have to:
-      // the first collects half of everything as it is earned, and by the
-      // third nothing waits on the floor at all.
-      first: 0.5,
-      note: (n) => 'collects ' + Math.round(Math.min(1, staffEffect('cashier', n)) * 100) + '% of the bubbles for you',
+      // Walks the room from bubble to bubble and empties each one they
+      // reach. `first` is unused for this role: what a cashier is worth is
+      // how fast they get round, and that is a matter of legs, not a number.
+      first: 0,
+      perRoom: true,
+      note: (n) => (n === 1 ? 'one cashier' : n + ' cashiers') + ' walking this room',
     },
     {
       id: 'cleaner',
@@ -871,7 +872,18 @@
   function staffRole(id) {
     return STAFF_ROLES.find((r) => r.id === id);
   }
+  // Cashiers are hired into a room, not into the gym. Up to three a room:
+  // one keeps a small room clear, three keep a full one clear, and a fourth
+  // would only follow the third about.
+  const CASHIERS_PER_ROOM = 3;
+  function roomCashiers(room) {
+    return (room && room.staff && room.staff.cashier) || 0;
+  }
+  function cashiersEverywhere() {
+    return allRoomsEverywhere().reduce((n, room) => n + roomCashiers(room), 0);
+  }
   function staffCount(id) {
+    if (id === 'cashier') return cashiersEverywhere();
     return (state.staff && state.staff[id]) || 0;
   }
   function staffTotal() {
@@ -1081,11 +1093,6 @@
     });
     return Math.max(10, best);
   }
-  // The share of the takings that never touch the floor: what the Cashiers
-  // pick up as it is earned.
-  function autoShare() {
-    return Math.min(1, staffEffect('cashier'));
-  }
   function roomCash(room) {
     if (!room.cash || room.cash.length !== room.layout.length) {
       room.cash = new Array(room.layout.length).fill(0).map((_, i) => (room.cash && room.cash[i]) || 0);
@@ -1101,7 +1108,6 @@
   }
   let pileLevelsKey = '';
   function earnTick(dt) {
-    const auto = autoShare();
     const capS = pileCapSeconds();
     let direct = 0;
     let key = '';
@@ -1115,15 +1121,15 @@
           if (r <= 0) return;
           // Membership fees are paid at the desk, straight into the till.
           if (room.layout[k] === 'frontdesk') { direct += r * dt; return; }
-          direct += r * auto * dt;
           const cap = niceCap(r * capS);
-          cash[k] = Math.min(cap, cash[k] + r * (1 - auto) * dt);
+          cash[k] = Math.min(cap, cash[k] + r * dt);
           key += pileLevel(cash[k], cap);
         });
       });
     });
     state.balance += direct;
     state.lifetime += direct;
+    cashierRounds(dt);
     // A pile that has grown a size is a visible change on a floor that may
     // not otherwise be repainting -- but not for somebody who has asked
     // their system for less motion, whose gym stays still until they do
@@ -1143,6 +1149,54 @@
   function floorCash() {
     return allRoomsEverywhere().reduce((sum, room) => sum + roomCash(room).reduce((a, b) => a + b, 0), 0);
   }
+  // A cashier reaching a machine takes everything in its bubble, quietly:
+  // no toast, because three of them working a room would never stop
+  // announcing themselves. The HUD ticks up and the bubble goes.
+  function takePile(room, index) {
+    const cash = roomCash(room);
+    const amount = cash[index] || 0;
+    if (amount < 0.5) return 0;
+    cash[index] = 0;
+    state.balance += amount;
+    state.lifetime += amount;
+    return amount;
+  }
+  // The fullest bubble in a room, or -1 for a room with nothing to collect.
+  function fullestPile(room) {
+    const cash = roomCash(room);
+    let best = -1;
+    let most = 0.5;
+    cash.forEach((c, i) => {
+      if (room.layout[i] && room.layout[i] !== 'frontdesk' && c > most) { most = c; best = i; }
+    });
+    return best;
+  }
+  // Rooms you are not looking at have no figures walking them, so their
+  // cashiers collect on a clock instead: each one clears the fullest bubble
+  // every so often, at about the pace a walking one manages on screen.
+  const CASHIER_TRIP_SECONDS = 9;
+  function cashierRounds(dt) {
+    THEMES.forEach((t) => {
+      const rooms = state.themeRooms[t.id] || [];
+      if (!chainHasDesk(rooms)) return;
+      rooms.forEach((room, i) => {
+        const n = roomCashiers(room);
+        if (!n) return;
+        if (t.id === state.activeTheme && walkersCollect()) return;
+        room.cashierClock = (room.cashierClock || 0) + dt * n;
+        if (room.cashierClock < CASHIER_TRIP_SECONDS) return;
+        room.cashierClock = 0;
+        const k = fullestPile(room);
+        if (k !== -1) takePile(room, k);
+      });
+    });
+  }
+  // Whether the room on screen is being worked by figures who collect when
+  // they arrive, or has to be worked by the clock like everywhere else.
+  function walkersCollect() {
+    return !wantsStillness() && members.some((m) => m.staffRole === 'cashier');
+  }
+
   function collectPile(roomIndex, index) {
     const room = activeRooms()[roomIndex];
     if (!room) return 0;
@@ -1274,6 +1328,9 @@
         // already done, which is what it should be. Dropped on the way
         // through: a batch of something that no longer exists, and one in a
         // slot that has no counter in it any more.
+        // Who works this room.
+        staff: { cashier: Math.max(0, Math.min(CASHIERS_PER_ROOM,
+          (r && r.staff && r.staff.cashier) | 0)) },
         batches: new Array(n).fill(null).map((_, k) => {
           const id = old[k] || null;
           if (!RECIPES_OF[id]) return [];
@@ -1520,6 +1577,24 @@
       const short = unlocked.filter((t) => !chainHasDesk(s.themeRooms[t.id])).length;
       const spare = (s.owned.frontdesk || 0) - standing;
       if (spare < short) s.owned.frontdesk += short - spare;
+    }
+
+    // Cashiers used to be hired into the gym; they are hired into a room.
+    // A save with the old kind spreads them over its open rooms, three a
+    // room, biggest room first, and the old number is dropped.
+    if (s.staff && s.staff.cashier) {
+      let left = s.staff.cashier | 0;
+      const rooms = THEMES.reduce((list, t) => list.concat(s.themeRooms[t.id] || []), [])
+        .filter((room) => room.layout.some(Boolean))
+        .sort((a, b) => b.layout.filter(Boolean).length - a.layout.filter(Boolean).length);
+      rooms.forEach((room) => {
+        if (left <= 0) return;
+        if (!room.staff) room.staff = {};
+        const take = Math.min(CASHIERS_PER_ROOM, left);
+        room.staff.cashier = (room.staff.cashier || 0) + take;
+        left -= take;
+      });
+      delete s.staff.cashier;
     }
 
     // "First Rep" is gone -- it fired on the same click as opening up -- so a
@@ -2204,7 +2279,7 @@
       shirt: staffRoleId ? STAFF_SHIRT : pickOf(MEMBER_SHIRTS),
       skin: pickOf(MEMBER_SKINS),
       hair: pickOf(MEMBER_HAIR),
-      speed: MEMBER_WALK * (staffRoleId ? 0.75 : 0.85 + Math.random() * 0.35),
+      speed: MEMBER_WALK * (staffRoleId === 'cashier' ? 1.05 : staffRoleId ? 0.75 : 0.85 + Math.random() * 0.35),
       // Which piece they are on, once they get there, so the figure knows
       // whether it is running, curling or sitting in a sauna.
       gearId: null,
@@ -2230,7 +2305,7 @@
   function rebuildMembers() {
     const rooms = activeRooms();
     const key = wantsStillness() ? 'still' : state.activeTheme + '|' + staffTotal() + '|'
-      + rooms.map((r) => r.layout.filter(Boolean).length + '.' + roomVibe(r)).join(',');
+      + rooms.map((r) => r.layout.filter(Boolean).length + '.' + roomVibe(r) + '.' + roomCashiers(r)).join(',');
     if (key === membersKey) return;
     membersKey = key;
     if (key === 'still') {
@@ -2253,12 +2328,20 @@
       next.push(...here);
     });
 
-    // Staff are spread across the rooms that are actually open, one room at
-    // a time, so a gym with three rooms and two staff has one of them in two
-    // of the rooms rather than both stood in the first.
+    // Cashiers stand in the room they were hired into, one figure per hire.
+    rooms.forEach((room, roomIndex) => {
+      if (!placements[roomIndex]) return;
+      const kept = members.filter((m) => m.staffRole === 'cashier' && m.room === roomIndex);
+      for (let k = 0; k < roomCashiers(room); k++) {
+        next.push(kept[k] || spawnMember(roomIndex, placements[roomIndex], 'cashier'));
+      }
+    });
+    // The other roles are spread across the rooms that are open, one room
+    // at a time, so two of them are in two rooms rather than both in the
+    // first.
     const open = rooms.map((r, i) => i).filter((i) => placements[i]);
     let slot = 0;
-    STAFF_ROLES.forEach((role) => {
+    STAFF_ROLES.filter((r) => !r.perRoom).forEach((role) => {
       const kept = members.filter((m) => m.staffRole === role.id);
       for (let k = 0; k < staffCount(role.id); k++) {
         const roomIndex = open[slot++ % Math.max(1, open.length)];
@@ -2294,7 +2377,41 @@
   // four separate rooms rather than one gym, because hardly anybody was
   // ever in the hallway between them.
   const MEMBER_ROAM_CHANCE = 0.28;
+  // A cashier's next stop is the fullest bubble in their room, walked to
+  // through the machine's step-on floor; the money is taken on arrival.
+  // With nothing to collect they stroll to somewhere and wait a moment,
+  // which is what a person with nothing to do does.
+  function chooseCashierTarget(m) {
+    const rooms = activeRooms();
+    const room = rooms[m.room];
+    const place = placements[m.room];
+    if (!room || !place) { m.state = 'idle'; return; }
+    const k = fullestPile(room);
+    // Two cashiers do not converge on the same machine.
+    const claimed = k !== -1 && members.some((o) => o !== m && o.staffRole === 'cashier'
+      && o.room === m.room && o.gear === k && o.state !== 'idle');
+    let goal;
+    if (k !== -1 && !claimed) {
+      const id = room.layout[k];
+      const spot = spotOf(room, k, { cols: place.cols, rows: place.rows });
+      const zone = accessZone(id, spot, turnAt(room, k));
+      m.gear = k;
+      m.via = null;
+      goal = zone
+        ? { gx: place.gx0 + (zone.u0 + zone.u1) / 2, gy: place.gy0 + (zone.v0 + zone.v1) / 2 }
+        : { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v + 1.2 };
+      if (!onFloorOf(place, goal.gx, goal.gy)) goal = { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v };
+    } else {
+      m.gear = null;
+      m.via = null;
+      goal = randomFloorSpot(place);
+    }
+    m.path = routeInRoom(place, m, goal);
+    m.state = 'walking';
+  }
+
   function chooseTarget(m) {
+    if (m.staffRole === 'cashier') { chooseCashierTarget(m); return; }
     const rooms = activeRooms();
     let dest = m.room;
     if (rooms.length > 1 && Math.random() < MEMBER_ROAM_CHANCE) {
@@ -2390,6 +2507,11 @@
         if (m.timer <= 0 || !room.layout[m.gear]) m.state = 'idle';
         return;
       }
+      if (m.state === 'pausing') {
+        m.timer -= dt;
+        if (m.timer <= 0) m.state = 'idle';
+        return;
+      }
       if (m.state === 'idle') {
         chooseTarget(m);
         return;
@@ -2410,6 +2532,15 @@
         m.gy = goal.gy;
         m.path.shift();
         if (m.path.length) return;
+        if (m.staffRole === 'cashier') {
+          if (m.gear !== null && room.layout[m.gear]) takePile(room, m.gear);
+          // A beat at the machine, or a longer pause with nothing to do,
+          // so an empty room is not somebody pacing it.
+          m.state = 'pausing';
+          m.timer = m.gear === null ? 1.5 + Math.random() * 2 : 0.6;
+          m.gear = null;
+          return;
+        }
         m.state = m.gear === null ? 'idle' : 'using';
         m.gearId = m.gear === null ? null : room.layout[m.gear];
         m.timer = 3.5 + Math.random() * 7;
@@ -3075,15 +3206,26 @@
       const els = hireEls[role.id];
       if (!els) return;
       const unlocked = unlockedFor(role);
-      const have = staffCount(role.id);
+      const here = role.perRoom ? roomCashiers(activeRoom()) : 0;
+      const have = role.perRoom ? here : staffCount(role.id);
       const cost = staffHireCost(role.id);
       els.root.classList.toggle('is-locked', !unlocked);
-      els.count.textContent = have ? ' x' + have : '';
+      els.count.textContent = role.perRoom
+        ? ' ' + roomLabel(state.activeRoomIndex) + ' \u00b7 ' + here + ' of ' + CASHIERS_PER_ROOM
+        : have ? ' x' + have : '';
       els.letGo.hidden = !have;
       if (!unlocked) {
         els.note.textContent = 'From level ' + role.unlockLevel;
         els.btn.textContent = 'Locked';
         els.btn.disabled = true;
+        return;
+      }
+      if (role.perRoom) {
+        const full = here >= CASHIERS_PER_ROOM;
+        els.note.textContent = full ? 'Fully staffed'
+          : 'Walks to the bubbles and empties them \u00b7 ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings each';
+        els.btn.textContent = full ? 'Room full' : 'Hire here -- $' + formatNum(cost);
+        els.btn.disabled = full || state.balance < cost;
         return;
       }
       // What they are worth now, and what one more would add on top.
@@ -3106,7 +3248,13 @@
   // see in the numbers and then undo, not one you are stuck with.
   function letStaffGo(id) {
     if (staffCount(id) <= 0) return;
-    state.staff[id] = staffCount(id) - 1;
+    if (id === 'cashier') {
+      const room = activeRoom();
+      if (!room || roomCashiers(room) <= 0) return;
+      room.staff.cashier = roomCashiers(room) - 1;
+    } else {
+      state.staff[id] = staffCount(id) - 1;
+    }
     membersKey = '';
     recomputeStats();
     refreshStaffUI();
@@ -3120,10 +3268,20 @@
     if (!role || !unlockedFor(role)) return;
     const cost = staffHireCost(id);
     if (state.balance < cost) return;
+    if (id === 'cashier') {
+      const room = activeRoom();
+      if (!room || roomCashiers(room) >= CASHIERS_PER_ROOM) return;
+    }
     const before = currentLevel();
     state.balance -= cost;
-    if (!state.staff) state.staff = {};
-    state.staff[id] = staffCount(id) + 1;
+    if (id === 'cashier') {
+      const room = activeRoom();
+      if (!room.staff) room.staff = {};
+      room.staff.cashier = roomCashiers(room) + 1;
+    } else {
+      if (!state.staff) state.staff = {};
+      state.staff[id] = staffCount(id) + 1;
+    }
     state.xp = (state.xp || 0) + xpForSpend(cost);
     if (currentLevel() > before) announceLevel(currentLevel());
     else toast(role.name + ' hired', 'good');
