@@ -1512,6 +1512,61 @@
   }
 
   // ---- Persistence ----
+  // ---- The design shop ----
+  // Paint for the walls and the floor of each location, art for its walls,
+  // and a finish for every machine in the gym. A colour or a finish is
+  // bought once and can then be put anywhere for nothing; art is bought
+  // for the location it goes in.
+  const WALL_PAINTS = [
+    { id: 'white', name: 'Whitewash', color: '#c9c4bb', cost: 4000 },
+    { id: 'charcoal', name: 'Charcoal', color: '#2b2d33', cost: 4000 },
+    { id: 'red', name: 'Gym Red', color: '#7a2a24', cost: 9000 },
+    { id: 'blue', name: 'Night Blue', color: '#243a5e', cost: 9000 },
+    { id: 'green', name: 'Forest', color: '#26483a', cost: 9000 },
+    { id: 'purple', name: 'Plum', color: '#46284f', cost: 20000 },
+  ];
+  const FLOOR_PAINTS = [
+    { id: 'rubber', name: 'Rubber', a: '#2a2d33', b: '#23262b', cost: 6000 },
+    { id: 'oak', name: 'Oak Boards', a: '#a67a4a', b: '#8f673c', cost: 12000 },
+    { id: 'concrete', name: 'Concrete', a: '#7d8085', b: '#6b6e73', cost: 12000 },
+    { id: 'court', name: 'Blue Court', a: '#2f5c8a', b: '#274d74', cost: 30000 },
+    { id: 'track', name: 'Red Track', a: '#a1443a', b: '#883a31', cost: 30000 },
+    { id: 'turf', name: 'Turf', a: '#3f7a3c', b: '#356732', cost: 60000 },
+  ];
+  const WALL_ART = [
+    { id: 'posters', name: 'Poster Set', note: 'Three posters on the back wall', cost: 25000 },
+    { id: 'stripe', name: 'Neon Stripe', note: 'A lit line round every room', cost: 80000 },
+    { id: 'mural', name: 'Mural', note: 'A painted wall in each room', cost: 250000 },
+  ];
+  const FINISHES = [
+    { id: 'standard', name: 'Standard', note: 'Powder-coated steel', cost: 0,
+      palette: {} },
+    { id: 'black', name: 'Matte Black', note: 'Every machine in black', cost: 250000,
+      palette: { STEEL: '#3a3d45', STEEL_LT: '#5a5e68', FRAME: '#26282e', FRAME_DK: '#17181c', WEIGHT: '#2e3138', PAD: '#1f2126' } },
+    { id: 'red', name: 'Racing Red', note: 'Red frames, black pads', cost: 1000000,
+      palette: { STEEL: '#c8433a', STEEL_LT: '#e26a5f', FRAME: '#8f2c25', FRAME_DK: '#5e1c18', WEIGHT: '#3a2a2a' } },
+    { id: 'chrome', name: 'Chrome', note: 'Polished all over', cost: 5000000,
+      palette: { STEEL: '#d9e2ec', STEEL_LT: '#f4f7fa', FRAME: '#aeb9c7', FRAME_DK: '#7f8a98', WEIGHT: '#9aa5b3', PAD: '#3a3f4a' } },
+    { id: 'gold', name: 'Gold', note: 'The most expensive thing in the shop', cost: 50000000,
+      palette: { STEEL: '#e0b64a', STEEL_LT: '#f5dc86', FRAME: '#b8902f', FRAME_DK: '#7d5f1c', WEIGHT: '#a5822c', PAD: '#2b2418', RUBBER: '#231e14' } },
+  ];
+  function defaultDesign() {
+    return {
+      ownedWalls: {}, ownedFloors: {}, ownedFinishes: { standard: true },
+      walls: {}, floors: {}, art: {}, finish: 'standard',
+    };
+  }
+  function designState() {
+    if (!state.design) state.design = defaultDesign();
+    const d = state.design;
+    ['ownedWalls', 'ownedFloors', 'ownedFinishes', 'walls', 'floors', 'art'].forEach((k) => {
+      if (!d[k] || typeof d[k] !== 'object') d[k] = {};
+    });
+    if (!d.finish) d.finish = 'standard';
+    d.ownedFinishes.standard = true;
+    return d;
+  }
+
   function defaultState() {
     return {
       balance: 0,
@@ -1525,6 +1580,7 @@
       promoAt: 0,
       trophies: {},
       gymName: '',
+      design: defaultDesign(),
       staff: {},
       larder: {},
       franchise: { points: 0, runs: 0 },
@@ -1611,6 +1667,7 @@
     // Decor no longer earns, so any upgrade tier bought for a piece that
     // has become decor buys nothing and is cleared.
     dropDeadTiers(s.tiers);
+    s.design = Object.assign(defaultDesign(), saved.design || {});
 
     // The Personal Trainer is gone: at a third of a square metre it earned
     // more per metre of floor than a sauna, and a floor of them was the
@@ -4350,6 +4407,19 @@
     floorCtx.setTransform(scale, 0, 0, scale, 0, 0);
   }
 
+  // A location's colours as painted: the theme's own, with whatever wall
+  // and floor paint has been put on over them.
+  function colorsFor(theme) {
+    const base = THEME_COLORS[theme] || THEME_COLORS.garage;
+    const d = designState();
+    const wall = WALL_PAINTS.find((w) => w.id === d.walls[theme]);
+    const floor = FLOOR_PAINTS.find((f) => f.id === d.floors[theme]);
+    if (!wall && !floor) return base;
+    const out = Object.assign({}, base);
+    if (wall) { out.wallL = wall.color; out.wallR = shade(wall.color, -22); }
+    if (floor) { out.floorA = floor.a; out.floorB = floor.b; }
+    return out;
+  }
   const THEME_COLORS = {
     garage: { floorA: '#5c4530', floorB: '#4a3624', wallL: '#3a2c1c', wallR: '#2e2116', bgTop: '#241a10', bg: '#171310' },
     basement: { floorA: '#33404a', floorB: '#28333c', wallL: '#1c242c', wallR: '#161b21', bgTop: '#171b1f', bg: '#0e1114' },
@@ -4750,14 +4820,33 @@
   //
   // Gym equipment is powder-coated steel, black upholstery and rubber. The
   // room's own lighting does the rest, so the palette stays narrow.
-  const STEEL = '#9fb0c6';
-  const STEEL_LT = '#c3d0de';
-  const FRAME = '#5d6a80';
-  const FRAME_DK = '#3d4658';
-  const PAD = '#2b3140';
-  const RUBBER = '#20232b';
-  const WEIGHT = '#454f63';
-  const GLOW = '#5fd0e6';
+  // Swappable, because a finish bought in the design shop repaints every
+  // machine: the builders read these by name, and applyFinish() sets them
+  // for the duration of one build.
+  let STEEL = '#9fb0c6';
+  let STEEL_LT = '#c3d0de';
+  let FRAME = '#5d6a80';
+  let FRAME_DK = '#3d4658';
+  let PAD = '#2b3140';
+  let RUBBER = '#20232b';
+  let WEIGHT = '#454f63';
+  let GLOW = '#5fd0e6';
+  const STOCK_PALETTE = { STEEL, STEEL_LT, FRAME, FRAME_DK, PAD, RUBBER, WEIGHT, GLOW };
+  function setPalette(pal) {
+    STEEL = pal.STEEL; STEEL_LT = pal.STEEL_LT; FRAME = pal.FRAME; FRAME_DK = pal.FRAME_DK;
+    PAD = pal.PAD; RUBBER = pal.RUBBER; WEIGHT = pal.WEIGHT; GLOW = pal.GLOW;
+  }
+  // Only the machines take a finish: decor, the desk and the counters keep
+  // their own colours whatever the gym's gear is dressed in.
+  function finishFor(itemId) {
+    const cat = CATEGORY[itemId];
+    if (cat !== 'strength' && cat !== 'cardio' && cat !== 'recovery') return 'standard';
+    return designState().finish || 'standard';
+  }
+  function applyFinish(id) {
+    const f = FINISHES.find((x) => x.id === id) || FINISHES[0];
+    setPalette(Object.assign({}, STOCK_PALETTE, f.palette));
+  }
 
   const PROP_BUILDERS = {
     // A pair on a small rubber square. Knee-high clutter, not furniture.
@@ -5541,7 +5630,7 @@
   }
 
   function drawAmbience(theme) {
-    const colors = THEME_COLORS[theme] || THEME_COLORS.garage;
+    const colors = colorsFor(theme);
     drawGroundLattice(colors);
     drawSiteWash(AMBIENT_WASH[theme] || AMBIENT_WASH.garage);
     drawSiteVignette();
@@ -5597,7 +5686,7 @@
     groundCanvas.style.width = w + 'px';
     groundCanvas.style.height = h + 'px';
 
-    const colors = THEME_COLORS[state.activeTheme] || THEME_COLORS.garage;
+    const colors = colorsFor(state.activeTheme);
     groundCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     groundCtx.fillStyle = colors.bg;
     groundCtx.fillRect(0, 0, w, h);
@@ -5904,7 +5993,47 @@
     });
   }
 
+  // Art bought in the design shop, on top of whatever the theme hangs.
+  function drawBoughtArt(theme, north, east, west, doors) {
+    const art = designState().art[theme];
+    if (!art) return;
+    if (art === 'posters') {
+      // Three posters along the back-left wall, stepping round a doorway.
+      const t = pickWallSpot(doors.nw, [], [0.5, 0.3, 0.7, 0.18, 0.82], 0.2);
+      if (t === null) return;
+      const inks = ['#c94f3a', '#3fa0c9', '#e0b93f'];
+      [-1, 0, 1].forEach((k, i) => {
+        const at = wallFrame(north, west, t + k * 0.13, 0.66);
+        paintQuad([at(-13, 20), at(13, 20), at(13, -18), at(-13, -18)], '#e9e2d2', 'rgba(0,0,0,0.5)', 1);
+        paintQuad([at(-10, 17), at(10, 17), at(10, 0), at(-10, 0)], inks[i], null);
+        strokePolyline([at(-9, -6), at(6, -6)], '#2a2622', 2.2);
+        strokePolyline([at(-9, -12), at(2, -12)], '#2a2622', 2.2);
+      });
+    } else if (art === 'stripe') {
+      const glow = '#ff5fa8';
+      [{ from: north, to: east }, { from: north, to: west }].forEach(({ from, to }) => {
+        const pts = [];
+        for (let i = 0; i <= 8; i++) pts.push(wallPoint(from, to, i / 8, 0.72));
+        floorCtx.save();
+        floorCtx.shadowColor = glow;
+        floorCtx.shadowBlur = 10;
+        strokePolyline(pts, glow, 2.6);
+        floorCtx.restore();
+      });
+    } else if (art === 'mural') {
+      const t = pickWallSpot(doors.nw, [], [0.5, 0.32, 0.68], 0.3);
+      if (t === null) return;
+      const quad = (t0, t1, h0, h1, fill) => paintQuad(wallQuad(north, west, t0, t1, h0, h1), fill, null);
+      quad(t - 0.28, t + 0.28, 0.12, 0.86, '#1f2a3a');
+      quad(t - 0.28, t + 0.28, 0.12, 0.40, '#e3733f');
+      quad(t - 0.24, t - 0.02, 0.40, 0.74, '#f0c05a');
+      quad(t + 0.02, t + 0.24, 0.30, 0.62, '#3fa8a0');
+      quad(t - 0.28, t + 0.28, 0.10, 0.14, '#10141c');
+    }
+  }
+
   function drawWallDecor(theme, north, east, west, doors) {
+    drawBoughtArt(theme, north, east, west, doors);
     if (theme === 'garage') {
       // Mid-wall unless a doorway is there, in which case step along it.
       const t = pickWallSpot(doors.ne, [], [0.56, 0.34, 0.76, 0.16], 0.14);
@@ -6661,7 +6790,7 @@
   // is what reading the stage's size does -- would cost far more than the
   // drawing itself.
   function paintScene() {
-    const colors = THEME_COLORS[state.activeTheme] || THEME_COLORS.garage;
+    const colors = colorsFor(state.activeTheme);
     const light = LIGHT_COLORS[state.activeTheme] || LIGHT_COLORS.garage;
     const W = BASE_W;
     const H = BASE_H;
@@ -7469,10 +7598,11 @@
       propCache.clear();
       propCacheScale = scale;
     }
-    const key = itemId + ':' + turn;
+    const finish = finishFor(itemId);
+    const key = itemId + ':' + turn + ':' + finish;
     let entry = propCache.get(key);
     if (!entry) {
-      entry = renderPropBitmap(itemId, turn, scale);
+      entry = renderPropBitmap(itemId, turn, scale, finish);
       propCache.set(key, entry);
     }
     // Snapped to whole device pixels, or the stamp lands between them and
@@ -7482,7 +7612,7 @@
     floorCtx.drawImage(entry.canvas, x, y, entry.w, entry.h);
   }
 
-  function renderPropBitmap(itemId, turn, scale) {
+  function renderPropBitmap(itemId, turn, scale, finish) {
     // Generous bounds off the piece's footprint: as wide as its longest side
     // could reach on either lattice axis, and tall enough for anything that
     // stands under the wall line, plus a margin for a rail or a frond that
@@ -7502,11 +7632,13 @@
     const live = floorCtx;
     floorCtx = ctx;
     propTurn = turn;
+    applyFinish(finish || 'standard');
     try {
       PROP_BUILDERS[itemId](ctx, { x: ox, y: oy });
     } finally {
       propTurn = 0;
       floorCtx = live;
+      setPalette(STOCK_PALETTE);
     }
     return { canvas, w, h, ox, oy };
   }
@@ -8068,10 +8200,11 @@
       propCache.clear();
       propCacheScale = scale;
     }
-    const key = itemId + ':' + turn;
+    const finish = finishFor(itemId);
+    const key = itemId + ':' + turn + ':' + finish;
     let entry = propCache.get(key);
     if (!entry) {
-      entry = renderPropBitmap(itemId, turn, scale);
+      entry = renderPropBitmap(itemId, turn, scale, finish);
       propCache.set(key, entry);
     }
     return entry;
@@ -8491,6 +8624,125 @@
   // ---- Side panel tabs ----
   // One board at a time. The tab row is built once and never rebuilt, so a
   // click on it always completes.
+  // ---- The design shop panel ----
+  const designEl = document.getElementById('design-panel');
+  let designSig = '';
+  function designThemeName() {
+    const t = THEMES.find((x) => x.id === state.activeTheme);
+    return t ? t.name : 'this location';
+  }
+  function buyDesign(kind, id) {
+    const d = designState();
+    const theme = state.activeTheme;
+    const list = kind === 'wall' ? WALL_PAINTS : kind === 'floor' ? FLOOR_PAINTS : kind === 'art' ? WALL_ART : FINISHES;
+    const item = list.find((x) => x.id === id);
+    if (!item) return;
+    const ownedMap = kind === 'wall' ? d.ownedWalls : kind === 'floor' ? d.ownedFloors : kind === 'finish' ? d.ownedFinishes : null;
+    const owned = ownedMap ? !!ownedMap[id] : d.art[theme] === id;
+    if (!owned) {
+      if (state.balance < item.cost) { toast(item.name + ' costs $' + formatNum(item.cost), null); return; }
+      const before = currentLevel();
+      state.balance -= item.cost;
+      state.xp = (state.xp || 0) + xpForSpend(item.cost);
+      if (ownedMap) ownedMap[id] = true;
+      if (currentLevel() > before) announceLevel(currentLevel());
+    }
+    if (kind === 'wall') d.walls[theme] = id;
+    else if (kind === 'floor') d.floors[theme] = id;
+    else if (kind === 'art') d.art[theme] = id;
+    else d.finish = id;
+    if (kind === 'finish') propCache.clear();
+    toast(kind === 'finish' ? item.name + ' on every machine'
+      : item.name + (kind === 'art' ? ' in the ' : ' for the ') + designThemeName(), 'good');
+    refreshHud();
+    refreshLevelUI();
+    designSig = '';
+    refreshDesignUI();
+    renderScene();
+    save();
+  }
+  function clearDesign(kind) {
+    const d = designState();
+    if (kind === 'wall') delete d.walls[state.activeTheme];
+    else if (kind === 'floor') delete d.floors[state.activeTheme];
+    else if (kind === 'art') delete d.art[state.activeTheme];
+    designSig = '';
+    refreshDesignUI();
+    renderScene();
+    save();
+  }
+  function refreshDesignUI() {
+    if (!designEl) return;
+    const d = designState();
+    const theme = state.activeTheme;
+    const bal = state.balance;
+    const sig = [theme, d.walls[theme] || '', d.floors[theme] || '', d.art[theme] || '', d.finish,
+      Object.keys(d.ownedWalls).join(','), Object.keys(d.ownedFloors).join(','), Object.keys(d.ownedFinishes).join(','),
+      Math.floor(bal / 1000)].join('|');
+    if (sig === designSig) return;
+    designSig = sig;
+    const priceOf = (owned, cost) => owned ? 'Owned' : '$' + formatNum(cost);
+    const swatch = (kind, item, chosen, owned, bg) => {
+      const can = owned || bal >= item.cost;
+      return '<button class="tycoon-swatch' + (chosen ? ' is-on' : '') + (can ? '' : ' is-poor') + '" type="button"'
+        + ' data-kind="' + kind + '" data-id="' + item.id + '" title="' + item.name + '">'
+        + '<span class="tycoon-swatch-chip" style="background:' + bg + '"></span>'
+        + '<span class="tycoon-swatch-name">' + item.name + '</span>'
+        + '<span class="tycoon-swatch-price">' + (chosen ? 'On' : priceOf(owned, item.cost)) + '</span>'
+        + '</button>';
+    };
+    const base = THEME_COLORS[theme] || THEME_COLORS.garage;
+    const wallRow = '<button class="tycoon-swatch' + (!d.walls[theme] ? ' is-on' : '') + '" type="button" data-kind="wall" data-id="">'
+      + '<span class="tycoon-swatch-chip" style="background:' + base.wallL + '"></span>'
+      + '<span class="tycoon-swatch-name">As built</span><span class="tycoon-swatch-price">' + (!d.walls[theme] ? 'On' : 'Free') + '</span></button>'
+      + WALL_PAINTS.map((w) => swatch('wall', w, d.walls[theme] === w.id, !!d.ownedWalls[w.id], w.color)).join('');
+    const floorRow = '<button class="tycoon-swatch' + (!d.floors[theme] ? ' is-on' : '') + '" type="button" data-kind="floor" data-id="">'
+      + '<span class="tycoon-swatch-chip" style="background:linear-gradient(135deg,' + base.floorA + ' 50%,' + base.floorB + ' 50%)"></span>'
+      + '<span class="tycoon-swatch-name">As built</span><span class="tycoon-swatch-price">' + (!d.floors[theme] ? 'On' : 'Free') + '</span></button>'
+      + FLOOR_PAINTS.map((f) => swatch('floor', f, d.floors[theme] === f.id, !!d.ownedFloors[f.id],
+        'linear-gradient(135deg,' + f.a + ' 50%,' + f.b + ' 50%)')).join('');
+    const artRow = '<button class="tycoon-swatch is-wide' + (!d.art[theme] ? ' is-on' : '') + '" type="button" data-kind="art" data-id="">'
+      + '<span class="tycoon-swatch-chip is-none"></span>'
+      + '<span class="tycoon-swatch-name">Bare walls</span><span class="tycoon-swatch-price">' + (!d.art[theme] ? 'On' : 'Free') + '</span></button>'
+      + WALL_ART.map((a) => {
+        const chosen = d.art[theme] === a.id;
+        const can = chosen || bal >= a.cost;
+        return '<button class="tycoon-swatch is-wide' + (chosen ? ' is-on' : '') + (can ? '' : ' is-poor') + '" type="button" data-kind="art" data-id="' + a.id + '">'
+          + '<span class="tycoon-swatch-chip is-' + a.id + '"></span>'
+          + '<span class="tycoon-swatch-name">' + a.name + '<small>' + a.note + '</small></span>'
+          + '<span class="tycoon-swatch-price">' + (chosen ? 'On' : '$' + formatNum(a.cost)) + '</span></button>';
+      }).join('');
+    const finishRow = FINISHES.map((f) => {
+      const chosen = d.finish === f.id;
+      const owned = !!d.ownedFinishes[f.id];
+      const can = owned || bal >= f.cost;
+      const chip = f.palette.STEEL || STOCK_PALETTE.STEEL;
+      return '<button class="tycoon-swatch is-wide' + (chosen ? ' is-on' : '') + (can ? '' : ' is-poor') + '" type="button" data-kind="finish" data-id="' + f.id + '">'
+        + '<span class="tycoon-swatch-chip" style="background:linear-gradient(135deg,' + (f.palette.STEEL_LT || STOCK_PALETTE.STEEL_LT) + ',' + chip + ' 60%,' + (f.palette.FRAME_DK || STOCK_PALETTE.FRAME_DK) + ')"></span>'
+        + '<span class="tycoon-swatch-name">' + f.name + '<small>' + f.note + '</small></span>'
+        + '<span class="tycoon-swatch-price">' + (chosen ? 'On' : owned ? 'Owned' : f.cost ? '$' + formatNum(f.cost) : 'Free') + '</span></button>';
+    }).join('');
+    designEl.innerHTML = '<p class="tycoon-panel-note">Paint and art go on the location you are in. A finish goes on every machine. Buy a colour once, use it anywhere.</p>'
+      + '<h3 class="tycoon-panel-title">Walls <span class="tycoon-panel-sub">' + designThemeName() + '</span></h3>'
+      + '<div class="tycoon-swatches">' + wallRow + '</div>'
+      + '<h3 class="tycoon-panel-title">Floor <span class="tycoon-panel-sub">' + designThemeName() + '</span></h3>'
+      + '<div class="tycoon-swatches">' + floorRow + '</div>'
+      + '<h3 class="tycoon-panel-title">Wall art <span class="tycoon-panel-sub">' + designThemeName() + '</span></h3>'
+      + '<div class="tycoon-swatches is-list">' + artRow + '</div>'
+      + '<h3 class="tycoon-panel-title">Gear finish <span class="tycoon-panel-sub">whole gym</span></h3>'
+      + '<div class="tycoon-swatches is-list">' + finishRow + '</div>';
+  }
+  if (designEl) {
+    designEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tycoon-swatch');
+      if (!btn) return;
+      const kind = btn.dataset.kind;
+      const id = btn.dataset.id;
+      if (!id) { if (kind !== 'finish') clearDesign(kind); return; }
+      buyDesign(kind, id);
+    });
+  }
+
   const tabsEl = document.getElementById('panel-tabs');
   const panelEls = {};
   const tabEls = {};
@@ -8733,6 +8985,7 @@
     refreshNextStep();
     refreshLevelCard();
     refreshOverview();
+    refreshDesignUI();
     checkTrophies();
 
     const affordable = nextRoomAffordable();
