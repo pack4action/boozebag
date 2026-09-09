@@ -2634,3 +2634,31 @@
 /* Where the heading is centred, its description is too. */
 .tycoon-panel-title { text-align: inherit; }
 .tycoon-shop-head-note { line-height: 1.3; }
+
+/* ---- Toasts sit over everything ----
+   The plan and the chips standing on it carry their own stacking, so a
+   toast with no z-index of its own was painted behind the gym: "+$1.2K"
+   for a bubble you had just tapped, invisible under the floor. It is
+   fixed to the window rather than the page, so it lands where you are
+   looking whatever is scrolled where. */
+.tycoon-page > .game-toast {
+  position: fixed;
+  top: auto;
+  bottom: 18%;
+  left: 50%;
+  z-index: 120;
+  /* Its own backing: over a shop row, white letters on a dark outline are
+     hard to read, and a toast should look like one wherever it lands. */
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 205, 90, 0.45);
+  background: rgba(12, 11, 16, 0.92);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.6);
+  font-size: clamp(1.1rem, 4.5vw, 1.7rem);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+@media (min-width: 1080px) {
+  /* Over the plan's own column, not the middle of the page. */
+  .tycoon-page > .game-toast { left: calc(50% - 200px); }
+}

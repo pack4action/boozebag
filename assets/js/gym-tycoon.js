@@ -4088,10 +4088,8 @@
     }
     // Nothing here about gear waiting in Storage: the fold says how many
     // are in there, and nagging about it every tick is not advice.
-    const inBubbles = floorCash();
-    if (inBubbles >= 1) {
-      return ['$' + formatMoney(inBubbles) + ' is in the bubbles. Tap them.', null];
-    }
+    // Nothing here about money in the bubbles either: the bubbles are on
+    // the plan, in front of you, and the stats say what is in them.
     // Nothing is waiting, so the question becomes what to spend on.
     const idle = countersPlaced().find((c) => queueAt(c.room, c.index).length === 0);
     if (idle) {
@@ -4945,24 +4943,46 @@
     },
 
     // An A-frame with two tiers of dumbbells racked along it.
+    // An A-frame with two tiers of dumbbells racked along it. The ends are
+    // posts and a foot rail rather than one slab the depth of the rack,
+    // which read as the arm of a sofa; and the ends and the two tiers are
+    // drawn back to front for the turn, or on the two turns where the far
+    // tier is nearest the viewer it was painted over by the near one.
     dumbbellrack: (ctx, b) => {
-      const L = 1.55, D = 0.5;
-      [-1, 1].forEach((s) => {
-        drawIsoBox(ctx, b, s * (L / 2 - 0.06) * M, 0, 0.06 * M, D / 2 * M, 0.80 * MH, FRAME, 0);
-      });
-      drawIsoBox(ctx, b, 0, 0, L / 2 * M, D / 2 * M, 0.09 * MH, FRAME_DK, 0);
-      [[0.46, 0.20], [0.74, 0.03]].forEach(([h, lean]) => {
-        drawIsoBox(ctx, b, 0, lean * M, (L / 2 - 0.05) * M, 0.10 * M, 0.06 * MH, STEEL, h * MH);
+      const L = 1.55, D = 0.46, H = 0.76;
+      const endU = L / 2 - 0.05;
+      const postV = D / 2 - 0.04;
+      const endFrame = (su) => () => {
+        [-1, 1].forEach((sv) => {
+          drawIsoBox(ctx, b, su * endU * M, sv * postV * M, 0.045 * M, 0.045 * M,
+            (sv > 0 ? H : H * 0.72) * MH, FRAME, 0);
+        });
+        // The foot the two posts stand on, and the brace across their tops.
+        drawIsoBar(ctx, b, su * endU * M, -(postV + 0.05) * M, su * endU * M, (postV + 0.05) * M,
+          0.05 * MH, 7, FRAME_DK);
+        drawIsoBar(ctx, b, su * endU * M, -postV * M, su * endU * M, postV * M,
+          H * 0.72 * MH, 4, FRAME);
+      };
+      // One shelf of dumbbells: the rail, then five of them along it.
+      const tier = (h, v) => () => {
+        drawIsoBox(ctx, b, 0, v * M, (L / 2 - 0.04) * M, 0.10 * M, 0.045 * MH, STEEL, h * MH);
         for (let i = -2; i <= 2; i++) {
           const u = i * 0.30;
-          drawIsoBar(ctx, b, u * M, (lean - 0.14) * M, u * M, (lean + 0.14) * M,
-            (h + 0.10) * MH, 5, STEEL_LT);
-          [-0.16, 0.16].forEach((dv) => {
-            drawIsoDisc(ctx, isoScreenPoint(b, u * M, (lean + dv) * M, (h + 0.10) * MH),
-              5, 6.5, '#b4453c');
+          const lift = (h + 0.095) * MH;
+          drawIsoBar(ctx, b, u * M, (v - 0.085) * M, u * M, (v + 0.085) * M, lift, 3.5, STEEL_LT);
+          [-0.115, 0.115].forEach((dv) => {
+            const at = isoScreenPoint(b, u * M, (v + dv) * M, lift);
+            drawIsoDisc(ctx, at, 4.4, 5.4, WEIGHT);
+            drawIsoDisc(ctx, at, 2.1, 2.6, '#b4453c');
           });
         }
-      });
+      };
+      drawParts([
+        { u: -endU, v: 0, draw: endFrame(-1) },
+        { u: 0, v: -0.075, draw: tier(0.60, -0.075) },
+        { u: 0, v: 0.125, draw: tier(0.33, 0.125) },
+        { u: endU, v: 0, draw: endFrame(1) },
+      ]);
     },
 
     // Rolled out flat, with a lighter strip down the middle of it.
