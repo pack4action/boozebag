@@ -3364,11 +3364,12 @@
     const cooling = promoReadyInSeconds();
     promoBtn.classList.toggle('is-running', left > 0);
     promoBtn.disabled = cooling > 0;
-    promoBtn.textContent = left > 0
+    const html = left > 0
       ? 'Open day x' + PROMO_MULT + ' \u00b7 ' + Math.ceil(left) + 's'
       : cooling > 0
         ? 'Open day in ' + clockOf(cooling)
-        : 'Open day \u00b7 x' + PROMO_MULT + ' for ' + PROMO_SECONDS + 's';
+        : 'Open day<span class="promo-detail"> \u00b7 x' + PROMO_MULT + ' for ' + PROMO_SECONDS + 's</span>';
+    if (promoBtn.innerHTML !== html) promoBtn.innerHTML = html;
   }
 
   function runOpenDay() {
@@ -7769,7 +7770,7 @@
       const waiting = rooms.reduce(
         (sum, room) => sum + roomCash(room).reduce((a, b) => a + b, 0), 0);
       const label = !unlocked
-        ? t.name + ' <span class="btn-lock-icon">' + iconMarkup('lock', 11) + '</span> Lv ' + t.unlockLevel
+        ? t.name + ' <span class="btn-lock-icon">' + iconMarkup('lock', 11) + '</span><span class="theme-lv"> Lv ' + t.unlockLevel + '</span>'
         : t.name + '<span class="theme-rate">' + (open ? formatNum(rate) + '/s' : 'shut') + '</span>'
           + (waiting >= 1 ? '<span class="theme-dot" title="Money waiting in the bubbles here"></span>' : '');
       if (btn.innerHTML !== label) btn.innerHTML = label;
@@ -7837,10 +7838,10 @@
     }
     const cost = ROOM_UNLOCK_COSTS[rooms.length];
     const affordable = state.balance >= cost;
-    const label = '+ Room \u00b7 ' + slotCountFor(state.activeTheme, rooms.length)
-      + ' slots \u00b7 $' + formatNum(cost);
+    const label = '+ Room<span class="room-slots"> \u00b7 ' + slotCountFor(state.activeTheme, rooms.length)
+      + ' slots</span> \u00b7 $' + formatNum(cost);
     addRoomBtn.hidden = false;
-    if (addRoomBtn.textContent !== label) addRoomBtn.textContent = label;
+    if (addRoomBtn.innerHTML !== label) addRoomBtn.innerHTML = label;
     addRoomBtn.classList.toggle('is-locked', !affordable);
     addRoomBtn.disabled = !affordable;
   }
