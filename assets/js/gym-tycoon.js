@@ -106,8 +106,10 @@
 
   const THEMES = [
     { id: 'garage', name: 'Garage', unlockLevel: 1 },
-    { id: 'basement', name: 'Basement', unlockLevel: 2 },
-    { id: 'rooftop', name: 'Rooftop', unlockLevel: 4 },
+    // A second location is a mid-game thing, not a level-2 thing: the first
+    // gym should be half built before there is another one to think about.
+    { id: 'basement', name: 'Basement', unlockLevel: 5 },
+    { id: 'rooftop', name: 'Rooftop', unlockLevel: 8 },
     // The far end of the ladder. Nothing else unlocks past level ten, and
     // forty levels of nothing to look forward to is a long way to walk.
     { id: 'boardwalk', name: 'Boardwalk', unlockLevel: 12 },
@@ -1237,19 +1239,7 @@
   // there shut because the money had gone on gear -- a dead end you could
   // walk into without noticing. Every unlocked location is simply given one.
   function deskWanted() {
-    return false;
-  }
-  // One spare desk for every unlocked location that has not got one standing
-  // on its floor. Idempotent, so it can be called whenever the set of
-  // unlocked locations might have changed without ever handing out two.
-  function grantFreeDesks() {
-    const short = THEMES.filter(unlockedFor).filter((t) => !deskPlacedIn(t.id)).length;
-    const spare = (state.owned.frontdesk || 0)
-      - THEMES.reduce((n, t) => n + (state.themeRooms[t.id] || []).reduce(
-        (m, room) => m + room.layout.filter((id) => id === 'frontdesk').length, 0), 0);
-    if (spare >= short) return false;
-    state.owned.frontdesk = (state.owned.frontdesk || 0) + (short - spare);
-    return true;
+    return !deskPlacedIn(state.activeTheme);
   }
 
   // Money as somebody would say it out loud: whole dollars under a
@@ -1415,7 +1405,7 @@
       staff: {},
       larder: {},
       franchise: { points: 0, runs: 0 },
-      owned: { frontdesk: 1 },
+      owned: {},
       themeRooms: defaultThemeRooms(),
       activeTheme: 'garage',
       activeRoomIndex: 0,
@@ -1570,19 +1560,11 @@
         return;
       }
     });
-    if (!s.owned.frontdesk) s.owned.frontdesk = 1;
-    // Every unlocked location gets a desk of its own, free. Done against `s`
-    // rather than through grantFreeDesks, which reads the live state that
-    // this function is still building.
-    {
-      const level = levelFromXp(s.xp || 0);
-      const unlocked = THEMES.filter((t) => level >= (t.unlockLevel || 1));
-      const standing = THEMES.reduce((n, t) => n + (s.themeRooms[t.id] || []).reduce(
-        (m, room) => m + room.layout.filter((id) => id === 'frontdesk').length, 0), 0);
-      const short = unlocked.filter((t) => !chainHasDesk(s.themeRooms[t.id])).length;
-      const spare = (s.owned.frontdesk || 0) - standing;
-      if (spare < short) s.owned.frontdesk += short - spare;
-    }
+    // A desk is never in Storage: it is taken from the shop, free, and put
+    // straight down. The count owned is the count standing, and a save
+    // from the days of spare desks loses the spares.
+    s.owned.frontdesk = THEMES.reduce((n, t) => n + (s.themeRooms[t.id] || []).reduce(
+      (m, room) => m + room.layout.filter((id) => id === 'frontdesk').length, 0), 0);
 
     // Cashiers used to be hired into the gym; they are hired into a room.
     // A save with the old kind spreads them over its open rooms, three a
@@ -2622,8 +2604,6 @@
   // What this level just opened up, so a level-up says something more useful
   // than a bigger number.
   function announceLevel(level) {
-    // A level can open a location, and a location arrives with its desk.
-    if (grantFreeDesks()) renderInventory();
     const opened = ITEMS.filter((i) => i.unlockLevel === level).map((i) => i.name)
       .concat(THEMES.filter((t) => t.unlockLevel === level).map((t) => t.name))
       .concat(STAFF_ROLES.filter((r) => r.unlockLevel === level).map((r) => r.name + 's'))
@@ -2883,9 +2863,6 @@
     editing = null;
     armedItemId = null;
     membersKey = '';
-    // The level survives a franchise, so the locations it opened do too, and
-    // each of them is entitled to its desk.
-    grantFreeDesks();
     refillJobs();
     recomputeStats();
     refreshHud();
@@ -3342,11 +3319,42 @@
     if (shut) return;
     const f = rushFactor();
     const bonus = Math.round(RUSH_BONUS * f * 100);
-    rushEl.innerHTML = '<span class="tycoon-rush-when">' + rushLabel() + '</span>'
+    const when = rushLabel();
+    // Rebuilt only when what it says changes: rebuilding it every tick
+    // would swallow the tap that opens it.
+    const sig = when + '|' + bonus + '|' + (f * 100).toFixed(0);
+    if (rushEl.dataset.sig === sig) return;
+    rushEl.dataset.sig = sig;
+    const hour = new Date().getHours();
+    const next = hour < 7 ? 'The morning rush starts around 7.'
+      : hour < 9 ? 'This is the morning rush.'
+        : hour < 17 ? 'The evening rush starts around 5.'
+          : hour < 20 ? 'This is the evening rush.'
+            : 'It quietens down for the night from here.';
+    rushEl.innerHTML = '<span class="tycoon-rush-when">' + when + '</span>'
       + '<span class="tycoon-rush-meter"><span class="tycoon-rush-fill" style="width:'
       + (f * 100).toFixed(0) + '%"></span></span>'
       + '<span class="tycoon-rush-bonus' + (bonus > 0 ? '' : ' is-none') + '">'
-      + (bonus > 0 ? '+' + bonus + '%' : 'no bonus') + '</span>';
+      + (bonus > 0 ? '+' + bonus + '%' : 'no bonus') + '</span>'
+      + '<span class="tycoon-rush-hint" aria-hidden="true">?</span>'
+      + '<span class="tycoon-rush-pop" role="note">'
+        + '<b>How busy the gym is right now</b>'
+        + '<span>' + when + ' \u2014 everything is earning '
+          + (bonus > 0 ? '+' + bonus + '%' : 'its normal rate') + '.</span>'
+        + '<span>The gym fills up mornings and evenings, on your clock. '
+          + next + '</span>'
+        + '<span>Quiet is never a penalty. Rammed is +' + Math.round(RUSH_BONUS * 100) + '%.</span>'
+      + '</span>';
+  }
+  if (rushEl) {
+    rushEl.addEventListener('click', () => rushEl.classList.toggle('is-open'));
+    rushEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rushEl.classList.toggle('is-open'); }
+      if (e.key === 'Escape') rushEl.classList.remove('is-open');
+    });
+    document.addEventListener('click', (e) => {
+      if (!rushEl.contains(e.target)) rushEl.classList.remove('is-open');
+    });
   }
 
   // ---- Open day button ----
@@ -3365,10 +3373,10 @@
     promoBtn.classList.toggle('is-running', left > 0);
     promoBtn.disabled = cooling > 0;
     const html = left > 0
-      ? 'Open day x' + PROMO_MULT + ' \u00b7 ' + Math.ceil(left) + 's'
+      ? 'Promo x' + PROMO_MULT + ' \u00b7 ' + Math.ceil(left) + 's'
       : cooling > 0
-        ? 'Open day in ' + clockOf(cooling)
-        : 'Open day<span class="promo-detail"> \u00b7 x' + PROMO_MULT + ' for ' + PROMO_SECONDS + 's</span>';
+        ? 'Promo in ' + clockOf(cooling)
+        : 'Promo<span class="promo-detail"> \u00b7 x' + PROMO_MULT + ' for ' + PROMO_SECONDS + 's</span>';
     if (promoBtn.innerHTML !== html) promoBtn.innerHTML = html;
   }
 
@@ -3382,10 +3390,21 @@
     refreshPromoUI();
     renderScene();
     save();
-    toast('Open day: x' + PROMO_MULT + ' for ' + PROMO_SECONDS + 's', 'good');
+    toast('Promo on: x' + PROMO_MULT + ' for ' + PROMO_SECONDS + 's', 'good');
   }
 
   if (promoBtn) promoBtn.addEventListener('click', runOpenDay);
+  const promoWrap = document.getElementById('promo-wrap');
+  const promoInfo = document.getElementById('promo-info');
+  if (promoWrap && promoInfo) {
+    const pop = promoWrap.querySelector('.tycoon-info-pop');
+    pop.innerHTML = '<b>Promo</b>'
+      + '<span>Runs a promotion for ' + PROMO_SECONDS + ' seconds: a burst of new members, and everything earns x'
+      + PROMO_MULT + ' while it lasts.</span>'
+      + '<span>Then it needs ' + Math.round(PROMO_COOLDOWN_SECONDS / 60) + ' minutes before the next one.</span>';
+    promoInfo.addEventListener('click', (e) => { e.stopPropagation(); promoWrap.classList.toggle('is-open'); });
+    document.addEventListener('click', (e) => { if (!promoWrap.contains(e.target)) promoWrap.classList.remove('is-open'); });
+  }
 
   const toastEl = document.getElementById('game-toast');
   function toast(msg, cls) {
@@ -3545,22 +3564,28 @@
   let shopFilter = null;
   const shopFilterEl = document.getElementById('shop-filter');
 
+  // A menu rather than a row of chips: nine chips did not fit any width
+  // short of a desktop, and the ones off the edge might as well not exist.
   function buildShopFilter() {
     if (!shopFilterEl) return;
     const cats = [null].concat([...new Set(ITEMS.map((i) => CATEGORY[i.id]))]);
-    shopFilterEl.innerHTML = '';
+    shopFilterEl.innerHTML = '<label class="tycoon-filter-box">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+      + '<path d="M3 5h18v2.2l-7 7.3V20l-4-2v-5.5L3 7.2Z"/></svg>'
+      + '<span class="tycoon-filter-word">Filter</span>'
+      + '<select class="tycoon-filter-select" aria-label="Show one category"></select></label>';
+    const sel = shopFilterEl.querySelector('select');
     cats.forEach((cat) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'tycoon-filter' + (cat === shopFilter ? ' is-on' : '');
-      btn.textContent = cat ? CATEGORY_META[cat].name : 'All';
-      if (cat) btn.style.setProperty('--cat', CATEGORY_META[cat].color);
-      btn.addEventListener('click', () => {
-        shopFilter = shopFilter === cat ? null : cat;
-        buildShopFilter();
-        refreshShopUI();
-      });
-      shopFilterEl.appendChild(btn);
+      const opt = document.createElement('option');
+      opt.value = cat || '';
+      opt.textContent = cat ? CATEGORY_META[cat].name : 'All gear';
+      opt.selected = cat === shopFilter;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', () => {
+      shopFilter = sel.value || null;
+      shopFilterEl.classList.toggle('is-on', !!shopFilter);
+      refreshShopUI();
     });
   }
 
@@ -3635,8 +3660,8 @@
     // A spare desk in Storage belongs to a location that has none yet, and
     // the useful thing to say about it is which one.
     const deskless = THEMES.filter((t) => unlockedFor(t) && !deskPlacedIn(t.id));
-    if (deskless.length && availableCount('frontdesk') > 0 && deskless[0].id !== state.activeTheme) {
-      return ['The ' + deskless[0].name + ' has no desk down yet, so it earns nothing.', null];
+    if (deskless.length && deskless[0].id !== state.activeTheme) {
+      return ['The ' + deskless[0].name + ' has no desk yet. Go there and take its free desk from the Shop.', null];
     }
     const waiting = ITEMS.reduce((n, item) => n + (item.starter ? 0 : availableCount(item.id)), 0);
     if (waiting) {
@@ -3695,8 +3720,8 @@
     if (open) return;
     const theme = THEMES.find((t) => t.id === state.activeTheme);
     openHintEl.textContent = availableCount('frontdesk') > 0
-      ? 'The ' + theme.name + ' is closed. Put the Customer Desk from Storage on the floor to open it.'
-      : 'The ' + theme.name + ' is closed. It needs its Customer Desk on the floor.';
+      ? 'The ' + theme.name + ' is closed. Take its free Customer Desk from the Shop and put it on the floor.'
+      : 'The ' + theme.name + ' is closed. Take its free Customer Desk from the Shop and put it on the floor.';
   }
 
   function refreshShopUI() {
@@ -3725,21 +3750,21 @@
       const shut = item.starter ? !deskWanted() : !gymOpen();
       els.root.classList.toggle('is-shut', shut);
       if (shut) {
-        els.buyBtn.textContent = item.starter ? 'Free with every location' : 'Place the desk first';
+        els.buyBtn.textContent = item.starter ? 'Placed here' : 'Place the desk first';
         els.buyBtn.disabled = true;
         els.root.classList.remove('is-affordable');
         els.upBtn.hidden = true;
         els.bulkBtn.hidden = true;
         return;
       }
-      els.buyBtn.textContent = 'Buy — $' + formatNum(cost);
-      const affordable = state.balance >= cost;
+      els.buyBtn.textContent = item.starter ? 'Take it · free' : 'Buy — $' + formatNum(cost);
+      const affordable = item.starter || state.balance >= cost;
       els.buyBtn.disabled = !affordable;
       els.root.classList.toggle('is-affordable', affordable);
       // Ten only shows up when ten are genuinely within reach, so it is
       // never a button that buys three and stops.
       const tenCost = cost * (Math.pow(COST_GROWTH, 10) - 1) / (COST_GROWTH - 1);
-      const bulk = affordable && state.balance >= tenCost;
+      const bulk = !item.starter && affordable && state.balance >= tenCost;
       if (els.bulkBtn.hidden !== !bulk) els.bulkBtn.hidden = !bulk;
 
       // What it earns now, which is not what it says on the tin once it has
@@ -3762,7 +3787,7 @@
     const item = ITEMS.find((i) => i.id === id);
     if (!unlockedFor(item)) return;
     if (item.starter ? !deskWanted() : !gymOpen()) return;
-    const cost = costFor(item);
+    const cost = item.starter ? 0 : costFor(item);
     if (state.balance < cost) return;
     const before = currentLevel();
     state.balance -= cost;
@@ -3770,6 +3795,19 @@
     state.xp = (state.xp || 0) + xpForSpend(cost);
     const after = currentLevel();
     if (after > before) announceLevel(after);
+    if (item.starter) {
+      // The desk goes straight into your hand to be put down, never into
+      // Storage. Cancelling throws it away; the shop offers it again.
+      const idx = state.activeRoomIndex;
+      const shape = roomShapeFor(state.activeTheme, idx);
+      if (editing) cancelEdit();
+      beginEdit(id, idx, { u: shape.cols / 2, v: shape.rows / 2 }, null);
+      scrollToRoom(idx);
+      refreshShopUI();
+      renderInventory();
+      save();
+      return;
+    }
     // Auto-drop new gear into an open slot in the room+theme currently in
     // view so it starts earning right away. Once that's full, further
     // purchases sit in inventory until you free up a slot somewhere --
@@ -7538,6 +7576,12 @@
 
   function cancelEdit() {
     if (!editing) return;
+    // A desk that was never put down is not kept: it goes back to being
+    // the free one the shop offers.
+    const held = itemById(editing.itemId);
+    if (editing.fromIndex === null && held && held.starter) {
+      state.owned[held.id] = Math.max(0, (state.owned[held.id] || 0) - 1);
+    }
     if (editing.fromIndex !== null) {
       // It was already on the floor: put it back exactly where it stood,
       // in the room it stood in.
@@ -7659,7 +7703,7 @@
   function renderInventory() {
     refreshPlaceAll();
     inventoryEl.innerHTML = '';
-    const ownedItems = ITEMS.filter((item) => availableCount(item.id) > 0);
+    const ownedItems = ITEMS.filter((item) => !item.starter && availableCount(item.id) > 0);
     if (ownedItems.length === 0) {
       const p = document.createElement('p');
       p.className = 'tycoon-inv-empty';
@@ -7720,7 +7764,7 @@
           const allBtn = document.createElement('button');
           allBtn.type = 'button';
           allBtn.className = 'tycoon-inv-sell is-all';
-          allBtn.textContent = 'all ' + spare;
+          allBtn.textContent = 'Sell all';
           allBtn.title = 'Sell every spare ' + item.name + ' back';
           allBtn.addEventListener('click', () => {
             for (let i = 0; i < spare; i++) sellItem(item.id);

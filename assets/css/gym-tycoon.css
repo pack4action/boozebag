@@ -1853,3 +1853,108 @@
   .tycoon-page .hud-label { white-space: normal; line-height: 1.1; letter-spacing: 0.2px; }
   .tycoon-page .hud-stat { display: flex; flex-direction: column; justify-content: flex-end; }
 }
+
+/* ---- The busy badge explains itself ----
+   "Steady +14%" is the busy-hour bonus, and as a bare badge that is not
+   obvious. Tapping it opens a short card underneath saying what the hour
+   is, what it is worth, and how the day runs. */
+.tycoon-rush { position: relative; cursor: pointer; }
+.tycoon-rush:focus-visible { outline: 2px solid #ffd166; outline-offset: 2px; }
+.tycoon-rush-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  font-size: 9.5px;
+  font-weight: 800;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-rush-pop {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 11px 13px;
+  border: 1px solid rgba(255, 209, 102, 0.35);
+  border-radius: 12px;
+  background: #16141c;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.45;
+  color: #e9e9ee;
+  text-align: left;
+  white-space: normal;
+  flex-direction: column;
+  gap: 6px;
+  cursor: default;
+}
+.tycoon-rush-pop b { color: #ffd166; font-weight: 800; }
+.tycoon-rush.is-open .tycoon-rush-pop { display: flex; }
+.tycoon-rush.is-open { border-color: rgba(255, 209, 102, 0.5); }
+@media (max-width: 1079px) {
+  /* On a narrow screen the badge sits at the row's left, so the card hangs
+     from its left edge rather than being centred off the screen. */
+  .tycoon-rush-pop { left: 0; transform: none; }
+}
+
+/* ---- Promo, explained ----
+   The card opens on hover for a mouse, and from the ? chip for a finger,
+   because tapping the button itself runs the promo. */
+.tycoon-promo-wrap { position: relative; display: inline-flex; align-items: center; gap: 5px; flex: none; }
+.tycoon-toolbar-end .tycoon-promo-wrap .tycoon-promo-btn { margin: 0; }
+.tycoon-info {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: var(--muted, #8b8b93);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+  flex: none;
+}
+.tycoon-info:hover, .tycoon-info:focus-visible { color: #ffd166; border-color: #ffd166; outline: none; }
+.tycoon-info-pop { top: calc(100% + 8px); right: 0; left: auto; transform: none; }
+@media (hover: hover) {
+  .tycoon-promo-wrap:hover .tycoon-info-pop { display: flex; }
+}
+.tycoon-promo-wrap.is-open .tycoon-info-pop { display: flex; }
+
+/* ---- The filter menu ---- */
+.tycoon-filters { overflow: visible; justify-content: center; }
+.tycoon-filter-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px 5px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--muted, #8b8b93);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+}
+.tycoon-filters.is-on .tycoon-filter-box { color: #ffd166; border-color: rgba(255, 209, 102, 0.6); }
+.tycoon-filter-select {
+  font: inherit;
+  font-weight: 800;
+  color: #e9e9ee;
+  background: transparent;
+  border: 0;
+  padding: 0 2px;
+  cursor: pointer;
+  outline: none;
+}
+.tycoon-filter-select option { background: #16141c; color: #e9e9ee; }

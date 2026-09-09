@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=10" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=5" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=57" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=60" />
 </head>
 <body class="game-body">
 
@@ -72,7 +72,7 @@
   <div class="game-hud">
     <div class="hud-stat" title="Everything this gym has ever earned."><span class="hud-label">Earned</span><span class="hud-value" id="hud-total">0</span></div>
     <div class="hud-stat" title="What every location together earns each second, right now."><span class="hud-label">Per second</span><span class="hud-value" id="hud-gps">0</span></div>
-    <div class="hud-stat" title="Money sitting in the coin bubbles, waiting for you to tap it."><span class="hud-label">In bubbles</span><span class="hud-value" id="hud-floor">$0</span></div>
+    <div class="hud-stat" title="Money sitting in the coin bubbles, waiting for you to tap it."><span class="hud-label">To collect</span><span class="hud-value" id="hud-floor">$0</span></div>
     <div class="hud-stat hud-level">
       <span class="hud-label">Level</span>
       <span class="hud-value" id="hud-level">1</span>
@@ -95,9 +95,13 @@
     <div class="tycoon-toolbar">
       <div class="tycoon-theme-row" id="theme-row"></div>
       <div class="tycoon-toolbar-end">
-        <div class="tycoon-rush" id="rush-badge"></div>
+        <div class="tycoon-rush" id="rush-badge" role="button" tabindex="0" aria-label="How busy the gym is right now, and the bonus"></div>
         <div class="tycoon-room-actions" id="room-actions"></div>
-        <button class="tycoon-promo-btn" id="btn-promo" type="button"></button>
+        <span class="tycoon-promo-wrap" id="promo-wrap">
+          <button class="tycoon-promo-btn" id="btn-promo" type="button"></button>
+          <button class="tycoon-info" id="promo-info" type="button" aria-label="What a promo does">?</button>
+          <span class="tycoon-rush-pop tycoon-info-pop" role="note"></span>
+        </span>
       </div>
     </div>
     <div class="tycoon-stage-wrap">
@@ -214,7 +218,7 @@
         <summary>How it works</summary>
         <div class="tycoon-howto-body">
           <p><b>The loop.</b> Buy a machine. Put it on the floor. Tap the bubble over it to take the money. Everything else makes that bubble fill faster.</p>
-          <p><b>Opening up.</b> Put the Customer Desk down first. Nothing earns and nothing sells until it is. The desk itself earns nothing. Every location gets one free. You never buy or sell one.</p>
+          <p><b>Opening up.</b> Take the free Customer Desk from the Shop and put it down. Nothing earns and nothing sells until it is. The desk itself earns nothing. Each location gets its own, free, and it can never be stored or sold.</p>
           <p><b>Bubbles.</b> Nothing pays into your balance by itself. A machine fills a bubble, and you tap it. A bubble holds about two minutes of takings; full bubble, machine stops. Upgrade the desk to make them hold more, up to an hour.</p>
           <p><b>Cashiers.</b> Hired into a room, up to three. They walk from bubble to bubble and take everything in each one they reach. More cashiers, faster rounds. Rooms you are not looking at still get their rounds.</p>
           <p><b>Placing.</b> Click a piece in Storage. Drag it, or use the arrow keys. R turns it. Enter places it. Escape puts it back. Place one and the next of the same kind is already in your hand. Two fingers pan and zoom while you hold something.</p>
@@ -226,7 +230,7 @@
           <p><b>Jobs.</b> Three at a time, pay stated up front. From level 3, one rush order at a time on an eight-minute clock, worth triple.</p>
           <p><b>Levels.</b> Buying and upgrading gear earns XP. Levels open locations, staff and the office tier. Nothing else does.</p>
           <p><b>Other staff.</b> Cleaners lift vibe. Receptionists make busy hours busier. A Floor Manager adds to everything. These work the whole gym, and each extra hire does less. Anyone can be let go.</p>
-          <p><b>Busy hours.</b> Mornings and evenings on your clock earn a bonus. Quiet hours are never a penalty. An open day is the same on demand.</p>
+          <p><b>Busy hours.</b> Mornings and evenings on your clock earn a bonus. Quiet hours are never a penalty. A promo is the same on demand: x2.5 for 90 seconds, then a 15-minute wait.</p>
           <p><b>Locations.</b> Four separate gyms, each unlocked by level. Drag to pan, scroll or pinch to zoom.</p>
           <p><b>Franchising.</b> When the shop runs out, cash the gym in for points that multiply everything after. You keep your level and trophies.</p>
         </div>
@@ -248,6 +252,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=2"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=99"></script>
+<script src="assets/js/gym-tycoon.js?v=102"></script>
 </body>
 </html>
