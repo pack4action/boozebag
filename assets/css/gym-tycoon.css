@@ -354,10 +354,13 @@
 .shop-buy-btn:active:not(:disabled) { transform: translate(1px, 1px); box-shadow: 2px 2px 0 #000; }
 .shop-buy-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 
+/* Wiping the gym is the one thing on this page that cannot be undone, so
+   it is the one thing that reads as a warning. */
 .tycoon-reset-link {
   font-family: inherit;
   font-size: 12px;
-  color: var(--muted);
+  font-weight: 700;
+  color: var(--red, #ff3b3b);
   background: none;
   border: none;
   text-decoration: underline;
@@ -365,7 +368,7 @@
   padding: 0;
   margin-left: 4px;
 }
-.tycoon-reset-link:hover { color: var(--red); }
+.tycoon-reset-link:hover { color: #ff6b6b; }
 
 /* ---- Phones ----
    The three stat boxes wrap onto two rows at this width, and since the bar
@@ -383,7 +386,6 @@
   .shop-item-cat { display: none; }
   .shop-item { padding: 12px 14px; gap: 4px; }
   .shop-item-gps { font-size: 11.5px; }
-  .tycoon-filters { padding: 8px 10px 10px; }
   .tycoon-filter-box { font-size: 11px; padding: 4px 9px 4px 7px; }
   .tycoon-synergy { margin-bottom: 10px; }
   .tycoon-tray-head { margin-bottom: 6px; }
@@ -446,10 +448,21 @@
   .tycoon-page .game-switcher,
   .tycoon-page .wallet-bar,
   .tycoon-page .game-hud,
-  .tycoon-page > .game-toast,
+  .tycoon-page > .game-toast { grid-column: 1 / -1; }
+
+  /* The sidebar is sticky, so anything spanning both columns below it slid
+     underneath it as the page scrolled: the leaderboard and the footnotes
+     were being drawn behind the shop. They belong under the plan, in the
+     left column, where nothing is ever on top of them. */
   .tycoon-page > .game-hint,
   .tycoon-page > .leaderboard,
-  .tycoon-page > .game-footnote { grid-column: 1 / -1; }
+  .tycoon-page > .game-footnote {
+    grid-column: 1;
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .tycoon-page > .leaderboard { margin-top: 22px; }
 
   .tycoon-page .game-sub { max-width: 880px; margin-bottom: 16px; font-size: 14.5px; }
   .tycoon-page .game-switcher { margin-bottom: 16px; }
@@ -1949,41 +1962,67 @@
 }
 
 /* ---- The filter ----
-   A box per category, ticked, in a card of their own. A menu could show
-   one category at a time; shopping is usually "everything except". */
+   A dropdown holding a tick box per category: one small control when it is
+   shut, and open, any mix of categories can be hidden at once. */
 .tycoon-filters {
-  display: block;
+  display: flex;
+  justify-content: center;
   overflow: visible;
-  border: 1px solid var(--panel-border, #2a2732);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.025);
-  padding: 9px 12px 11px;
+  border: 0;
+  background: none;
+  padding: 0;
   margin: 0 0 12px;
 }
-.tycoon-filter-head {
-  display: flex;
+.tycoon-filter-menu { position: relative; display: inline-block; }
+.tycoon-filter-btn {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 7px;
+  padding: 6px 11px 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
   color: var(--muted, #8b8b93);
-  font-size: 11px;
+  font: inherit;
+  font-size: 11.5px;
   font-weight: 800;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  margin-bottom: 8px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  white-space: nowrap;
 }
-.tycoon-filters.is-on .tycoon-filter-head { color: #ffd166; }
+.tycoon-filter-btn:hover { border-color: rgba(255, 209, 102, 0.55); color: var(--text, #e9e9ee); }
+.tycoon-filter-state { color: var(--text, #e9e9ee); }
+.tycoon-filters.is-on .tycoon-filter-btn { color: #ffd166; border-color: rgba(255, 209, 102, 0.6); }
+.tycoon-filters.is-on .tycoon-filter-state { color: #ffd166; }
+.tycoon-filter-caret { transition: transform 0.15s ease; opacity: 0.8; }
+.tycoon-filter-menu.is-open .tycoon-filter-caret { transform: rotate(180deg); }
+.tycoon-filter-drop {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  width: max-content;
+  max-width: min(300px, 84vw);
+  padding: 9px;
+  border: 1px solid var(--panel-border, #2a2732);
+  border-radius: 14px;
+  background: #16141c;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+}
+.tycoon-filter-drop[hidden] { display: none !important; }
 .tycoon-filter-reset {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
   font: inherit;
   font-size: 10.5px;
   font-weight: 800;
-  text-transform: none;
-  letter-spacing: 0;
   color: #ffd166;
   background: transparent;
   border: 1px solid rgba(255, 209, 102, 0.5);
   border-radius: 999px;
-  padding: 2px 9px;
+  padding: 4px 9px;
   cursor: pointer;
 }
 .tycoon-filter-reset[hidden] { display: none !important; }
@@ -2239,3 +2278,32 @@
   .tycoon-designer .tycoon-toolbar .tycoon-promo-btn { font-size: 10px; padding: 5px 9px; }
   .tycoon-designer .tycoon-toolbar .tycoon-info { font-size: 10px; padding: 0 9px 0 7px; }
 }
+
+/* ---- One question mark, one shape ----
+   The busy badge and Promo both open a card from a "?", so the two look
+   the same: a divided segment at the right-hand end of the pill, not a
+   small circle floating inside one of them. */
+/* The pill's own vertical padding moves onto its contents, so the "?"
+   segment can run the full height of it the way Promo's does. */
+.tycoon-rush { padding: 0 0 0 13px; overflow: hidden; align-items: stretch; flex-wrap: nowrap; }
+.tycoon-rush-when,
+.tycoon-rush-bonus { display: inline-flex; align-items: center; padding: 6px 0; }
+.tycoon-rush-meter { align-self: center; }
+.tycoon-rush-hint {
+  align-self: stretch;
+  width: auto;
+  height: auto;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0;
+  padding: 0 11px 0 9px;
+  margin-left: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-rush:hover .tycoon-rush-hint,
+.tycoon-rush.is-open .tycoon-rush-hint { color: #ffd166; }
+/* The badge is the button, so the card must not be clipped by the pill it
+   hangs from. */
+.tycoon-rush.is-open { overflow: visible; }

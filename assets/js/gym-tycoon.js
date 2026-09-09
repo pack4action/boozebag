@@ -976,7 +976,24 @@
   // around, which are switched off entirely for anyone who has asked for
   // less motion. Earnings cannot depend on something that is not always
   // there.
-  const RUSH_BONUS = 0.35;
+  const RUSH_BONUS = 0.20;
+
+  // ---- The gym's own clock ----
+  // A day in the gym is an hour of real time, so the morning and evening
+  // rushes come round while you are playing rather than once a session.
+  // Every real hour is one full day: on the hour it is midnight in the
+  // gym, half past is midday.
+  const GAME_DAY_MS = 60 * 60 * 1000;
+  function gameHourFloat(now) {
+    const t = now ? now.getTime() : Date.now();
+    return ((t % GAME_DAY_MS) / GAME_DAY_MS) * 24;
+  }
+  function gameClockText(now) {
+    const at = gameHourFloat(now);
+    const h = Math.floor(at);
+    const m = Math.floor((at - h) * 60);
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
   // How busy each hour of the day is, 0 to 1, read at the hour and
   // interpolated between -- so the gym fills up and empties out rather than
   // stepping between states on the hour.
@@ -987,8 +1004,7 @@
     1.00, 0.85, 0.60, 0.40, 0.25, 0.12,   // 18-23 the evening rush
   ];
   function rushFactor(now) {
-    const d = now || new Date();
-    const at = d.getHours() + d.getMinutes() / 60;
+    const at = gameHourFloat(now);
     const lo = Math.floor(at) % 24;
     const hi = (lo + 1) % 24;
     const t = at - Math.floor(at);
@@ -1057,8 +1073,7 @@
     [38, 52, 100, 0.30], [30, 48, 96, 0.33], [30, 48, 96, 0.34],  // 21-23
   ];
   function skyWash(now) {
-    const d = now || new Date();
-    const at = d.getHours() + d.getMinutes() / 60;
+    const at = gameHourFloat(now);
     const lo = Math.floor(at) % 24;
     const hi = (lo + 1) % 24;
     const t = at - Math.floor(at);
@@ -2112,7 +2127,7 @@
     if (r.job && now >= r.deadlineAt) {
       r.job = null;
       r.nextAt = now + RUSH_ORDER_GAP_MISSED * 1000;
-      toast('Rush order missed -- another in ' + Math.round(RUSH_ORDER_GAP_MISSED / 60) + ' min', null);
+      toast('Rush order missed. Another in ' + Math.round(RUSH_ORDER_GAP_MISSED / 60) + ' min', null);
       save();
     }
     if (!r.job && now >= r.nextAt) {
@@ -2135,7 +2150,7 @@
     r.job = null;
     r.nextAt = Date.now() + RUSH_ORDER_GAP_DONE * 1000;
     if (currentLevel() > before) announceLevel(currentLevel());
-    else toast('Rush order done -- $' + formatNum(job.cash) + ' and ' + job.xp + ' XP', 'good');
+    else toast('Rush order done. $' + formatNum(job.cash) + ' and ' + job.xp + ' XP', 'good');
     refreshHud();
     refreshLevelUI();
     refreshShopUI();
@@ -2730,7 +2745,7 @@
       .concat(level === UPGRADE_MIN_LEVEL ? ['upgrades'] : [])
       .concat(level === RUSH_ORDER_MIN_LEVEL ? ['rush orders'] : []);
     toast(opened.length
-      ? 'Level ' + level + ' -- ' + opened.join(' and ') + ' unlocked'
+      ? 'Level ' + level + '. ' + opened.join(' and ') + ' unlocked'
       : 'Level ' + level, 'good');
     if (!levelWrapEl) return;
     levelWrapEl.classList.remove('is-up');
@@ -2827,7 +2842,7 @@
     state.jobsDone = (state.jobsDone || 0) + 1;
     refillJobs();
     if (currentLevel() > before) announceLevel(currentLevel());
-    else toast('Job done -- $' + formatNum(job.cash) + ' and ' + job.xp + ' XP', 'good');
+    else toast('Job done. $' + formatNum(job.cash) + ' and ' + job.xp + ' XP', 'good');
     refreshHud();
     refreshLevelUI();
     refreshShopUI();
@@ -2926,18 +2941,18 @@
     franchisePanelEl.hidden = held === 0 && offer === 0;
     if (franchisePanelEl.hidden) return;
     franchiseHeldEl.textContent = held
-      ? held + ' point' + (held === 1 ? '' : 's') + ' -- +'
+      ? held + ' point' + (held === 1 ? '' : 's') + ', +'
         + Math.round((franchiseMultiplier() - 1) * 100) + '% on everything, forever'
       : 'nothing banked yet';
     franchiseNoteEl.textContent = offer
       ? 'Cash this gym in for ' + offer + ' more point' + (offer === 1 ? '' : 's') + '. '
         + 'You keep your level and everything it unlocked, and your points. '
         + 'You lose the gear, every room past the first, and the staff.'
-      : 'Keep earning -- the next point is worth more the bigger the gym gets.';
+      : 'Keep earning. The next point is worth more the bigger the gym gets.';
     franchiseBtn.disabled = offer === 0;
     franchiseBtn.classList.toggle('is-confirming', franchiseArmed);
     franchiseBtn.textContent = !offer ? 'Nothing to cash in yet'
-      : franchiseArmed ? 'Really clear the gym?' : 'Franchise out -- +' + offer;
+      : franchiseArmed ? 'Really clear the gym?' : 'Franchise out for +' + offer;
   }
 
   function disarmFranchise() {
@@ -2998,7 +3013,7 @@
     renderScene();
     updateLeaderboardEntry();
     save();
-    toast('Franchised out -- ' + banked + ' points, +'
+    toast('Franchised out. ' + banked + ' points, +'
       + Math.round((franchiseMultiplier() - 1) * 100) + '% forever', 'good');
   }
 
@@ -3033,7 +3048,7 @@
       const won = hasTrophy(t.id);
       el.classList.toggle('is-won', won);
       el.querySelector('.tycoon-trophy-hint').textContent = won
-        ? 'Done -- $' + formatNum(t.cash) : t.hint;
+        ? 'Done. $' + formatNum(t.cash) : t.hint;
     });
     trophyCountEl.textContent = trophiesWon() + ' of ' + TROPHIES.length;
   }
@@ -3071,7 +3086,7 @@
   const trophyQueue = [];
   let trophyShowing = false;
   function announceTrophy(t) {
-    if (!trophyPopEl) { toast(t.name + ' -- $' + formatNum(t.cash), 'good'); return; }
+    if (!trophyPopEl) { toast(t.name + '. $' + formatNum(t.cash), 'good'); return; }
     trophyQueue.push(t);
     if (!trophyShowing) showNextTrophy();
   }
@@ -3361,7 +3376,7 @@
         const full = here >= cashiersPerRoom();
         els.note.textContent = full ? 'Fully staffed'
           : 'Walks to the bubbles and empties them \u00b7 ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings each';
-        els.btn.textContent = full ? 'Room full' : 'Hire here -- $' + formatNum(cost);
+        els.btn.textContent = full ? 'Room full' : 'Hire here for $' + formatNum(cost);
         els.btn.disabled = full || state.balance < cost;
         return;
       }
@@ -3371,7 +3386,7 @@
         + 'next +' + (role.id === 'cleaner'
           ? next.toFixed(1) + ' vibe' : Math.round(next * 100) + '%')
         + ' for ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings';
-      els.btn.textContent = 'Hire -- $' + formatNum(cost);
+      els.btn.textContent = 'Hire for $' + formatNum(cost);
       els.btn.disabled = state.balance < cost;
     });
     const share = wageShare();
@@ -3464,8 +3479,7 @@
   const clockEl = document.getElementById('tycoon-clock-time');
   function refreshClock() {
     if (!clockEl) return;
-    const d = new Date();
-    const text = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    const text = gameClockText();
     if (clockEl.textContent !== text) clockEl.textContent = text;
   }
   function refreshRushUI() {
@@ -3479,10 +3493,10 @@
     const when = rushLabel();
     // Rebuilt only when what it says changes: rebuilding it every tick
     // would swallow the tap that opens it.
-    const sig = when + '|' + bonus + '|' + (f * 100).toFixed(0) + '|' + new Date().getMinutes();
+    const sig = when + '|' + bonus + '|' + (f * 100).toFixed(0) + '|' + gameClockText();
     if (rushEl.dataset.sig === sig) return;
     rushEl.dataset.sig = sig;
-    const hour = new Date().getHours();
+    const hour = Math.floor(gameHourFloat());
     const next = hour < 7 ? 'The morning rush starts around 7.'
       : hour < 9 ? 'This is the morning rush.'
         : hour < 17 ? 'The evening rush starts around 5.'
@@ -3496,10 +3510,9 @@
       + '<span class="tycoon-rush-hint" aria-hidden="true">?</span>'
       + '<span class="tycoon-rush-pop" role="note">'
         + '<b>How busy the gym is right now</b>'
-        + '<span>It is ' + String(hour).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0')
-          + '. ' + when + ' \u2014 everything is earning '
+        + '<span>It is ' + gameClockText() + ' in the gym. ' + when + '. Everything is earning '
           + (bonus > 0 ? '+' + bonus + '%' : 'its normal rate') + '.</span>'
-        + '<span>The gym fills up mornings and evenings, on your clock. '
+        + '<span>A day in the gym is an hour of real time. It fills up mornings and evenings. '
           + next + '</span>'
         + '<span>Quiet is never a penalty. Rammed is +' + Math.round(RUSH_BONUS * 100) + '%.</span>'
       + '</span>';
@@ -3760,23 +3773,50 @@
   function buildShopFilter() {
     if (!shopFilterEl) return;
     const cats = [...new Set(ITEMS.map((i) => CATEGORY[i.id]))];
-    // A box per category, ticked. Untick the ones you are not shopping for.
-    // A menu could only ever show one at a time, and "all or one" is not
-    // how anybody shops.
-    shopFilterEl.innerHTML = '<div class="tycoon-filter-head">'
-      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
-      + '<path d="M3 5h18v2.2l-7 7.3V20l-4-2v-5.5L3 7.2Z"/></svg>'
-      + '<span class="tycoon-filter-word">Filter</span>'
-      + '<button class="tycoon-filter-reset" type="button" hidden>Show all</button></div>'
-      + '<div class="tycoon-filter-boxes"></div>';
+    // A dropdown that holds a tick box per category. Shut it is one small
+    // control; open it, any mix of categories can be hidden at once, which
+    // a plain menu of one-at-a-time options could never do.
+    shopFilterEl.innerHTML = '<div class="tycoon-filter-menu">'
+      + '<button class="tycoon-filter-btn" type="button" aria-expanded="false">'
+        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+        + '<path d="M3 5h18v2.2l-7 7.3V20l-4-2v-5.5L3 7.2Z"/></svg>'
+        + '<span class="tycoon-filter-word">Filter</span>'
+        + '<span class="tycoon-filter-state"></span>'
+        + '<svg class="tycoon-filter-caret" width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+        + '<path d="M6 9l6 7 6-7Z"/></svg>'
+      + '</button>'
+      + '<div class="tycoon-filter-drop" hidden>'
+        + '<div class="tycoon-filter-boxes"></div>'
+        + '<button class="tycoon-filter-reset" type="button" hidden>Show every category</button>'
+      + '</div></div>';
+    const menu = shopFilterEl.querySelector('.tycoon-filter-menu');
+    const btn = shopFilterEl.querySelector('.tycoon-filter-btn');
+    const drop = shopFilterEl.querySelector('.tycoon-filter-drop');
     const boxes = shopFilterEl.querySelector('.tycoon-filter-boxes');
+    const state = shopFilterEl.querySelector('.tycoon-filter-state');
     const reset = shopFilterEl.querySelector('.tycoon-filter-reset');
+    // The button says what the filter is doing, so it can be read shut.
     const sync = () => {
-      const off = Object.keys(shopHidden).filter((k) => shopHidden[k]).length;
-      shopFilterEl.classList.toggle('is-on', off > 0);
-      reset.hidden = off === 0;
+      const off = cats.filter((c) => shopHidden[c]);
+      const on = cats.filter((c) => !shopHidden[c]);
+      shopFilterEl.classList.toggle('is-on', off.length > 0);
+      state.textContent = off.length === 0 ? 'All gear'
+        : on.length === 1 ? CATEGORY_META[on[0]].name
+          : on.length + ' of ' + cats.length;
+      reset.hidden = off.length === 0;
       refreshShopUI();
     };
+    const setOpen = (open) => {
+      menu.classList.toggle('is-open', open);
+      drop.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setOpen(drop.hidden);
+    });
+    document.addEventListener('click', (e) => { if (!menu.contains(e.target)) setOpen(false); });
+    menu.addEventListener('keydown', (e) => { if (e.key === 'Escape') { setOpen(false); btn.focus(); } });
     cats.forEach((cat) => {
       const meta = CATEGORY_META[cat];
       const label = document.createElement('label');
@@ -3802,6 +3842,7 @@
       boxes.querySelectorAll('.tycoon-filter-box').forEach((l) => l.classList.remove('is-off'));
       sync();
     });
+    sync();
   }
 
   function buildShop() {
@@ -3957,7 +3998,7 @@
         els.upBtn.hidden = true;
         return;
       }
-      els.buyBtn.textContent = item.starter ? 'Take it · free' : 'Buy — $' + formatNum(cost);
+      els.buyBtn.textContent = item.starter ? 'Take it, free' : 'Buy for $' + formatNum(cost);
       const affordable = item.starter || state.balance >= cost;
       els.buyBtn.disabled = !affordable;
       els.root.classList.toggle('is-affordable', affordable);
@@ -3971,7 +4012,7 @@
       els.upBtn.hidden = !upgradable;
       if (upgradable) {
         const upCost = upgradeCost(item.id);
-        els.upBtn.textContent = 'Upgrade to ' + TIER_NAMES[tier + 1] + ' — $' + formatNum(upCost)
+        els.upBtn.textContent = 'Upgrade to ' + TIER_NAMES[tier + 1] + ' for $' + formatNum(upCost)
           + ' (x' + TIER_STEP.toFixed(1) + ')';
         els.upBtn.disabled = state.balance < upCost;
       }
@@ -7824,7 +7865,7 @@
     if (!editing) return;
     const blocker = editOverlaps();
     if (blocker) {
-      toast("Won't fit -- it would overlap the " + blockerName(blocker), null);
+      toast("Won't fit. It would overlap the " + blockerName(blocker), null);
       return;
     }
     const room = activeRooms()[editing.roomIndex];
@@ -7835,7 +7876,7 @@
     let slot = sameRoom ? editing.fromIndex : null;
     if (slot === null || room.layout[slot]) slot = room.layout.indexOf(null);
     if (slot === -1) {
-      toast(roomLabel(editing.roomIndex) + ' is full -- every slot in it is taken', null);
+      toast(roomLabel(editing.roomIndex) + ' is full. Every slot in it is taken', null);
       return;
     }
     if (!room.spots) room.spots = new Array(room.layout.length).fill(null);
@@ -8424,7 +8465,7 @@
       if (open) places++;
       pieces += placed;
       const meta = !unlocked ? 'Locked until level ' + t.unlockLevel
-        : !open ? 'Closed -- needs a Customer Desk'
+        : !open ? 'Closed. Needs a Customer Desk'
           : rooms.length + (rooms.length === 1 ? ' room, ' : ' rooms, ') + placed
             + (placed === 1 ? ' piece' : ' pieces');
       setText(els.name, t.name + (state.activeTheme === t.id ? ' (here)' : ''));
