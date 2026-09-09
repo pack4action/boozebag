@@ -2229,8 +2229,14 @@
   // Staff on the floor wear the same shirt as each other, so a room full of
   // members reads as members with a couple of staff in it rather than as a
   // crowd of strangers.
-  const STAFF_SHIRT = '#1f2a44';
+  // The uniform. Gold is the one colour no member's shirt is, and trousers
+  // are the one thing no member wears -- the crowd is all shorts and bare
+  // legs -- so the two read apart on silhouette alone before colour does.
+  const STAFF_SHIRT = '#f2b632';
+  const STAFF_TROUSERS = '#1d2230';
+  const STAFF_CAP = '#15181f';
   const STAFF_TRIM = '#e8c46a';
+  const STAFF_MARK = '#ffd166';
 
   // Somewhere on this room's floor, clear of the walls and never in the
   // notch cut out of its corner.
@@ -2287,14 +2293,17 @@
       // height between frames.
       build: 0.93 + Math.random() * 0.14,
       broad: 0.92 + Math.random() * 0.20,
-      legs: pickOf(MEMBER_LEGS),
+      legs: staffRoleId ? STAFF_TROUSERS : pickOf(MEMBER_LEGS),
       shortsLen: Math.random() < 0.35 ? 0.345 : 0.415,
-      hairStyle: pickOf(MEMBER_HAIRSTYLES),
-      capColor: pickOf(MEMBER_CAPS),
+      // Everyone on staff wears the cap. Members get whatever hair they have.
+      hairStyle: staffRoleId ? 'cap' : pickOf(MEMBER_HAIRSTYLES),
+      capColor: staffRoleId ? STAFF_CAP : pickOf(MEMBER_CAPS),
       bagColor: pickOf(MEMBER_BAGS),
       // Staff are at work, not on their way to it: no gym bag, but a towel
       // over the shoulder is exactly what somebody working a floor carries.
-      carry: staffRoleId ? (Math.random() < 0.4 ? 'towel' : 'none') : pickOf(MEMBER_CARRY),
+      // A cashier carries the takings in a pouch on the hip. Nobody on staff
+      // carries a gym bag or a water bottle: those are what members bring.
+      carry: staffRoleId === 'cashier' ? 'pouch' : staffRoleId ? 'none' : pickOf(MEMBER_CARRY),
     };
   }
 
@@ -6678,7 +6687,7 @@
     const bare = m.legs === 'skin' || !m.legs;
     const legFront = bare ? m.skin : m.legs;
     const legBack = bare ? shade(m.skin, -34) : shade(m.legs, -22);
-    const shorts = shade(m.shirt, -58);
+    const shorts = m.staffRole ? m.legs : shade(m.shirt, -58);
 
     const hip = 0.435 - drop;
     const shoulderY = 0.80 - drop;
@@ -6784,10 +6793,17 @@
       bar(0.128, 0.878 - drop, 0.640 - drop, 0.056, '#eef1f6');
     }
 
-    // Staff wear a marked shirt, so who works here is readable at a glance.
+    // The uniform's details: a dark collar at the neck of the polo, a black
+    // belt where the shirt meets the trousers, and a name badge on the
+    // chest. A cashier's pouch hangs at the far hip.
     if (m.staffRole) {
-      bar(lean, 0.855 - drop, 0.815 - drop, 0.20 * broad, STAFF_TRIM);
-      bar(-0.055 + lean * 0.6, 0.70 - drop, 0.655 - drop, 0.038, STAFF_TRIM);
+      bar(lean, 0.850 - drop, 0.822 - drop, 0.17 * broad, STAFF_CAP);
+      bar(lean * 0.35, 0.535 - drop, 0.512 - drop, 0.19 * broad, STAFF_CAP);
+      bar(-0.048 + lean * 0.6, 0.735 - drop, 0.705 - drop, 0.050, '#f4f6f8');
+      if (m.carry === 'pouch') {
+        bar(-0.135 + lean * 0.35, 0.520 - drop, 0.430 - drop, 0.078, '#3a2b1c');
+        bar(-0.135 + lean * 0.35, 0.522 - drop, 0.500 - drop, 0.082, '#5a4330');
+      }
     }
 
     if (p.hold && p.hold !== 'barback') heldWeight();
@@ -6812,8 +6828,10 @@
     ctx.fillStyle = m.hairStyle === 'cap' ? m.capColor : m.hair;
     ctx.fill();
     if (m.hairStyle === 'cap') {
-      // A peak out the front, which is what makes a cap a cap.
-      limb(0.062 + lean, 0.948 - drop, 0.150 + lean, 0.940 - drop, 0.020, shade(m.capColor, -28));
+      // A peak out the front, which is what makes a cap a cap. Gold on the
+      // staff cap, so the cap alone says who they are.
+      limb(0.062 + lean, 0.948 - drop, 0.150 + lean, 0.940 - drop, 0.020,
+        m.staffRole ? STAFF_MARK : shade(m.capColor, -28));
     } else if (m.hairStyle === 'bun') {
       ctx.beginPath();
       ctx.arc(X(-0.042 + lean), Y(0.988 - drop), H * 0.034, 0, Math.PI * 2);
@@ -6823,6 +6841,29 @@
     } else if (m.hairStyle === 'band') {
       bar(0.008 + lean, 0.948 - drop, 0.918 - drop, 0.152, m.capColor);
     }
+    if (m.staffRole) drawStaffMark(c, m);
+  }
+
+  // A small gold diamond over every member of staff. It is the one thing
+  // that still tells them apart when the plan is zoomed out to a room the
+  // size of a stamp, where a shirt colour is two pixels.
+  function drawStaffMark(c, m) {
+    const H = 1.72 * (m.build || 1) * PX_PER_METRE_TALL;
+    const bob = Math.sin((m.phase || 0) * 0.35) * 1.2;
+    const x = c.x;
+    const y = c.y - H * 1.10 + bob;
+    const r = Math.max(2.6, H * 0.038);
+    floorCtx.beginPath();
+    floorCtx.moveTo(x, y - r * 1.3);
+    floorCtx.lineTo(x + r, y);
+    floorCtx.lineTo(x, y + r * 1.3);
+    floorCtx.lineTo(x - r, y);
+    floorCtx.closePath();
+    floorCtx.fillStyle = STAFF_MARK;
+    floorCtx.fill();
+    floorCtx.strokeStyle = 'rgba(0,0,0,0.55)';
+    floorCtx.lineWidth = 1;
+    floorCtx.stroke();
   }
 
   function drawProp(itemId, c, tier, turn) {
