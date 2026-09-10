@@ -10013,11 +10013,25 @@
 
     const STOREY = 46;
     const corners = [];
+    // Every wall of the building, gathered before any of it is drawn and
+    // then painted back to front. They used to go down in floor order,
+    // which meant a walkway's far wall was painted over the wall of the
+    // room standing in front of it, and every junction between the two
+    // came out as a corner that could not exist.
+    const runs = [];
     siteFloors().forEach((rect) => {
       ['s', 'e'].forEach((side) => {
         exposedRuns(rect, side).forEach(([from, to]) => {
           const a0 = edgePoint(rect, side, from);
           const b0 = edgePoint(rect, side, to);
+          runs.push({ side, a0, b0, depth: Math.max(a0.gx + a0.gy, b0.gx + b0.gy) });
+        });
+      });
+    });
+    runs.sort((p, q) => p.depth - q.depth);
+    runs.forEach(({ side, a0, b0 }) => {
+      {
+        {
           const a = isoPoint(a0.gx, a0.gy);
           const b = isoPoint(b0.gx, b0.gy);
           // Down to the bottom of whatever the window is showing, with a
@@ -10056,9 +10070,21 @@
                   : 'rgba(148,170,206,' + (0.12 * fade).toFixed(3) + ')', null);
             }
           }
+          // A dark edge down both ends of the panel. Where two panels meet
+          // at an outside corner the bright arris below covers it; where a
+          // nearer wall stands against a further one it is the shadow in
+          // the inside corner, which is what tells the two apart.
+          [a, b].forEach((p) => {
+            const edge = floorCtx.createLinearGradient(p.x - 9, 0, p.x + 9, 0);
+            edge.addColorStop(0, 'rgba(0,0,0,0)');
+            edge.addColorStop(0.5, 'rgba(0,0,0,0.30)');
+            edge.addColorStop(1, 'rgba(0,0,0,0)');
+            floorCtx.fillStyle = edge;
+            floorCtx.fillRect(p.x - 9, p.y, 18, H);
+          });
           corners.push(side === 's' ? b : a, side === 's' ? a : b);
-        });
-      });
+        }
+      }
     });
     // The arris where two faces of the same building meet: a bright line
     // straight down, which is what tells the eye it is one solid block
