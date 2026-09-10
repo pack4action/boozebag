@@ -7587,7 +7587,10 @@
     let far = null;
     placements.forEach((p) => { if (!far || p.gx0 + p.cols > far.gx0 + far.cols) far = p; });
     if (!far) return null;
-    return { gx0: far.gx0 + far.cols, gy0: far.gy0 + far.rows - 6, cols: 7, rows: 3 };
+    // Off the seaward front of it, not off its right-hand end: the site is
+    // drawn under the floors, so a dock tucked behind the deck has most of
+    // itself hidden by it.
+    return { gx0: far.gx0 + 5, gy0: far.gy0 + far.rows, cols: 13, rows: 8 };
   }
 
   // ---- Railings ----
@@ -10256,11 +10259,16 @@
         }
       });
     });
-    // The boat, tied up at the jetty, and buoys further out.
+    // The dock: what is kept on it, what is tied to it, and the working
+    // water round it.
     if (j) {
-      const hullAt = isoPoint(j.gx0 + j.cols - 2.5, j.gy0 + j.rows + 3.2);
+      drawNetLine(isoPoint(j.gx0 + 3, j.gy0 + j.rows + 6), isoPoint(j.gx0 - 14, j.gy0 + j.rows + 22), 7);
+      drawNetLine(isoPoint(j.gx0 + j.cols + 4, j.gy0 + 2), isoPoint(j.gx0 + j.cols + 20, j.gy0 - 10), 5);
+      const hullAt = isoPoint(j.gx0 + 9.5, j.gy0 + j.rows + 3.6);
       drawBoat(hullAt);
-      [[j.gx0 + 12, j.gy0 + 8], [planBounds.gx0 - 9, planBounds.gy1 + 11]].forEach(([gx, gy]) => drawBuoy(isoPoint(gx, gy)));
+      drawRowboat(isoPoint(j.gx0 + j.cols + 3.5, j.gy0 + 4.5));
+      drawDock(j, hullAt);
+      [[j.gx0 - 8, j.gy0 + j.rows + 12], [planBounds.gx0 - 9, planBounds.gy1 + 11]].forEach(([gx, gy]) => drawBuoy(isoPoint(gx, gy)));
     }
     // Out on the water: a channel marker, and small craft standing off,
     // so pulling back from the pier shows a sea with something in it.
@@ -10319,6 +10327,183 @@
     drawGlow(at(-6, -14), 16 * k, '#ffd27a', 0.35);
     drawGlow(at(28, -6), 10 * k, '#ffd27a', 0.7);
   }
+  // A line of net floats curving away from the dock, the net hanging
+  // under it in the water and a marker at each end.
+  function drawNetLine(a, b, floats) {
+    const ctx = floorCtx;
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + 26 };
+    const at = (t) => ({
+      x: (1 - t) * (1 - t) * a.x + 2 * (1 - t) * t * mid.x + t * t * b.x,
+      y: (1 - t) * (1 - t) * a.y + 2 * (1 - t) * t * mid.y + t * t * b.y,
+    });
+    // The net itself: a dark mesh under the surface, drawn as a band of
+    // crossing threads that fade as they go down.
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    for (let t = 0.05; t <= 1; t += 0.05) { const p = at(t); ctx.lineTo(p.x, p.y); }
+    for (let t = 1; t >= 0; t -= 0.05) { const p = at(t); ctx.lineTo(p.x, p.y + 30); }
+    ctx.closePath();
+    ctx.clip();
+    for (let i = -40; i < 60; i++) {
+      const x = a.x + i * 9;
+      strokePolyline([{ x, y: a.y - 40 }, { x: x + 26, y: a.y + 80 }], 'rgba(12,32,44,0.30)', 1);
+      strokePolyline([{ x, y: a.y + 80 }, { x: x + 26, y: a.y - 40 }], 'rgba(12,32,44,0.30)', 1);
+    }
+    ctx.restore();
+    // The float line over it.
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    for (let t = 0.05; t <= 1.001; t += 0.05) { const p = at(t); ctx.lineTo(p.x, p.y); }
+    ctx.strokeStyle = 'rgba(226,236,244,0.35)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    for (let i = 0; i <= floats; i++) {
+      const p = at(i / floats);
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, 4.2, 3, 0, 0, Math.PI * 2);
+      ctx.fillStyle = i % 2 ? '#e8503a' : '#f2ede0';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    // A pole marker at the far end, the way a net is flagged.
+    const e = at(1);
+    strokePolyline([e, { x: e.x + 2, y: e.y - 34 }], '#3b2a18', 2);
+    paintQuad([{ x: e.x + 2, y: e.y - 34 }, { x: e.x + 13, y: e.y - 30 }, { x: e.x + 2, y: e.y - 24 }], '#e8503a', null);
+  }
+  // A wooden dinghy tied at the dock, with its oars shipped.
+  function drawRowboat(p) {
+    const ctx = floorCtx;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.26)';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 9, 30, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    const hull = [{ x: p.x - 28, y: p.y - 2 }, { x: p.x + 6, y: p.y - 9 }, { x: p.x + 28, y: p.y + 1 },
+      { x: p.x + 22, y: p.y + 9 }, { x: p.x - 8, y: p.y + 13 }, { x: p.x - 28, y: p.y + 6 }];
+    paintQuad(hull.map((q) => ({ x: q.x, y: q.y + 7 })), '#5a3a20', null);
+    paintQuad(hull, '#8a5f34', 'rgba(0,0,0,0.45)', 1);
+    paintQuad([{ x: p.x - 23, y: p.y + 1 }, { x: p.x + 4, y: p.y - 4 }, { x: p.x + 22, y: p.y + 3 },
+      { x: p.x + 17, y: p.y + 7 }, { x: p.x - 7, y: p.y + 10 }, { x: p.x - 23, y: p.y + 4 }], '#3f2c19', null);
+    [[-14, 2], [4, -1]].forEach(([dx, dy]) => {
+      paintQuad([{ x: p.x + dx - 9, y: p.y + dy + 1 }, { x: p.x + dx + 9, y: p.y + dy - 2 },
+        { x: p.x + dx + 9, y: p.y + dy + 1 }, { x: p.x + dx - 9, y: p.y + dy + 4 }], '#a8794a', null);
+    });
+    strokePolyline([{ x: p.x - 26, y: p.y - 22 }, { x: p.x + 18, y: p.y - 4 }], '#c8b78a', 1.6);
+  }
+  // A lobster pot: a slatted basket with a rope tail.
+  function drawPot(p, k) {
+    const w = 13 * k;
+    const h = 9 * k;
+    paintQuad([{ x: p.x - w, y: p.y }, { x: p.x + w, y: p.y }, { x: p.x + w, y: p.y - h }, { x: p.x - w, y: p.y - h }], '#6b5433', 'rgba(0,0,0,0.5)', 1);
+    for (let i = -2; i <= 2; i++) {
+      strokePolyline([{ x: p.x + i * w * 0.4, y: p.y - 1 }, { x: p.x + i * w * 0.4, y: p.y - h + 1 }], 'rgba(0,0,0,0.28)', 1);
+    }
+    floorCtx.beginPath();
+    floorCtx.ellipse(p.x, p.y - h, w, h * 0.6, 0, Math.PI, 0);
+    floorCtx.fillStyle = '#7d6440';
+    floorCtx.fill();
+    floorCtx.strokeStyle = 'rgba(0,0,0,0.45)';
+    floorCtx.lineWidth = 1;
+    floorCtx.stroke();
+  }
+  // Everything on the dock: bollards with the boat's lines on them, a
+  // davit, pots and crates, tyre fenders over the edge and a ladder down
+  // to the water.
+  function drawDock(j, hullAt) {
+    const ctx = floorCtx;
+    const gy1 = j.gy0 + j.rows;
+    // The dock's deck is laid at water level, so nothing on it is lifted
+    // off the lattice. u runs along the dock, v across it, from the pier.
+    const at = (u, v, lift) => {
+      const p = isoPoint(j.gx0 + u, j.gy0 + v);
+      return { x: p.x, y: p.y - (lift || 0) };
+    };
+    // Tyre fenders hung over the seaward edge, where a boat comes alongside.
+    [1.5, 4, 6.5, 9, 11.5].forEach((u) => {
+      const p = at(u, j.rows, -7);
+      strokePolyline([{ x: p.x, y: p.y - 14 }, { x: p.x, y: p.y - 5 }], '#c8b78a', 1.6);
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, 8.5, 6, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#23262c';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, 3.6, 2.6, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(18,44,62,0.95)';
+      ctx.fill();
+    });
+    // Bollards on the front edge with the boat's lines run off them.
+    [[2.2, 0], [10.5, 1]].forEach(([u, i]) => {
+      const b = at(u, j.rows - 0.8, 0);
+      paintQuad([{ x: b.x - 5.5, y: b.y }, { x: b.x + 5.5, y: b.y }, { x: b.x + 4.5, y: b.y - 19 }, { x: b.x - 4.5, y: b.y - 19 }], '#2f3239', 'rgba(0,0,0,0.5)', 1);
+      paintQuad([{ x: b.x - 7, y: b.y - 19 }, { x: b.x + 7, y: b.y - 19 }, { x: b.x + 7, y: b.y - 23.5 }, { x: b.x - 7, y: b.y - 23.5 }], '#3d424b', null);
+      const to = { x: hullAt.x + (i ? 34 : -34), y: hullAt.y - 12 };
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.y - 21);
+      ctx.quadraticCurveTo((b.x + to.x) / 2, Math.max(b.y, to.y) + 20, to.x, to.y);
+      ctx.strokeStyle = '#cbbb90';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+    // Lobster pots, stacked the way they are left on a dock.
+    drawPot(at(2, 3.2, 0), 1.15);
+    drawPot(at(3.6, 4.2, 0), 1.15);
+    drawPot(at(2.8, 3.6, 13), 1);
+    // Fish crates.
+    drawIsoBox(ctx, at(5.4, 3.4, 0), 0, 0, 1.15, 0.95, 24, '#8a5f34', 0);
+    drawIsoBox(ctx, at(5.4, 3.4, 0), 0, 0, 1.2, 1.0, 4, '#5f4222', 24);
+    drawIsoBox(ctx, at(6.9, 4.6, 0), 0, 0, 0.95, 0.85, 20, '#7d5730', 0);
+    drawIsoBox(ctx, at(6.9, 4.6, 0), 0, 0, 1.0, 0.9, 4, '#55391e', 20);
+    // The net hung up to dry between two posts.
+    const f0 = at(9.2, 2.6, 0);
+    const f1 = at(12.2, 4.2, 0);
+    const H = 58;
+    [f0, f1].forEach((p) => {
+      paintQuad([{ x: p.x - 3, y: p.y }, { x: p.x + 3, y: p.y }, { x: p.x + 3, y: p.y - H }, { x: p.x - 3, y: p.y - H }], '#5a3f22', 'rgba(0,0,0,0.45)', 1);
+      paintQuad([{ x: p.x - 3, y: p.y }, { x: p.x - 1, y: p.y }, { x: p.x - 1, y: p.y - H }, { x: p.x - 3, y: p.y - H }], '#7c5a31', null);
+    });
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(f0.x, f0.y - H + 4);
+    ctx.quadraticCurveTo((f0.x + f1.x) / 2, (f0.y + f1.y) / 2 - H + 18, f1.x, f1.y - H + 4);
+    ctx.lineTo(f1.x, f1.y - 14);
+    ctx.quadraticCurveTo((f0.x + f1.x) / 2, (f0.y + f1.y) / 2 - 2, f0.x, f0.y - 14);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(206,196,158,0.34)';
+    ctx.fill();
+    ctx.clip();
+    for (let i = -10; i < 22; i++) {
+      const x = f0.x + i * 6;
+      strokePolyline([{ x, y: f0.y - 96 }, { x: x + 16, y: f0.y + 18 }], 'rgba(78,68,44,0.7)', 1.1);
+      strokePolyline([{ x, y: f0.y + 18 }, { x: x + 16, y: f0.y - 96 }], 'rgba(78,68,44,0.7)', 1.1);
+    }
+    ctx.restore();
+    strokePolyline([{ x: f0.x, y: f0.y - H + 4 }, { x: f1.x, y: f1.y - H + 4 }], '#8a7a52', 1.8);
+    // The davit that swings the catch up out of the boat.
+    const d = at(12.4, 6.4, 0);
+    paintQuad([{ x: d.x - 4, y: d.y }, { x: d.x + 4, y: d.y }, { x: d.x + 4, y: d.y - 62 }, { x: d.x - 4, y: d.y - 62 }], '#4a5058', 'rgba(0,0,0,0.5)', 1);
+    paintQuad([{ x: d.x - 4, y: d.y }, { x: d.x - 1.5, y: d.y }, { x: d.x - 1.5, y: d.y - 62 }, { x: d.x - 4, y: d.y - 62 }], '#666d76', null);
+    strokePolyline([{ x: d.x, y: d.y - 62 }, { x: d.x - 34, y: d.y - 72 }], '#5a6068', 4.5);
+    strokePolyline([{ x: d.x - 34, y: d.y - 72 }, { x: d.x - 34, y: d.y - 34 }], '#cbbb90', 1.8);
+    paintQuad([{ x: d.x - 39, y: d.y - 34 }, { x: d.x - 29, y: d.y - 34 }, { x: d.x - 29, y: d.y - 27 }, { x: d.x - 39, y: d.y - 27 }], '#3d424b', 'rgba(0,0,0,0.5)', 1);
+    // The ladder down the seaward face.
+    const l = at(7.6, j.rows, 0);
+    [-6, 6].forEach((dx) => strokePolyline([{ x: l.x + dx, y: l.y - 4 }, { x: l.x + dx, y: l.y + 38 }], '#4a3320', 2.6));
+    for (let i = 0; i < 6; i++) strokePolyline([{ x: l.x - 6, y: l.y + 2 + i * 7 }, { x: l.x + 6, y: l.y + 2 + i * 7 }], '#6a4d2c', 2);
+    // A gull on one of the mooring posts.
+    const g = at(10.5, j.rows - 0.8, 25);
+    paintQuad([{ x: g.x - 6, y: g.y }, { x: g.x + 5, y: g.y - 2 }, { x: g.x + 4, y: g.y - 7 }, { x: g.x - 5, y: g.y - 6 }], '#f0ece2', null);
+    paintQuad([{ x: g.x + 2, y: g.y - 6 }, { x: g.x + 7, y: g.y - 7 }, { x: g.x + 6, y: g.y - 12 }, { x: g.x + 2, y: g.y - 11 }], '#f0ece2', null);
+    paintQuad([{ x: g.x + 6, y: g.y - 10.5 }, { x: g.x + 10, y: g.y - 10 }, { x: g.x + 6, y: g.y - 9 }], '#e8a33a', null);
+    paintQuad([{ x: g.x - 6, y: g.y - 4 }, { x: g.x + 2, y: g.y - 5 }, { x: g.x + 1, y: g.y - 2 }, { x: g.x - 5, y: g.y - 1 }], '#b9c2cc', null);
+  }
+
   function drawBuoy(p) {
     const ctx = floorCtx;
     ctx.save();
@@ -10340,7 +10525,7 @@
   function drawPierSign(place) {
     const j = jettyRect();
     if (!j) return;
-    const at = isoPoint(j.gx0 + 1.2, j.gy0 - 0.5);
+    const at = isoPoint(j.gx0 + 0.9, j.gy0 + j.rows - 1.2);
     [-14, 14].forEach((dx) => strokePolyline([{ x: at.x + dx, y: at.y }, { x: at.x + dx, y: at.y - 44 }], '#4a2f18', 3));
     drawSignBoard({ x: at.x, y: at.y - 44 }, 'BOARDWALK', '#4a2a14');
   }
