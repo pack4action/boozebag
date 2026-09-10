@@ -8385,15 +8385,28 @@
     floorCtx.fill();
     floorCtx.restore();
   }
-  // A lantern on a timber post out on the earth.
-  function drawLanternPost(p, light) {
-    const H = 1.7 * PX_PER_METRE_TALL;
-    paintQuad([{ x: p.x - 3, y: p.y }, { x: p.x + 3, y: p.y }, { x: p.x + 3, y: p.y - H }, { x: p.x - 3, y: p.y - H }], CELLAR.timber, null);
-    paintQuad([{ x: p.x - 3, y: p.y }, { x: p.x - 1, y: p.y }, { x: p.x - 1, y: p.y - H }, { x: p.x - 3, y: p.y - H }], CELLAR.timberHi, null);
-    paintQuad([{ x: p.x - 6, y: p.y }, { x: p.x + 6, y: p.y }, { x: p.x + 6, y: p.y - 5 }, { x: p.x - 6, y: p.y - 5 }], CELLAR.timberLo, null);
-    strokePolyline([{ x: p.x, y: p.y - H }, { x: p.x + 12, y: p.y - H - 6 }], CELLAR.timberLo, 3);
-    drawHungLantern({ x: p.x + 12, y: p.y - H - 6 }, light);
-    drawFloorPool(p, light, 1.5);
+  // A lamp on the kerb of a drain: a squat timber bollard with a lantern
+  // head on it, standing along the edge the way the pier's posts do.
+  //
+  // Low on purpose. The site is drawn under the floors, so anything
+  // standing on the ground in front of a floor has whatever rises above
+  // about a metre hidden behind that floor -- which read as a lamp buried
+  // under the floorboards with its light leaking out. A bollard this high
+  // stays in front of the floor at the closest a drain ever runs to one.
+  const KERB_LAMP_H = 30;
+  function drawKerbLamp(p, light) {
+    const H = KERB_LAMP_H;
+    const top = { x: p.x, y: p.y - H };
+    paintQuad([{ x: p.x - 7, y: p.y + 1 }, { x: p.x + 7, y: p.y + 1 }, { x: p.x + 7, y: p.y - 5 }, { x: p.x - 7, y: p.y - 5 }], CELLAR.timberLo, 'rgba(0,0,0,0.45)', 1);
+    paintQuad([{ x: p.x - 4, y: p.y }, { x: p.x + 4, y: p.y }, { x: p.x + 4, y: top.y }, { x: p.x - 4, y: top.y }], CELLAR.timber, null);
+    paintQuad([{ x: p.x - 4, y: p.y }, { x: p.x - 1.6, y: p.y }, { x: p.x - 1.6, y: top.y }, { x: p.x - 4, y: top.y }], CELLAR.timberHi, null);
+    // The lantern on top: a warm pane in a dark case under a little cap.
+    drawGlow({ x: top.x, y: top.y - 7 }, 44, light.bulb, 0.5);
+    const case_ = '#1f1c1a';
+    paintQuad([{ x: top.x - 6, y: top.y }, { x: top.x + 6, y: top.y }, { x: top.x + 6, y: top.y - 14 }, { x: top.x - 6, y: top.y - 14 }], case_, null);
+    paintQuad([{ x: top.x - 4.5, y: top.y - 2 }, { x: top.x + 4.5, y: top.y - 2 }, { x: top.x + 4.5, y: top.y - 12 }, { x: top.x - 4.5, y: top.y - 12 }], light.bulb, null);
+    paintQuad([{ x: top.x - 7.5, y: top.y - 14 }, { x: top.x + 7.5, y: top.y - 14 }, { x: top.x, y: top.y - 19 }], case_, null);
+    drawFloorPool(p, light, 1.4);
   }
 
   // ---- The services ----
@@ -8960,13 +8973,13 @@
     for (let i = 0; i <= postsL; i++) {
       const gx = a.gx0 + 1 + (a.cols - 2) * (i / postsL);
       if (Math.abs(gx - (ch.bridgeL.gx0 + ch.bridgeL.cols * 0.5)) < 3) continue;
-      drawLanternPost(isoPoint(gx, ch.L.gy0 - 0.8), light);
+      drawKerbLamp(isoPoint(gx, ch.L.gy0 - 0.8), light);
     }
     const postsR = Math.max(2, Math.round(a.rows / 12));
     for (let i = 0; i < postsR; i++) {
       const gy = a.gy0 + 1 + (a.rows - 2) * (i / postsR);
       if (Math.abs(gy - (ch.bridgeR.gy0 + ch.bridgeR.rows * 0.5)) < 3) continue;
-      drawLanternPost(isoPoint(ch.R.gx0 - 0.8, gy), light);
+      drawKerbLamp(isoPoint(ch.R.gx0 - 0.8, gy), light);
     }
 
     // ---- Lastly the light: every lantern warms whatever is near it, stone,
