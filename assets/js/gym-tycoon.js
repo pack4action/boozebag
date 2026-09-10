@@ -8410,6 +8410,216 @@
     strokePolyline([up(from, H * 0.5), up(to, H * 0.5)], 'rgba(120,132,145,0.35)', 1.4);
   }
 
+  // ---- Outside the yard ----
+  // What the yard backs onto, kept simple: it is far off and mostly in the
+  // dark, and its job is to be somewhere rather than to be looked at. A
+  // strip of garden with a few trees and bushes, the bins, a row of
+  // lock-ups, a road with a car or two on it and lamps down it.
+  const OUTSIDE = {
+    tarmac: '#191a1e',
+    kerb: '#3a3c40',
+    grass: '#25341f',
+    grassB: '#2c3d24',
+    leaf: ['#2f4a26', '#375c2c', '#436b33'],
+  };
+  function drawBush(p, r) {
+    [[0, 0, r], [-r * 0.7, r * 0.2, r * 0.7], [r * 0.7, r * 0.25, r * 0.75]].forEach(([dx, dy, rr], i) => {
+      floorCtx.beginPath();
+      floorCtx.ellipse(p.x + dx, p.y + dy - rr * 0.5, rr, rr * 0.72, 0, 0, Math.PI * 2);
+      floorCtx.fillStyle = OUTSIDE.leaf[i % 3];
+      floorCtx.fill();
+    });
+  }
+  function drawTree(p, h) {
+    paintQuad([{ x: p.x - 3.5, y: p.y }, { x: p.x + 3.5, y: p.y },
+      { x: p.x + 2.6, y: p.y - h }, { x: p.x - 2.6, y: p.y - h }], '#3a2c1e', null);
+    const top = { x: p.x, y: p.y - h };
+    [[0, 0, h * 0.46], [-h * 0.3, h * 0.18, h * 0.34], [h * 0.31, h * 0.2, h * 0.36],
+      [0, -h * 0.24, h * 0.3]].forEach(([dx, dy, rr], i) => {
+      floorCtx.beginPath();
+      floorCtx.ellipse(top.x + dx, top.y + dy, rr, rr * 0.78, 0, 0, Math.PI * 2);
+      floorCtx.fillStyle = OUTSIDE.leaf[i % 3];
+      floorCtx.fill();
+    });
+    floorCtx.beginPath();
+    floorCtx.ellipse(top.x - h * 0.12, top.y - h * 0.18, h * 0.2, h * 0.15, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = 'rgba(140,180,110,0.16)';
+    floorCtx.fill();
+  }
+  function drawBin(p, colour) {
+    const H = 34;
+    paintQuad([{ x: p.x - 9, y: p.y }, { x: p.x + 9, y: p.y },
+      { x: p.x + 8, y: p.y - H }, { x: p.x - 8, y: p.y - H }], colour, 'rgba(0,0,0,0.5)', 1);
+    paintQuad([{ x: p.x - 8.6, y: p.y - H }, { x: p.x + 8.6, y: p.y - H },
+      { x: p.x + 8.6, y: p.y - H - 5 }, { x: p.x - 8.6, y: p.y - H - 5 }], shade(colour, 22), 'rgba(0,0,0,0.5)', 1);
+    [0.3, 0.6].forEach((h) => strokePolyline([{ x: p.x - 7.6, y: p.y - H * h }, { x: p.x + 7.6, y: p.y - H * h }],
+      'rgba(0,0,0,0.22)', 1.4));
+    drawIsoDisc(floorCtx, { x: p.x - 5, y: p.y + 1 }, 3, 1.8, '#17181b');
+    drawIsoDisc(floorCtx, { x: p.x + 5, y: p.y + 1 }, 3, 1.8, '#17181b');
+  }
+  function drawCar(base, colour) {
+    const ctx = floorCtx;
+    const M = TILES_PER_METRE;
+    [[-1.1 * M, 0.7 * M], [-1.1 * M, -0.7 * M], [1.1 * M, 0.7 * M], [1.1 * M, -0.7 * M]]
+      .forEach(([u, v]) => drawIsoDisc(ctx, isoScreenPoint(base, u, v, 14), 10, 7, '#17181b'));
+    drawIsoBox(ctx, base, 0, 0, 1.9 * M, 0.78 * M, 0.5 * PX_PER_METRE_TALL, colour, 20);
+    drawIsoBox(ctx, base, -0.15 * M, 0, 0.95 * M, 0.7 * M, 0.42 * PX_PER_METRE_TALL,
+      shade(colour, -14), 20 + 0.5 * PX_PER_METRE_TALL);
+    drawFacePanel(ctx, base, { u: 0.82 * M, v: 0.72 * M }, { u: -1.1 * M, v: 0.72 * M },
+      52, 74, '#33485e', 3);
+    drawGlow(isoScreenPoint(base, 2.0 * M, 0.5 * M, 26), 16, '#ffe6b4', 0.4);
+  }
+  // A row of lock-ups: a long low shed with a shutter to each bay.
+  function drawLockups(p, bays, along) {
+    const ctx = floorCtx;
+    const W = 3.2;
+    const D = 4.4;
+    const H = 62;
+    const half = along === 'gx' ? { a: (bays * W) / 2, b: D / 2 } : { a: D / 2, b: (bays * W) / 2 };
+    drawIsoBox(ctx, p, 0, 0, half.a, half.b, H, '#33373d', 0);
+    drawIsoBox(ctx, p, 0, 0, half.a + 0.2, half.b + 0.2, 6, '#282b30', H);
+    for (let i = 0; i < bays; i++) {
+      const t = (i + 0.5) / bays - 0.5;
+      const u = along === 'gx' ? t * bays * W : half.a + 0.02;
+      const v = along === 'gx' ? half.b + 0.02 : t * bays * W;
+      const du = along === 'gx' ? W * 0.36 : 0;
+      const dv = along === 'gx' ? 0 : W * 0.36;
+      drawFacePanel(ctx, p, { u: u - du, v: v - dv }, { u: u + du, v: v + dv }, 4, H * 0.72,
+        i % 2 ? '#4a5058' : '#454b53', 1);
+      for (let h = 8; h < H * 0.68; h += 7) {
+        drawFacePanel(ctx, p, { u: u - du, v: v - dv }, { u: u + du, v: v + dv }, h, h + 2,
+          'rgba(0,0,0,0.16)', 0);
+      }
+    }
+  }
+  function drawStreetLamp(p, light) {
+    const H = 118;
+    paintQuad([{ x: p.x - 2.4, y: p.y }, { x: p.x + 2.4, y: p.y },
+      { x: p.x + 2.4, y: p.y - H }, { x: p.x - 2.4, y: p.y - H }], '#3a3d42', null);
+    const head = { x: p.x + 9, y: p.y - H - 3 };
+    strokePolyline([{ x: p.x, y: p.y - H }, head], '#3a3d42', 3);
+    paintQuad([{ x: head.x - 9, y: head.y - 3 }, { x: head.x + 9, y: head.y - 3 },
+      { x: head.x + 7, y: head.y + 4 }, { x: head.x - 7, y: head.y + 4 }], '#2b2e33', null);
+    paintQuad([{ x: head.x - 6, y: head.y + 2 }, { x: head.x + 6, y: head.y + 2 },
+      { x: head.x + 6, y: head.y + 4 }, { x: head.x - 6, y: head.y + 4 }], light.bulb, null);
+    drawGlow({ x: head.x, y: head.y + 4 }, 70, light.bulb, 0.34);
+    const foot = { x: head.x, y: p.y };
+    const g = floorCtx.createRadialGradient(foot.x, foot.y, 3, foot.x, foot.y, 78);
+    g.addColorStop(0, scaleAlpha(light.glow, lampBoost() * 0.34));
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    floorCtx.save();
+    floorCtx.globalCompositeOperation = 'lighter';
+    floorCtx.fillStyle = g;
+    floorCtx.beginPath();
+    floorCtx.ellipse(foot.x, foot.y, 78, 39, 0, 0, Math.PI * 2);
+    floorCtx.fill();
+    floorCtx.restore();
+  }
+
+  // The ground beyond the yard, on both of its levels: the higher ground
+  // the wall holds back, and the deck the yard drops to.
+  function drawYardOutskirts(a, light, level) {
+    const R = 40;
+    const gx1 = a.gx0 + a.cols;
+    const gy1 = a.gy0 + a.rows;
+    const lift = level === 'up' ? -YARD.wall : YARD.drop;
+    const at = (gx, gy) => {
+      const p = isoPoint(gx, gy);
+      return { x: p.x, y: p.y + lift };
+    };
+    // The two bands of ground, paved coarsely: behind the wall it is the
+    // yard's own back lane, past the fence it is the road.
+    const bands = level === 'up'
+      ? [[a.gx0 - R, a.gy0 - R, gx1 + R, a.gy0], [a.gx0 - R, a.gy0, a.gx0, gy1 + R]]
+      : [[a.gx0 - R, gy1 + 13, gx1 + R, gy1 + R], [gx1 + 13, a.gy0 - R, gx1 + R, gy1 + 13]];
+    const S = 10;
+    bands.forEach(([x0, y0, x1, y1]) => {
+      for (let gy = y0; gy < y1; gy += S) {
+        for (let gx = x0; gx < x1; gx += S) {
+          const w = Math.min(S, x1 - gx);
+          const h = Math.min(S, y1 - gy);
+          const n = noise(Math.round(gx), Math.round(gy), level === 'up' ? 71 : 72);
+          paintQuad([at(gx, gy), at(gx + w, gy), at(gx + w, gy + h), at(gx, gy + h)],
+            shade(OUTSIDE.tarmac, Math.round((n - 0.5) * 10)), 'rgba(0,0,0,0.45)', 1);
+        }
+      }
+      // A verge of grass down the far side of each band, with a kerb on it.
+      const vergeAlongX = (x1 - x0) > (y1 - y0);
+      const v0 = vergeAlongX ? [x0, y0, x1, y0 + 7] : [x0, y0, x0 + 7, y1];
+      paintQuad([at(v0[0], v0[1]), at(v0[2], v0[1]), at(v0[2], v0[3]), at(v0[0], v0[3])],
+        OUTSIDE.grass, null);
+      for (let k = 0; k < 26; k++) {
+        const n = noise(k, Math.round(v0[0]), 73);
+        const gx = v0[0] + n * (v0[2] - v0[0]);
+        const gy = v0[1] + noise(k, Math.round(v0[1]), 74) * (v0[3] - v0[1]);
+        paintQuad([at(gx, gy), at(gx + 2.4, gy), at(gx + 2.4, gy + 2.4), at(gx, gy + 2.4)],
+          OUTSIDE.grassB, null);
+      }
+      const kerb = vergeAlongX
+        ? [at(v0[0], v0[3]), at(v0[2], v0[3])] : [at(v0[2], v0[1]), at(v0[2], v0[3])];
+      strokePolyline(kerb, OUTSIDE.kerb, 3);
+      // Trees and bushes standing on the verge.
+      const count = vergeAlongX ? 7 : 5;
+      for (let k = 0; k < count; k++) {
+        const t = (k + 0.5) / count;
+        const n = noise(k, Math.round(v0[0] + v0[1]), 75);
+        const gx = vergeAlongX ? v0[0] + t * (v0[2] - v0[0]) : v0[0] + 1.6 + n * 3.4;
+        const gy = vergeAlongX ? v0[1] + 1.6 + n * 3.4 : v0[1] + t * (v0[3] - v0[1]);
+        if (n < 0.62) drawTree(at(gx, gy), 62 + n * 52);
+        else drawBush(at(gx, gy), 12 + n * 7);
+        if (n > 0.3 && n < 0.42) drawBush(at(gx + 2.6, gy + 1.8), 10);
+      }
+    });
+
+    // Scrub over whatever the two bands do not cover, so a wide view never
+    // runs out of ground with something on it.
+    const outside = (gx, gy) => (level === 'up'
+      ? (gx < a.gx0 - 2 || gy < a.gy0 - 2)
+      : (gx > gx1 + 11 || gy > gy1 + 11));
+    for (let k = 0; k < 90; k++) {
+      const n1 = noise(k, 11, level === 'up' ? 81 : 82);
+      const n2 = noise(k, 13, level === 'up' ? 83 : 84);
+      const n3 = noise(k, 17, level === 'up' ? 85 : 86);
+      const gx = a.gx0 - R + n1 * (a.cols + R * 2);
+      const gy = a.gy0 - R + n2 * (a.rows + R * 2);
+      if (!outside(gx, gy)) continue;
+      if (n3 < 0.34) drawTree(at(gx, gy), 54 + n3 * 90);
+      else if (n3 < 0.82) drawBush(at(gx, gy), 9 + n3 * 9);
+      else drawBin(at(gx, gy), ['#2f4a3a', '#3a3f4a', '#4a3a2f'][k % 3]);
+    }
+
+    if (level === 'up') {
+      // Behind the wall: the bins, a row of lock-ups and a van on the lane.
+      ['#2f4a3a', '#3a3f4a', '#4a3a2f', '#2f3a4a'].forEach((c, i) => {
+        drawBin(at(a.gx0 + 6 + i * 2.2, a.gy0 - 9), c);
+      });
+      drawLockups(at(a.gx0 + a.cols * 0.62, a.gy0 - 20), 4, 'gx');
+      drawLockups(at(a.gx0 - 20, a.gy0 + a.rows * 0.5), 3, 'gy');
+      drawVan(at(a.gx0 + a.cols * 0.28, a.gy0 - 12), '#4a5058');
+      drawCar(at(a.gx0 - 11, a.gy0 + a.rows * 0.24), '#5a3a3a');
+      drawStreetLamp(at(a.gx0 + a.cols * 0.46, a.gy0 - 28), light);
+      drawStreetLamp(at(a.gx0 - 28, a.gy0 + a.rows * 0.7), light);
+      return;
+    }
+    // Past the fence: the road, with a car on it and lamps down the side.
+    for (let k = 0; k < 12; k++) {
+      const gx = a.gx0 - R + 8 + k * 6;
+      strokePolyline([at(gx, gy1 + 26), at(gx + 3, gy1 + 26)], 'rgba(220,208,180,0.16)', 2.6);
+    }
+    for (let k = 0; k < 10; k++) {
+      const gy = a.gy0 - R + 10 + k * 6;
+      strokePolyline([at(gx1 + 26, gy), at(gx1 + 26, gy + 3)], 'rgba(220,208,180,0.16)', 2.6);
+    }
+    drawCar(at(a.gx0 + a.cols * 0.3, gy1 + 24), '#3a4a5a');
+    drawCar(at(gx1 + 24, a.gy0 + a.rows * 0.62), '#4a4a3a');
+    ['#2f4a3a', '#3a3f4a', '#4a3a2f'].forEach((c, i) => {
+      drawBin(at(a.gx0 + a.cols * 0.74 + i * 2.2, gy1 + 17), c);
+    });
+    drawLockups(at(a.gx0 + a.cols * 0.14, gy1 + 33), 3, 'gx');
+    drawStreetLamp(at(a.gx0 + a.cols * 0.56, gy1 + 20), light);
+    drawStreetLamp(at(gx1 + 20, a.gy0 + a.rows * 0.28), light);
+  }
+
   // What stands about the yard, and the structure it stands in.
   function drawYardProps(colors, view) {
     const light = LIGHT_COLORS.garage;
@@ -8417,6 +8627,11 @@
     const gx1 = a.gx0 + a.cols;
     const gy1 = a.gy0 + a.rows;
     const wallColors = { wallL: YARD.wallL, wallR: YARD.wallR };
+    const light0 = LIGHT_COLORS.garage;
+
+    // ---- Beyond the wall, on the higher ground it holds back. Drawn first,
+    // so the wall stands in front of it.
+    drawYardOutskirts(a, light0, 'up');
 
     // ---- Behind: the ground is higher, so a wall rises off the apron's
     // two back edges, with the services running along it.
@@ -8635,6 +8850,7 @@
     const f0 = below(-fenceOut, a.rows + fenceOut);
     const f1 = below(a.cols + fenceOut, a.rows + fenceOut);
     const f2 = below(a.cols + fenceOut, -fenceOut);
+    drawYardOutskirts(a, light, 'down');
     drawYardFence(f0, f1, light);
     drawYardFence(f1, f2, light);
 
