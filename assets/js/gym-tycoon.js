@@ -5315,6 +5315,7 @@
   let stillOverCtx = null;
   let stillKey = '';
   let stillOverUsed = false;
+  let crowdBoxes = [];
   const inventoryEl = document.getElementById('tycoon-inventory');
   const themeRowEl = document.getElementById('theme-row');
   let armedItemId = null;
@@ -11148,7 +11149,11 @@
       // wall and in front of its near one.
       membersInside(c)
         .sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy))
-        .forEach((m) => drawMember(isoPoint(m.gx, m.gy), m));
+        .forEach((m) => {
+          const at = isoPoint(m.gx, m.gy);
+          drawMember(at, m);
+          if (rails) crowdBoxes.push({ x: at.x - 46, y: at.y - 140, w: 92, h: 172 });
+        });
       return;
     }
     if (rails) {
@@ -11177,6 +11182,7 @@
 
     drawHallwayFittings(c, colors);
     drawHallwayPosts(c, theme, colors, light);
+    if (rails) railSide(theme, c, [c.axis === 'gx' ? 's' : 'e'], light, colors);
   }
 
   // A pale casing standing across the corridor mouth: two jambs and a lintel
@@ -11525,6 +11531,7 @@
 
   function paintScene() {
     ratesChanged();
+    crowdBoxes = [];
     const colors = colorsFor(state.activeTheme);
     const light = LIGHT_COLORS[state.activeTheme] || LIGHT_COLORS.garage;
     const W = BASE_W;
@@ -11601,7 +11608,17 @@
       if (seen && !p.always && !boxesMeet(floorScreenBox(p.rect), seen)) return;
       p.draw();
     });
-    if (stillOverUsed) stamp(stillOver);
+    // The railings are already down with their own floors. This puts them
+    // back over anybody standing at one, and only there -- stamped whole
+    // over the plan it was a far floor's railing crossing a nearer one.
+    if (stillOverUsed && crowdBoxes.length) {
+      floorCtx.save();
+      floorCtx.beginPath();
+      crowdBoxes.forEach((b) => floorCtx.rect(b.x, b.y, b.w, b.h));
+      floorCtx.clip();
+      floorCtx.drawImage(stillOver, 0, 0, W, H);
+      floorCtx.restore();
+    }
 
     // The money tags, over everything in the plan: a tag is a label on the
     // scene rather than a thing standing in it, and one hidden behind a
@@ -11757,7 +11774,9 @@
     const depthOf = (e) => e.spot.u + e.spot.v;
     const paintOne = (e) => {
       if (e.member) {
-        drawMember(isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v), e.member);
+        const at = isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v);
+        drawMember(at, e.member);
+        if (rails) crowdBoxes.push({ x: at.x - 46, y: at.y - 140, w: 92, h: 172 });
         return;
       }
       if (e.fixture) {
@@ -11786,6 +11805,17 @@
     // painted afresh twenty times a second.
     if (stillPass === 'under') {
       items.concat(loose).sort((a, b) => depthOf(a) - depthOf(b)).forEach(paintOne);
+      // And the railings along the front of this floor, over what stands on
+      // it -- here, with the floor they belong to, so a floor in front of
+      // this one still covers them. Kept in a layer of their own as well,
+      // to put back over anybody standing at the rail (see paintScene).
+      if (rails) {
+        railSide(theme, place, ['s', 'e'], light, colors);
+        if (theme === 'boardwalk') {
+          lampSpots(place, false).forEach((l) => drawLampPost(isoPoint(l.gx, l.gy), light, l.flag));
+          if (hub) drawPierSign(place);
+        }
+      }
       return;
     }
 
