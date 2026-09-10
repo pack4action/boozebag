@@ -11729,9 +11729,10 @@
     });
     }
 
-    if (stillPass !== 'live') {
-      // The railings along the front of the floor, over what stands on it.
-      if (rails && stillPass === 'over') {
+    // The railings along the front of the floor stand over everything on
+    // it, so they are the whole of the over pass and nothing else is.
+    if (stillPass === 'over') {
+      if (rails) {
         railSide(theme, place, ['s', 'e'], light, colors);
         if (theme === 'boardwalk') {
           lampSpots(place, false).forEach((l) => drawLampPost(isoPoint(l.gx, l.gy), light, l.flag));
