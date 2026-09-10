@@ -11085,7 +11085,8 @@
   // the top?
   function boxBehindWall(b, band) {
     for (let i = 0; i < band.segs.length; i++) {
-      const { a, o } = { a: band.segs[i].a, o: band.segs[i].b };
+      const a = band.segs[i].a;
+      const o = band.segs[i].b;
       const lo = Math.min(a.x, o.x);
       const hi = Math.max(a.x, o.x);
       if (b.x + b.w < lo || b.x > hi) continue;
@@ -11153,8 +11154,12 @@
   let cutKey = '';
   let frontCuts = [];
   function frontWallCuts(order, key) {
-    if (cutKey === key) return frontCuts;
-    cutKey = key;
+    // The list is indexed against the painting order, so how many floors
+    // are in that order is part of what it is a picture of -- the plot for
+    // the next room comes and goes without the plan itself changing.
+    const k = key + '|' + order.length;
+    if (cutKey === k) return frontCuts;
+    cutKey = k;
     const bands = order.map(wallBandOf);
     frontCuts = order.map((_, i) => {
       const out = [];
@@ -12073,10 +12078,7 @@
 
     if (editing && editing.roomIndex === roomIndex) {
       drawHeldPiece(place, editing);
-      // Whatever is in hand moves with the pointer, so its whole floor is
-      // marked rather than guessing where it landed.
-      const box = floorScreenBox(place);
-      if (liveBoxes) liveBoxes.push({ x: box.x0, y: box.y0, w: box.x1 - box.x0, h: box.y1 - box.y0 });
+      markLive(isoPoint(place.gx0 + editing.spot.u, place.gy0 + editing.spot.v), 220, 220);
     }
 
   }
