@@ -8031,24 +8031,27 @@
   }
 
   // ---- The cellar ----
-  // The rooms stand on a poured slab in a chamber cut out of the rock: a
-  // rock face rising behind it carrying the services and the way up out of
-  // here, a drop to the sump in front with a railing along the edge and
-  // stone steps down, and the pipework, crates and rubble of somewhere
-  // under a building. Everything is placed off the plan's own bounds, so a
-  // cellar is the same cellar on every repaint.
-  const CELLAR = {
-    rock: '#161418',
-    slab: '#57544f',
-    slabB: '#4e4b47',
-    faceL: '#272320',
-    faceR: '#1d1a18',
-    stone: '#332e2b',
-    steel: '#4a4b4f',
+  // Not a room with a yard round it: a hole dug under a building. The rooms
+  // sit at the bottom of an excavation, with the earth cut away around them
+  // and holding its own shape -- rough, layered, roots hanging out of the
+  // top of it. What crosses that earth is pipework, big and old, running
+  // through in every direction with its elbows and flanges showing, and the
+  // way in is a stair shaft cut down through it from the surface.
+  //
+  // Everything is placed off the plan's own bounds, so a cellar is the same
+  // cellar on every repaint and from one session to the next.
+  const EARTH = {
+    soil: '#181316',
+    stone: '#2b2321',
+    stoneLit: '#3a2d25',
+    flag: '#36322f',
+    flagB: '#2e2a28',
+    mortar: '#1a1614',
+    pipe: '#3d3e42',
     copper: '#7a4a2c',
     flame: '#ffb35a',
-    drop: 92,
-    wall: 260,
+    trench: 104,
+    wall: 360,
   };
   function cellarApron() {
     const b = planBounds;
@@ -8061,359 +8064,478 @@
     };
   }
 
-  // Rock, laid like rubble walling laid flat, over whatever it is asked for.
-  function drawRockGround(x0, y0, x1, y1, lift, tint) {
-    const S = 3;
+  // ---- Earth ----
+  // Dug ground, seen from above: clods and stones of every size, no grid to
+  // it. Drawn from a hash of where each one is, so it never crawls.
+  function drawEarth(x0, y0, x1, y1, lift, seed) {
+    const at = (gx, gy) => {
+      const p = isoPoint(gx, gy);
+      return { x: p.x, y: p.y + (lift || 0) };
+    };
+    const S = 5;
     for (let gy = Math.floor(y0 / S) * S; gy < y1; gy += S) {
-      // Courses offset by half a stone, so it does not read as a grid.
-      const off = Math.round(gy / S) % 2 ? 1.5 : 0;
-      for (let gx = Math.floor(x0 / S) * S - off; gx < x1; gx += S) {
-        const k = Math.round(gx * 2);
-        const n = noise(k, gy, 11);
-        const w = S * (0.75 + noise(k, gy, 13) * 0.55);
-        const h = S * (0.75 + noise(k, gy, 14) * 0.45);
-        const inset = 0.1 + n * 0.25;
-        const tone = shade(tint || CELLAR.rock, Math.round((noise(k, gy, 12) - 0.5) * 30));
-        const at = (gxx, gyy) => {
-          const p = isoPoint(gxx, gyy);
-          return { x: p.x, y: p.y + (lift || 0) };
-        };
-        paintQuad([at(gx + inset, gy + inset), at(gx + w - inset, gy + inset * 0.5),
-          at(gx + w - inset * 0.6, gy + h - inset), at(gx + inset * 0.7, gy + h - inset * 0.6)],
-        tone, 'rgba(0,0,0,0.6)', 1.2);
-        // A catch of light on the top edge of some of them.
-        if (n > 0.55) {
-          strokePolyline([at(gx + inset + 0.3, gy + inset + 0.1), at(gx + w - inset - 0.3, gy + inset * 0.5 + 0.1)],
-            'rgba(255,255,255,' + (0.03 + n * 0.05).toFixed(3) + ')', 1);
+      for (let gx = Math.floor(x0 / S) * S; gx < x1; gx += S) {
+        for (let i = 0; i < 2; i++) {
+          const n1 = noise(Math.round(gx), Math.round(gy), seed + i);
+          const n2 = noise(Math.round(gy), Math.round(gx), seed + 30 + i);
+          const n3 = noise(Math.round(gx + gy), i, seed + 60);
+          const cx = gx + n1 * S;
+          const cy = gy + n2 * S;
+          const r = 1.1 + n3 * 2.9;
+          const tone = shade(n3 > 0.72 ? EARTH.stone : EARTH.soil, Math.round((n3 - 0.45) * 26));
+          paintQuad([at(cx - r, cy - r * 0.6), at(cx + r * 0.8, cy - r),
+            at(cx + r, cy + r * 0.7), at(cx - r * 0.7, cy + r)],
+          tone, 'rgba(0,0,0,0.5)', 1);
+          // The odd stone catching what light there is.
+          if (n3 > 0.88) {
+            strokePolyline([at(cx - r * 0.5, cy - r * 0.5), at(cx + r * 0.5, cy - r * 0.7)],
+              'rgba(255,200,150,0.07)', 1.4);
+          }
         }
       }
     }
   }
 
-  // The cellar floor: rock everywhere, the poured slab over the middle of
-  // it, and the wet and the wear on both.
+  // A cut face of earth: layered, lumpy, with roots out of the top of it
+  // where it has been dug through. `down` cuts away from the line, otherwise
+  // it stands up from it.
+  function drawEarthFace(from, to, h, down, opts) {
+    const o = opts || {};
+    const sign = down ? 1 : -1;
+    const at = (t, k) => {
+      const p = lerpPt(from, to, t);
+      return { x: p.x, y: p.y + sign * k * h };
+    };
+    const len = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+    // A cut face is in its own shade: darker than the ground it was dug out
+    // of, and lit only by what is burning on it.
+    const faceSoil = shade(EARTH.soil, 14);
+    const faceStone = shade(EARTH.stone, 10);
+    paintQuad([at(0, 0), at(1, 0), at(1, 1), at(0, 1)], faceSoil, null);
+    // Layers of ground, each a slightly different age of dirt.
+    const rows = Math.max(4, Math.round(h / 34));
+    const cols = Math.max(5, Math.round(len / 30));
+    for (let r = 0; r < rows; r++) {
+      const k0 = r / rows;
+      const k1 = (r + 1) / rows;
+      for (let c = 0; c < cols; c++) {
+        const n = noise(c * 5 + r, o.seed || 0, 41);
+        const n2 = noise(r * 7 + c, o.seed || 0, 42);
+        const t0 = (c + (r % 2) * 0.5) / cols;
+        const t1 = t0 + (1 / cols) * (0.8 + n * 0.7);
+        if (t1 > 1 || t0 < 0) continue;
+        const jitter = (n2 - 0.5) * (1 / rows) * 0.5;
+        paintQuad([at(t0, k0 + jitter), at(t1, k0 - jitter * 0.6),
+          at(t1, k1 + jitter * 0.4), at(t0, k1 - jitter)],
+        shade(n > 0.78 ? faceStone : faceSoil, Math.round((n2 - 0.42) * 30 - (1 - k0) * 26)),
+        'rgba(0,0,0,0.5)', 1);
+        if (n > 0.9) {
+          strokePolyline([at(t0 + 0.004, k0 + jitter + 0.01), at(t1 - 0.004, k0 - jitter * 0.6 + 0.01)],
+            'rgba(255,190,140,0.06)', 1.4);
+        }
+      }
+    }
+    // The dark where the face meets the floor: without it the two read as
+    // one surface, and the whole cut disappears.
+    const footK = down ? 1 : 0;
+    const foot0 = at(0, footK);
+    const foot1 = at(1, footK);
+    const shadeTo = at(0, footK + (down ? -0.3 : 0.3));
+    const grad = floorCtx.createLinearGradient(0, foot0.y, 0, shadeTo.y);
+    grad.addColorStop(0, 'rgba(0,0,0,0.6)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    floorCtx.fillStyle = grad;
+    floorCtx.beginPath();
+    floorCtx.moveTo(foot0.x, foot0.y);
+    floorCtx.lineTo(foot1.x, foot1.y);
+    floorCtx.lineTo(at(1, footK + (down ? -0.3 : 0.3)).x, at(1, footK + (down ? -0.3 : 0.3)).y);
+    floorCtx.lineTo(shadeTo.x, shadeTo.y);
+    floorCtx.closePath();
+    floorCtx.fill();
+    strokePolyline([foot0, foot1], 'rgba(0,0,0,0.75)', 3);
+
+    // What is burning on it, and the light that falls on the earth around
+    // each one. Clipped to the face, so the light stays on the face -- this
+    // is what makes a cut read as standing up rather than lying flat.
+    if (o.torches) {
+      floorCtx.save();
+      floorCtx.beginPath();
+      floorCtx.moveTo(at(0, 0).x, at(0, 0).y);
+      floorCtx.lineTo(at(1, 0).x, at(1, 0).y);
+      floorCtx.lineTo(at(1, 1).x, at(1, 1).y);
+      floorCtx.lineTo(at(0, 1).x, at(0, 1).y);
+      floorCtx.closePath();
+      floorCtx.clip();
+      floorCtx.globalCompositeOperation = 'lighter';
+      o.torches.forEach((tt) => {
+        const c = at(tt, 0.46);
+        const reach = h * 0.62;
+        const g = floorCtx.createRadialGradient(c.x, c.y, 2, c.x, c.y, reach);
+        g.addColorStop(0, 'rgba(255,176,92,0.42)');
+        g.addColorStop(0.4, 'rgba(255,150,74,0.17)');
+        g.addColorStop(1, 'rgba(255,140,70,0)');
+        floorCtx.fillStyle = g;
+        floorCtx.fillRect(c.x - reach, c.y - reach, reach * 2, reach * 2);
+      });
+      floorCtx.restore();
+      o.torches.forEach((tt) => drawTorch(at(tt, 0.46), 1.1));
+    }
+
+    // The lip where the ground was cut, and the roots hanging out of it.
+    const lipK = down ? 0 : 1;
+    strokePolyline([at(0, lipK), at(1, lipK)], 'rgba(0,0,0,0.5)', 3);
+    strokePolyline([at(0, lipK - (down ? -0.012 : 0.012)), at(1, lipK - (down ? -0.012 : 0.012))],
+      'rgba(255,205,150,0.16)', 2.4);
+    if (o.roots !== false) {
+      const n = Math.max(4, Math.round(len / 52));
+      for (let i = 1; i < n; i++) {
+        const t = i / n;
+        const seed = noise(i, o.seed || 0, 43);
+        const p0 = at(t, lipK);
+        const drop = sign * (0.06 + seed * 0.13) * h;
+        strokePolyline([{ x: p0.x, y: p0.y }, { x: p0.x + (seed - 0.5) * 12, y: p0.y + drop * (down ? 1 : -1) * -1 }],
+          'rgba(58,44,30,0.85)', 2 + seed * 1.6);
+        if (seed > 0.6) {
+          strokePolyline([{ x: p0.x + 3, y: p0.y }, { x: p0.x + 11, y: p0.y - drop * 0.5 * (down ? -1 : 1) }],
+            'rgba(48,36,24,0.7)', 1.4);
+        }
+      }
+    }
+  }
+
+  // Paving: dark flags, laid by hand, no two the same. Only where somebody
+  // walks -- the rest of the ground is earth.
+  function drawFlagstones(rect, lift) {
+    const at = (gx, gy) => {
+      const p = isoPoint(gx, gy);
+      return { x: p.x, y: p.y + (lift || 0) };
+    };
+    const S = 2.4;
+    for (let gy = rect.gy0; gy < rect.gy0 + rect.rows; gy += S) {
+      const off = Math.round((gy - rect.gy0) / S) % 2 ? S * 0.45 : 0;
+      for (let gx = rect.gx0 - off; gx < rect.gx0 + rect.cols; gx += S) {
+        const k = Math.round(gx * 3);
+        const n = noise(k, Math.round(gy), 45);
+        const n2 = noise(Math.round(gy), k, 46);
+        const w = S * (0.78 + n * 0.24);
+        const h = S * (0.78 + n2 * 0.24);
+        const j = 0.14;
+        paintQuad([at(gx + j * n, gy + j * n2), at(gx + w - j * n2, gy + j * n * 0.5),
+          at(gx + w - j * n, gy + h - j * n2), at(gx + j * n2 * 0.6, gy + h - j * n)],
+        shade(n > 0.5 ? EARTH.flag : EARTH.flagB, Math.round((n2 - 0.5) * 18)),
+        EARTH.mortar, 1.4);
+      }
+    }
+  }
+
+  // The floor of the cellar: earth everywhere, flags where the rooms stand
+  // and along the walk in front of them.
   function drawCavernFloor(colors, view) {
-    floorCtx.fillStyle = '#100e0f';
+    floorCtx.fillStyle = '#0d0a0c';
     floorCtx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
     const r = latticeRange(view);
-    drawRockGround(r.gx0, r.gy0, r.gx1, r.gy1, 0);
-
-    // The slab the rooms stand on, poured in bays with a joint between them.
+    drawEarth(r.gx0, r.gy0, r.gx1, r.gy1, 0, 51);
     const a = cellarApron();
-    const P = 4;
-    for (let ry = 0; ry < a.rows; ry += P) {
-      for (let rx = 0; rx < a.cols; rx += P) {
-        const gx = a.gx0 + rx;
-        const gy = a.gy0 + ry;
-        const w = Math.min(P, a.cols - rx);
-        const h = Math.min(P, a.rows - ry);
-        const n = noise(gx, gy, 31);
-        const tone = shade(((rx / P | 0) + (ry / P | 0)) % 2 === 0 ? CELLAR.slab : CELLAR.slabB,
-          Math.round((n - 0.5) * 14));
-        paintQuad([isoPoint(gx, gy), isoPoint(gx + w, gy), isoPoint(gx + w, gy + h), isoPoint(gx, gy + h)],
-          tone, 'rgba(0,0,0,0.4)', 1);
-        // Damp gathering in the low corners of it.
-        if (n > 0.9) {
-          const c = isoPoint(gx + 2, gy + 2);
-          floorCtx.beginPath();
-          floorCtx.ellipse(c.x, c.y, 20, 10, 0, 0, Math.PI * 2);
-          floorCtx.fillStyle = 'rgba(80,120,140,0.10)';
-          floorCtx.fill();
-        }
-      }
-    }
-    // The channel that takes the water away, down the middle of the slab.
+    drawFlagstones(a, 0);
+    // The gully that takes the water, cut into the flags along the front.
     for (let k = 0; k < 9; k++) {
-      drawGrate(a.gx0 + a.cols - 1.9, a.gy0 + 2 + k * 3.2, 0.7, 4);
+      drawGrate(a.gx0 + a.cols - 1.7, a.gy0 + 2 + k * 3.2, 0.62, 4);
     }
   }
 
-  // ---- The things a cellar is full of ----
+  // ---- What runs through the earth ----
+  // An elbow, a flange, a wheel valve: the joints that make a pipe read as
+  // pipework rather than as a line.
+  function drawFlange(p, thick) {
+    paintQuad([{ x: p.x - 5, y: p.y - thick * 0.8 - 4 }, { x: p.x + 5, y: p.y - thick * 0.8 - 4 },
+      { x: p.x + 5, y: p.y + thick * 0.8 + 4 }, { x: p.x - 5, y: p.y + thick * 0.8 + 4 }],
+    '#2c2d31', 'rgba(0,0,0,0.55)', 1);
+    strokePolyline([{ x: p.x, y: p.y - thick * 0.8 - 3 }, { x: p.x, y: p.y + thick * 0.8 + 3 }],
+      'rgba(255,255,255,0.08)', 1);
+  }
+  function drawValve(p, thick) {
+    drawFlange(p, thick);
+    strokePolyline([{ x: p.x, y: p.y - thick }, { x: p.x, y: p.y - thick - 13 }], '#4a4b4f', 3);
+    floorCtx.beginPath();
+    floorCtx.ellipse(p.x, p.y - thick - 15, 9, 4.4, 0, 0, Math.PI * 2);
+    floorCtx.strokeStyle = '#8c3a2a';
+    floorCtx.lineWidth = 3;
+    floorCtx.stroke();
+  }
+  // A big pipe following a line, with the light down its top and its joints
+  // at the corners.
+  function drawBigPipe(pts, thick, colour, valveAt) {
+    strokePolyline(pts, 'rgba(0,0,0,0.6)', thick + 5);
+    strokePolyline(pts, shade(colour, -22), thick + 1);
+    strokePolyline(pts, colour, thick - 2);
+    strokePolyline(pts.map((p) => ({ x: p.x, y: p.y - thick * 0.3 })),
+      'rgba(255,225,190,0.13)', Math.max(1.6, thick * 0.22));
+    for (let i = 1; i < pts.length - 1; i++) drawFlange(pts[i], thick);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const d = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+      const steps = Math.max(1, Math.round(d / 110));
+      for (let k = 1; k < steps; k++) drawFlange(lerpPt(pts[i], pts[i + 1], k / steps), thick);
+    }
+    if (valveAt != null) drawValve(lerpPt(pts[0], pts[1], valveAt), thick);
+  }
+  // A torch on a spike driven into the earth.
+  function drawTorch(p, scale) {
+    const k = scale || 1;
+    strokePolyline([{ x: p.x - 8 * k, y: p.y + 8 * k }, { x: p.x, y: p.y }], '#2a2622', 3.4 * k);
+    drawGlow(p, 74 * k, EARTH.flame, 0.6);
+    drawGlow(p, 30 * k, '#ffe0a0', 0.6);
+    floorCtx.beginPath();
+    floorCtx.ellipse(p.x, p.y - 3 * k, 4.8 * k, 7.8 * k, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = '#ffd88a';
+    floorCtx.fill();
+    floorCtx.beginPath();
+    floorCtx.ellipse(p.x, p.y - 5 * k, 2.4 * k, 4.2 * k, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = '#fff3cf';
+    floorCtx.fill();
+  }
   function drawCrate(p, w, h) {
-    drawIsoBox(floorCtx, p, 0, 0, w, w * 0.86, h, '#4a3a26', 0);
-    drawIsoBox(floorCtx, p, 0, 0, w + 0.1, w * 0.86 + 0.1, 4, '#3a2c1c', h);
-    const f = isoScreenPoint(p, w, 0, h * 0.5);
-    strokePolyline([{ x: f.x - 10, y: f.y - h * 0.3 }, { x: f.x + 10, y: f.y - h * 0.3 + 4 }],
-      'rgba(0,0,0,0.3)', 2);
+    drawIsoBox(floorCtx, p, 0, 0, w, w * 0.86, h, '#42331f', 0);
+    drawIsoBox(floorCtx, p, 0, 0, w + 0.1, w * 0.86 + 0.1, 4, '#31261a', h);
   }
   function drawRubble(p, r) {
     for (let i = 0; i < 5; i++) {
-      const n = noise(Math.round(p.x) + i, Math.round(p.y), 33);
+      const n = noise(Math.round(p.x) + i, Math.round(p.y), 47);
       const rr = r * (0.4 + n * 0.6);
       paintQuad([{ x: p.x - rr + i * 3, y: p.y - n * 4 },
         { x: p.x + rr * 0.6 + i * 3, y: p.y - n * 6 - rr * 0.4 },
         { x: p.x + rr + i * 3, y: p.y - n * 2 },
         { x: p.x + i * 3, y: p.y + rr * 0.3 }],
-      shade(CELLAR.rock, Math.round((n - 0.4) * 26)), 'rgba(0,0,0,0.5)', 1);
+      shade(EARTH.stone, Math.round((n - 0.4) * 26)), 'rgba(0,0,0,0.5)', 1);
     }
-  }
-  function drawStalagmite(p, h) {
-    paintQuad([{ x: p.x - h * 0.22, y: p.y }, { x: p.x + h * 0.22, y: p.y },
-      { x: p.x + h * 0.04, y: p.y - h }, { x: p.x - h * 0.05, y: p.y - h }],
-    shade(CELLAR.rock, 16), 'rgba(0,0,0,0.55)', 1);
-    strokePolyline([{ x: p.x - h * 0.06, y: p.y - h * 0.1 }, { x: p.x - h * 0.02, y: p.y - h * 0.9 }],
-      'rgba(255,255,255,0.06)', 2);
-  }
-  // A torch on a bracket, which is what lights a place like this.
-  function drawTorch(p, scale) {
-    const k = scale || 1;
-    strokePolyline([{ x: p.x - 8 * k, y: p.y + 7 * k }, { x: p.x, y: p.y }], '#2a2622', 3.4 * k);
-    drawGlow(p, 96 * k, CELLAR.flame, 0.8);
-    drawGlow(p, 40 * k, '#ffe0a0', 0.7);
-    floorCtx.beginPath();
-    floorCtx.ellipse(p.x, p.y - 3 * k, 4.6 * k, 7.4 * k, 0, 0, Math.PI * 2);
-    floorCtx.fillStyle = '#ffd88a';
-    floorCtx.fill();
-    floorCtx.beginPath();
-    floorCtx.ellipse(p.x, p.y - 5 * k, 2.4 * k, 4 * k, 0, 0, Math.PI * 2);
-    floorCtx.fillStyle = '#fff3cf';
-    floorCtx.fill();
-  }
-  // A run of big pipe between two points, with couplings along it.
-  function drawPipeRun(pts, thick, colour) {
-    strokePolyline(pts, 'rgba(0,0,0,0.55)', thick + 4);
-    strokePolyline(pts, colour, thick);
-    strokePolyline(pts.map((p) => ({ x: p.x, y: p.y - thick * 0.28 })),
-      'rgba(255,255,255,0.11)', Math.max(1.4, thick * 0.24));
-    for (let i = 0; i < pts.length - 1; i++) {
-      const steps = Math.max(1, Math.round(Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y) / 92));
-      for (let k = 0; k <= steps; k++) {
-        const p = lerpPt(pts[i], pts[i + 1], k / steps);
-        paintQuad([{ x: p.x - 4.5, y: p.y - thick * 0.75 - 3 }, { x: p.x + 4.5, y: p.y - thick * 0.75 - 3 },
-          { x: p.x + 4.5, y: p.y + thick * 0.75 + 3 }, { x: p.x - 4.5, y: p.y + thick * 0.75 + 3 }],
-        '#2c2d31', 'rgba(0,0,0,0.5)', 1);
-      }
-    }
-  }
-  // The way up out of the cellar: a stair housing set into the rock face,
-  // with a wooden flight climbing into it and a lamp over the door.
-  function drawCellarStair(from, to, t, light) {
-    const w = 0.1;
-    const q = (t0, t1, h0, h1, fill, stroke) => paintQuad(wallQuad(from, to, t0, t1, h0, h1), fill, stroke || null, 1.2);
-    // The housing, cut back into the rock.
-    q(t - w - 0.02, t + w + 0.02, 0.02, 0.72, '#3a3531', 'rgba(0,0,0,0.6)');
-    q(t - w, t + w, 0.04, 0.68, '#16130f', 'rgba(0,0,0,0.7)');
-    // The flight, climbing away from you into the dark.
-    const steps = 9;
-    for (let i = 0; i < steps; i++) {
-      const f = i / steps;
-      const hw = w * (1 - f * 0.32);
-      const h0 = 0.05 + f * 0.5;
-      q(t - hw, t + hw, h0, h0 + 0.045, shade('#6b5233', Math.round(-f * 26)), 'rgba(0,0,0,0.55)');
-      q(t - hw, t + hw, h0 + 0.045, h0 + 0.058, shade('#3f3120', Math.round(-f * 20)));
-    }
-    // A handrail up one side, and the lamp over the opening.
-    const rail = [];
-    for (let i = 0; i <= steps; i++) {
-      rail.push(wallPoint(from, to, t + w * 0.86, 0.1 + (i / steps) * 0.5));
-    }
-    strokePolyline(rail, '#5a5148', 2.2);
-    q(t - w - 0.03, t + w + 0.03, 0.72, 0.78, '#4a443e', 'rgba(0,0,0,0.6)');
-    const lamp = wallPoint(from, to, t, 0.76);
-    drawGlow(lamp, 54, light.bulb, 0.55);
-    floorCtx.fillStyle = light.bulb;
-    floorCtx.fillRect(lamp.x - 5, lamp.y - 3, 10, 5);
-    drawFloorPool(wallPoint(from, to, t, 0), light, 1.5);
   }
 
-  // What stands about the cellar, and the chamber it stands in.
+  // ---- The way in ----
+  // A shaft cut down through the earth from the surface, with a flight of
+  // steps in it and a lamp at the bottom. Drawn into an earth face: `t` is
+  // how far along it stands, `h` how far it climbs.
+  function drawStairShaft(from, to, t, h, light) {
+    const w = 0.075;
+    const at = (tt, k) => {
+      const p = lerpPt(from, to, tt);
+      return { x: p.x, y: p.y - k * h };
+    };
+    // The shaft: earth cut away, dark inside, with cheek walls either side.
+    paintQuad([at(t - w - 0.02, 0), at(t + w + 0.02, 0), at(t + w + 0.02, 1.02), at(t - w - 0.02, 1.02)],
+      shade(EARTH.stone, -16), 'rgba(0,0,0,0.6)', 1.4);
+    paintQuad([at(t - w, 0), at(t + w, 0), at(t + w, 1), at(t - w, 1)], '#0c0a0b', null);
+    // The flight, coming down out of the dark towards the floor.
+    const steps = 11;
+    for (let i = 0; i < steps; i++) {
+      const f = i / steps;
+      const hw = w * (0.62 + f * 0.38);
+      const k0 = 0.96 - f * 0.94;
+      const tread = shade('#6b5233', Math.round(-(1 - f) * 30));
+      paintQuad([at(t - hw, k0), at(t + hw, k0), at(t + hw, k0 - 0.036), at(t - hw, k0 - 0.036)],
+        tread, 'rgba(0,0,0,0.5)', 1);
+      paintQuad([at(t - hw, k0 - 0.036), at(t + hw, k0 - 0.036), at(t + hw, k0 - 0.05), at(t - hw, k0 - 0.05)],
+        shade(tread, -26), null);
+    }
+    // A handrail down one cheek, and the lamp that shows you the bottom.
+    const rail = [];
+    for (let i = 0; i <= steps; i++) {
+      const f = i / steps;
+      rail.push(at(t + w * (0.62 + f * 0.38) - 0.004, 0.96 - f * 0.94 + 0.06));
+    }
+    strokePolyline(rail, '#4a443c', 2.4);
+    const lamp = at(t, 0.2);
+    drawGlow(lamp, 74, light.bulb, 0.6);
+    floorCtx.fillStyle = light.bulb;
+    floorCtx.fillRect(lamp.x - 5, lamp.y - 16, 10, 5);
+    drawFloorPool(lerpPt(from, to, t), light, 1.8);
+    // A rail round the opening at the top, so it reads as a hole in the
+    // ground rather than a doorway.
+    const topL = at(t - w - 0.03, 1.03);
+    const topR = at(t + w + 0.03, 1.03);
+    strokePolyline([{ x: topL.x, y: topL.y - 22 }, { x: topR.x, y: topR.y - 22 }], '#4a443c', 2.4);
+    [topL, topR].forEach((p) => strokePolyline([p, { x: p.x, y: p.y - 24 }], '#4a443c', 2.6));
+  }
+
+  // What the cellar is: the excavation, the pipework through it, the way in.
   function drawCellarProps(colors, view) {
     const light = LIGHT_COLORS.basement;
     const a = cellarApron();
     const gx1 = a.gx0 + a.cols;
     const gy1 = a.gy0 + a.rows;
-    const faceColors = { wallL: CELLAR.faceL, wallR: CELLAR.faceR };
-
-    // ---- Beyond, and above: more of the same rock, with the services
-    // crossing it. Drawn first, so the rock face stands in front of it.
-    drawCellarOutskirts(a, light, 'up');
-
-    // ---- Behind: the rock the chamber is cut out of, rising off the slab.
-    const back = CELLAR.wall;
     const nw = isoPoint(a.gx0, a.gy0);
     const ne = isoPoint(gx1, a.gy0);
     const sw = isoPoint(a.gx0, gy1);
-    drawWallRun([ne, nw, sw], ['gx', 'gy'], back, faceColors, ['cap', 'cap']);
-    // Broken up into rock, not left as two flat planes.
-    [[ne, nw], [nw, sw]].forEach(([from, to], side) => {
-      const len = Math.hypot(to.x - from.x, to.y - from.y);
-      const across = Math.max(6, Math.round(len / 34));
-      for (let i = 0; i < across; i++) {
-        for (let k = 0; k < 9; k++) {
-          const n = noise(i * 7 + k, side, 35);
-          const t0 = (i + (k % 2) * 0.5) / across;
-          const t1 = t0 + (0.62 + n * 0.5) / across;
-          const h0 = 0.03 + k * 0.108;
-          const h1 = h0 + 0.09 * (0.7 + n * 0.4);
-          if (t1 > 1) continue;
-          paintQuad(wallQuad(from, to, t0, t1, h0, h1),
-            shade(side ? CELLAR.faceR : CELLAR.faceL, Math.round((n - 0.45) * 26)),
-            'rgba(0,0,0,0.42)', 1);
-          if (n > 0.72) {
-            paintQuad(wallQuad(from, to, t0, t1, h1, h1 - 0.008), 'rgba(255,255,255,0.05)', null);
-          }
-        }
-      }
-
-      // The services: two big pipes running the length of it, hangers under
-      // them, torches between, and a grille let into the rock.
-      [0.82, 0.73].forEach((h, k) => {
-        drawPipeRun([wallPoint(from, to, 0.01, h), wallPoint(from, to, 0.99, h)],
-          k ? 7 : 9, k ? CELLAR.copper : CELLAR.steel);
-      });
-      for (let i = 1; i < 7; i++) {
-        const t = i / 7;
-        if (i % 2 === (side ? 0 : 1)) drawTorch(wallPoint(from, to, t, 0.44), 1.15);
-        strokePolyline([wallPoint(from, to, t, 0.86), wallPoint(from, to, t, 0.94)], '#2c2d31', 3);
-      }
-      const g = wallPoint(from, to, side ? 0.2 : 0.68, 0.34);
-      paintQuad([{ x: g.x - 22, y: g.y - 16 }, { x: g.x + 22, y: g.y - 16 },
-        { x: g.x + 22, y: g.y + 16 }, { x: g.x - 22, y: g.y + 16 }], '#1c1a18', 'rgba(0,0,0,0.65)', 1.4);
-      for (let k = 0; k < 6; k++) {
-        paintQuad([{ x: g.x - 19, y: g.y - 13 + k * 5 }, { x: g.x + 19, y: g.y - 13 + k * 5 },
-          { x: g.x + 19, y: g.y - 11 + k * 5 }, { x: g.x - 19, y: g.y - 11 + k * 5 }],
-        'rgba(255,255,255,0.09)', null);
-      }
-    });
-    // The way up, in the back-right face.
-    drawCellarStair(ne, nw, 0.28, light);
-
-    // ---- In front: the slab ends and the floor drops to the sump.
-    const drop = CELLAR.drop;
-    const down = (p) => ({ x: p.x, y: p.y + drop });
     const se = isoPoint(gx1, gy1);
-    const swp = isoPoint(a.gx0, gy1);
-    const nep = isoPoint(gx1, a.gy0);
-    paintQuad([swp, se, down(se), down(swp)], shade(CELLAR.stone, -14), 'rgba(0,0,0,0.6)', 1);
-    paintQuad([nep, se, down(se), down(nep)], shade(CELLAR.stone, -28), 'rgba(0,0,0,0.6)', 1);
-    // Faced in block, course by course, with a concrete lip over the top.
-    [[swp, se, 0], [nep, se, 1]].forEach(([from, to, dark]) => {
-      const len = Math.hypot(to.x - from.x, to.y - from.y);
-      const blocks = Math.max(5, Math.round(len / 40));
-      for (let k = 0; k < 5; k++) {
-        const y0 = 9 + k * ((drop - 9) / 5);
-        const y1 = 9 + (k + 1) * ((drop - 9) / 5);
-        for (let i = 0; i < blocks; i++) {
-          const t0 = (i + (k % 2) * 0.5) / blocks;
-          const t1 = t0 + 1 / blocks;
-          if (t1 > 1) continue;
-          const p0 = lerpPt(from, to, t0);
-          const p1 = lerpPt(from, to, t1);
-          const n = noise(i * 5 + k, dark, 37);
-          paintQuad([{ x: p0.x, y: p0.y + y0 }, { x: p1.x, y: p1.y + y0 },
-            { x: p1.x, y: p1.y + y1 }, { x: p0.x, y: p0.y + y1 }],
-          shade(CELLAR.stone, Math.round((n - 0.5) * 22 - dark * 14)), 'rgba(0,0,0,0.38)', 1);
-        }
+
+    // ---- The ground beyond, higher than the cellar floor: the earth the
+    // hole was dug out of, with the pipes crossing it. Drawn first, so the
+    // cut faces stand in front of it.
+    drawCellarOutskirts(a, light, 'up');
+
+    // ---- Behind: the earth, cut away and standing.
+    drawEarthFace(ne, nw, EARTH.wall, false, { seed: 1, torches: [0.14, 0.46, 0.78] });
+    drawEarthFace(nw, sw, EARTH.wall, false, { seed: 2, torches: [0.2, 0.54, 0.86] });
+
+    // The services, running along both faces and down into the floor.
+    [[ne, nw, 1], [nw, sw, 2]].forEach(([from, to, seed]) => {
+      const up = (t, k) => {
+        const p = lerpPt(from, to, t);
+        return { x: p.x, y: p.y - k * EARTH.wall };
+      };
+      drawBigPipe([up(0.01, 0.84), up(0.99, 0.84)], 13, EARTH.pipe, 0.3);
+      drawBigPipe([up(0.01, 0.66), up(0.99, 0.66)], 9, EARTH.copper);
+      // One of them turns and dives into the ground.
+      const t = seed === 1 ? 0.62 : 0.38;
+      drawBigPipe([up(t, 0.84), up(t + 0.03, 0.36), up(t + 0.03, 0.02)], 11, EARTH.pipe);
+      // A grille where something vents into the cellar.
+      const g = up(seed === 1 ? 0.22 : 0.74, 0.28);
+      paintQuad([{ x: g.x - 22, y: g.y - 15 }, { x: g.x + 22, y: g.y - 15 },
+        { x: g.x + 22, y: g.y + 15 }, { x: g.x - 22, y: g.y + 15 }], '#161311', 'rgba(0,0,0,0.7)', 1.4);
+      for (let k = 0; k < 6; k++) {
+        paintQuad([{ x: g.x - 19, y: g.y - 12 + k * 5 }, { x: g.x + 19, y: g.y - 12 + k * 5 },
+          { x: g.x + 19, y: g.y - 10 + k * 5 }, { x: g.x - 19, y: g.y - 10 + k * 5 }],
+        'rgba(255,220,180,0.10)', null);
       }
-      paintQuad([from, to, { x: to.x, y: to.y + 9 }, { x: from.x, y: from.y + 9 }],
-        shade(CELLAR.slab, dark ? -10 : 0), 'rgba(0,0,0,0.5)', 1);
+    });
+    // And the way down into all of it.
+    drawStairShaft(ne, nw, 0.3, EARTH.wall, light);
+
+    // ---- In front: the floor runs out and the ground falls into a trench,
+    // with a pipe running along the bottom of it.
+    const drop = EARTH.trench;
+    const down = (p) => ({ x: p.x, y: p.y + drop });
+    drawEarthFace(sw, se, drop, true, { seed: 3, roots: false });
+    drawEarthFace(ne, se, drop, true, { seed: 4, roots: false });
+    // The trench floor, and the far side of it standing up again.
+    const outT = 11;
+    drawEarth(a.gx0 - 2, gy1, gx1 + outT, gy1 + outT, drop, 53);
+    drawEarth(gx1, a.gy0 - 2, gx1 + outT, gy1 + outT, drop, 54);
+    const farS0 = { x: isoPoint(a.gx0, gy1 + outT).x, y: isoPoint(a.gx0, gy1 + outT).y + drop };
+    const farS1 = { x: isoPoint(gx1 + outT, gy1 + outT).x, y: isoPoint(gx1 + outT, gy1 + outT).y + drop };
+    const farE1 = { x: isoPoint(gx1 + outT, a.gy0).x, y: isoPoint(gx1 + outT, a.gy0).y + drop };
+    drawEarthFace(farS0, farS1, EARTH.wall * 0.7, false, { seed: 5, torches: [0.3, 0.7] });
+    drawEarthFace(farS1, farE1, EARTH.wall * 0.7, false, { seed: 6, torches: [0.28, 0.68] });
+    // The pipe that runs the length of the trench, and torches down it.
+    drawBigPipe([{ x: down(sw).x + 20, y: down(sw).y - 16 }, { x: down(se).x - 10, y: down(se).y - 16 }],
+      15, EARTH.pipe, 0.42);
+    drawBigPipe([{ x: down(se).x + 10, y: down(se).y - 16 }, { x: down(ne).x - 20, y: down(ne).y - 16 }],
+      12, EARTH.copper);
+    for (let i = 1; i < 3; i++) {
+      drawTorch({ x: lerpPt(down(sw), down(se), i / 3).x, y: lerpPt(down(sw), down(se), i / 3).y - 46 }, 1);
+      drawTorch({ x: lerpPt(down(se), down(ne), i / 3).x, y: lerpPt(down(se), down(ne), i / 3).y - 46 }, 1);
+    }
+    // Standing water in the bottom of it.
+    [[down(sw), down(se)], [down(se), down(ne)]].forEach(([p0, p1]) => {
+      const mid = lerpPt(p0, p1, 0.5);
+      floorCtx.beginPath();
+      floorCtx.ellipse(mid.x, mid.y + 22, Math.hypot(p1.x - p0.x, p1.y - p0.y) * 0.3, 22, 0, 0, Math.PI * 2);
+      floorCtx.fillStyle = 'rgba(40,70,86,0.30)';
+      floorCtx.fill();
     });
 
-    // The steps down, one flight off each front edge, with a railing along
-    // the edge and a gap left at the head of each.
-    const stairAt = 0.34;
-    drawSteelStairs(a.gx0 + a.cols * stairAt, gy1, 'gy', 7);
-    drawYardRail(swp, lerpPt(swp, se, stairAt - 0.06), light);
-    drawYardRail(lerpPt(swp, se, stairAt + 0.1), se, light);
-    const eastAt = 0.46;
-    drawSteelStairs(gx1, a.gy0 + a.rows * eastAt, 'gx', 7);
-    drawYardRail(nep, lerpPt(nep, se, eastAt - 0.06), light);
-    drawYardRail(lerpPt(nep, se, eastAt + 0.1), se, light);
+    // A short flight of stone steps down into the trench, so it is a place
+    // you can get to rather than a ditch.
+    const stepAt = 0.36;
+    const s0 = lerpPt(sw, se, stepAt);
+    for (let i = 0; i < 7; i++) {
+      const f = i / 7;
+      const y = s0.y + f * drop;
+      const wide = 16 + f * 6;
+      paintQuad([{ x: s0.x - wide, y: y + i * 2 }, { x: s0.x + wide, y: y + i * 2 },
+        { x: s0.x + wide, y: y + i * 2 + 7 }, { x: s0.x - wide, y: y + i * 2 + 7 }],
+      shade(EARTH.flag, Math.round(-f * 14)), 'rgba(0,0,0,0.5)', 1);
+    }
 
-    // ---- What is standing about, on the slab and down in the sump.
+    // ---- What is lying about down here.
     const on = (u, v) => isoPoint(a.gx0 + u, a.gy0 + v);
-    drawCrate(on(a.cols * 0.4, 1.6), 1.5, 34);
-    drawCrate(on(a.cols * 0.4 + 1.4, 2.4), 1.1, 24);
-    drawDrum(on(a.cols - 1.9, 3.2), '#4a3a26');
-    drawDrum(on(a.cols - 1.9, 4.7), '#3a4a4a');
+    drawCrate(on(a.cols * 0.4, 1.5), 1.5, 34);
+    drawCrate(on(a.cols * 0.4 + 1.4, 2.3), 1.1, 24);
+    drawDrum(on(a.cols - 1.8, 3.2), '#4a3a26');
+    drawDrum(on(a.cols - 1.8, 4.6), '#3a4a4a');
     drawDrum(on(1.8, a.rows * 0.5), '#4a3a26');
     drawCrate(on(1.9, a.rows * 0.66), 1.4, 30);
-    drawRubble(on(a.cols * 0.72, a.rows - 1.6), 12);
-    drawCrate(on(a.cols * 0.2, a.rows - 2), 1.2, 26);
+    drawRubble(on(a.cols * 0.72, a.rows - 1.5), 12);
+    drawCrate(on(a.cols * 0.2, a.rows - 1.9), 1.2, 26);
 
     const below = (u, v) => {
       const p = isoPoint(a.gx0 + u, a.gy0 + v);
       return { x: p.x, y: p.y + drop };
     };
-    // The sump itself: a big grate in the floor of it, with water round it.
-    const sump = below(a.cols * 0.5, a.rows + 6);
-    floorCtx.beginPath();
-    floorCtx.ellipse(sump.x, sump.y + 4, 96, 40, 0, 0, Math.PI * 2);
-    floorCtx.fillStyle = 'rgba(40,70,86,0.34)';
-    floorCtx.fill();
-    [-1, 0, 1].forEach((k) => {
-      strokePolyline([{ x: sump.x - 70 + k * 8, y: sump.y - 6 + k * 10 },
-        { x: sump.x + 70 + k * 8, y: sump.y - 6 + k * 10 }], 'rgba(150,200,220,0.10)', 2);
-    });
-    drawGrate(a.cols * 0 + a.gx0 + a.cols * 0.5, a.gy0 + a.rows + 6, 2.6, 10);
-    drawCrate(below(a.cols * 0.2, a.rows + 4.4), 1.6, 36);
-    drawCrate(below(a.cols * 0.26, a.rows + 6), 1.2, 26);
-    drawDrum(below(a.cols * 0.74, a.rows + 4.2), '#3a4a4a');
-    drawDrum(below(a.cols * 0.78, a.rows + 5.6), '#4a3a26');
-    drawRubble(below(a.cols * 0.36, a.rows + 8), 16);
-    drawRubble(below(a.cols + 6, a.rows * 0.4), 15);
-    drawCrate(below(a.cols + 5, a.rows * 0.66), 1.5, 32);
-    drawStalagmite(below(a.cols + 8, a.rows * 0.2), 44);
-    drawStalagmite(below(a.cols * 0.12, a.rows + 9), 52);
+    drawCrate(below(a.cols * 0.2, gy1 - a.gy0 + 4), 1.6, 36);
+    drawRubble(below(a.cols * 0.62, gy1 - a.gy0 + 5), 16);
+    drawDrum(below(a.cols * 0.74, gy1 - a.gy0 + 3.4), '#3a4a4a');
+    drawRubble(below(a.cols + 5, a.rows * 0.5), 15);
+    drawCrate(below(a.cols + 4, a.rows * 0.72), 1.4, 30);
 
     drawCellarOutskirts(a, light, 'down');
   }
-
-  // The rock beyond the chamber, on both of its levels. Plain on purpose:
-  // it is far off and mostly unlit, and its job is to be somewhere.
+  // The earth beyond the excavation, on both of its levels. Plain on
+  // purpose: it is far off and unlit, and its job is to be somewhere.
   function drawCellarOutskirts(a, light, level) {
     const R = 40;
     const gx1 = a.gx0 + a.cols;
     const gy1 = a.gy0 + a.rows;
-    const lift = level === 'up' ? -CELLAR.wall : CELLAR.drop;
+    const lift = level === 'up' ? -EARTH.wall : EARTH.trench;
     const at = (gx, gy) => {
       const p = isoPoint(gx, gy);
       return { x: p.x, y: p.y + lift };
     };
     const bands = level === 'up'
       ? [[a.gx0 - R, a.gy0 - R, gx1 + R, a.gy0], [a.gx0 - R, a.gy0, a.gx0, gy1 + R]]
-      : [[a.gx0 - R, gy1 + 2, gx1 + R, gy1 + R], [gx1 + 2, a.gy0 - R, gx1 + R, gy1 + 2]];
-    bands.forEach(([x0, y0, x1, y1]) => {
-      drawRockGround(x0, y0, x1, y1, lift, level === 'up' ? '#121013' : '#141216');
-    });
+      : [[a.gx0 - R, gy1 + 11, gx1 + R, gy1 + R], [gx1 + 11, a.gy0 - R, gx1 + R, gy1 + 11]];
+    if (level === 'down') {
+      bands.forEach(([x0, y0, x1, y1]) => drawEarth(x0, y0, x1, y1, lift, 56));
+      // Away from the torches it goes to nothing, so the lit faces stand
+      // against something dark rather than against more of the same.
+      floorCtx.save();
+      floorCtx.fillStyle = 'rgba(6,4,6,0.5)';
+      bands.forEach(([x0, y0, x1, y1]) => {
+        const q = [at(x0, y0), at(x1, y0), at(x1, y1), at(x0, y1)];
+        floorCtx.beginPath();
+        floorCtx.moveTo(q[0].x, q[0].y);
+        for (let i = 1; i < 4; i++) floorCtx.lineTo(q[i].x, q[i].y);
+        floorCtx.closePath();
+        floorCtx.fill();
+      });
+      floorCtx.restore();
+    }
 
-    // A run of pipe crossing the rock on trestles, with torches under it,
-    // and the rubble and spikes of an unfinished chamber.
+    // Pipework crossing the ground out there, on low piers, with a torch
+    // under it here and there and one run diving into the earth.
     const runs = level === 'up'
-      ? [[[a.gx0 - R + 4, a.gy0 - 12], [gx1 + R - 4, a.gy0 - 12]],
-        [[a.gx0 - 12, a.gy0 - R + 4], [a.gx0 - 12, gy1 + R - 4]]]
-      : [[[a.gx0 - R + 4, gy1 + 16], [gx1 + R - 4, gy1 + 16]],
-        [[gx1 + 16, a.gy0 - R + 4], [gx1 + 16, gy1 + R - 4]]];
+      ? [[[a.gx0 - R + 4, a.gy0 - 13], [gx1 + R - 4, a.gy0 - 13]],
+        [[a.gx0 - 13, a.gy0 - R + 4], [a.gx0 - 13, gy1 + R - 4]]]
+      : [[[a.gx0 - R + 4, gy1 + 20], [gx1 + R - 4, gy1 + 20]],
+        [[gx1 + 20, a.gy0 - R + 4], [gx1 + 20, gy1 + R - 4]]];
     runs.forEach((run, side) => {
       const p0 = at(run[0][0], run[0][1]);
       const p1 = at(run[1][0], run[1][1]);
-      drawPipeRun([{ x: p0.x, y: p0.y - 34 }, { x: p1.x, y: p1.y - 34 }], 8,
-        side ? CELLAR.copper : CELLAR.steel);
+      const lift2 = 40;
+      drawBigPipe([{ x: p0.x, y: p0.y - lift2 }, { x: p1.x, y: p1.y - lift2 }], 12,
+        side ? EARTH.copper : EARTH.pipe, 0.3);
       const posts = 7;
       for (let i = 0; i <= posts; i++) {
-        const t = i / posts;
-        const p = lerpPt(p0, p1, t);
-        paintQuad([{ x: p.x - 3, y: p.y }, { x: p.x + 3, y: p.y },
-          { x: p.x + 3, y: p.y - 34 }, { x: p.x - 3, y: p.y - 34 }], '#2c2d31', 'rgba(0,0,0,0.5)', 1);
-        if (i % 2 === 1) drawTorch({ x: p.x + 14, y: p.y - 22 }, 1);
+        const p = lerpPt(p0, p1, i / posts);
+        paintQuad([{ x: p.x - 4, y: p.y }, { x: p.x + 4, y: p.y },
+          { x: p.x + 4, y: p.y - lift2 }, { x: p.x - 4, y: p.y - lift2 }], '#241f1c', 'rgba(0,0,0,0.55)', 1);
+        if (i % 4 === 1) drawTorch({ x: p.x + 16, y: p.y - 26 }, 0.55);
       }
     });
 
-    // Rubble, spikes and the odd crate over whatever the bands leave bare,
+    // Clods, stones and the odd crate over whatever the bands leave bare,
     // so a wide view never runs out of ground with something on it.
     const outside = (gx, gy) => (level === 'up'
       ? (gx < a.gx0 - 2 || gy < a.gy0 - 2)
-      : (gx > gx1 + 2 || gy > gy1 + 2));
-    for (let k = 0; k < 100; k++) {
-      const n1 = noise(k, 11, level === 'up' ? 91 : 92);
-      const n2 = noise(k, 13, level === 'up' ? 93 : 94);
-      const n3 = noise(k, 17, level === 'up' ? 95 : 96);
+      : (gx > gx1 + 11 || gy > gy1 + 11));
+    for (let k = 0; k < 90; k++) {
+      const n1 = noise(k, 11, level === 'up' ? 61 : 62);
+      const n2 = noise(k, 13, level === 'up' ? 63 : 64);
+      const n3 = noise(k, 17, level === 'up' ? 65 : 66);
       const gx = a.gx0 - R + n1 * (a.cols + R * 2);
       const gy = a.gy0 - R + n2 * (a.rows + R * 2);
       if (!outside(gx, gy)) continue;
-      if (n3 < 0.42) drawRubble(at(gx, gy), 11 + n3 * 16);
-      else if (n3 < 0.74) drawStalagmite(at(gx, gy), 30 + n3 * 46);
-      else if (n3 < 0.9) drawCrate(at(gx, gy), 1.2 + n3, 26 + n3 * 14);
+      if (level === 'up') continue;
+      if (n3 < 0.5) drawRubble(at(gx, gy), 10 + n3 * 18);
+      else if (n3 < 0.86) drawCrate(at(gx, gy), 1.1 + n3, 24 + n3 * 14);
       else drawDrum(at(gx, gy), k % 2 ? '#4a3a26' : '#3a4a4a');
     }
   }
