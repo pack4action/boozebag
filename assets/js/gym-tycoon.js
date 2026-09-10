@@ -6250,13 +6250,12 @@
       const L = 1.90, D = 1.40, H = 1.72;
       drawIsoBox(ctx, b, 0, 0, L / 2 * M, D / 2 * M, H * MH, '#8a6440', 0);
       drawIsoBox(ctx, b, 0, 0, (L / 2 + 0.05) * M, (D / 2 + 0.05) * M, 0.10 * MH, '#6d4e31', H * MH);
-      // Board lines down the face that looks at the viewer, so it reads as
-      // timber rather than as a crate.
+      // The flue off the stove, out through the roof.
+      drawIsoBox(ctx, b, -(L / 2 - 0.34) * M, -(D / 2 - 0.30) * M, 0.07 * M, 0.07 * M, 0.52 * MH, '#4a4d55', (H + 0.10) * MH);
+      drawIsoBox(ctx, b, -(L / 2 - 0.34) * M, -(D / 2 - 0.30) * M, 0.12 * M, 0.12 * M, 0.05 * MH, '#3a3d44', (H + 0.62) * MH);
       // Board lines down whichever of the two long faces is turned toward
       // the viewer, so the cabin reads as timber from either side.
       ctx.save();
-      ctx.strokeStyle = 'rgba(0,0,0,0.16)';
-      ctx.lineWidth = 1.5;
       const boardFace = faceShows(1, 0) ? 1 : -1;
       for (let i = -2; i <= 2; i++) {
         const p0 = isoScreenPoint(b, boardFace * (L / 2) * M, i * 0.24 * M, 0.04 * MH);
@@ -6264,25 +6263,55 @@
         ctx.beginPath();
         ctx.moveTo(p0.x, p0.y);
         ctx.lineTo(p1.x, p1.y);
+        ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(p0.x + 1.6, p0.y);
+        ctx.lineTo(p1.x + 1.6, p1.y);
+        ctx.strokeStyle = 'rgba(255,226,180,0.07)';
+        ctx.lineWidth = 1.2;
         ctx.stroke();
       }
       ctx.restore();
       // The door is on one face only: from behind, the cabin is just timber.
       if (!faceShows(1, 0)) return;
-      const dl = isoScreenPoint(b, (L / 2) * M, -0.30 * M, 0.06 * MH);
-      const dr = isoScreenPoint(b, (L / 2) * M, 0.34 * M, 0.06 * MH);
-      const doorH = 1.48 * MH;
-      ctx.beginPath();
-      ctx.moveTo(dl.x, dl.y);
-      ctx.lineTo(dr.x, dr.y);
-      ctx.lineTo(dr.x, dr.y - doorH);
-      ctx.lineTo(dl.x, dl.y - doorH);
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(255,168,72,0.85)';
-      ctx.fill();
-      ctx.strokeStyle = '#5c4128';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      const u = (L / 2) * M;
+      const quad = (v0, v1, z0, z1, fill, stroke, lw) => {
+        const a = isoScreenPoint(b, u, v0 * M, z0 * MH);
+        const c = isoScreenPoint(b, u, v1 * M, z0 * MH);
+        const d = isoScreenPoint(b, u, v1 * M, z1 * MH);
+        const e = isoScreenPoint(b, u, v0 * M, z1 * MH);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(c.x, c.y);
+        ctx.lineTo(d.x, d.y);
+        ctx.lineTo(e.x, e.y);
+        ctx.closePath();
+        if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+        if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.stroke(); }
+      };
+      // A framed door with a long amber pane in it, a handle, and the warm
+      // it lets out at the foot -- rather than one lit rectangle.
+      quad(-0.34, 0.38, 0.04, 1.54, '#5c4128', 'rgba(0,0,0,0.45)', 1.5);
+      quad(-0.27, 0.31, 0.11, 1.47, '#7a5836', null);
+      quad(-0.20, 0.24, 0.46, 1.38, 'rgba(255,168,72,0.9)', '#4a3320', 1.6);
+      [0.80, 1.10].forEach((z) => quad(-0.20, 0.24, z, z + 0.025, 'rgba(74,51,32,0.75)', null));
+      quad(0.26, 0.30, 0.66, 0.94, '#d9c08a', null);
+      // The light out of the pane, and the step under the door.
+      const foot = isoScreenPoint(b, u + 0.5, 0.02 * M, 0);
+      drawGlow(isoScreenPoint(b, u, 0.02 * M, 0.9 * MH), 26, '#ffb257', 0.42);
+      drawIsoSlab(ctx, b, (L / 2 + 0.22) * M, 0.02 * M, 0.22 * M, 0.42 * M, 0.035 * MH, '#6d4e31', 3);
+      floorCtx.save();
+      floorCtx.globalCompositeOperation = 'lighter';
+      const pool = floorCtx.createRadialGradient(foot.x, foot.y, 1, foot.x, foot.y, 34);
+      pool.addColorStop(0, 'rgba(255,150,60,0.22)');
+      pool.addColorStop(1, 'rgba(255,150,60,0)');
+      floorCtx.fillStyle = pool;
+      floorCtx.beginPath();
+      floorCtx.ellipse(foot.x, foot.y, 34, 17, 0, 0, Math.PI * 2);
+      floorCtx.fill();
+      floorCtx.restore();
     },
 
     // A double glass-door fridge, lit from inside. It used to be a single
@@ -6597,23 +6626,76 @@
     // A tall panel of holds, with a crash mat at its foot.
     climbingwall: (ctx, b) => {
       const W = 2.30, H = 3.10;
-      drawIsoSlab(ctx, b, 0.42 * M, 0, 0.40 * M, W / 2 * M, 0.02 * MH, '#2f4a55', 5);
-      drawIsoBox(ctx, b, 0, 0, 0.12 * M, W / 2 * M, H * MH, '#6b5b46', 0);
-      drawIsoBox(ctx, b, 0, 0, 0.14 * M, (W / 2 + 0.03) * M, 0.10 * MH, '#4b3f31', H * MH);
-      // The holds are stamped on the face, so only when that face is the
-      // one turned toward the viewer.
-      if (faceShows(1, 0)) {
-        const HOLDS = [[0.45, -0.72], [0.85, 0.30], [1.25, -0.35], [1.55, 0.62],
-          [1.90, -0.55], [2.20, 0.18], [2.55, -0.20], [2.80, 0.70]];
-        const COLORS = ['#d94f43', '#3fa87e', '#e0b93f', '#4f9ad1', '#c46fd1'];
-        HOLDS.forEach(([h, v], i) => {
-          const pt = isoScreenPoint(b, 0.12 * M, v * M, h * MH);
-          ctx.fillStyle = COLORS[i % COLORS.length];
-          ctx.beginPath();
-          ctx.ellipse(pt.x, pt.y, 4.6, 3.4, 0, 0, Math.PI * 2);
-          ctx.fill();
-        });
-      }
+      const face = 0.13 * M;
+      // The crash mat at the foot, a thick pad with a border round it.
+      drawIsoSlab(ctx, b, 0.46 * M, 0, 0.46 * M, (W / 2 + 0.08) * M, 0.02 * MH, '#22343d', 5);
+      drawIsoSlab(ctx, b, 0.46 * M, 0, 0.38 * M, (W / 2 - 0.02) * M, 0.055 * MH, '#33505c', 5);
+      // The board, its capping, and the posts it is framed on.
+      drawIsoBox(ctx, b, 0, 0, 0.12 * M, W / 2 * M, H * MH, '#5a6270', 0);
+      drawIsoBox(ctx, b, 0, 0, 0.145 * M, (W / 2 + 0.04) * M, 0.10 * MH, '#3b424e', H * MH);
+      [-1, 1].forEach((sgn) => {
+        drawIsoBox(ctx, b, 0, sgn * (W / 2 + 0.07) * M, 0.15 * M, 0.06 * M, (H + 0.05) * MH, FRAME_DK, 0);
+      });
+      // The face is only worth dressing when it is the one turned toward
+      // the viewer; from behind it is the back of a board.
+      if (!faceShows(1, 0)) return;
+      const at = (v, h) => isoScreenPoint(b, face, v * M, h * MH);
+      const line = (a, c, color, width) => {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(c.x, c.y);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.stroke();
+      };
+      ctx.save();
+      // The sheets it is built of, and a lit edge along the top of each.
+      [0.80, 1.58, 2.36].forEach((h) => {
+        line(at(-W / 2 + 0.03, h), at(W / 2 - 0.03, h), 'rgba(0,0,0,0.26)', 1.6);
+        line(at(-W / 2 + 0.03, h + 0.03), at(W / 2 - 0.03, h + 0.03), 'rgba(255,255,255,0.06)', 1.2);
+      });
+      line(at(0, 0.05), at(0, H - 0.08), 'rgba(0,0,0,0.20)', 1.4);
+      // The holds: a route up the board, bigger ones where you pull hard.
+      const HOLDS = [
+        [0.34, -0.78, 5.4], [0.58, 0.42, 4.2], [0.92, -0.22, 6.2], [1.06, 0.86, 4.0],
+        [1.28, -0.62, 4.6], [1.52, 0.16, 6.0], [1.74, -0.90, 4.2], [1.92, 0.66, 5.2],
+        [2.16, -0.34, 4.4], [2.34, 0.94, 4.0], [2.52, 0.24, 5.6], [2.72, -0.70, 4.4],
+        [0.72, -1.00, 4.0], [1.40, 1.00, 4.2], [2.05, -1.02, 4.0], [2.62, 1.00, 4.2],
+      ];
+      const COLORS = ['#d94f43', '#3fa87e', '#e0b93f', '#4f9ad1', '#c46fd1', '#e08a3f'];
+      HOLDS.forEach(([h, v, r], i) => {
+        const pt = at(v, h);
+        ctx.beginPath();
+        ctx.ellipse(pt.x + 1, pt.y + 1.6, r, r * 0.74, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.28)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(pt.x, pt.y, r, r * 0.74, 0, 0, Math.PI * 2);
+        ctx.fillStyle = COLORS[i % COLORS.length];
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(pt.x - r * 0.28, pt.y - r * 0.3, r * 0.4, r * 0.26, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.34)';
+        ctx.fill();
+      });
+      // The anchors at the top and the rope hanging off them.
+      const aL = at(-0.5, H - 0.14);
+      const aR = at(0.5, H - 0.14);
+      [aL, aR].forEach((p) => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3.2, 0, Math.PI * 2);
+        ctx.strokeStyle = STEEL_LT;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+      const rope = at(0.5, 0.1);
+      ctx.beginPath();
+      ctx.moveTo(aR.x, aR.y + 3);
+      ctx.quadraticCurveTo(rope.x + 7, (aR.y + rope.y) / 2, rope.x + 2, rope.y);
+      ctx.strokeStyle = '#c8b78a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
     },
 
     // A stepper: two pedals on a housing, with rails to hold on to.
@@ -7671,9 +7753,17 @@
     // and its pool on the deck outside.
     const door = 1.9 * PX_PER_METRE_TALL;
     const w = Math.min(hu - 0.3, 1.0);
+    // A pair of doors, not a lit panel: dark leaves with a glazed light in
+    // the top of each, a push bar across them, and the stairwell showing
+    // warm through the glass.
     drawFacePanel(ctx, base, { u: -w, v: hv + 0.02 }, { u: w, v: hv + 0.02 }, 2, door, '#20262f', 2);
-    drawFacePanel(ctx, base, { u: -w + 0.18, v: hv + 0.03 }, { u: w - 0.18, v: hv + 0.03 }, 6, door - 6, hexA(light.bulb, 0.82), 1.5);
-    drawFacePanel(ctx, base, { u: -0.02, v: hv + 0.04 }, { u: 0.02, v: hv + 0.04 }, 6, door - 6, 'rgba(0,0,0,0.35)', 0);
+    drawFacePanel(ctx, base, { u: -w + 0.1, v: hv + 0.03 }, { u: w - 0.1, v: hv + 0.03 }, 6, door - 6, '#39414d', 1.5);
+    [[-w + 0.18, -0.06], [0.06, w - 0.18]].forEach(([d0, d1]) => {
+      drawFacePanel(ctx, base, { u: d0, v: hv + 0.04 }, { u: d1, v: hv + 0.04 }, door * 0.52, door - 12, hexA(light.bulb, 0.85), 1);
+      drawFacePanel(ctx, base, { u: d0, v: hv + 0.05 }, { u: d1, v: hv + 0.05 }, door * 0.52, door * 0.545, 'rgba(0,0,0,0.3)', 0);
+    });
+    drawFacePanel(ctx, base, { u: -w + 0.16, v: hv + 0.05 }, { u: w - 0.16, v: hv + 0.05 }, door * 0.40, door * 0.44, '#aab3c0', 0);
+    drawFacePanel(ctx, base, { u: -0.02, v: hv + 0.05 }, { u: 0.02, v: hv + 0.05 }, 6, door - 6, 'rgba(0,0,0,0.45)', 0);
     drawFacePanel(ctx, base, { u: -w - 0.25, v: hv + 0.03 }, { u: w + 0.25, v: hv + 0.03 }, door + 9, door + 13, light.bulb, 1);
     drawGlow(isoScreenPoint(base, 0, hv + 0.02, door + 11), 30, light.bulb, 0.55);
     drawFloorPool(isoScreenPoint(base, 0, hv + 1.4, 0), light, 1.5);
@@ -9778,20 +9868,50 @@
     g.addColorStop(1, '#0b101a');
     floorCtx.fillStyle = g;
     floorCtx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
-    // Other buildings, their tops around the level of this one's floor
-    // and their walls falling away into the haze below.
     const cx = worldOrigin.x + ((planBounds.gx0 + planBounds.gx1) / 2 - (planBounds.gy0 + planBounds.gy1) / 2) * ROOM.tileW / 2;
     const cy = worldOrigin.y + ((planBounds.gx0 + planBounds.gx1) / 2 + (planBounds.gy0 + planBounds.gy1) / 2) * ROOM.tileH / 2;
     const spread = Math.max(PLAN_W, PLAN_H);
-    // A far skyline first, faint in the haze, then the nearer blocks.
-    for (let i = 0; i < 18; i++) {
+    // The sky itself, or the roof floats in a flat void: stars, thinning
+    // out towards the city, and the glow the city throws up into the haze
+    // along the skyline.
+    const horizon = cy - PLAN_H * 0.15;
+    for (let i = 0; i < 260; i++) {
+      const n1 = noise(i, 21, 51);
+      const n2 = noise(i, 22, 52);
+      const y = view.y0 + n2 * Math.max(1, horizon - view.y0);
+      const x = view.x0 + n1 * (view.x1 - view.x0);
+      // Thinner near the horizon, where the city's light drowns them.
+      const high = 1 - (y - view.y0) / Math.max(1, horizon - view.y0);
+      if (noise(i, 23, 53) > 0.25 + high * 0.7) continue;
+      const r = noise(i, 24, 54) > 0.9 ? 1.6 : 1;
+      floorCtx.fillStyle = 'rgba(214,226,246,' + (0.16 + high * 0.5).toFixed(3) + ')';
+      floorCtx.fillRect(x, y, r, r);
+    }
+    const glowTop = horizon - PLAN_H * 0.55;
+    const glow = floorCtx.createLinearGradient(0, glowTop, 0, view.y1);
+    const span = Math.max(1, view.y1 - glowTop);
+    glow.addColorStop(0, 'rgba(80,96,132,0)');
+    glow.addColorStop(Math.min(0.9, (PLAN_H * 0.4) / span), 'rgba(92,104,138,0.15)');
+    glow.addColorStop(Math.min(0.95, (PLAN_H * 0.72) / span), 'rgba(120,116,134,0.24)');
+    glow.addColorStop(1, 'rgba(120,116,134,0)');
+    floorCtx.fillStyle = glow;
+    floorCtx.fillRect(view.x0, glowTop, view.x1 - view.x0, view.y1 - glowTop);
+    // Other buildings, their tops around the level of this one's floor
+    // and their walls falling away into the haze below. A few of them
+    // stand well above it, with a beacon on top, so the skyline has some
+    // height to it rather than stopping level with the roof.
+    for (let i = 0; i < 22; i++) {
       const n1 = noise(i, 7, 45);
       const n2 = noise(i, 8, 46);
+      const n3 = noise(i, 9, 47);
+      const tall = noise(i, 10, 49) > 0.62;
       const x = cx + (n1 - 0.5) * spread * 3;
-      const w = 50 + n2 * 90;
-      const top = cy - PLAN_H * (0.2 + noise(i, 9, 47) * 0.5);
+      const w = (tall ? 40 : 50) + n2 * (tall ? 50 : 90);
+      const top = cy - PLAN_H * (tall ? 0.55 + n3 * 1.1 : 0.2 + n3 * 0.5);
       floorCtx.fillStyle = 'rgba(30,40,58,0.55)';
       floorCtx.fillRect(x - w / 2, top, w, view.y1 - top);
+      floorCtx.fillStyle = 'rgba(150,170,200,0.10)';
+      floorCtx.fillRect(x - w / 2, top, w, 2);
       for (let wy = top + 14; wy < cy + PLAN_H; wy += 26) {
         for (let wx = x - w / 2 + 8; wx < x + w / 2 - 8; wx += 18) {
           if (noise(Math.round(wx), Math.round(wy), 48) < 0.2) {
@@ -9799,6 +9919,11 @@
             floorCtx.fillRect(wx, wy, 7, 10);
           }
         }
+      }
+      if (tall) {
+        floorCtx.fillStyle = 'rgba(226,74,56,0.85)';
+        floorCtx.fillRect(x - 1.5, top - 5, 3, 4);
+        drawGlow({ x, y: top - 3 }, 9, '#e24a38', 0.5);
       }
     }
     for (let i = 0; i < 26; i++) {
@@ -9880,6 +10005,27 @@
     floorCtx.fillStyle = g;
     floorCtx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
     const r = latticeRange(view);
+    // Water is never one colour: broad patches where it shoals lighter and
+    // where the depth or a cloud puts it in shadow. Without them the sea
+    // is a flat sheet as soon as you pull back from the pier.
+    const B = 26;
+    for (let gy = Math.floor(r.gy0 / B) * B; gy < r.gy1; gy += B) {
+      for (let gx = Math.floor(r.gx0 / B) * B; gx < r.gx1; gx += B) {
+        const k = Math.round(gx);
+        const j = Math.round(gy);
+        const n = noise(k, j, 65);
+        const c = isoPoint(gx + noise(k, j, 66) * B, gy + noise(j, k, 67) * B);
+        const rad = 150 + n * 190;
+        const patch = floorCtx.createRadialGradient(c.x, c.y, 2, c.x, c.y, rad);
+        const tone = n > 0.55 ? '46,120,150' : '5,32,58';
+        patch.addColorStop(0, 'rgba(' + tone + ',' + (0.09 + n * 0.13).toFixed(3) + ')');
+        patch.addColorStop(1, 'rgba(' + tone + ',0)');
+        floorCtx.fillStyle = patch;
+        floorCtx.beginPath();
+        floorCtx.ellipse(c.x, c.y, rad, rad * 0.5, 0, 0, Math.PI * 2);
+        floorCtx.fill();
+      }
+    }
     const S = 2.5;
     floorCtx.lineCap = 'round';
     for (let gy = Math.floor(r.gy0 / S) * S; gy < r.gy1; gy += S) {
@@ -9958,6 +10104,34 @@
       drawBoat(hullAt);
       [[j.gx0 + 12, j.gy0 + 8], [planBounds.gx0 - 9, planBounds.gy1 + 11]].forEach(([gx, gy]) => drawBuoy(isoPoint(gx, gy)));
     }
+    // Out on the water: a channel marker, and small craft standing off,
+    // so pulling back from the pier shows a sea with something in it.
+    [[planBounds.gx1 + 26, planBounds.gy0 - 18], [planBounds.gx0 - 24, planBounds.gy1 + 30]]
+      .forEach(([gx, gy]) => drawBuoy(isoPoint(gx, gy)));
+    [[planBounds.gx0 - 30, planBounds.gy0 - 26, 0.55], [planBounds.gx1 + 34, planBounds.gy1 + 22, 0.7],
+      [planBounds.gx1 + 10, planBounds.gy0 - 40, 0.45]].forEach(([gx, gy, k]) => drawDinghy(isoPoint(gx, gy), k));
+  }
+  // A small boat standing off the pier: a hull, its wake, and a sail on
+  // the bigger ones.
+  function drawDinghy(p, k) {
+    const ctx = floorCtx;
+    const at = (x, y) => ({ x: p.x + x * k, y: p.y + y * k });
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 7 * k, 26 * k, 7 * k, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    paintQuad([at(-22, -2), at(18, -7), at(22, 2), at(-18, 6)], '#e6e0d2', 'rgba(0,0,0,0.4)', 1);
+    paintQuad([at(-18, 3), at(20, -2), at(22, 2), at(-18, 6)], '#2f6f92', null);
+    if (k > 0.5) {
+      const mast = at(-2, -5);
+      strokePolyline([mast, { x: mast.x, y: mast.y - 44 * k }], '#cfc7b4', 1.6 * k);
+      paintQuad([{ x: mast.x + 1, y: mast.y - 44 * k }, { x: mast.x + 22 * k, y: mast.y - 6 * k },
+        { x: mast.x + 1, y: mast.y - 4 * k }], '#f2ede0', 'rgba(0,0,0,0.25)', 1);
+    }
+    strokePolyline([at(-24, 4), at(-40, 8)], 'rgba(200,240,255,0.28)', 2 * k);
+    strokePolyline([at(-24, 1), at(-36, -1)], 'rgba(200,240,255,0.18)', 1.6 * k);
   }
   function drawBoat(p) {
     const ctx = floorCtx;
