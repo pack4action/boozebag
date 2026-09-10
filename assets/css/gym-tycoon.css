@@ -157,6 +157,15 @@
   top: 0;
   pointer-events: none;
   z-index: 0;
+  /* Its own compositing layer. The ground is painted once and then only
+     panned and zoomed with the gym -- but sharing a layer with the plan
+     canvas above it meant the browser rasterised the whole of it again
+     every time a single person took a step, which cost more than drawing
+     the gym did. On a phone that alone was the difference between ten
+     frames a second and forty. */
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 .tycoon-room-stage::-webkit-scrollbar { display: none; }
 .tycoon-room-zoom-wrap {
@@ -169,6 +178,9 @@
   top: 0;
   left: 0;
   z-index: 1;
+  /* Likewise its own layer, so what it repaints stays its own business. */
+  will-change: transform;
+  backface-visibility: hidden;
   /* Inherited, not its own: the cursor is decided by what is under the
      pointer, and the code that knows that sets it on the stage. A rule of
      its own here quietly won, so the hand never became a finger over a

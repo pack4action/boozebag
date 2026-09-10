@@ -5556,6 +5556,7 @@
   // moves while fingers are down, so measuring it again on every move of a
   // gesture only costs a forced layout.
   function applyStageSizing(live) {
+    forgetVisibleBox();
     if (!live) {
       // How far the site has to reach depends on the window and the plan, so
       // it is measured before anything is laid out against it.
@@ -5573,9 +5574,14 @@
       zoomWrapEl.style.width = ((BASE_W + sitePad * 2) * zoomLevel) + 'px';
       zoomWrapEl.style.height = ((BASE_H + sitePad * 2) * zoomLevel) + 'px';
     }
-    floorCanvas.style.width = BASE_W + 'px';
-    floorCanvas.style.height = BASE_H + 'px';
-    floorCanvas.style.transform = 'translate(' + off + 'px,' + off + 'px) scale(' + zoomLevel + ')';
+    // Sized to what it takes up on screen rather than left at the plan's
+    // full size and shrunk by a transform. Both look identical; the
+    // difference is that the browser has to rasterise and composite a layer
+    // the size of the element, and at the zoom a phone starts at that was a
+    // two-thousand-pixel layer being redrawn to move somebody one step.
+    floorCanvas.style.width = (BASE_W * zoomLevel) + 'px';
+    floorCanvas.style.height = (BASE_H * zoomLevel) + 'px';
+    floorCanvas.style.transform = 'translate(' + off + 'px,' + off + 'px)';
     floorCanvas.style.transformOrigin = 'top left';
     // The site rides the same transform, so panning and zooming move it
     // with the gym instead of asking for it to be drawn again.
@@ -5585,8 +5591,10 @@
       // Slid up by whatever it reaches above the plan beyond the margin the
       // wrap already allows for, so the site lines up with the floors.
       groundCanvas.style.transform = 'translate(0px,'
-        + (-(siteTop - sitePad) * zoomLevel) + 'px) scale(' + zoomLevel + ')';
+        + (-(siteTop - sitePad) * zoomLevel) + 'px)';
       groundCanvas.style.transformOrigin = 'top left';
+      groundCanvas.style.width = (groundSize.w * zoomLevel) + 'px';
+      groundCanvas.style.height = (groundSize.h * zoomLevel) + 'px';
     }
   }
 
@@ -5674,10 +5682,20 @@
   // big plan on a retina screen asking for an absurd texture, and stop a
   // zoomed-out one asking for a mushy little thumbnail.
   const MAX_BACKING_SCALE = 2.2;
-  const MIN_BACKING_SCALE = 0.5;
+  const MIN_BACKING_SCALE = 0.3;
+  // How many bitmap pixels to spend per screen pixel. A phone reports three,
+  // and painting the gym three deep is nine times the work of painting it
+  // one deep for a sharpness nobody can see at arm's length. Two is the
+  // ceiling, and a device that still cannot keep up is stepped down until
+  // it can -- a steady picture is worth more than a crisp one.
+  const PIXEL_STEPS = [2, 1.5, 1.15, 0.9];
+  let pixelStep = 0;
+  function pixelBudget() {
+    return PIXEL_STEPS[pixelStep];
+  }
 
   function fitCanvasResolution() {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(pixelBudget(), window.devicePixelRatio || 1);
     const scale = Math.max(MIN_BACKING_SCALE,
       Math.min(MAX_BACKING_SCALE, dpr * zoomLevel));
     const targetW = Math.round(BASE_W * scale);
@@ -7079,7 +7097,8 @@
   // How many pixels of backing store the site may have. A phone cannot
   // allocate a full-resolution copy of a plan this size, and does not need
   // one: it is rock, water and haze, and it is always seen through a zoom.
-  const SITE_MAX_PIXELS = 4.2e6;
+  const SITE_MAX_PIXELS = 1.0e6;
+  let groundSize = { w: 1, h: 1 };
   // The site reaches this far past the plan canvas on every side, so that
   // at the zoom a phone frames the gym at there is still site out beyond
   // the window rather than an edge in the middle of the view.
@@ -7108,7 +7127,7 @@
     const h = BASE_H + pad + top;
     if (!BASE_W || !BASE_H) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const k = Math.max(0.5, Math.min(dpr, Math.sqrt(SITE_MAX_PIXELS / (w * h))));
+    const k = Math.max(0.2, Math.min(dpr, Math.sqrt(SITE_MAX_PIXELS / (w * h))));
     // The hour's tint is keyed coarsely: a step of a fiftieth is below
     // what the eye picks up, and keying it any finer had the whole site
     // repainting every few seconds through dusk and dawn.
@@ -7123,8 +7142,9 @@
       groundCanvas.width = bw;
       groundCanvas.height = bh;
     }
-    groundCanvas.style.width = w + 'px';
-    groundCanvas.style.height = h + 'px';
+    groundSize = { w, h };
+    groundCanvas.style.width = (w * zoomLevel) + 'px';
+    groundCanvas.style.height = (h * zoomLevel) + 'px';
 
     const colors = colorsFor(state.activeTheme);
     // Drawn in the plan's own coordinates -- the same isoPoint the rooms
@@ -11401,7 +11421,19 @@
     padTopCache = -1;
   }
 
+  // Worked out once and kept until the view moves: it reads the scroll
+  // position back off the page, and a read like that has to wait for the
+  // browser to settle the layout, which is not something to do every frame.
+  let seenBox = null;
+  function forgetVisibleBox() {
+    seenBox = null;
+  }
   function visibleCanvasBox() {
+    if (seenBox) return seenBox;
+    seenBox = measureVisibleBox();
+    return seenBox;
+  }
+  function measureVisibleBox() {
     if (!stageScrollEl || !zoomLevel) return null;
     const w = stageScrollEl.clientWidth;
     const h = stageScrollEl.clientHeight;
@@ -11412,6 +11444,7 @@
     const pad = 200;
     const x0 = stageScrollEl.scrollLeft / zoomLevel - sitePad;
     const y0 = (stageScrollEl.scrollTop - padTop) / zoomLevel - sitePad;
+    void 0;
     return {
       x0: x0 - pad,
       y0: y0 - pad,
@@ -11755,13 +11788,19 @@
       return;
     }
 
+    // Only the people and the money the window is showing. A big floor half
+    // off screen used to draw its whole crowd and lay out every tag on it.
+    const seen = visibleCanvasBox();
+    const onScreen = (c) => !seen || (c.x > seen.x0 - 60 && c.x < seen.x1 + 60
+      && c.y > seen.y0 - 170 && c.y < seen.y1 + 60);
     const people = membersInside(place).map((m) => ({
       member: m, spot: { u: m.gx - place.gx0, v: m.gy - place.gy0 },
-    }));
+    })).filter((e) => onScreen(isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v)));
     // The money over each piece and the bar under a counter both move on
     // their own, so they are worked out every frame whatever else is not.
     items.forEach(({ index, itemId, spot }) => {
       const c = isoPoint(place.gx0 + spot.u, place.gy0 + spot.v);
+      if (!onScreen(c)) return;
       if (makesStock(itemId)) drawBatchBar(room, index, c);
       const pile = pileOf(room, shape, index);
       if (pile.level > 0) queuePileTag(roomIndex, index, itemId, turnAt(room, index), c, pile);
@@ -11773,7 +11812,7 @@
       items.concat(loose).forEach((e) => {
         const d = depthOf(e);
         const covers = people.some((p) => depthOf(p) < d
-          && Math.abs(p.spot.u - e.spot.u) < 5 && Math.abs(p.spot.v - e.spot.v) < 5);
+          && Math.abs(p.spot.u - e.spot.u) < 3.6 && Math.abs(p.spot.v - e.spot.v) < 3.6);
         if (covers) standing.push(e);
       });
       standing.sort((a, b) => depthOf(a) - depthOf(b)).forEach(paintOne);
@@ -12116,8 +12155,13 @@
     const Y = (v) => y - v * H;
     const line = 'rgba(0,0,0,0.38)';
     const pen = Math.max(0.5, H * 0.008);
-
+    // A dozen people on a floor is a dozen outlined limbs apiece, and a
+    // stroke costs about what a fill does. Pulled back far enough that a
+    // person is under fifty pixels tall the outline is a hairline nobody
+    // can see, so it is left off and the crowd costs half as much.
+    const fine = H * (floorCanvas.width / BASE_W) > 50;
     const outline = () => {
+      if (!fine) return;
       ctx.strokeStyle = line;
       ctx.lineWidth = pen;
       ctx.stroke();
@@ -12525,6 +12569,7 @@
   // Listen on the stage window rather than the canvas: zoomed out the plan
   // is smaller than the window, and a pinch that happens to start on the
   // background beside it should still work.
+  if (stageScrollEl) stageScrollEl.addEventListener('scroll', forgetVisibleBox, { passive: true });
   const gestureEl = stageScrollEl || floorCanvas;
   const DRAG_THRESHOLD = 6;
   const pointers = new Map();
@@ -14401,6 +14446,7 @@
   let resizeTimer = null;
   window.addEventListener('resize', () => {
     forgetStagePad();
+    forgetVisibleBox();
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => { renderScene(); parkView(); }, 120);
   });
@@ -14412,6 +14458,22 @@
   // runs at all while the tab is hidden -- the same rule the earnings follow.
   const MEMBER_FPS = 20;
   let lastPaintMs = 0;
+  let paintAvg = 0;
+  let lastTuneAt = 0;
+  // Step the picture down when the device cannot paint it in time, and back
+  // up when it can. Slowly, and never on a single slow frame: switching
+  // costs a full repaint, so it is not worth doing over a hiccup.
+  function tunePixelBudget(now) {
+    if (now - lastTuneAt < 2500) return;
+    let next = pixelStep;
+    if (paintAvg > 42 && pixelStep < PIXEL_STEPS.length - 1) next = pixelStep + 1;
+    else if (paintAvg < 14 && pixelStep > 0) next = pixelStep - 1;
+    if (next === pixelStep) return;
+    lastTuneAt = now;
+    pixelStep = next;
+    paintAvg = 0;
+    renderScene();
+  }
   let lastFrameAt = 0;
   // Scrolled past the plan, there is nothing to animate for. The observer is
   // a cheap way to know that without asking the browser for the stage's
@@ -14447,6 +14509,8 @@
       const t0 = performance.now();
       paintScene();
       lastPaintMs = performance.now() - t0;
+      paintAvg = paintAvg ? paintAvg * 0.85 + lastPaintMs * 0.15 : lastPaintMs;
+      tunePixelBudget(now);
       lastBatchPaint = now;
       return;
     }
