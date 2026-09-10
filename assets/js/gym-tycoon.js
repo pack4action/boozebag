@@ -5417,8 +5417,10 @@
   // store at the zoomed size, so filling the window costs no sharpness.
   const FIT_MAX = 1.25;
 
-  function fitZoomToStage() {
-    if (!stageScrollEl || userSetZoom) return;
+  // The zoom that frames the built gym in the window, whether or not the
+  // view is currently using it.
+  function fitZoomValue() {
+    if (!stageScrollEl) return 0;
     const availW = stageScrollEl.clientWidth;
     // clientHeight counts the padding that keeps the plan clear of the bar
     // of controls standing on it. Fitting against that padding made the
@@ -5426,7 +5428,7 @@
     // window and the view scrolled under the drag.
     const padTop = parseFloat(getComputedStyle(stageScrollEl).paddingTop) || 0;
     const availH = stageScrollEl.clientHeight - padTop;
-    if (!availW || availH <= 0) return;
+    if (!availW || availH <= 0) return 0;
     // Frame the plan with a little of what it stands in, rather than butting
     // it against the edges: the site around it is drawn now, and a plan
     // fitted edge to edge hides all of it. The margin scales with the window
@@ -5435,27 +5437,73 @@
     // Framed on the rooms that are built, with a little of the plot beside
     // them showing: fitting the whole plan, plot included, drew the gym at
     // half the size it could be and left bands of empty ground around it.
-    const fit = Math.min(
+    return Math.min(
       availW / (BUILT_W + margin * 2),
       availH / (BUILT_H + margin * 2),
       FIT_MAX,
     );
+  }
+
+  // How far out you are allowed to go: a little past the whole gym, and no
+  // further. Zooming out to nothing left the map a stamp in the middle of a
+  // window it could not fill, which is not a view of anything.
+  const ZOOM_OUT_PAST_FIT = 0.7;
+  function zoomFloor() {
+    const fit = fitZoomValue();
+    if (!fit) return ZOOM_MIN;
+    return Math.max(ZOOM_MIN, Math.round(fit * ZOOM_OUT_PAST_FIT * 100) / 100);
+  }
+
+  // The site reaches this far past the plan on every side. The scrollable
+  // area is the plan plus the same margin, so what you can pan over is
+  // exactly what is drawn, and the plan sits in the middle of it.
+  //
+  // Far enough to fill the window at the furthest out the zoom will go, so
+  // the site never ends inside the view. It is worked out from the window
+  // and the plan, not from the zoom, so that working the zoom does not
+  // resize the thing the view is scrolling over underneath it.
+  const SITE_PAD_MIN = 400;
+  let sitePad = SITE_PAD_MIN;
+  // The stage keeps a band of padding at the top for the row of locations
+  // that floats over it. The plan is laid out below that band, so the site
+  // has to reach back up over it or the strip behind the row is the only
+  // part of the window it does not cover.
+  let siteTop = SITE_PAD_MIN;
+  function measureSitePad() {
+    if (!stageScrollEl || !stageScrollEl.clientWidth) return;
+    const out = zoomFloor();
+    const padTop = parseFloat(getComputedStyle(stageScrollEl).paddingTop) || 0;
+    const needX = (stageScrollEl.clientWidth / out - BASE_W) / 2;
+    const needY = (stageScrollEl.clientHeight / out - BASE_H) / 2;
+    const want = Math.max(SITE_PAD_MIN, needX + 80, needY + 80);
+    sitePad = Math.min(3000, Math.ceil(want / 100) * 100);
+    siteTop = Math.min(3600, sitePad + Math.ceil(padTop / out / 100) * 100);
+  }
+  // The outer part of that margin is where the site runs out into the
+  // location's own dark -- the same dark the stage behind it carries, so
+  // there is no line where one becomes the other.
+  function fitZoomToStage() {
+    if (!stageScrollEl || userSetZoom) return;
+    const fit = fitZoomValue();
+    if (!fit) return;
     zoomLevel = Math.max(ZOOM_MIN, Math.round(fit * 100) / 100);
   }
 
   function applyStageSizing() {
-    // Sized before the ground is measured against it, since how far the
-    // site has to reach depends on the window and the zoom.
+    // How far the site has to reach depends on the window and the plan, so
+    // it is measured before anything is laid out against it.
+    measureSitePad();
+    // Sized before the ground is measured against it.
     queueGroundPaint();
     // Once the window knows its size, put the gym in the middle of it.
     if (!viewParked && stageScrollEl && stageScrollEl.clientWidth) {
       viewParked = true;
       setTimeout(parkView, 0);
     }
-    const off = SITE_PAD * zoomLevel;
+    const off = sitePad * zoomLevel;
     if (zoomWrapEl) {
-      zoomWrapEl.style.width = ((BASE_W + SITE_PAD * 2) * zoomLevel) + 'px';
-      zoomWrapEl.style.height = ((BASE_H + SITE_PAD * 2) * zoomLevel) + 'px';
+      zoomWrapEl.style.width = ((BASE_W + sitePad * 2) * zoomLevel) + 'px';
+      zoomWrapEl.style.height = ((BASE_H + sitePad * 2) * zoomLevel) + 'px';
     }
     floorCanvas.style.width = BASE_W + 'px';
     floorCanvas.style.height = BASE_H + 'px';
@@ -5466,7 +5514,10 @@
     if (groundCanvas) {
       // Scaled about the plan's own origin, then slid back by the margin it
       // carries, so the lattice under the site lines up with the floors.
-      groundCanvas.style.transform = 'scale(' + zoomLevel + ')';
+      // Slid up by whatever it reaches above the plan beyond the margin the
+      // wrap already allows for, so the site lines up with the floors.
+      groundCanvas.style.transform = 'translate(0px,'
+        + (-(siteTop - sitePad) * zoomLevel) + 'px) scale(' + zoomLevel + ')';
       groundCanvas.style.transformOrigin = 'top left';
     }
   }
@@ -5482,9 +5533,21 @@
 
   function setZoom(next) {
     userSetZoom = true;
-    zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(next * 100) / 100));
+    zoomLevel = Math.max(zoomFloor(), Math.min(ZOOM_MAX, Math.round(next * 100) / 100));
     applyStageSizing();
     queueResolutionRepaint();
+    snapIfWhollyVisible();
+  }
+
+  // A gym that fits the window whole has nothing left to look around, so
+  // the view goes back to the middle of it rather than staying wherever
+  // zooming out from a corner happened to leave it.
+  function snapIfWhollyVisible() {
+    if (!stageScrollEl) return;
+    const padTop = parseFloat(getComputedStyle(stageScrollEl).paddingTop) || 0;
+    const availW = stageScrollEl.clientWidth;
+    const availH = stageScrollEl.clientHeight - padTop;
+    if (BUILT_W * zoomLevel <= availW && BUILT_H * zoomLevel <= availH) centreOnGym(true);
   }
 
   function centreOn(x, y, jump) {
@@ -5494,8 +5557,8 @@
     // so centring has to allow for it or the gym sits low by half a bar.
     const padTop = parseFloat(getComputedStyle(stageScrollEl).paddingTop) || 0;
     stageScrollEl.scrollTo({
-      left: Math.max(0, (x + SITE_PAD) * zoomLevel - stageScrollEl.clientWidth / 2),
-      top: Math.max(0, (y + SITE_PAD) * zoomLevel + padTop - stageScrollEl.clientHeight / 2),
+      left: Math.max(0, (x + sitePad) * zoomLevel - stageScrollEl.clientWidth / 2),
+      top: Math.max(0, (y + sitePad) * zoomLevel + padTop - stageScrollEl.clientHeight / 2),
       behavior: jump ? 'auto' : 'smooth',
     });
   }
@@ -6829,13 +6892,6 @@
   // The site reaches this far past the plan canvas on every side, so that
   // at the zoom a phone frames the gym at there is still site out beyond
   // the window rather than an edge in the middle of the view.
-  // The site reaches this far past the plan on every side. The scrollable
-  // area is the plan plus the same margin, so what you can pan over is
-  // exactly what is drawn, and the plan sits in the middle of it.
-  const SITE_PAD = 500;
-  // The outer part of that margin is where the site runs out into the
-  // location's own dark -- the same dark the stage behind it carries, so
-  // there is no line where one becomes the other.
   const SITE_FADE = 300;
   function drawSiteFalloff(colors, r) {
     const band = (x0, y0, x1, y1, rx, ry, rw, rh) => {
@@ -6855,13 +6911,14 @@
   }
   function paintStageGround(force) {
     if (!groundCtx || !stageScrollEl) return;
-    const pad = SITE_PAD;
+    const pad = sitePad;
+    const top = siteTop;
     const w = BASE_W + pad * 2;
-    const h = BASE_H + pad * 2;
+    const h = BASE_H + pad + top;
     if (!BASE_W || !BASE_H) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const k = Math.max(0.5, Math.min(dpr, Math.sqrt(SITE_MAX_PIXELS / (w * h))));
-    const key = [state.activeTheme, placements.length, w, h, pad, k.toFixed(3),
+    const key = [state.activeTheme, placements.length, w, h, pad, top, k.toFixed(3),
       Math.round(skyWash().a * 1000)].join('|');
     if (!force && key === groundKey) return;
     groundKey = key;
@@ -6878,10 +6935,10 @@
     const colors = colorsFor(state.activeTheme);
     // Drawn in the plan's own coordinates -- the same isoPoint the rooms
     // are built from -- with the margin outside them.
-    const view = { x0: -pad, y0: -pad, x1: BASE_W + pad, y1: BASE_H + pad };
+    const view = { x0: -pad, y0: -top, x1: BASE_W + pad, y1: BASE_H + pad };
     const live = floorCtx;
     floorCtx = groundCtx;
-    groundCtx.setTransform(k, 0, 0, k, pad * k, pad * k);
+    groundCtx.setTransform(k, 0, 0, k, pad * k, top * k);
     groundCtx.clearRect(view.x0, view.y0, w, h);
     try {
       groundCtx.fillStyle = colors.bg;
@@ -9980,8 +10037,9 @@
 
     setZoom(nextZoom);
 
-    stageScrollEl.scrollLeft = stageRect.left + (worldX + SITE_PAD) * zoomLevel - clientX;
-    stageScrollEl.scrollTop = stageRect.top + (worldY + SITE_PAD) * zoomLevel - clientY;
+    stageScrollEl.scrollLeft = stageRect.left + (worldX + sitePad) * zoomLevel - clientX;
+    stageScrollEl.scrollTop = stageRect.top + (worldY + sitePad) * zoomLevel - clientY;
+    snapIfWhollyVisible();
   }
 
   // Shift the view by a screen delta, right now, with nothing remembered.
