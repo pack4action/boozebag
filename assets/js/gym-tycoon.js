@@ -8187,23 +8187,37 @@
       floorCtx.fill();
     }
   }
-  // The plank walk: boards laid across it on bearers, the way the pier is.
-  function drawPlankWalk(rect) {
+  // A plank walk: boards laid across it on bearers, the way the pier is.
+  // `across` lays the boards the other way, for a walk that runs across
+  // the lattice rather than down it.
+  function drawPlankWalk(rect, across) {
     const q = [isoPoint(rect.gx0, rect.gy0), isoPoint(rect.gx0 + rect.cols, rect.gy0),
       isoPoint(rect.gx0 + rect.cols, rect.gy0 + rect.rows), isoPoint(rect.gx0, rect.gy0 + rect.rows)];
     paintQuad(q.map((p) => ({ x: p.x, y: p.y + 3 })), 'rgba(0,0,0,0.35)', null);
     const B = 0.55;
-    for (let gy = rect.gy0; gy < rect.gy0 + rect.rows; gy += B) {
-      const j = Math.round(gy * 4);
+    const gx1 = rect.gx0 + rect.cols;
+    const gy1 = rect.gy0 + rect.rows;
+    const board = (a, b, c, d, j) => {
       const n = noise(j, 3, 211);
       const tone = shade(n < 0.5 ? CELLAR.plank : CELLAR.plankB, Math.round((noise(j, 5, 212) - 0.5) * 14));
-      const y1 = Math.min(gy + B, rect.gy0 + rect.rows);
-      paintQuad([isoPoint(rect.gx0, gy), isoPoint(rect.gx0 + rect.cols, gy), isoPoint(rect.gx0 + rect.cols, y1), isoPoint(rect.gx0, y1)],
-        tone, 'rgba(60,32,12,0.55)', 1);
+      paintQuad([a, b, c, d], tone, 'rgba(60,32,12,0.55)', 1);
+    };
+    if (across) {
+      for (let gx = rect.gx0; gx < gx1; gx += B) {
+        const x1 = Math.min(gx + B, gx1);
+        board(isoPoint(gx, rect.gy0), isoPoint(x1, rect.gy0), isoPoint(x1, gy1), isoPoint(gx, gy1), Math.round(gx * 4));
+      }
+      [rect.gy0 + 0.08, gy1 - 0.08].forEach((gy) => {
+        strokePolyline([isoPoint(rect.gx0, gy), isoPoint(gx1, gy)], 'rgba(50,28,10,0.5)', 2);
+      });
+      return;
     }
-    // The bearers along both edges.
-    [rect.gx0 + 0.08, rect.gx0 + rect.cols - 0.08].forEach((gx) => {
-      strokePolyline([isoPoint(gx, rect.gy0), isoPoint(gx, rect.gy0 + rect.rows)], 'rgba(50,28,10,0.5)', 2);
+    for (let gy = rect.gy0; gy < gy1; gy += B) {
+      const y1 = Math.min(gy + B, gy1);
+      board(isoPoint(rect.gx0, gy), isoPoint(gx1, gy), isoPoint(gx1, y1), isoPoint(rect.gx0, y1), Math.round(gy * 4));
+    }
+    [rect.gx0 + 0.08, gx1 - 0.08].forEach((gx) => {
+      strokePolyline([isoPoint(gx, rect.gy0), isoPoint(gx, gy1)], 'rgba(50,28,10,0.5)', 2);
     });
   }
 
@@ -8536,6 +8550,258 @@
     paintQuad([{ x: hz.x - 4, y: hz.y + 3 }, { x: hz.x + 4, y: hz.y + 3 }, { x: hz.x, y: hz.y - 5 }], '#e2b21f', null);
   }
 
+  // ---- The front of the pit ----
+  // The two open sides are framed the way the yard is framed by its fence:
+  // a stone-lined drain runs along both, a plank bridge crosses each where
+  // the way out meets it, lanterns stand along the inner edge, and beyond
+  // the drain the earth goes off into the dark. Inside the frame what
+  // stands about is a few things in their places -- the boiler, the spoil
+  // from the digging, the barrels, the crates -- not a scatter.
+  const CHANNEL = { gap: 1.6, width: 2.2, depth: 7, reach: 44 };
+  function cellarChannels() {
+    const a = cellarApron();
+    const gx1 = a.gx0 + a.cols;
+    const gy1 = a.gy0 + a.rows;
+    const r = CHANNEL.reach;
+    const outer = CHANNEL.gap + CHANNEL.width;
+    return {
+      L: { gx0: a.gx0 - r, gy0: gy1 + CHANNEL.gap, cols: (gx1 + outer) - (a.gx0 - r), rows: CHANNEL.width, along: 'gx' },
+      R: { gx0: gx1 + CHANNEL.gap, gy0: a.gy0 - r, cols: CHANNEL.width, rows: (gy1 + outer) - (a.gy0 - r), along: 'gy' },
+      bridgeL: { gx0: a.gx0 + a.cols * 0.42, gy0: gy1 + CHANNEL.gap - 0.7, cols: 3.2, rows: CHANNEL.width + 1.4 },
+      bridgeR: { gx0: gx1 + CHANNEL.gap - 0.7, gy0: a.gy0 + a.rows * 0.55, cols: CHANNEL.width + 1.4, rows: 3.2 },
+    };
+  }
+  // A drain: the kerb on the far side, its wall going down, the water,
+  // and the kerb on the near side over it.
+  function drawChannel(ch) {
+    const d = CHANNEL.depth;
+    const kerb = 0.5;
+    const gx1 = ch.gx0 + ch.cols;
+    const gy1 = ch.gy0 + ch.rows;
+    const dn = (p, dy) => ({ x: p.x, y: p.y + dy });
+    const q = (a, b, c, e) => [a, b, c, e];
+    if (ch.along === 'gx') {
+      // Runs down-right; the far side is the low-gy side.
+      const far0 = isoPoint(ch.gx0, ch.gy0);
+      const far1 = isoPoint(gx1, ch.gy0);
+      paintQuad(q(isoPoint(ch.gx0, ch.gy0 - kerb), isoPoint(gx1, ch.gy0 - kerb), far1, far0), CELLAR.stoneHi, 'rgba(0,0,0,0.5)', 1);
+      paintQuad(q(far0, far1, dn(far1, d), dn(far0, d)), CELLAR.stoneLo, null);
+      paintQuad(q(dn(far0, d), dn(far1, d), dn(isoPoint(gx1, gy1), d), dn(isoPoint(ch.gx0, gy1), d)), CELLAR.water, null);
+      strokePolyline([dn(isoPoint(ch.gx0, ch.gy0 + ch.rows * 0.45), d), dn(isoPoint(gx1, ch.gy0 + ch.rows * 0.45), d)], 'rgba(255,220,170,0.10)', 2);
+      paintQuad(q(isoPoint(ch.gx0, gy1), isoPoint(gx1, gy1), isoPoint(gx1, gy1 + kerb), isoPoint(ch.gx0, gy1 + kerb)), CELLAR.stone, 'rgba(0,0,0,0.5)', 1);
+    } else {
+      // Runs down-left; the far side is the low-gx side.
+      const far0 = isoPoint(ch.gx0, ch.gy0);
+      const far1 = isoPoint(ch.gx0, gy1);
+      paintQuad(q(isoPoint(ch.gx0 - kerb, ch.gy0), far0, far1, isoPoint(ch.gx0 - kerb, gy1)), CELLAR.stoneHi, 'rgba(0,0,0,0.5)', 1);
+      paintQuad(q(far0, far1, dn(far1, d), dn(far0, d)), CELLAR.stoneLo, null);
+      paintQuad(q(dn(far0, d), dn(far1, d), dn(isoPoint(gx1, gy1), d), dn(isoPoint(gx1, ch.gy0), d)), CELLAR.water, null);
+      strokePolyline([dn(isoPoint(ch.gx0 + ch.cols * 0.45, ch.gy0), d), dn(isoPoint(ch.gx0 + ch.cols * 0.45, gy1), d)], 'rgba(255,220,170,0.10)', 2);
+      paintQuad(q(isoPoint(gx1, ch.gy0), isoPoint(gx1 + kerb, ch.gy0), isoPoint(gx1 + kerb, gy1), isoPoint(gx1, gy1)), CELLAR.stone, 'rgba(0,0,0,0.5)', 1);
+    }
+  }
+  // Where the two drains meet: a stone sump with a grate over it.
+  function drawSumpBox(gx, gy) {
+    const h = 2.1;
+    const d = CHANNEL.depth;
+    const at = (u, v, z) => {
+      const p = isoPoint(u, v);
+      return { x: p.x, y: p.y + (z || 0) };
+    };
+    paintQuad([at(gx - h, gy - h), at(gx + h, gy - h), at(gx + h, gy + h), at(gx - h, gy + h)], CELLAR.stoneHi, 'rgba(0,0,0,0.5)', 1);
+    paintQuad([at(gx - h + 0.5, gy - h + 0.5), at(gx + h - 0.5, gy - h + 0.5), at(gx + h - 0.5, gy + h - 0.5), at(gx - h + 0.5, gy + h - 0.5)], '#0c0a09', null);
+    paintQuad([at(gx - h + 0.5, gy - h + 0.5), at(gx + h - 0.5, gy - h + 0.5), at(gx + h - 0.5, gy + h - 0.5, d), at(gx - h + 0.5, gy + h - 0.5, d)], CELLAR.water, null);
+    const n = 7;
+    for (let i = 1; i < n; i++) {
+      const t = -h + 0.5 + (2 * (h - 0.5) * i) / n;
+      strokePolyline([at(gx + t, gy - h + 0.6), at(gx + t, gy + h - 0.6)], '#4a4c50', 2);
+    }
+    strokePolyline([at(gx - h + 0.5, gy - h + 0.5), at(gx + h - 0.5, gy - h + 0.5), at(gx + h - 0.5, gy + h - 0.5), at(gx - h + 0.5, gy + h - 0.5), at(gx - h + 0.5, gy - h + 0.5)], '#5a5c60', 2);
+  }
+  // A plank bridge over a drain: the boards laid across the way over, a
+  // bearer either side, and a low timber rail.
+  function drawBridge(rect, across) {
+    drawPlankWalk(rect, across);
+    const H = 22;
+    const post = (p) => {
+      paintQuad([{ x: p.x - 2, y: p.y }, { x: p.x + 2, y: p.y }, { x: p.x + 2, y: p.y - H }, { x: p.x - 2, y: p.y - H }], CELLAR.timber, null);
+    };
+    const gx1 = rect.gx0 + rect.cols;
+    const gy1 = rect.gy0 + rect.rows;
+    const sides = across
+      ? [[isoPoint(rect.gx0, rect.gy0), isoPoint(gx1, rect.gy0)], [isoPoint(rect.gx0, gy1), isoPoint(gx1, gy1)]]
+      : [[isoPoint(rect.gx0, rect.gy0), isoPoint(rect.gx0, gy1)], [isoPoint(gx1, rect.gy0), isoPoint(gx1, gy1)]];
+    sides.forEach((s) => {
+      post(s[0]);
+      post(s[1]);
+      strokePolyline([{ x: s[0].x, y: s[0].y - H }, { x: s[1].x, y: s[1].y - H }], CELLAR.timberHi, 2.4);
+    });
+  }
+  // Beyond the drains the earth goes off into the dark.
+  function drawDarkBeyond(view) {
+    const ch = cellarChannels();
+    const r = latticeRange(view);
+    const fade = 14;
+    const wash = (p0, dir, poly) => {
+      const s = 200 / Math.hypot(dir.x, dir.y);
+      const g = floorCtx.createLinearGradient(p0.x, p0.y, p0.x + dir.x * s, p0.y + dir.y * s);
+      g.addColorStop(0, 'rgba(6,4,3,0)');
+      g.addColorStop(0.5, 'rgba(6,4,3,0.55)');
+      g.addColorStop(1, 'rgba(6,4,3,0.9)');
+      paintQuad(poly, g, null);
+    };
+    const gyL = ch.L.gy0 + ch.L.rows;
+    wash(isoPoint(0, gyL), { x: -1, y: 2 },
+      [isoPoint(r.gx0, gyL), isoPoint(r.gx1, gyL), isoPoint(r.gx1, r.gy1 + fade), isoPoint(r.gx0, r.gy1 + fade)]);
+    const gxR = ch.R.gx0 + ch.R.cols;
+    wash(isoPoint(gxR, 0), { x: 1, y: 2 },
+      [isoPoint(gxR, r.gy0), isoPoint(r.gx1 + fade, r.gy0), isoPoint(r.gx1 + fade, r.gy1), isoPoint(gxR, r.gy1)]);
+  }
+
+  // ---- What stands in the pit ----
+  // The boiler: an iron cylinder on a stone plinth, the firebox glowing at
+  // the foot of it, a gauge, a flue, and its pipe running off to the drain.
+  function drawBoiler(base, light) {
+    const rx = 34;
+    const ry = 17;
+    const H = 2.6 * PX_PER_METRE_TALL;
+    const iron = '#3d4148';
+    drawIsoBox(floorCtx, base, 0, 0, 1.6, 1.6, 8, '#4a4441', 0);
+    const c = { x: base.x, y: base.y - 8 };
+    // The barrel of it.
+    floorCtx.beginPath();
+    floorCtx.ellipse(c.x, c.y, rx, ry, 0, 0, Math.PI);
+    floorCtx.lineTo(c.x - rx, c.y - H);
+    floorCtx.ellipse(c.x, c.y - H, rx, ry, 0, Math.PI, 0, true);
+    floorCtx.closePath();
+    floorCtx.fillStyle = iron;
+    floorCtx.fill();
+    paintQuad([{ x: c.x - rx, y: c.y }, { x: c.x - rx + 10, y: c.y }, { x: c.x - rx + 10, y: c.y - H }, { x: c.x - rx, y: c.y - H }], hexA('#6a7079', 0.7), null);
+    paintQuad([{ x: c.x + rx - 11, y: c.y }, { x: c.x + rx, y: c.y }, { x: c.x + rx, y: c.y - H }, { x: c.x + rx - 11, y: c.y - H }], 'rgba(0,0,0,0.3)', null);
+    [0.3, 0.62].forEach((f) => {
+      floorCtx.beginPath();
+      floorCtx.ellipse(c.x, c.y - H * f, rx, ry, 0, 0, Math.PI);
+      floorCtx.strokeStyle = '#2a2d33';
+      floorCtx.lineWidth = 3;
+      floorCtx.stroke();
+      floorCtx.beginPath();
+      floorCtx.ellipse(c.x, c.y - H * f - 2, rx, ry, 0, 0, Math.PI);
+      floorCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+      floorCtx.lineWidth = 1.5;
+      floorCtx.stroke();
+    });
+    floorCtx.beginPath();
+    floorCtx.ellipse(c.x, c.y - H, rx, ry, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = '#50555d';
+    floorCtx.fill();
+    floorCtx.strokeStyle = 'rgba(0,0,0,0.5)';
+    floorCtx.lineWidth = 1;
+    floorCtx.stroke();
+    // The flue, with its cap.
+    const fl = { x: c.x + 9, y: c.y - H - 4 };
+    paintQuad([{ x: fl.x - 5, y: fl.y }, { x: fl.x + 5, y: fl.y }, { x: fl.x + 5, y: fl.y - 60 }, { x: fl.x - 5, y: fl.y - 60 }], '#2f3238', null);
+    paintQuad([{ x: fl.x - 10, y: fl.y - 60 }, { x: fl.x + 10, y: fl.y - 60 }, { x: fl.x + 7, y: fl.y - 68 }, { x: fl.x - 7, y: fl.y - 68 }], '#2f3238', null);
+    // The firebox at the foot, and the warm it throws.
+    const fb = { x: c.x - 5, y: c.y - 20 };
+    paintQuad([{ x: fb.x - 12, y: fb.y + 9 }, { x: fb.x + 12, y: fb.y + 9 }, { x: fb.x + 12, y: fb.y - 11 }, { x: fb.x - 12, y: fb.y - 11 }], '#1a1a1c', null);
+    paintQuad([{ x: fb.x - 9, y: fb.y + 6 }, { x: fb.x + 9, y: fb.y + 6 }, { x: fb.x + 9, y: fb.y - 8 }, { x: fb.x - 9, y: fb.y - 8 }], '#ff8a2a', null);
+    paintQuad([{ x: fb.x - 6, y: fb.y + 3 }, { x: fb.x + 6, y: fb.y + 3 }, { x: fb.x + 6, y: fb.y - 4 }, { x: fb.x - 6, y: fb.y - 4 }], '#ffd27a', null);
+    strokePolyline([{ x: fb.x - 12, y: fb.y }, { x: fb.x + 12, y: fb.y }], '#1a1a1c', 2);
+    drawGlow(fb, 54, '#ff9a3a', 0.5);
+    // The gauge.
+    const g = { x: c.x - 8, y: c.y - H * 0.78 };
+    floorCtx.beginPath();
+    floorCtx.arc(g.x, g.y, 8, 0, Math.PI * 2);
+    floorCtx.fillStyle = '#e8e2d2';
+    floorCtx.fill();
+    floorCtx.strokeStyle = '#1a1a1c';
+    floorCtx.lineWidth = 1.5;
+    floorCtx.stroke();
+    strokePolyline([g, { x: g.x + 4, y: g.y - 4.5 }], '#b8402c', 1.8);
+    drawFloorPool({ x: base.x - 8, y: base.y + 18 }, { glow: 'rgba(255,150,70,0.4)', bulb: '#ff9a3a' }, 1.5);
+  }
+  // The spoil from the digging: a mound of earth, a shovel stuck in it and
+  // the barrow beside it.
+  function drawSpoilHeap(p) {
+    const rx = 62;
+    const ry = 34;
+    paintQuad([{ x: p.x - rx, y: p.y + 4 }, { x: p.x + rx + 10, y: p.y + 6 }, { x: p.x + rx, y: p.y + 12 }, { x: p.x - rx + 6, y: p.y + 10 }], 'rgba(0,0,0,0.3)', null);
+    const g = floorCtx.createRadialGradient(p.x - rx * 0.2, p.y - ry * 0.6, 2, p.x, p.y, rx);
+    g.addColorStop(0, '#5a4331');
+    g.addColorStop(0.55, CELLAR.earthHi);
+    g.addColorStop(1, CELLAR.earthLo);
+    floorCtx.beginPath();
+    floorCtx.moveTo(p.x - rx, p.y + 2);
+    floorCtx.quadraticCurveTo(p.x - rx * 0.6, p.y - ry * 1.1, p.x - rx * 0.1, p.y - ry);
+    floorCtx.quadraticCurveTo(p.x + rx * 0.5, p.y - ry * 0.9, p.x + rx, p.y + 2);
+    floorCtx.quadraticCurveTo(p.x, p.y + ry * 0.45, p.x - rx, p.y + 2);
+    floorCtx.closePath();
+    floorCtx.fillStyle = g;
+    floorCtx.fill();
+    drawStone({ x: p.x + 20, y: p.y - 8 }, 8, 1);
+    drawStone({ x: p.x - 24, y: p.y - 2 }, 6, 2);
+    drawStone({ x: p.x + 4, y: p.y - 22 }, 5, 3);
+    drawStone({ x: p.x - 8, y: p.y + 6 }, 4, 4);
+    // The shovel.
+    const s0 = { x: p.x - 8, y: p.y - 16 };
+    const s1 = { x: p.x + 14, y: p.y - 60 };
+    strokePolyline([s0, s1], '#8a6238', 3.5);
+    strokePolyline([{ x: s1.x - 7, y: s1.y - 1 }, { x: s1.x + 7, y: s1.y + 1 }], '#8a6238', 3.5);
+    paintQuad([{ x: s0.x - 8, y: s0.y - 3 }, { x: s0.x + 5, y: s0.y - 11 }, { x: s0.x + 11, y: s0.y + 3 }, { x: s0.x - 3, y: s0.y + 11 }], '#5a5e66', 'rgba(0,0,0,0.5)', 1);
+  }
+  function drawBarrow(base) {
+    // The tray, tipped up a little on its wheel, and the handles.
+    drawIsoBox(floorCtx, base, 0, 0, 0.8, 1.2, 18, '#5e6570', 12);
+    const w = isoScreenPoint(base, 0, -1.3, 0);
+    floorCtx.beginPath();
+    floorCtx.ellipse(w.x, w.y - 11, 5.5, 11, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = '#1e1f23';
+    floorCtx.fill();
+    floorCtx.beginPath();
+    floorCtx.ellipse(w.x, w.y - 11, 2.8, 6, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = '#4a4d55';
+    floorCtx.fill();
+    [-0.5, 0.5].forEach((u) => {
+      const h0 = isoScreenPoint(base, u, 1.2, 16);
+      const h1 = isoScreenPoint(base, u, 2.3, 3);
+      strokePolyline([h0, h1], '#8a6238', 3.5);
+    });
+    // A load of earth in it.
+    const top = isoScreenPoint(base, 0, 0, 30);
+    floorCtx.beginPath();
+    floorCtx.ellipse(top.x, top.y, 14, 8, 0, 0, Math.PI * 2);
+    floorCtx.fillStyle = CELLAR.earthHi;
+    floorCtx.fill();
+    paintQuad([isoScreenPoint(base, 0.25, 1.25, 1), isoScreenPoint(base, 0.25, 1.25, 8), isoScreenPoint(base, -0.25, 1.25, 8), isoScreenPoint(base, -0.25, 1.25, 1)], '#3a3d44', null);
+  }
+  // Barrels kept together on a bit of timber, a couple on top.
+  function drawBarrelStore(base) {
+    const at = (u, v) => isoScreenPoint(base, u, v, 0);
+    paintQuad([at(-1.4, -0.9), at(1.4, -0.9), at(1.4, 0.9), at(-1.4, 0.9)], CELLAR.timberLo, 'rgba(0,0,0,0.5)', 1);
+    [[-0.9, -0.4], [0, -0.4], [0.9, -0.4], [-0.45, 0.4], [0.45, 0.4]].forEach((uv, i) => drawBarrel(at(uv[0], uv[1]), (i % 2) * 8 - 4));
+    [[-0.45, -0.4], [0.45, -0.4]].forEach((uv, i) => {
+      const p = at(uv[0], uv[1]);
+      drawBarrel({ x: p.x, y: p.y - 30 }, i * 6);
+    });
+  }
+  // Planks stacked on a couple of bearers.
+  function drawTimberPile(base) {
+    const at = (u, v, z) => isoScreenPoint(base, u, v, z);
+    [[-1.0], [1.0]].forEach((u) => paintQuad([at(u[0] - 0.15, -0.9, 0), at(u[0] + 0.15, -0.9, 0), at(u[0] + 0.15, 0.9, 0), at(u[0] - 0.15, 0.9, 0)], CELLAR.timberLo, null));
+    for (let i = 0; i < 4; i++) {
+      const z = 4 + i * 6;
+      const v = -0.8 + i * 0.4 + (i % 2) * 0.1;
+      paintQuad([at(-1.6, v, z), at(1.6, v, z), at(1.6, v + 0.45, z), at(-1.6, v + 0.45, z)], shade(CELLAR.plank, i * 4 - 4), 'rgba(50,28,10,0.6)', 1);
+      paintQuad([at(-1.6, v + 0.45, z), at(1.6, v + 0.45, z), at(1.6, v + 0.45, z - 6), at(-1.6, v + 0.45, z - 6)], CELLAR.plankB, null);
+    }
+  }
+  function drawCrateStack(base) {
+    drawCrate(isoScreenPoint(base, -0.55, 0, 0), 1.0, 30);
+    drawCrate(isoScreenPoint(base, 0.6, 0.1, 0), 0.9, 24);
+    drawCrate(isoScreenPoint(base, -0.4, -0.1, 30), 0.85, 24);
+    drawSack(isoScreenPoint(base, 0.5, 1.2, 0), 3);
+  }
+
   // The floor of the cellar: earth to the edges in front of the walls, and
   // the plank walk from the stair.
   function drawCavernFloor(colors, view) {
@@ -8547,6 +8813,28 @@
     const gy0 = Math.max(r.gy0, a.gy0 - 1);
     paintQuad([isoPoint(gx0, gy0), isoPoint(r.gx1, gy0), isoPoint(r.gx1, r.gy1), isoPoint(gx0, r.gy1)], CELLAR.earth, null);
     drawDirt(gx0, gy0, r.gx1, r.gy1, 141);
+    // Out beyond the drains, in the dark: the odd stone and crate, and the
+    // old timber props left standing.
+    const ch = cellarChannels();
+    const gyL = ch.L.gy0 + ch.L.rows;
+    const gxR = ch.R.gx0 + ch.R.cols;
+    for (let k = 0; k < 40; k++) {
+      const gx = gx0 + noise(k, 21, 161) * (r.gx1 - gx0);
+      const gy = gy0 + noise(k, 23, 162) * (r.gy1 - gy0);
+      if (gy < gyL + 1.5 && gx < gxR + 1.5) continue;
+      const n = noise(k, 27, 163);
+      const p = isoPoint(gx, gy);
+      if (n < 0.5) drawStone(p, 8 + n * 16, k);
+      else if (n < 0.75) drawCrate(p, 0.9 + n * 0.5, 22);
+      else if (n < 0.9) drawBarrel(p, 0);
+      else drawTimberPost(p, 60 + n * 40);
+    }
+    drawDarkBeyond(view);
+    drawChannel(ch.L);
+    drawChannel(ch.R);
+    drawSumpBox(ch.R.gx0 + ch.R.cols * 0.5, ch.L.gy0 + ch.L.rows * 0.5);
+    drawBridge(ch.bridgeL, false);
+    drawBridge(ch.bridgeR, true);
     drawPlankWalk(cellarWalk());
   }
 
@@ -8605,42 +8893,52 @@
     // ---- The way in, against the back stone beside the north room.
     drawWallStair(light);
 
-    // ---- Out on the earth: barrels, crates and sacks kept by the walls,
-    // and a run of pipe on trestles going off into the dark.
-    const scatter = (k, seedA, seedB, seedC) => ({
-      gx: a.gx0 - 3 + noise(k, 11, seedA) * (a.cols + 30),
-      gy: a.gy0 - 3 + noise(k, 13, seedB) * (a.rows + 30),
-      n: noise(k, 17, seedC),
-    });
-    const walk = cellarWalk();
-    for (let k = 0; k < 70; k++) {
-      const s = scatter(k, 151, 152, 153);
-      const inPlan = s.gx > planBounds.gx0 - 1.5 && s.gx < planBounds.gx1 + 1.5 && s.gy > planBounds.gy0 - 1.5 && s.gy < planBounds.gy1 + 1.5;
-      const inWalk = s.gx > walk.gx0 - 1 && s.gx < walk.gx0 + walk.cols + 1 && s.gy > walk.gy0 - 1 && s.gy < walk.gy0 + walk.rows + 1;
-      if (inPlan || inWalk) continue;
-      if (s.gx < a.gx0 + 1 && s.gy < a.gy0 + 1) continue;
-      const p = isoPoint(s.gx, s.gy);
-      if (s.n < 0.4) drawBarrel(p, Math.round((s.n - 0.2) * 40));
-      else if (s.n < 0.7) drawCrate(p, 0.9 + s.n * 0.8, 22 + s.n * 14);
-      else if (s.n < 0.85) drawSack(p, k);
-      else drawStone(p, 10 + s.n * 12, k);
+    // ---- In the pit, each thing in its place: the boiler in front of the
+    // east room with its pipe run off to the drain, the spoil from the
+    // digging in front of the west room with the barrow by it, the
+    // barrels along the left, the crates by the foot of the stair.
+    const east = placements[3];
+    const west = placements[1];
+    const hub = placements[0];
+    const ch = cellarChannels();
+    const stair = cellarStair();
+    // The boiler stands against the back stone beside the foot of the
+    // stair, where a tall thing can stand without a floor in front of it
+    // hiding its top, and its pipe goes up to join the run along the wall.
+    const boilerAt = { gx: stair.gxB + 8.2, gy: a.gy0 + 3.2 };
+    const heapAt = west
+      ? { gx: west.gx0 + west.cols * 0.3, gy: west.gy0 + west.rows + 5 }
+      : { gx: planBounds.gx0 - 5, gy: planBounds.gy1 - 6 };
+    const storeAt = west
+      ? { gx: west.gx0 + west.cols * 0.5, gy: west.gy0 + west.rows + 11 }
+      : { gx: a.gx0 + 2.5, gy: (hub ? hub.gy0 + hub.rows : planBounds.gy1) - 2 };
+    const cratesAt = east
+      ? { gx: east.gx0 + east.cols * 0.5, gy: east.gy0 + east.rows + 8 }
+      : { gx: planBounds.gx1 + 3.5, gy: planBounds.gy1 - 4 };
+    const bp = isoPoint(boilerAt.gx, boilerAt.gy);
+    drawBoiler(bp, light);
+    const px = bp.x + 24;
+    const tN = (neFar.x - px) / (neFar.x - nw.x);
+    drawBigPipe([{ x: px, y: bp.y - 8 - 2.6 * PX_PER_METRE_TALL + 10 }, { x: px, y: onN(tN, 0.5).y + 6 }], 8, CELLAR.pipe);
+    drawSpoilHeap(isoPoint(heapAt.gx, heapAt.gy));
+    drawBarrow(isoPoint(heapAt.gx + 4.6, heapAt.gy + 1.2));
+    drawBarrelStore(isoPoint(storeAt.gx, storeAt.gy));
+    drawCrateStack(isoPoint(cratesAt.gx, cratesAt.gy));
+    drawSack(isoPoint(cratesAt.gx + 3.2, cratesAt.gy + 1.4), 5);
+    drawSack(isoPoint(cratesAt.gx + 4.0, cratesAt.gy + 0.4), 6);
+    // Lanterns on posts along the inner edge of both drains.
+    const postsL = Math.max(2, Math.round(a.cols / 12));
+    for (let i = 0; i <= postsL; i++) {
+      const gx = a.gx0 + 1 + (a.cols - 2) * (i / postsL);
+      if (Math.abs(gx - (ch.bridgeL.gx0 + ch.bridgeL.cols * 0.5)) < 3) continue;
+      drawLanternPost(isoPoint(gx, ch.L.gy0 - 0.8), light);
     }
-    // The pipe on trestles, and lanterns on posts along it.
-    [[[a.gx0 - 2, gy1 + 8], [gx1 + 30, gy1 + 8]], [[gx1 + 8, a.gy0 - 2], [gx1 + 8, gy1 + 30]]].forEach((run, side) => {
-      const p0 = isoPoint(run[0][0], run[0][1]);
-      const p1 = isoPoint(run[1][0], run[1][1]);
-      const lift = 36;
-      const posts = 7;
-      for (let i = 0; i <= posts; i++) {
-        const p = lerpPt(p0, p1, i / posts);
-        paintQuad([{ x: p.x - 4, y: p.y }, { x: p.x + 4, y: p.y }, { x: p.x + 4, y: p.y - lift }, { x: p.x - 4, y: p.y - lift }],
-          CELLAR.timber, null);
-        paintQuad([{ x: p.x - 4, y: p.y }, { x: p.x - 2, y: p.y }, { x: p.x - 2, y: p.y - lift }, { x: p.x - 4, y: p.y - lift }], CELLAR.timberHi, null);
-      }
-      drawBigPipe([{ x: p0.x, y: p0.y - lift }, { x: p1.x, y: p1.y - lift }], 11, side ? CELLAR.copper : CELLAR.pipe, 0.3);
-    });
-    [[gx1 + 3, a.gy0 + a.rows * 0.5], [a.gx0 + a.cols * 0.45, gy1 + 3], [a.gx0 - 1, gy1 + 14], [gx1 + 14, a.gy0 - 1]]
-      .forEach((g) => drawLanternPost(isoPoint(g[0], g[1]), light));
+    const postsR = Math.max(2, Math.round(a.rows / 12));
+    for (let i = 0; i < postsR; i++) {
+      const gy = a.gy0 + 1 + (a.rows - 2) * (i / postsR);
+      if (Math.abs(gy - (ch.bridgeR.gy0 + ch.bridgeR.rows * 0.5)) < 3) continue;
+      drawLanternPost(isoPoint(ch.R.gx0 - 0.8, gy), light);
+    }
 
     // ---- Lastly the light: every lantern warms whatever is near it, stone,
     // earth and pipe alike, and then the lantern goes on top.
