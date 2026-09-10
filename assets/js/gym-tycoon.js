@@ -6598,13 +6598,22 @@
     // A raised canvas with four corner posts and ropes strung between them.
     boxingring: (ctx, b) => {
       const S = 2.45, H = 0.55;
-      drawIsoBox(ctx, b, 0, 0, S / 2 * M, S / 2 * M, H * MH, '#3a3f4b', 0);
-      drawIsoSlab(ctx, b, 0, 0, (S / 2 - 0.05) * M, (S / 2 - 0.05) * M, H * MH, '#b9c4d2', 4);
-      // The apron skirt, a band of colour round the platform.
-      drawIsoBox(ctx, b, 0, 0, (S / 2 + 0.02) * M, (S / 2 + 0.02) * M, 0.16 * MH, '#b0453c', 0.04 * MH);
+      const apron = 0.19 * MH;
+      // The apron round the foot of the platform, the frame above it, and
+      // the canvas laid over the top -- in that order. The apron used to
+      // go on last, and the top face of it painted over the canvas, which
+      // left the ring looking like a red slab with a grey square on it.
+      drawIsoBox(ctx, b, 0, 0, (S / 2 + 0.03) * M, (S / 2 + 0.03) * M, apron, '#b0453c', 0);
+      drawIsoBox(ctx, b, 0, 0, (S / 2) * M, (S / 2) * M, H * MH - apron, '#3a3f4b', apron);
+      drawIsoSlab(ctx, b, 0, 0, (S / 2 - 0.03) * M, (S / 2 - 0.03) * M, H * MH, '#c8d1dc', 4);
       const post = (su, sv) => () => {
         drawIsoBox(ctx, b, su * (S / 2 - 0.10) * M, sv * (S / 2 - 0.10) * M,
           0.07 * M, 0.07 * M, 1.05 * MH, '#d9a53f', H * MH);
+        // A padded corner on the two the fighters use.
+        if (su === sv) {
+          drawIsoBox(ctx, b, su * (S / 2 - 0.10) * M, sv * (S / 2 - 0.10) * M,
+            0.13 * M, 0.13 * M, 0.42 * MH, su > 0 ? '#c03a30' : '#2f5f9e', (H + 0.30) * MH);
+        }
       };
       const ropes = () => {
         [0.35, 0.62, 0.89].forEach((h) => {
@@ -6795,11 +6804,34 @@
       ctx.lineTo(c.x, c.y - h); ctx.lineTo(a.x, a.y - h);
       ctx.closePath();
       const g = ctx.createLinearGradient(a.x, a.y - h, c.x, c.y);
-      g.addColorStop(0, 'rgba(200,226,240,0.85)');
-      g.addColorStop(1, 'rgba(140,175,200,0.7)');
+      g.addColorStop(0, 'rgba(206,230,244,0.88)');
+      g.addColorStop(0.62, 'rgba(160,192,214,0.78)');
+      g.addColorStop(1, 'rgba(118,150,176,0.72)');
       ctx.fillStyle = g;
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      // Glass, not a grey panel: the room's own floor coming back at the
+      // bottom of it, and a band of light across the face.
+      ctx.save();
+      ctx.clip();
+      const floorTop = a.y - h * 0.34;
+      const refl = ctx.createLinearGradient(0, floorTop, 0, a.y);
+      refl.addColorStop(0, 'rgba(28,38,52,0)');
+      refl.addColorStop(1, 'rgba(28,38,52,0.42)');
+      ctx.fillStyle = refl;
+      ctx.fillRect(Math.min(a.x, c.x) - 4, floorTop, Math.abs(c.x - a.x) + 8, a.y - floorTop + 4);
+      const sheen = ctx.createLinearGradient(a.x, a.y - h, c.x, a.y);
+      sheen.addColorStop(0.30, 'rgba(255,255,255,0)');
+      sheen.addColorStop(0.44, 'rgba(255,255,255,0.30)');
+      sheen.addColorStop(0.52, 'rgba(255,255,255,0.10)');
+      sheen.addColorStop(0.62, 'rgba(255,255,255,0)');
+      ctx.fillStyle = sheen;
+      ctx.fillRect(Math.min(a.x, c.x) - 4, a.y - h - 4, Math.abs(c.x - a.x) + 8, h + 8);
+      ctx.restore();
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y);
+      ctx.lineTo(c.x, c.y - h); ctx.lineTo(a.x, a.y - h);
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
       ctx.lineWidth = 1.5;
       ctx.stroke();
     },
