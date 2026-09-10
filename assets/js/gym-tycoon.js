@@ -11094,7 +11094,9 @@
       const yA = at(Math.max(lo, b.x));
       const yB = at(Math.min(hi, b.x + b.w));
       if (b.y > Math.max(yA, yB)) continue;
-      if (b.y + b.h < Math.min(yA, yB) - band.h) continue;
+      // The top band of a wall stands a little above the height of it, so
+      // the reach is measured with that on.
+      if (b.y + b.h < Math.min(yA, yB) - band.h - 24) continue;
       return true;
     }
     return false;
