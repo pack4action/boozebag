@@ -5282,6 +5282,21 @@
   // ---- Floor designer: isometric room rendered on canvas ----
   const floorCanvas = document.getElementById('tycoon-floor');
   let floorCtx = floorCanvas.getContext('2d');
+  // The plan is painted in three passes. 'under' is everything the gym is
+  // built of -- floors, walls, railings, the light on them -- which does
+  // not change from one frame to the next; 'live' is the gear, the people
+  // and whatever is in your hands; 'over' is the railings along the front
+  // of a floor, which stand in front of all of it. The two still passes
+  // are kept as bitmaps and stamped, so a frame only draws what moves.
+  // Before this the whole gym was redrawn twenty times a second, which is
+  // what a phone could not keep up with.
+  let stillPass = 'live';
+  let stillUnder = null;
+  let stillOver = null;
+  let stillUnderCtx = null;
+  let stillOverCtx = null;
+  let stillKey = '';
+  let stillOverUsed = false;
   const inventoryEl = document.getElementById('tycoon-inventory');
   const themeRowEl = document.getElementById('theme-row');
   let armedItemId = null;
@@ -7673,31 +7688,44 @@
     // Festoon lights strung post to post over the rail, sagging between
     // them. A pier is a place people come to in the evening; this is what
     // makes it feel like one rather than a deck with a fence round it.
+    //
+    // The whole run is one path for the cable and one for the bulbs, and
+    // the glows go down inside a single composite block: a swag at a time
+    // it was hundreds of separate paths and state changes a frame, which
+    // is not something a phone can afford twenty times a second.
     const sag = 9;
     const head = (i) => up(at(from + (len * i) / posts), r.h + 13);
+    const bulbs = [];
+    floorCtx.beginPath();
     for (let i = 0; i < posts; i++) {
       const p0 = head(i);
       const p1 = head(i + 1);
-      floorCtx.beginPath();
+      const mx = (p0.x + p1.x) / 2;
+      const my = (p0.y + p1.y) / 2 + sag * 2;
       floorCtx.moveTo(p0.x, p0.y);
-      floorCtx.quadraticCurveTo((p0.x + p1.x) / 2, (p0.y + p1.y) / 2 + sag * 2, p1.x, p1.y);
-      floorCtx.strokeStyle = 'rgba(24,18,12,0.65)';
-      floorCtx.lineWidth = 1.4;
-      floorCtx.stroke();
-      // Three bulbs along each swag, hung off the low of the curve.
-      [0.28, 0.5, 0.72].forEach((t) => {
-        const mx = (p0.x + p1.x) / 2;
-        const my = (p0.y + p1.y) / 2 + sag * 2;
-        const x = (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * mx + t * t * p1.x;
-        const y = (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * my + t * t * p1.y;
-        strokePolyline([{ x, y }, { x, y: y + 3 }], 'rgba(24,18,12,0.6)', 1);
-        drawGlow({ x, y: y + 5 }, 11, light.bulb, 0.55);
-        floorCtx.beginPath();
-        floorCtx.ellipse(x, y + 5, 2, 2.6, 0, 0, Math.PI * 2);
-        floorCtx.fillStyle = light.bulb;
-        floorCtx.fill();
+      floorCtx.quadraticCurveTo(mx, my, p1.x, p1.y);
+      [0.32, 0.68].forEach((t) => {
+        bulbs.push({
+          x: (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * mx + t * t * p1.x,
+          y: (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * my + t * t * p1.y,
+        });
       });
     }
+    floorCtx.strokeStyle = 'rgba(24,18,12,0.65)';
+    floorCtx.lineWidth = 1.4;
+    floorCtx.stroke();
+    const halo = lightSprite(light.bulb, 0.55, 'halo');
+    floorCtx.save();
+    floorCtx.globalCompositeOperation = 'lighter';
+    bulbs.forEach((p) => floorCtx.drawImage(halo, p.x - 11, p.y - 2.7, 22, 15.4));
+    floorCtx.restore();
+    floorCtx.beginPath();
+    bulbs.forEach((p) => {
+      floorCtx.moveTo(p.x + 2, p.y + 4);
+      floorCtx.ellipse(p.x, p.y + 4, 2, 3.2, 0, 0, Math.PI * 2);
+    });
+    floorCtx.fillStyle = light.bulb;
+    floorCtx.fill();
   }
   function drawWoodPost(p, w, h, color) {
     paintQuad([{ x: p.x - w / 2, y: p.y }, { x: p.x, y: p.y + 1 }, { x: p.x, y: p.y - h + 1 }, { x: p.x - w / 2, y: p.y - h }],
@@ -7709,33 +7737,54 @@
   }
 
   // ---- Light ----
-  function drawGlow(p, r, color, alpha) {
-    const halo = floorCtx.createRadialGradient(p.x, p.y, 0.5, p.x, p.y, r);
-    halo.addColorStop(0, hexA(color, alpha));
-    halo.addColorStop(0.4, hexA(color, alpha * 0.4));
-    halo.addColorStop(1, 'rgba(255,255,255,0)');
+  // Every light in the gym used to build its own radial gradient and fill an
+  // ellipse with it, every frame -- and a pier hung with festoon lights has
+  // hundreds of them. A gradient is the same picture every time, so it is
+  // painted once into a little canvas and stamped from then on, which is
+  // most of what the frame rate cost.
+  const lightSprites = new Map();
+  function lightSprite(color, alpha, stops) {
+    const key = color + '|' + Math.round(alpha * 40) + '|' + stops;
+    let c = lightSprites.get(key);
+    if (c) return c;
+    const R = 48;
+    c = document.createElement('canvas');
+    c.width = R * 2;
+    c.height = R * 2;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(R, R, 0.5, R, R, R);
+    if (stops === 'pool') {
+      grad.addColorStop(0, scaleAlpha(color, alpha * 0.85));
+      grad.addColorStop(0.45, scaleAlpha(color, alpha * 0.34));
+      grad.addColorStop(0.78, scaleAlpha(color, alpha * 0.09));
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+    } else {
+      grad.addColorStop(0, hexA(color, alpha));
+      grad.addColorStop(0.4, hexA(color, alpha * 0.4));
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+    }
+    g.fillStyle = grad;
+    g.fillRect(0, 0, R * 2, R * 2);
+    lightSprites.set(key, c);
+    return c;
+  }
+  function stampLight(sprite, cx, cy, rx, ry) {
     floorCtx.save();
     floorCtx.globalCompositeOperation = 'lighter';
-    floorCtx.fillStyle = halo;
-    floorCtx.beginPath();
-    floorCtx.ellipse(p.x, p.y, r, r * 0.7, 0, 0, Math.PI * 2);
-    floorCtx.fill();
+    floorCtx.drawImage(sprite, cx - rx, cy - ry, rx * 2, ry * 2);
     floorCtx.restore();
   }
+  function drawGlow(p, r, color, alpha) {
+    if (!(r > 0)) return;
+    stampLight(lightSprite(color, alpha, 'halo'), p.x, p.y, r, r * 0.7);
+  }
   function drawFloorPool(foot, light, scale) {
-    const poolR = ROOM.tileW * 1.5 * (scale || 1);
-    const pool = floorCtx.createRadialGradient(foot.x, foot.y, 2, foot.x, foot.y, poolR);
-    pool.addColorStop(0, scaleAlpha(light.glow, lampBoost() * 0.85));
-    pool.addColorStop(0.45, scaleAlpha(light.glow, lampBoost() * 0.34));
-    pool.addColorStop(0.78, scaleAlpha(light.glow, lampBoost() * 0.09));
-    pool.addColorStop(1, 'rgba(0,0,0,0)');
-    floorCtx.save();
-    floorCtx.globalCompositeOperation = 'lighter';
-    floorCtx.fillStyle = pool;
-    floorCtx.beginPath();
-    floorCtx.ellipse(foot.x, foot.y, poolR, ROOM.tileH * 1.5 * (scale || 1), 0, 0, Math.PI * 2);
-    floorCtx.fill();
-    floorCtx.restore();
+    const k = scale || 1;
+    // The hour only moves the lamps a little, so the sprite is keyed to a
+    // coarse step of it rather than to every value it passes through.
+    const boost = Math.round(lampBoost() * 20) / 20;
+    stampLight(lightSprite(light.glow, boost, 'pool'), foot.x, foot.y,
+      ROOM.tileW * 1.5 * k, ROOM.tileH * 1.5 * k);
   }
 
   // A lamp post on the pier: a black post with a lantern on it, and a
@@ -11038,6 +11087,19 @@
     const theme = state.activeTheme;
     const light = LIGHT_COLORS[theme] || LIGHT_COLORS.garage;
     const rails = railed(theme);
+    if (stillPass === 'over') {
+      if (rails) railSide(theme, c, [c.axis === 'gx' ? 's' : 'e'], light, colors);
+      return;
+    }
+    if (stillPass === 'live') {
+      // Anyone walking between rooms is drawn by the hallway they are in,
+      // back to front like everything else, so they pass behind its far
+      // wall and in front of its near one.
+      membersInside(c)
+        .sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy))
+        .forEach((m) => drawMember(isoPoint(m.gx, m.gy), m));
+      return;
+    }
     if (rails) {
       railSide(theme, c, [c.axis === 'gx' ? 'n' : 'w'], light, colors);
     } else if (near === hub) {
@@ -11064,14 +11126,6 @@
 
     drawHallwayFittings(c, colors);
     drawHallwayPosts(c, theme, colors, light);
-
-    // Anyone walking between rooms is drawn by the hallway they are in, back
-    // to front like everything else, so they pass behind its far wall and in
-    // front of its near one.
-    membersInside(c)
-      .sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy))
-      .forEach((m) => drawMember(isoPoint(m.gx, m.gy), m));
-    if (rails) railSide(theme, c, [c.axis === 'gx' ? 's' : 'e'], light, colors);
   }
 
   // A pale casing standing across the corridor mouth: two jambs and a lintel
@@ -11189,6 +11243,10 @@
   }
 
   function drawRoomPreview(rect, corridor, colors, index) {
+    // The plot for the next room lights up the moment you can afford it, so
+    // it is not part of the still layers -- it goes down fresh each frame
+    // with the gear and the crowd.
+    if (stillPass !== 'live') return;
     plotSignHit = null;
     const cost = ROOM_UNLOCK_COSTS[index];
     const affordable = state.balance >= cost;
@@ -11256,12 +11314,132 @@
   // second, and asking the browser to re-lay-out the page that often -- which
   // is what reading the stage's size does -- would cost far more than the
   // drawing itself.
+  // Which floor stands in front of which. Sorting on the back corner alone
+  // is wrong as soon as the floors are different sizes: a walkway that
+  // leaves the back of a big floor has a further-along back corner than the
+  // floor does, so it was painted last and its railings went over the gear
+  // standing on the floor in front of it. One box is behind another when it
+  // ends before the other begins along either axis; that is a partial
+  // order, so it is walked properly and the back corner only settles ties.
+  function sortByDepth(pieces) {
+    const n = pieces.length;
+    if (n < 2) return pieces;
+    const behind = (a, b) => (a.rect.gx0 + a.rect.cols <= b.rect.gx0) || (a.rect.gy0 + a.rect.rows <= b.rect.gy0);
+    const after = pieces.map(() => []);
+    const need = pieces.map(() => 0);
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        if (i === j) continue;
+        if (behind(pieces[i], pieces[j]) && !behind(pieces[j], pieces[i])) {
+          after[i].push(j);
+          need[j] += 1;
+        }
+      }
+    }
+    const ready = [];
+    for (let i = 0; i < n; i++) if (!need[i]) ready.push(i);
+    const out = [];
+    while (ready.length) {
+      // Whatever is free to go next, furthest back first.
+      ready.sort((a, b) => pieces[a].depth - pieces[b].depth);
+      const i = ready.shift();
+      out.push(pieces[i]);
+      after[i].forEach((j) => { if (--need[j] === 0) ready.push(j); });
+    }
+    // A cycle should not happen with rectangles, but never drop a floor.
+    if (out.length < n) {
+      pieces.forEach((p) => { if (out.indexOf(p) < 0) out.push(p); });
+    }
+    return out;
+  }
+
+  // The part of the drawing space the window is actually showing, in the
+  // canvas's own units, with a margin so nothing pops in at the edge.
+  // Zoomed in on one corner of a pier, most of the plan is off screen, and
+  // painting it was most of the frame.
+  function visibleCanvasBox() {
+    if (!stageScrollEl || !floorCanvas) return null;
+    const r = floorCanvas.getBoundingClientRect();
+    if (!(r.width > 0) || !(r.height > 0)) return null;
+    const st = stageScrollEl.getBoundingClientRect();
+    const sx = BASE_W / r.width;
+    const sy = BASE_H / r.height;
+    const pad = 200;
+    return {
+      x0: (st.left - r.left) * sx - pad,
+      y0: (st.top - r.top) * sy - pad,
+      x1: (st.right - r.left) * sx + pad,
+      y1: (st.bottom - r.top) * sy + pad,
+    };
+  }
+  // Where a floor and everything standing on it lands on the canvas. The
+  // margins are generous: a wall and a tall machine rise well above the
+  // floor's own corners, and a lamp post stands off its front edge.
+  function floorScreenBox(rect) {
+    const gx1 = rect.gx0 + rect.cols;
+    const gy1 = rect.gy0 + rect.rows;
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let y0 = Infinity;
+    let y1 = -Infinity;
+    [[rect.gx0, rect.gy0], [gx1, rect.gy0], [gx1, gy1], [rect.gx0, gy1]].forEach(([gx, gy]) => {
+      const p = isoPoint(gx, gy);
+      if (p.x < x0) x0 = p.x;
+      if (p.x > x1) x1 = p.x;
+      if (p.y < y0) y0 = p.y;
+      if (p.y > y1) y1 = p.y;
+    });
+    return { x0: x0 - 90, y0: y0 - (ROOM.wallH + 190), x1: x1 + 90, y1: y1 + 120 };
+  }
+  function boxesMeet(a, b) {
+    return !(a.x1 < b.x0 || a.x0 > b.x1 || a.y1 < b.y0 || a.y0 > b.y1);
+  }
+
+  // What the still layers are a picture of. When none of this has changed
+  // they are stamped again rather than redrawn.
+  function stillSignature() {
+    const d = designState();
+    const theme = state.activeTheme;
+    const parts = [theme, floorCanvas.width, floorCanvas.height,
+      d.walls[theme], d.floors[theme], Math.round(lampBoost() * 20),
+      state.gymName || '', decorSignature()];
+    placements.forEach((p) => parts.push(p.gx0, p.gy0, p.cols, p.rows, p.cut ? 1 : 0));
+    corridors.forEach((c) => parts.push(c.gx0, c.gy0, c.cols, c.rows, c.axis));
+    return parts.join('|');
+  }
+  function decorSignature() {
+    // Only what hangs on a wall, which is drawn with the walls.
+    const rooms = activeRooms();
+    let out = '';
+    rooms.forEach((room) => { out += (room.layout || []).join(',') + ';'; });
+    return out;
+  }
+  function ensureStillLayers() {
+    const w = floorCanvas.width;
+    const h = floorCanvas.height;
+    if (!stillUnder) {
+      stillUnder = document.createElement('canvas');
+      stillOver = document.createElement('canvas');
+    }
+    if (stillUnder.width !== w || stillUnder.height !== h) {
+      stillUnder.width = w;
+      stillUnder.height = h;
+      stillOver.width = w;
+      stillOver.height = h;
+      stillKey = '';
+    }
+    stillUnderCtx = stillUnder.getContext('2d');
+    stillOverCtx = stillOver.getContext('2d');
+    const scale = w / BASE_W;
+    stillUnderCtx.setTransform(scale, 0, 0, scale, 0, 0);
+    stillOverCtx.setTransform(scale, 0, 0, scale, 0, 0);
+  }
+
   function paintScene() {
     const colors = colorsFor(state.activeTheme);
     const light = LIGHT_COLORS[state.activeTheme] || LIGHT_COLORS.garage;
     const W = BASE_W;
     const H = BASE_H;
-    floorCtx.clearRect(0, 0, W, H);
     // Money tags are collected as the rooms are drawn and laid out once the
     // whole plan is down, so this frame starts with none.
     pileTags = [];
@@ -11277,20 +11455,67 @@
     // meant a room painted over the very wall joining it to its hallway,
     // because that wall stands on the room's own boundary.
     const rooms = activeRooms();
-    const pieces = rooms.map((room, i) => ({
-      depth: placements[i].gx0 + placements[i].gy0,
-      draw: () => drawRoom(room.layout, colors, light, i),
-    })).concat(corridors.map((c) => ({
-      depth: c.gx0 + c.gy0,
-      draw: () => drawCorridorShell(c, colors),
-    })));
-    if (preview) {
-      pieces.push({
-        depth: preview.gx0 + preview.gy0,
-        draw: () => drawRoomPreview(preview, previewCorridor, colors, rooms.length),
+    const build = () => {
+      const pieces = rooms.map((room, i) => ({
+        rect: placements[i],
+        depth: placements[i].gx0 + placements[i].gy0,
+        always: !!editing && editing.roomIndex === i,
+        draw: () => drawRoom(room.layout, colors, light, i),
+      })).concat(corridors.map((c) => ({
+        rect: c,
+        depth: c.gx0 + c.gy0,
+        draw: () => drawCorridorShell(c, colors),
+      })));
+      if (preview) {
+        pieces.push({
+          rect: preview,
+          depth: preview.gx0 + preview.gy0,
+          draw: () => drawRoomPreview(preview, previewCorridor, colors, rooms.length),
+        });
+      }
+      return sortByDepth(pieces);
+    };
+
+    ensureStillLayers();
+    const key = stillSignature();
+    if (key !== stillKey) {
+      stillKey = key;
+      const live = floorCtx;
+      const order = build();
+      [['under', stillUnderCtx], ['over', stillOverCtx]].forEach(([pass, ctx]) => {
+        ctx.clearRect(0, 0, W, H);
+        floorCtx = ctx;
+        stillPass = pass;
+        order.forEach((p) => p.draw());
       });
+      floorCtx = live;
+      stillPass = 'live';
+      // Only the two outdoor locations have a railing along the front of a
+      // floor. Everywhere else the over layer is empty, and stamping a
+      // blank canvas the size of the plan every frame is not free.
+      stillOverUsed = railed(state.activeTheme);
     }
-    pieces.sort((a, b) => a.depth - b.depth).forEach((p) => p.draw());
+
+    // Anything the window cannot see is not drawn. The floor being worked
+    // on is always drawn, so a piece in hand never blinks out.
+    const seen = visibleCanvasBox();
+    // Stamped whole. Copying only the part of it the window shows sounds
+    // cheaper and measured slower: a plain full-canvas blit is the path the
+    // browser has made fast, and a cut-out one is not.
+    const stamp = (src, mode) => {
+      floorCtx.save();
+      if (mode) floorCtx.globalCompositeOperation = mode;
+      floorCtx.drawImage(src, 0, 0, W, H);
+      floorCtx.restore();
+    };
+    // 'copy' puts the still layer down and clears whatever was there in the
+    // same pass, rather than wiping the canvas and then drawing over it.
+    stamp(stillUnder, 'copy');
+    build().forEach((p) => {
+      if (seen && !p.always && !boxesMeet(floorScreenBox(p.rect), seen)) return;
+      p.draw();
+    });
+    if (stillOverUsed) stamp(stillOver);
 
     // The money tags, over everything in the plan: a tag is a label on the
     // scene rather than a thing standing in it, and one hidden behind a
@@ -11321,6 +11546,12 @@
   let hoverCell = null;
 
 
+  // Nothing can walk behind a fixture set against one of a floor's two
+  // back edges, so it need not be sorted with the crowd every frame.
+  function fixtureAtBack(f) {
+    return f.v1 <= 5 || f.u1 <= 5;
+  }
+
   function drawRoom(layout, colors, light, roomIndex) {
     const theme = state.activeTheme;
     const place = placements[roomIndex];
@@ -11346,6 +11577,7 @@
     // has any floor where the location has railings instead of walls.
     const hub = isHubAt(theme, roomIndex);
     const rails = railed(theme);
+    if (stillPass === 'under') {
     if (hub && !rails) drawHubKerb(place, colors);
     if (!hub && !rails) {
       const holes = wallApertures(roomIndex);
@@ -11401,6 +11633,27 @@
     // tall gear like real ceiling hardware instead of floating on top.
     if (!hub && !rails) drawCeilingStrip(north, east, west, light);
     else drawHubLight(place, light);
+    // What the location built onto the floor. Everything that stands
+    // against a back edge -- the planters, the air units, the stair
+    // housings, the two kiosks -- goes down with the room, because
+    // nobody can walk behind it. Anything set further in is sorted with
+    // the crowd below instead.
+    (place.fixtures || []).forEach((f) => {
+      if (fixtureAtBack(f)) drawFixture(place, f, theme, colors, light);
+    });
+    }
+
+    if (stillPass !== 'live') {
+      // The railings along the front of the floor, over what stands on it.
+      if (rails && stillPass === 'over') {
+        railSide(theme, place, ['s', 'e'], light, colors);
+        if (theme === 'boardwalk') {
+          lampSpots(place, false).forEach((l) => drawLampPost(isoPoint(l.gx, l.gy), light, l.flag));
+          if (hub) drawPierSign(place);
+        }
+      }
+      return;
+    }
 
     // Gear stands wherever it was put, not in a grid cell, so the draw
     // order comes from the pieces themselves -- furthest back first, or a
@@ -11417,9 +11670,11 @@
     membersInside(place).forEach((m) => {
       standing.push({ member: m, spot: { u: m.gx - place.gx0, v: m.gy - place.gy0 } });
     });
-    // What the location built onto the floor stands among the gear and
-    // the people, and is sorted with them.
+    // Whatever the location built out on the floor rather than against a
+    // back edge stands among the gear and the people, and is sorted with
+    // them.
     (place.fixtures || []).forEach((f) => {
+      if (fixtureAtBack(f)) return;
       standing.push({ fixture: f, spot: { u: (f.u0 + f.u1) / 2, v: (f.v0 + f.v1) / 2 } });
     });
     standing.sort((a, b) => (a.spot.u + a.spot.v) - (b.spot.u + b.spot.v));
@@ -11455,14 +11710,6 @@
       drawHeldPiece(place, editing);
     }
 
-    // The railings along the front of the floor, over what stands on it.
-    if (rails) {
-      railSide(theme, place, ['s', 'e'], light, colors);
-      if (theme === 'boardwalk') {
-        lampSpots(place, false).forEach((l) => drawLampPost(isoPoint(l.gx, l.gy), light, l.flag));
-        if (hub) drawPierSign(place);
-      }
-    }
   }
 
   // What a counter has on, on the floor at its foot: one lane per queue
@@ -13984,6 +14231,7 @@
   // sixty would on a phone. An empty gym repaints not at all, and nothing
   // runs at all while the tab is hidden -- the same rule the earnings follow.
   const MEMBER_FPS = 20;
+  let lastPaintMs = 0;
   let lastFrameAt = 0;
   // Scrolled past the plan, there is nothing to animate for. The observer is
   // a cheap way to know that without asking the browser for the stage's
@@ -14004,12 +14252,21 @@
       lastFrameAt = now;
       return;
     }
-    if (now - lastFrameAt < 1000 / MEMBER_FPS) return;
+    // How often to repaint. Twenty times a second is the most it is worth,
+    // but on a phone that cannot paint the gym in fifty milliseconds,
+    // asking for twenty leaves nothing for the taps and the scrolling and
+    // the whole thing feels worse than a slower, steadier picture. So the
+    // gap is whichever is longer: the cap, or a bit over what the last
+    // paint actually took.
+    const wait = Math.max(1000 / MEMBER_FPS, Math.min(120, lastPaintMs * 1.7));
+    if (now - lastFrameAt < wait) return;
     const dt = Math.min(0.25, (now - lastFrameAt) / 1000);
     lastFrameAt = now;
     if (members.length) {
       stepMembers(dt);
+      const t0 = performance.now();
       paintScene();
+      lastPaintMs = performance.now() - t0;
       lastBatchPaint = now;
       return;
     }
