@@ -6919,6 +6919,19 @@
 
   // A lit rail running the length of both walls, downlights washing the wall
   // beneath each lamp -- the alternative to the single hanging bulb.
+  // A kerb along the back edges of the main floor where nothing joins it:
+  // the slab's upstand, in the wall colour, so the paint shows on a
+  // location that has no room with walls yet.
+  const KERB_H = 18;
+  function drawHubKerb(place, colors) {
+    [['n', 'gx'], ['w', 'gy']].forEach(([side, axis]) => {
+      exposedRuns(place, side).forEach(([from, to]) => {
+        const a = edgePoint(place, side, from);
+        const b = edgePoint(place, side, to);
+        drawWallRun([isoPoint(a.gx, a.gy), isoPoint(b.gx, b.gy)], [axis], KERB_H, colors, ['cap', 'cap']);
+      });
+    });
+  }
   function drawHubLight(place, light) {
     const c = isoPoint(place.gx0 + place.cols / 2, place.gy0 + place.rows / 2);
     const rx = (place.cols + place.rows) * ROOM.tileW * 0.22;
@@ -7299,15 +7312,19 @@
       panel: 'rgba(58,74,96,0.42)', mesh: 'rgba(255,255,255,0.07)' },
     boardwalk: { h: 56, post: 4.4, every: 2.5, postColor: '#6b4423', rail: '#b07c44', mid: '#95683a' },
   };
-  function railSide(theme, rect, sides, light) {
+  function railSide(theme, rect, sides, light, colors) {
     const r = RAIL[theme];
     if (!r) return;
     sides.forEach((side) => {
-      exposedRuns(rect, side).forEach(([from, to]) => drawRailRun(theme, rect, side, from, to, light));
+      exposedRuns(rect, side).forEach(([from, to]) => drawRailRun(theme, rect, side, from, to, light, colors));
     });
   }
-  function drawRailRun(theme, rect, side, from, to, light) {
-    const r = RAIL[theme];
+  function drawRailRun(theme, rect, side, from, to, light, colors) {
+    // The pier's timber is the location's wall colour, so the paint shows
+    // on it.
+    const r = theme === 'boardwalk' && colors
+      ? Object.assign({}, RAIL[theme], { postColor: shade(colors.wallL, -22), rail: shade(colors.wallL, 34), mid: shade(colors.wallL, 8) })
+      : RAIL[theme];
     const at = (t) => {
       const p = edgePoint(rect, side, t);
       return isoPoint(p.gx, p.gy);
@@ -7462,7 +7479,7 @@
     const base = isoPoint(place.gx0 + cu, place.gy0 + cv);
     if (f.kind === 'stairs') drawStairHousing(ctx, base, hu, hv, colors, light);
     else if (f.kind === 'ac') drawAirUnit(ctx, base, hu, hv);
-    else if (f.kind === 'kiosk') drawKiosk(ctx, base, hu, hv, f.sign, light);
+    else if (f.kind === 'kiosk') drawKiosk(ctx, base, hu, hv, f.sign, light, colors);
   }
   function drawPlanter(ctx, base, half, theme, palm) {
     const pot = theme === 'boardwalk' ? '#cfc7b8' : '#5e6570';
@@ -7503,9 +7520,9 @@
   }
   function drawStairHousing(ctx, base, hu, hv, colors, light) {
     const H = 2.2 * PX_PER_METRE_TALL;
-    const body = '#434c5e';
+    const body = colors.wallL;
     drawIsoBox(ctx, base, 0, 0, hu, hv, H, body, 0);
-    drawIsoBox(ctx, base, 0, 0, hu + 0.15, hv + 0.15, 6, '#2b3342', H);
+    drawIsoBox(ctx, base, 0, 0, hu + 0.15, hv + 0.15, 6, shade(body, -26), H);
     // The door in the face looking down-left, a strip of light over it,
     // and its pool on the deck outside.
     const door = 1.9 * PX_PER_METRE_TALL;
@@ -7555,9 +7572,9 @@
     ctx.fillText(text, p.x, p.y - h / 2 + 1);
     ctx.restore();
   }
-  function drawKiosk(ctx, base, hu, hv, sign, light) {
+  function drawKiosk(ctx, base, hu, hv, sign, light, colors) {
     const H = 2.0 * PX_PER_METRE_TALL;
-    const wood = sign === 'SNACKS' ? '#8f5e33' : '#7d5a3a';
+    const wood = sign === 'SNACKS' ? colors.wallL : shade(colors.wallL, -10);
     drawIsoBox(ctx, base, 0, 0, hu, hv, H, wood, 0);
     // The serving hatch in the face looking down-right, lit from inside,
     // with a counter under it.
@@ -7578,7 +7595,7 @@
         i % 2 ? '#f3efe4' : (sign === 'SNACKS' ? '#d9402f' : '#1f7a80'), 'rgba(0,0,0,0.25)', 0.8);
     }
     // A roof a little wider than the walls, and the sign standing on it.
-    drawIsoBox(ctx, base, 0, 0, hu + 0.2, hv + 0.2, 5, '#5a3a1e', H);
+    drawIsoBox(ctx, base, 0, 0, hu + 0.2, hv + 0.2, 5, shade(wood, -34), H);
     drawSignBoard(isoScreenPoint(base, 0, 0, H + 8), sign, sign === 'SNACKS' ? '#4a2a14' : '#146068');
     if (sign !== 'SNACKS') {
       // Surfboards leaning on the side of the shop.
@@ -8708,7 +8725,7 @@
     const light = LIGHT_COLORS[theme] || LIGHT_COLORS.garage;
     const rails = railed(theme);
     if (rails) {
-      railSide(theme, c, [c.axis === 'gx' ? 'n' : 'w'], light);
+      railSide(theme, c, [c.axis === 'gx' ? 'n' : 'w'], light, colors);
     } else if (near === hub) {
       // Nothing to build.
     } else if (c.axis === 'gx') {
@@ -8740,7 +8757,7 @@
     membersInside(c)
       .sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy))
       .forEach((m) => drawMember(isoPoint(m.gx, m.gy), m));
-    if (rails) railSide(theme, c, [c.axis === 'gx' ? 's' : 'e'], light);
+    if (rails) railSide(theme, c, [c.axis === 'gx' ? 's' : 'e'], light, colors);
   }
 
   // A pale casing standing across the corridor mouth: two jambs and a lintel
@@ -9013,6 +9030,7 @@
     // has any floor where the location has railings instead of walls.
     const hub = isHubAt(theme, roomIndex);
     const rails = railed(theme);
+    if (hub && !rails) drawHubKerb(place, colors);
     if (!hub && !rails) {
       const holes = wallApertures(roomIndex);
       drawWallRun([east, north, west], ['gx', 'gy'], ROOM.wallH, colors, [
@@ -9056,7 +9074,7 @@
     // Railings round the back of the floor, and the lamp posts behind it,
     // go down before anything standing on it.
     if (rails) {
-      railSide(theme, place, ['n', 'w'], light);
+      railSide(theme, place, ['n', 'w'], light, colors);
       if (theme === 'boardwalk') lampSpots(place, true).forEach((l) => drawLampPost(isoPoint(l.gx, l.gy), light, l.flag));
     }
 
@@ -9123,7 +9141,7 @@
 
     // The railings along the front of the floor, over what stands on it.
     if (rails) {
-      railSide(theme, place, ['s', 'e'], light);
+      railSide(theme, place, ['s', 'e'], light, colors);
       if (theme === 'boardwalk') {
         lampSpots(place, false).forEach((l) => drawLampPost(isoPoint(l.gx, l.gy), light, l.flag));
         if (hub) drawPierSign(place);
