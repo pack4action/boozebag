@@ -8968,18 +8968,27 @@
     drawCrateStack(isoPoint(cratesAt.gx, cratesAt.gy));
     drawSack(isoPoint(cratesAt.gx + 3.2, cratesAt.gy + 1.4), 5);
     drawSack(isoPoint(cratesAt.gx + 4.0, cratesAt.gy + 0.4), 6);
-    // Lanterns on posts along the inner edge of both drains.
+    // Lamps along the inner edge of both drains -- but never one with a
+    // floor standing right behind it. The site is drawn under the floors,
+    // so a light there reads as coming out from under the floorboards
+    // however low it stands; the rooms have their own lights anyway, and
+    // these are here to show the way round the outside.
+    const lampGy = ch.L.gy0 - 0.8;
+    const lampGx = ch.R.gx0 - 0.8;
+    const behind = (gx, gy) => siteIsFloor(Math.round(gx), Math.round(gy));
     const postsL = Math.max(2, Math.round(a.cols / 12));
     for (let i = 0; i <= postsL; i++) {
       const gx = a.gx0 + 1 + (a.cols - 2) * (i / postsL);
       if (Math.abs(gx - (ch.bridgeL.gx0 + ch.bridgeL.cols * 0.5)) < 3) continue;
-      drawKerbLamp(isoPoint(gx, ch.L.gy0 - 0.8), light);
+      if (behind(gx, lampGy - 5)) continue;
+      drawKerbLamp(isoPoint(gx, lampGy), light);
     }
     const postsR = Math.max(2, Math.round(a.rows / 12));
     for (let i = 0; i < postsR; i++) {
       const gy = a.gy0 + 1 + (a.rows - 2) * (i / postsR);
       if (Math.abs(gy - (ch.bridgeR.gy0 + ch.bridgeR.rows * 0.5)) < 3) continue;
-      drawKerbLamp(isoPoint(ch.R.gx0 - 0.8, gy), light);
+      if (behind(lampGx - 5, gy)) continue;
+      drawKerbLamp(isoPoint(lampGx, gy), light);
     }
 
     // ---- Lastly the light: every lantern warms whatever is near it, stone,
