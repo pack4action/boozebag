@@ -5274,12 +5274,14 @@
   // auto-fit zoom (see PLAN_W/PLAN_H), or adding background would shrink the
   // rooms.
   // How much room the plan canvas leaves around the rooms themselves. The
-  // ground is not drawn here any more -- it has its own canvas the size of
-  // the window -- so this is only the space the plan needs to breathe.
+  // site is not drawn here any more -- it has a canvas of its own -- so this
+  // is only the space the plan needs to breathe, and it is the same on every
+  // side: an uneven margin puts the gym off centre in its own canvas, and
+  // that is where it sits in the window whenever the whole plan fits.
   const WORLD_PAD = 34;
-  const BLEED_TOP = 250;
+  const BLEED_TOP = 150;
   const BLEED_SIDE = 150;
-  const BLEED_BOTTOM = 120;
+  const BLEED_BOTTOM = 150;
   let PLAN_W = 480;
   let PLAN_H = 380;
   // The same, for the rooms that actually exist: the plot marked out for
@@ -5287,12 +5289,45 @@
   // the gym small in the middle of a lot of empty ground.
   let BUILT_W = 480;
   let BUILT_H = 380;
+  // And where it sits on the canvas, so the view can be put on the middle
+  // of the gym rather than on the middle of one room.
+  const builtBox = { x0: 0, y0: 0, x1: 480, y1: 380 };
   // The plan's extent in tiles, which is what the site is built around.
   const planBounds = { gx0: 0, gy0: 0, gx1: 4, gy1: 3 };
   let placements = [];
   let corridors = [];
   let preview = null;
   let previewCorridor = null;
+
+  // The screen box a set of floors actually takes up, from the corners of
+  // each of them rather than from the lattice box around the lot. A plan
+  // shaped like a cross never reaches the corners of that box, so measuring
+  // it that way claimed a few hundred pixels of empty ground on every side
+  // -- which framed the gym smaller than the window could hold it and put
+  // the middle of the box somewhere the gym is not.
+  function screenBoxOf(rects) {
+    const halfW = ROOM.tileW / 2;
+    const halfH = ROOM.tileH / 2;
+    const box = { xMin: Infinity, xMax: -Infinity, yMin: Infinity, yMax: -Infinity };
+    rects.forEach((r) => {
+      const gx1 = r.gx0 + r.cols;
+      const gy1 = r.gy0 + r.rows;
+      [[r.gx0, r.gy0], [gx1, r.gy0], [gx1, gy1], [r.gx0, gy1]].forEach((c) => {
+        const x = (c[0] - c[1]) * halfW;
+        const y = (c[0] + c[1]) * halfH;
+        if (x < box.xMin) box.xMin = x;
+        if (x > box.xMax) box.xMax = x;
+        if (y < box.yMin) box.yMin = y;
+        if (y > box.yMax) box.yMax = y;
+      });
+    });
+    // Room to breathe on every side, and a wall's height above the back.
+    box.xMin -= WORLD_PAD;
+    box.xMax += WORLD_PAD;
+    box.yMin -= ROOM.wallH + WORLD_PAD;
+    box.yMax += WORLD_PAD;
+    return box;
+  }
 
   function rebuildPlan() {
     const theme = state.activeTheme;
@@ -5323,41 +5358,33 @@
     let maxGx = -Infinity;
     let minGy = Infinity;
     let maxGy = -Infinity;
-    placements.concat(corridors, preview ? [preview, previewCorridor] : []).forEach((r) => {
+    const all = placements.concat(corridors, preview ? [preview, previewCorridor] : []);
+    all.forEach((r) => {
       minGx = Math.min(minGx, r.gx0);
       maxGx = Math.max(maxGx, r.gx0 + r.cols);
       minGy = Math.min(minGy, r.gy0);
       maxGy = Math.max(maxGy, r.gy0 + r.rows);
     });
-    let bMinGx = Infinity;
-    let bMaxGx = -Infinity;
-    let bMinGy = Infinity;
-    let bMaxGy = -Infinity;
-    placements.concat(corridors).forEach((r) => {
-      bMinGx = Math.min(bMinGx, r.gx0);
-      bMaxGx = Math.max(bMaxGx, r.gx0 + r.cols);
-      bMinGy = Math.min(bMinGy, r.gy0);
-      bMaxGy = Math.max(bMaxGy, r.gy0 + r.rows);
-    });
 
-    const halfW = ROOM.tileW / 2;
-    const halfH = ROOM.tileH / 2;
-    // Screen extremes of the lattice: widest points are the west and east
-    // corners; the top is a wall's height above the back corner.
-    const xMin = (minGx - maxGy) * halfW - WORLD_PAD;
-    const xMax = (maxGx - minGy) * halfW + WORLD_PAD;
-    const yMin = (minGx + minGy) * halfH - ROOM.wallH - WORLD_PAD;
-    const yMax = (maxGx + maxGy) * halfH + WORLD_PAD;
-    PLAN_W = Math.round(xMax - xMin);
-    PLAN_H = Math.round(yMax - yMin);
-    BUILT_W = Math.round(((bMaxGx - bMinGy) - (bMinGx - bMaxGy)) * halfW + WORLD_PAD * 2);
-    BUILT_H = Math.round(((bMaxGx + bMaxGy) - (bMinGx + bMinGy)) * halfH + ROOM.wallH + WORLD_PAD * 2);
+    const full = screenBoxOf(all);
+    // The same, for the rooms that actually exist: the plot marked out for
+    // the next room is part of the plan, but framing the view around it left
+    // the gym small in the middle of a lot of empty ground.
+    const built = screenBoxOf(placements.concat(corridors));
+    PLAN_W = Math.round(full.xMax - full.xMin);
+    PLAN_H = Math.round(full.yMax - full.yMin);
+    BUILT_W = Math.round(built.xMax - built.xMin);
+    BUILT_H = Math.round(built.yMax - built.yMin);
     planBounds.gx0 = minGx;
     planBounds.gy0 = minGy;
     planBounds.gx1 = maxGx;
     planBounds.gy1 = maxGy;
-    worldOrigin.x = -xMin + BLEED_SIDE;
-    worldOrigin.y = -yMin + BLEED_TOP;
+    worldOrigin.x = -full.xMin + BLEED_SIDE;
+    worldOrigin.y = -full.yMin + BLEED_TOP;
+    builtBox.x0 = worldOrigin.x + built.xMin;
+    builtBox.x1 = worldOrigin.x + built.xMax;
+    builtBox.y0 = worldOrigin.y + built.yMin;
+    builtBox.y1 = worldOrigin.y + built.yMax;
     BASE_W = PLAN_W + BLEED_SIDE * 2;
     BASE_H = PLAN_H + BLEED_TOP + BLEED_BOTTOM;
   }
@@ -5417,29 +5444,29 @@
   }
 
   function applyStageSizing() {
-    // Sized before the ground is measured against it, since the ground is
-    // drawn from where this puts the plan canvas.
+    // Sized before the ground is measured against it, since how far the
+    // site has to reach depends on the window and the zoom.
     queueGroundPaint();
     // Once the window knows its size, put the gym in the middle of it.
     if (!viewParked && stageScrollEl && stageScrollEl.clientWidth) {
       viewParked = true;
       setTimeout(parkView, 0);
     }
+    const off = SITE_PAD * zoomLevel;
     if (zoomWrapEl) {
-      zoomWrapEl.style.width = (BASE_W * zoomLevel) + 'px';
-      zoomWrapEl.style.height = (BASE_H * zoomLevel) + 'px';
+      zoomWrapEl.style.width = ((BASE_W + SITE_PAD * 2) * zoomLevel) + 'px';
+      zoomWrapEl.style.height = ((BASE_H + SITE_PAD * 2) * zoomLevel) + 'px';
     }
     floorCanvas.style.width = BASE_W + 'px';
     floorCanvas.style.height = BASE_H + 'px';
-    floorCanvas.style.transform = 'scale(' + zoomLevel + ')';
+    floorCanvas.style.transform = 'translate(' + off + 'px,' + off + 'px) scale(' + zoomLevel + ')';
     floorCanvas.style.transformOrigin = 'top left';
     // The site rides the same transform, so panning and zooming move it
     // with the gym instead of asking for it to be drawn again.
     if (groundCanvas) {
       // Scaled about the plan's own origin, then slid back by the margin it
       // carries, so the lattice under the site lines up with the floors.
-      groundCanvas.style.transform = 'scale(' + zoomLevel + ') translate('
-        + (-SITE_PAD) + 'px,' + (-SITE_PAD) + 'px)';
+      groundCanvas.style.transform = 'scale(' + zoomLevel + ')';
       groundCanvas.style.transformOrigin = 'top left';
     }
   }
@@ -5460,18 +5487,34 @@
     queueResolutionRepaint();
   }
 
+  function centreOn(x, y, jump) {
+    if (!stageScrollEl) return;
+    // The row of locations floats over the top of the window, so the stage
+    // holds that much padding above the plan. It is part of what scrolls,
+    // so centring has to allow for it or the gym sits low by half a bar.
+    const padTop = parseFloat(getComputedStyle(stageScrollEl).paddingTop) || 0;
+    stageScrollEl.scrollTo({
+      left: Math.max(0, (x + SITE_PAD) * zoomLevel - stageScrollEl.clientWidth / 2),
+      top: Math.max(0, (y + SITE_PAD) * zoomLevel + padTop - stageScrollEl.clientHeight / 2),
+      behavior: jump ? 'auto' : 'smooth',
+    });
+  }
+  // The middle of the gym: the rooms that are built, which is also what the
+  // auto-fit zoom frames. The plot the next room will stand on is left out
+  // of both, or the gym sits off to one side of a lot of empty ground.
+  function centreOnGym(jump) {
+    centreOn((builtBox.x0 + builtBox.x1) / 2, (builtBox.y0 + builtBox.y1) / 2, jump);
+  }
   function scrollToRoom(index, jump) {
     if (!stageScrollEl) return;
+    // At the zoom the game picks for you the whole gym is in the window, so
+    // there is nothing to scroll to: centre the map. Once you have set a
+    // zoom of your own, the room you asked for is what you want to see.
+    if (!userSetZoom) { centreOnGym(jump); return; }
     const place = placements[index];
     if (!place) return;
     const mid = cellCenter(place.gx0 + place.cols / 2 - 0.5, place.gy0 + place.rows / 2 - 0.5);
-    const centerX = mid.x * zoomLevel;
-    const centerY = mid.y * zoomLevel;
-    stageScrollEl.scrollTo({
-      left: Math.max(0, centerX - stageScrollEl.clientWidth / 2),
-      top: Math.max(0, centerY - stageScrollEl.clientHeight / 2),
-      behavior: jump ? 'auto' : 'smooth',
-    });
+    centreOn(mid.x, mid.y, jump);
   }
 
   // The view is framed on the rooms that are built, which are now drawn
@@ -6786,7 +6829,10 @@
   // The site reaches this far past the plan canvas on every side, so that
   // at the zoom a phone frames the gym at there is still site out beyond
   // the window rather than an edge in the middle of the view.
-  const SITE_PAD = 520;
+  // The site reaches this far past the plan on every side. The scrollable
+  // area is the plan plus the same margin, so what you can pan over is
+  // exactly what is drawn, and the plan sits in the middle of it.
+  const SITE_PAD = 500;
   // The outer part of that margin is where the site runs out into the
   // location's own dark -- the same dark the stage behind it carries, so
   // there is no line where one becomes the other.
@@ -6809,12 +6855,13 @@
   }
   function paintStageGround(force) {
     if (!groundCtx || !stageScrollEl) return;
-    const w = BASE_W + SITE_PAD * 2;
-    const h = BASE_H + SITE_PAD * 2;
+    const pad = SITE_PAD;
+    const w = BASE_W + pad * 2;
+    const h = BASE_H + pad * 2;
     if (!BASE_W || !BASE_H) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const k = Math.max(0.5, Math.min(dpr, Math.sqrt(SITE_MAX_PIXELS / (w * h))));
-    const key = [state.activeTheme, placements.length, w, h, k.toFixed(3),
+    const key = [state.activeTheme, placements.length, w, h, pad, k.toFixed(3),
       Math.round(skyWash().a * 1000)].join('|');
     if (!force && key === groundKey) return;
     groundKey = key;
@@ -6831,10 +6878,10 @@
     const colors = colorsFor(state.activeTheme);
     // Drawn in the plan's own coordinates -- the same isoPoint the rooms
     // are built from -- with the margin outside them.
-    const view = { x0: -SITE_PAD, y0: -SITE_PAD, x1: BASE_W + SITE_PAD, y1: BASE_H + SITE_PAD };
+    const view = { x0: -pad, y0: -pad, x1: BASE_W + pad, y1: BASE_H + pad };
     const live = floorCtx;
     floorCtx = groundCtx;
-    groundCtx.setTransform(k, 0, 0, k, SITE_PAD * k, SITE_PAD * k);
+    groundCtx.setTransform(k, 0, 0, k, pad * k, pad * k);
     groundCtx.clearRect(view.x0, view.y0, w, h);
     try {
       groundCtx.fillStyle = colors.bg;
@@ -9933,8 +9980,8 @@
 
     setZoom(nextZoom);
 
-    stageScrollEl.scrollLeft = stageRect.left + worldX * zoomLevel - clientX;
-    stageScrollEl.scrollTop = stageRect.top + worldY * zoomLevel - clientY;
+    stageScrollEl.scrollLeft = stageRect.left + (worldX + SITE_PAD) * zoomLevel - clientX;
+    stageScrollEl.scrollTop = stageRect.top + (worldY + SITE_PAD) * zoomLevel - clientY;
   }
 
   // Shift the view by a screen delta, right now, with nothing remembered.

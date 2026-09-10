@@ -106,7 +106,7 @@
      both are capped so the shop below stays within reach of a scroll. The
      stats moved out from over the plan, so the window takes that room
      back and then some -- the plan is the thing you came to look at. */
-  height: clamp(380px, 66vh, 620px);
+  height: clamp(340px, 56vh, 530px);
   margin: 0 auto 14px;
   border-radius: 18px;
   border: 3px solid #000;
@@ -506,7 +506,7 @@
     max-width: none;
     /* Only the site nav stands above the plan now that the stats sit under
        it, so the window is what fits beneath that. */
-    height: clamp(520px, calc(100vh - 210px), 900px);
+    height: clamp(440px, calc(100vh - 300px), 760px);
     margin-bottom: 16px;
   }
   .tycoon-synergy { max-width: 420px; }
