@@ -336,7 +336,7 @@
   // what is built onto its floors before any gear goes down.
   const THEME_STYLE = {
     garage: { edge: 'wall', light: 'tube', plate: 3 },
-    basement: { edge: 'wall', light: 'sconce', plate: 3 },
+    basement: { edge: 'wall', light: 'sconce', plate: 3, planks: true },
     rooftop: { edge: 'rail', light: 'rail', plate: 4 },
     boardwalk: { edge: 'rail', light: 'rail', plate: 3, planks: true },
   };
@@ -5638,8 +5638,10 @@
   const THEME_COLORS = {
     // Concrete bays with steel walls, in a dark yard.
     garage: { floorA: '#6a635a', floorB: '#5e574f', wallL: '#3d434c', wallR: '#30353d', bgTop: '#1a1d22', bg: '#121418' },
-    // Grey concrete in a cellar cut out of the rock.
-    basement: { floorA: '#6f6c66', floorB: '#615f59', wallL: '#4a4a48', wallR: '#3b3b39', bgTop: '#1a1613', bg: '#120f0d' },
+    // Stone rooms with board floors, in a cellar cut out of the rock: the
+    // same stone as the cellar's own walls and the same timber as its
+    // posts, so the rooms belong to the place they stand in.
+    basement: { floorA: '#6e4e30', floorB: '#604227', wallL: '#5f5249', wallR: '#4b4038', bgTop: '#1a1613', bg: '#120f0d' },
     // Pavers on a roof at night; the wall colour is the stair housings.
     rooftop: { floorA: '#5d636d', floorB: '#535962', wallL: '#414a5c', wallR: '#333b4b', bgTop: '#1c2638', bg: '#0f1522' },
     // Warm decking over deep water; the wall colour is the timber.
@@ -7923,6 +7925,33 @@
   function drawBasementWalls(north, east, west, doors) {
     const took = { ne: [], nw: [] };
     const q = (from, to, t0, t1, h0, h1, fill, stroke, lw) => paintQuad(wallQuad(from, to, t0, t1, h0, h1), fill, stroke, lw);
+    // The walls are stone like the cellar's own, laid in smaller courses:
+    // the joints drawn faintly over the face, every other course offset,
+    // and never across a doorway.
+    const courses = (from, to, spans) => {
+      const H = 0.115;
+      const solid = [];
+      let at = 0;
+      spans.slice().sort((a, b) => a[0] - b[0]).forEach(([lo, hi]) => {
+        if (lo > at) solid.push([at, Math.max(at, lo)]);
+        at = Math.max(at, hi);
+      });
+      if (at < 1) solid.push([at, 1]);
+      let row = 0;
+      for (let h = H; h < 0.96; h += H, row += 1) {
+        solid.forEach(([t0, t1]) => {
+          q(from, to, t0, t1, h - 0.004, h + 0.004, 'rgba(0,0,0,0.22)', null);
+          q(from, to, t0, t1, h + 0.004, h + 0.012, 'rgba(255,240,220,0.05)', null);
+        });
+        const off = row % 2 ? 0.04 : 0;
+        for (let t = off; t < 1; t += 0.08) {
+          if (!solid.some(([t0, t1]) => t >= t0 + 0.004 && t <= t1 - 0.004)) continue;
+          q(from, to, t - 0.0018, t + 0.0018, h - H + 0.004, h - 0.004, 'rgba(0,0,0,0.18)', null);
+        }
+      }
+    };
+    courses(north, west, doors.nw);
+    courses(north, east, doors.ne);
     // Copper pipes down the wall in a pair, with couplings.
     const pipes = (from, to, t) => {
       [t - 0.012, t + 0.012].forEach((tt) => {
@@ -10266,9 +10295,10 @@
     });
 
     // The top, as one unbroken band around the whole run -- no seam at the
-    // turns because there is nothing there to seam.
+    // turns because there is nothing there to seam. In the cellar it is a
+    // timber plate, the same wood as the posts outside.
     paintQuad(pts.map(lift).concat(outer.slice().reverse()),
-      shade(colors.wallL, 46), null);
+      state.activeTheme === 'basement' ? '#8a6238' : shade(colors.wallL, 46), null);
 
     // The faces you look at, a segment at a time so a doorway can be left
     // out of one. A hole is a real hole: the strip of wall below the lintel
@@ -10504,7 +10534,9 @@
     // wall gone missing.
     const a = lerpPt(p0, p1, 0.18);
     const b = lerpPt(p0, p1, 0.82);
-    const casing = shade(colors.wallL, 112);
+    // The casing is pale on a painted wall; in the cellar it is timber,
+    // like the plate along the top of the wall it stands in.
+    const casing = state.activeTheme === 'basement' ? '#9a7044' : shade(colors.wallL, 112);
     const edge = 'rgba(0,0,0,0.5)';
     const jamb = DOOR_JAMB;
     const lintel = 10;
