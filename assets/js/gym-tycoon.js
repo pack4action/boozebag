@@ -5300,15 +5300,27 @@
   // ---- Floor designer: isometric room rendered on canvas ----
   const floorCanvas = document.getElementById('tycoon-floor');
   let floorCtx = floorCanvas.getContext('2d');
-  // The plan is painted in three passes. 'under' is everything the gym is
-  // built of -- floors, walls, railings, the light on them -- which does
-  // not change from one frame to the next; 'live' is the gear, the people
-  // and whatever is in your hands; 'over' is the railings along the front
-  // of a floor, which stand in front of all of it. The two still passes
-  // are kept as bitmaps and stamped, so a frame only draws what moves.
-  // Before this the whole gym was redrawn twenty times a second, which is
-  // what a phone could not keep up with.
-  let stillPass = 'live';
+  // The plan is painted in four named passes, and every drawing function
+  // says which of them it belongs to.
+  //
+  //   'floor'  the whole footprint the gym stands on: every room floor and
+  //            every hallway floor, their markings and their slab edges.
+  //            All of it is flat and none of it overlaps, so the order
+  //            inside this pass cannot matter -- and because every floor
+  //            is down before anything is built, no slab edge can ever be
+  //            painted across a wall or a machine again.
+  //   'build'  what stands on that footprint: walls, doorways, fittings,
+  //            the light, the gear. Back to front, floor by floor.
+  //   'live'   what moves -- the crowd, the money over a machine, the
+  //            piece in your hands.
+  //   'over'   the railings along the front of a floor, which stand in
+  //            front of everything on it.
+  //
+  // 'floor' and 'build' together make the still-under bitmap and 'over'
+  // the still-over one; both are stamped rather than redrawn, so a frame
+  // only paints what actually moves. Before this the whole gym was redrawn
+  // twenty times a second, which is what a phone could not keep up with.
+  let scenePass = 'live';
   let stillUnder = null;
   let stillOver = null;
   let stillUnderCtx = null;
@@ -11103,13 +11115,19 @@
   }
 
   function drawCorridorShell(c, colors) {
-    drawPaving(c, colors, -3);
-    drawSlabEdges(c, colors);
-    // The step across the mouth this hallway leaves its first room by: a
-    // piece of floor, so it goes down with the floor and whoever walks over
-    // it is drawn on top.
-    const nearEnd = corridorEnd(c, false);
-    drawThreshold(nearEnd[0], nearEnd[1], colors);
+    // The hallway floor, with the step across the mouth it leaves its first
+    // room by -- a piece of floor, so it goes down with the rest of the
+    // footprint and whoever walks over it is drawn on top. Painted before
+    // the pass was tested, as it used to be, it went down again on the live
+    // and the over pass as well, on top of the wall of the room in front of
+    // it and on top of anybody standing there.
+    if (scenePass === 'floor') {
+      drawPaving(c, colors, -3);
+      drawSlabEdges(c, colors);
+      const nearEnd = corridorEnd(c, false);
+      drawThreshold(nearEnd[0], nearEnd[1], colors);
+      return;
+    }
 
     // Full room height, not a shorter parapet: the hallway wall runs into a
     // room wall at both ends, and any difference in height shows up as a step
@@ -11139,11 +11157,11 @@
     const theme = state.activeTheme;
     const light = LIGHT_COLORS[theme] || LIGHT_COLORS.garage;
     const rails = railed(theme);
-    if (stillPass === 'over') {
+    if (scenePass === 'over') {
       if (rails) railSide(theme, c, [c.axis === 'gx' ? 's' : 'e'], light, colors);
       return;
     }
-    if (stillPass === 'live') {
+    if (scenePass === 'live') {
       // Anyone walking between rooms is drawn by the hallway they are in,
       // back to front like everything else, so they pass behind its far
       // wall and in front of its near one.
@@ -11303,7 +11321,7 @@
     // The plot for the next room lights up the moment you can afford it, so
     // it is not part of the still layers -- it goes down fresh each frame
     // with the gear and the crowd.
-    if (stillPass !== 'live') return;
+    if (scenePass !== 'live') return;
     plotSignHit = null;
     const cost = ROOM_UNLOCK_COSTS[index];
     const affordable = state.balance >= cost;
@@ -11578,18 +11596,28 @@
       stillKey = key;
       const live = floorCtx;
       const order = build();
-      [['under', stillUnderCtx], ['over', stillOverCtx]].forEach(([pass, ctx]) => {
-        ctx.clearRect(0, 0, W, H);
-        floorCtx = ctx;
-        stillPass = pass;
+      // The whole footprint first, then everything built on it. Two passes
+      // over one list rather than one pass that does both per floor: with
+      // both together, a floor drawn later laid its paving and its slab
+      // edge over a wall and a machine that belonged to a floor behind it.
+      stillUnderCtx.clearRect(0, 0, W, H);
+      floorCtx = stillUnderCtx;
+      ['floor', 'build'].forEach((pass) => {
+        scenePass = pass;
         order.forEach((p) => p.draw());
       });
-      floorCtx = live;
-      stillPass = 'live';
       // Only the two outdoor locations have a railing along the front of a
-      // floor. Everywhere else the over layer is empty, and stamping a
-      // blank canvas the size of the plan every frame is not free.
+      // floor. Everywhere else the over pass has nothing to draw, so it is
+      // not run and the blank layer is not stamped every frame either.
       stillOverUsed = railed(state.activeTheme);
+      stillOverCtx.clearRect(0, 0, W, H);
+      if (stillOverUsed) {
+        floorCtx = stillOverCtx;
+        scenePass = 'over';
+        order.forEach((p) => p.draw());
+      }
+      floorCtx = live;
+      scenePass = 'live';
     }
 
     // Anything the window cannot see is not drawn. The floor being worked
@@ -11680,9 +11708,45 @@
     // has any floor where the location has railings instead of walls.
     const hub = isHubAt(theme, roomIndex);
     const rails = railed(theme);
-    if (stillPass === 'under') {
-    if (hub && !rails) drawHubKerb(place, colors);
-    if (!hub && !rails) {
+    // ---- The floor pass: this room's share of the footprint ----
+    // The kerb round an open hub floor, the paving, whatever is painted on
+    // it and the edge of the slab. Nothing here stands up off the ground,
+    // so it goes down with every other floor before a single wall does.
+    if (scenePass === 'floor') {
+      if (hub && !rails) drawHubKerb(place, colors);
+      // The floor is the L, not the box: paved inside its outline only.
+      floorCtx.save();
+      if (cut) {
+        const poly = floorPolygon(place).map(([gx, gy]) => isoPoint(gx, gy));
+        floorCtx.beginPath();
+        floorCtx.moveTo(poly[0].x, poly[0].y);
+        for (let i = 1; i < poly.length; i++) floorCtx.lineTo(poly[i].x, poly[i].y);
+        floorCtx.closePath();
+        floorCtx.clip();
+      }
+      drawPaving(place, colors, 0);
+      drawFloorMarks(theme, place, roomIndex);
+      floorCtx.restore();
+      drawSlabEdges(place, colors);
+      return;
+    }
+
+    // The railings along the front of the floor stand over everything on
+    // it, so they are the whole of the over pass and nothing else is.
+    if (scenePass === 'over') {
+      if (rails) {
+        railSide(theme, place, ['s', 'e'], light, colors);
+        if (theme === 'boardwalk') {
+          lampSpots(place, false).forEach((l) => drawLampPost(isoPoint(l.gx, l.gy), light, l.flag));
+          if (hub) drawPierSign(place);
+        }
+      }
+      return;
+    }
+
+    // ---- What is built on it ----
+    const buildShell = () => {
+      if (hub || rails) return;
       const holes = wallApertures(roomIndex);
       drawWallRun([east, north, west], ['gx', 'gy'], ROOM.wallH, colors, [
         roomWallEnd(place, eastCorner),
@@ -11704,60 +11768,7 @@
         const far = corridorEnd(c, true);
         drawCorridorDoor(far[0], far[1], colors);
       });
-    }
-
-    // The floor is the L, not the box: paved inside its outline only.
-    floorCtx.save();
-    if (cut) {
-      const poly = floorPolygon(place).map(([gx, gy]) => isoPoint(gx, gy));
-      floorCtx.beginPath();
-      floorCtx.moveTo(poly[0].x, poly[0].y);
-      for (let i = 1; i < poly.length; i++) floorCtx.lineTo(poly[i].x, poly[i].y);
-      floorCtx.closePath();
-      floorCtx.clip();
-    }
-    drawPaving(place, colors, 0);
-    drawFloorMarks(theme, place, roomIndex);
-    floorCtx.restore();
-
-    drawSlabEdges(place, colors);
-
-    // Railings round the back of the floor, and the lamp posts behind it,
-    // go down before anything standing on it.
-    if (rails) {
-      railSide(theme, place, ['n', 'w'], light, colors);
-      if (theme === 'boardwalk') lampSpots(place, true).forEach((l) => drawLampPost(isoPoint(l.gx, l.gy), light, l.flag));
-    }
-
-    // The light comes from the rail of downlights along the back walls and
-    // the pools they throw on the floor beneath them -- there is no longer
-    // a fixture in the middle of the room, so nothing pools there either.
-    // Drawn before the props loop below, not after, so the rail sits behind
-    // tall gear like real ceiling hardware instead of floating on top.
-    if (!hub && !rails) drawCeilingStrip(north, east, west, light);
-    else drawHubLight(place, light);
-    // What the location built onto the floor. Everything that stands
-    // against a back edge -- the planters, the air units, the stair
-    // housings, the two kiosks -- goes down with the room, because
-    // nobody can walk behind it. Anything set further in is sorted with
-    // the crowd below instead.
-    (place.fixtures || []).forEach((f) => {
-      if (fixtureAtBack(f)) drawFixture(place, f, theme, colors, light);
-    });
-    }
-
-    // The railings along the front of the floor stand over everything on
-    // it, so they are the whole of the over pass and nothing else is.
-    if (stillPass === 'over') {
-      if (rails) {
-        railSide(theme, place, ['s', 'e'], light, colors);
-        if (theme === 'boardwalk') {
-          lampSpots(place, false).forEach((l) => drawLampPost(isoPoint(l.gx, l.gy), light, l.flag));
-          if (hub) drawPierSign(place);
-        }
-      }
-      return;
-    }
+    };
 
     // Gear stands wherever it was put, not in a grid cell, so the draw
     // order comes from the pieces themselves -- furthest back first, or a
@@ -11803,7 +11814,31 @@
     // with the room and is not drawn again until something changes. A gym
     // used to get slower the more you put in it because every piece was
     // painted afresh twenty times a second.
-    if (stillPass === 'under') {
+    if (scenePass === 'build') {
+      // The walls first, then the light on them, then everything that
+      // stands on the floor in front of them.
+      buildShell();
+      // Railings round the back of the floor, and the lamp posts behind
+      // it, go down before anything standing on it.
+      if (rails) {
+        railSide(theme, place, ['n', 'w'], light, colors);
+        if (theme === 'boardwalk') lampSpots(place, true).forEach((l) => drawLampPost(isoPoint(l.gx, l.gy), light, l.flag));
+      }
+      // The light comes from the rail of downlights along the back walls and
+      // the pools they throw on the floor beneath them -- there is no longer
+      // a fixture in the middle of the room, so nothing pools there either.
+      // Drawn before the gear below, not after, so the rail sits behind tall
+      // gear like real ceiling hardware instead of floating on top.
+      if (!hub && !rails) drawCeilingStrip(north, east, west, light);
+      else drawHubLight(place, light);
+      // What the location built onto the floor. Everything that stands
+      // against a back edge -- the planters, the air units, the stair
+      // housings, the two kiosks -- goes down with the room, because
+      // nobody can walk behind it. Anything set further in is sorted with
+      // the crowd below instead.
+      (place.fixtures || []).forEach((f) => {
+        if (fixtureAtBack(f)) drawFixture(place, f, theme, colors, light);
+      });
       items.concat(loose).sort((a, b) => depthOf(a) - depthOf(b)).forEach(paintOne);
       // And the railings along the front of this floor, over what stands on
       // it -- here, with the floor they belong to, so a floor in front of
