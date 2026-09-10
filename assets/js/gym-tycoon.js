@@ -7120,9 +7120,19 @@
   // own coordinates, with the whole site's rectangle handed to the
   // drawings, the sky, the sea and the yard are laid out exactly where they
   // were: what changes is only how much of them is kept.
-  const SITE_MAX_PIXELS = 3.6e6;
-  // How far past the window it reaches, as a fraction of the window.
-  const SITE_MARGIN = 0.55;
+  const SITE_MAX_PIXELS = 5.0e6;
+  // How far past the window it reaches, as a fraction of the window. What
+  // the window can see already carries a couple of hundred units of slack
+  // (see measureVisibleBox), which is what a pan gets to eat into before
+  // the site has to be drawn again -- and every pixel past that is backing
+  // store that is never once on screen. Half a window of it was costing
+  // half the frame rate to hold.
+  const SITE_MARGIN = 0;
+  // A phone screen is three device pixels to the point, not two. The site
+  // was drawn at two and let the screen stretch it the rest of the way,
+  // which is a third of the detail gone -- and on water and brickwork,
+  // which is most of what the site is, that reads as blur.
+  const SITE_MAX_DPR = 3;
   let groundCover = null;
   // The site reaches this far past the plan canvas on every side, so that
   // at the zoom a phone frames the gym at there is still site out beyond
@@ -7164,7 +7174,7 @@
     const seen = measureVisibleBox();
     if (!seen) return;
     const site = siteRect();
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(SITE_MAX_DPR, window.devicePixelRatio || 1);
     // The hour's tint is keyed coarsely: a step of a fiftieth is below what
     // the eye picks up, and keying it any finer had the site repainting
     // every few seconds through dusk and dawn.
