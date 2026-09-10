@@ -262,70 +262,155 @@
   // Cuts are kept clear of wherever a hallway meets the room: a hallway
   // leaves by the east or south edge at the back-left end of it, and
   // arrives through the west or north wall, again at the back-left end.
+  // Every location is one open floor -- the hub -- with three rooms opening
+  // off it, so a whole gym can be taken in at a glance and any walk between
+  // two rooms crosses the floor everyone shares. Room 1 is the hub; the
+  // rooms after it are set against the hub's edges in the order they are
+  // bought (`dirs`), each centred on its edge and slid along it by `shift`,
+  // which is what leaves the hub a free end to spread out into.
   const ROOM_PLANS = {
-    // Vehicle bays knocked through into one another: broad rooms, each a
-    // little bigger than the last, with a short walk between them.
+    // Three bays round a workshop floor, which runs on down-right past them.
     garage: {
+      hub: true,
       shapes: [
-        { cols: 20, rows: 15 },                                        // 12 pieces
-        { cols: 22, rows: 17, cut: { corner: 'se', cols: 8, rows: 6 } }, // 14
-        { cols: 24, rows: 18, cut: { corner: 'se', cols: 8, rows: 8 } }, // 16
-        { cols: 26, rows: 21, cut: { corner: 'se', cols: 9, rows: 6 } }, // 21
+        { cols: 30, rows: 18 },
+        { cols: 14, rows: 18 },
+        { cols: 20, rows: 13, shift: -5 },
+        { cols: 18, rows: 15, shift: -6 },
       ],
-      caps: [12, 14, 16, 21],
-      dirs: ['east', 'east', 'south'],
-      corridorLen: 9,
-      corridorWidth: 9,
+      caps: [16, 14, 15, 18],
+      dirs: ['west', 'north', 'south'],
+      corridorLen: 3,
+      corridorWidth: 11,
     },
-    // Cellar rooms strung together by real tunnels that turn corners rather
-    // than opening straight onto each other.
+    // A long cellar floor with rooms off its top and right, running on
+    // down-left to the drain.
     basement: {
+      hub: true,
       shapes: [
-        { cols: 17, rows: 18 },                                        // 12
-        { cols: 21, rows: 20, cut: { corner: 'se', cols: 8, rows: 6 } }, // 15
-        { cols: 21, rows: 21, cut: { corner: 'se', cols: 8, rows: 6 } }, // 16
-        { cols: 23, rows: 23, cut: { corner: 'se', cols: 9, rows: 8 } }, // 20
+        { cols: 18, rows: 30 },
+        { cols: 16, rows: 16, shift: -7 },
+        { cols: 18, rows: 14 },
+        { cols: 16, rows: 16 },
       ],
-      caps: [12, 15, 16, 20],
-      dirs: ['south', 'east', 'south'],
-      corridorLen: 18,
-      corridorWidth: 9,
+      caps: [16, 14, 15, 18],
+      dirs: ['west', 'north', 'east'],
+      corridorLen: 3,
+      corridorWidth: 10,
     },
-    // Open deck: broad platforms that spread across the roof, joined by
-    // walkways wide enough to read as outdoors.
+    // Open deck: three terraces off the main roof, joined by walkways wide
+    // enough to read as outdoors.
     rooftop: {
+      hub: true,
       shapes: [
-        { cols: 18, rows: 17 },                                        // 12
-        { cols: 21, rows: 18, cut: { corner: 'se', cols: 6, rows: 6 } }, // 15
-        { cols: 23, rows: 21, cut: { corner: 'se', cols: 8, rows: 6 } }, // 18
-        { cols: 24, rows: 21, cut: { corner: 'se', cols: 8, rows: 6 } }, // 20
+        { cols: 30, rows: 18 },
+        { cols: 14, rows: 18 },
+        { cols: 18, rows: 12, shift: -6 },
+        { cols: 16, rows: 14, shift: -7 },
       ],
-      caps: [12, 15, 18, 20],
-      dirs: ['east', 'south', 'west'],
-      corridorLen: 14,
-      corridorWidth: 14,
+      caps: [16, 14, 16, 19],
+      dirs: ['west', 'north', 'south'],
+      corridorLen: 4,
+      corridorWidth: 12,
     },
-    // Decking out over the water, joined by walkways with room to stop on.
+    // Decking out over the water, the main pier running on to the jetty.
     boardwalk: {
+      hub: true,
       shapes: [
-        { cols: 18, rows: 17 },                                        // 12
-        { cols: 21, rows: 18, cut: { corner: 'se', cols: 6, rows: 5 } }, // 16
-        { cols: 23, rows: 20, cut: { corner: 'se', cols: 8, rows: 6 } }, // 17
-        { cols: 24, rows: 21, cut: { corner: 'se', cols: 9, rows: 6 } }, // 19
+        { cols: 30, rows: 18 },
+        { cols: 14, rows: 18 },
+        { cols: 18, rows: 13, shift: -6 },
+        { cols: 16, rows: 15, shift: -7 },
       ],
-      caps: [12, 16, 17, 19],
-      dirs: ['east', 'south', 'east'],
-      corridorLen: 15,
+      caps: [16, 14, 16, 18],
+      dirs: ['west', 'north', 'south'],
+      corridorLen: 4,
       corridorWidth: 11,
     },
   };
+
+  // ---- Locations ----
+  // What each location is built of, over and above its colours: what the
+  // edge of a floor is (a wall to hang things on, or a railing you see
+  // over), what its floor is paved with, what kind of light it has, and
+  // what is built onto its floors before any gear goes down.
+  const THEME_STYLE = {
+    garage: { edge: 'wall', light: 'tube', plate: 3 },
+    basement: { edge: 'wall', light: 'sconce', plate: 3 },
+    rooftop: { edge: 'rail', light: 'rail', plate: 4 },
+    boardwalk: { edge: 'rail', light: 'rail', plate: 3, planks: true },
+  };
+  function styleOf(theme) {
+    return THEME_STYLE[theme] || THEME_STYLE.garage;
+  }
+  function railed(theme) {
+    return styleOf(theme).edge === 'rail';
+  }
+
+  // A repeatable number in [0, 1) for a place on the lattice, so the
+  // scenery is the same scenery on every repaint and in every session.
+  function noise(a, b, c) {
+    let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263)
+      + Math.imul((c || 0) | 0, 1274126177)) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1103515245);
+    h = (h ^ (h >>> 16)) >>> 0;
+    return h / 4294967296;
+  }
+
+  // The things a location builds onto a floor before any gear goes down: a
+  // stair housing on a roof, a snack stand on a pier, a planter on the
+  // railing. Each stands in a box of tiles measured from the room's back
+  // corner, which the gear then has to keep out of. A planter sits on an
+  // edge with its front half over the floor, so its box is that half.
+  const ROOM_FIXTURES = {
+    rooftop: [
+      [{ kind: 'stairs', u0: 25, v0: 0, u1: 30, v1: 4 }, { kind: 'ac', u0: 21, v0: 0, u1: 23.5, v1: 2 },
+        { kind: 'planter', u0: 13, v0: 0, u1: 14.2, v1: 0.6 }, { kind: 'planter', u0: 17, v0: 0, u1: 18.2, v1: 0.6 },
+        { kind: 'planter', u0: 0, v0: 14, u1: 0.6, v1: 15.2 }],
+      [{ kind: 'stairs', u0: 0, v0: 0, u1: 4, v1: 3 }, { kind: 'ac', u0: 11, v0: 0, u1: 13.5, v1: 2 },
+        { kind: 'planter', u0: 7, v0: 0, u1: 8.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 9, u1: 0.6, v1: 10.2 },
+        { kind: 'planter', u0: 0, v0: 14, u1: 0.6, v1: 15.2 }],
+      [{ kind: 'stairs', u0: 0, v0: 0, u1: 4, v1: 3 }, { kind: 'ac', u0: 0, v0: 9, u1: 2.5, v1: 11 },
+        { kind: 'planter', u0: 8, v0: 0, u1: 9.2, v1: 0.6 }, { kind: 'planter', u0: 13, v0: 0, u1: 14.2, v1: 0.6 },
+        { kind: 'planter', u0: 0, v0: 6, u1: 0.6, v1: 7.2 }],
+      [{ kind: 'stairs', u0: 12, v0: 0, u1: 16, v1: 3 }, { kind: 'ac', u0: 13, v0: 3.4, u1: 15.5, v1: 5.4 },
+        { kind: 'planter', u0: 0, v0: 5, u1: 0.6, v1: 6.2 }, { kind: 'planter', u0: 0, v0: 10, u1: 0.6, v1: 11.2 }],
+    ],
+    boardwalk: [
+      [{ kind: 'planter', u0: 14, v0: 0, u1: 15.2, v1: 0.6 }, { kind: 'planter', u0: 20, v0: 0, u1: 21.2, v1: 0.6 },
+        { kind: 'planter', u0: 26, v0: 0, u1: 27.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 14, u1: 0.6, v1: 15.2 }],
+      [{ kind: 'kiosk', sign: 'SNACKS', u0: 0, v0: 0, u1: 5, v1: 4 },
+        { kind: 'planter', u0: 8, v0: 0, u1: 9.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 8, u1: 0.6, v1: 9.2 },
+        { kind: 'planter', u0: 0, v0: 13, u1: 0.6, v1: 14.2 }],
+      [{ kind: 'planter', u0: 4, v0: 0, u1: 5.2, v1: 0.6 }, { kind: 'planter', u0: 10, v0: 0, u1: 11.2, v1: 0.6 },
+        { kind: 'planter', u0: 15, v0: 0, u1: 16.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 5, u1: 0.6, v1: 6.2 },
+        { kind: 'planter', u0: 0, v0: 10, u1: 0.6, v1: 11.2 }],
+      [{ kind: 'kiosk', sign: 'BEACH SHOP', u0: 11, v0: 0, u1: 16, v1: 4 },
+        { kind: 'planter', u0: 0, v0: 5, u1: 0.6, v1: 6.2 }, { kind: 'planter', u0: 0, v0: 11, u1: 0.6, v1: 12.2 }],
+    ],
+  };
+  function fixturesFor(themeId, index) {
+    const list = ROOM_FIXTURES[themeId];
+    return list ? list[index % list.length] || [] : [];
+  }
+  const FIXTURE_NAMES = { stairs: 'stairs', ac: 'air unit', planter: 'planter', kiosk: 'stand' };
+  // The fixture a piece at this spot would stand in, or null.
+  function fixtureAt(shape, itemId, spot, turn) {
+    const h = halfBoxOf(itemId, turn || 0);
+    const hit = (shape.fixtures || []).find((f) => boxMeetsRect(spot, h,
+      { gx0: f.u0, gy0: f.v0, cols: f.u1 - f.u0, rows: f.v1 - f.v0 }));
+    return hit ? hit.kind : null;
+  }
 
   function planFor(themeId) {
     return ROOM_PLANS[themeId] || ROOM_PLANS.garage;
   }
   function roomShapeFor(themeId, index) {
     const shapes = planFor(themeId).shapes;
-    return shapes[index % shapes.length];
+    const shape = shapes[index % shapes.length];
+    // With whatever the location has built onto that floor, which the gear
+    // has to keep out of (see ROOM_FIXTURES).
+    return Object.assign({}, shape, { fixtures: fixturesFor(themeId, index) });
   }
 
   // ---- Cut corners ----
@@ -350,11 +435,13 @@
   // Whether a point is on this room's floor: inside its box and not in the
   // notch.
   function onFloorOf(r, gx, gy) {
-    const gx0 = r.gx0 || 0;
-    const gy0 = r.gy0 || 0;
-    if (gx < gx0 || gx >= gx0 + r.cols || gy < gy0 || gy >= gy0 + r.rows) return false;
+    if (!inRect(r, gx, gy)) return false;
     const c = cutRect(r);
-    return !(c && inRect(c, gx, gy));
+    if (c && inRect(c, gx, gy)) return false;
+    // Nor inside anything the location built onto the floor.
+    const u = gx - r.gx0;
+    const v = gy - r.gy0;
+    return !(r.fixtures || []).some((f) => u >= f.u0 && u < f.u1 && v >= f.v0 && v < f.v1);
   }
   // The floor's outline as lattice corners, walked clockwise from the back
   // corner: four for a box, six for an L.
@@ -394,12 +481,22 @@
     return caps[index % caps.length];
   }
 
-  // Tile rectangles for a chain of `count` rooms, each butted up against the
-  // previous one with a corridor's worth of space between them and centred on
-  // the shared edge.
+  // Tile rectangles for `count` rooms: the hub first, then each room set
+  // against the hub with a doorway's worth of space between them.
   function roomDirFor(themeId, step) {
     const dirs = planFor(themeId).dirs;
     return dirs[step % dirs.length];
+  }
+  // The room a hallway leaves from to reach room `index`: the hub on a hub
+  // plan, the room before it on a chain.
+  function hallwayFrom(themeId, placementsOf, index) {
+    return planFor(themeId).hub ? placementsOf[0] : placementsOf[index - 1];
+  }
+  function isHubAt(themeId, index) {
+    return !!planFor(themeId).hub && index === 0;
+  }
+  function hubRect() {
+    return planFor(state.activeTheme).hub ? placements[0] || null : null;
   }
 
   function roomPlacements(themeId, count) {
@@ -408,24 +505,29 @@
     for (let i = 0; i < count; i++) {
       const shape = roomShapeFor(themeId, i);
       if (i === 0) {
-        out.push({ gx0: 0, gy0: 0, cols: shape.cols, rows: shape.rows, cut: shape.cut || null });
+        out.push({ gx0: 0, gy0: 0, cols: shape.cols, rows: shape.rows, cut: shape.cut || null, fixtures: shape.fixtures });
         continue;
       }
-      const prev = out[i - 1];
+      // Off the hub on a hub plan, off the room before it otherwise.
+      const prev = plan.hub ? out[0] : out[i - 1];
       const dir = roomDirFor(themeId, i - 1);
+      const shift = shape.shift || 0;
       let gx0;
       let gy0;
       if (dir === 'east') {
         gx0 = prev.gx0 + prev.cols + plan.corridorLen;
-        gy0 = prev.gy0 + Math.round((prev.rows - shape.rows) / 2);
+        gy0 = prev.gy0 + Math.round((prev.rows - shape.rows) / 2) + shift;
       } else if (dir === 'west') {
         gx0 = prev.gx0 - plan.corridorLen - shape.cols;
-        gy0 = prev.gy0 + Math.round((prev.rows - shape.rows) / 2);
+        gy0 = prev.gy0 + Math.round((prev.rows - shape.rows) / 2) + shift;
+      } else if (dir === 'north') {
+        gy0 = prev.gy0 - plan.corridorLen - shape.rows;
+        gx0 = prev.gx0 + Math.round((prev.cols - shape.cols) / 2) + shift;
       } else {
         gy0 = prev.gy0 + prev.rows + plan.corridorLen;
-        gx0 = prev.gx0 + Math.round((prev.cols - shape.cols) / 2);
+        gx0 = prev.gx0 + Math.round((prev.cols - shape.cols) / 2) + shift;
       }
-      out.push({ gx0, gy0, cols: shape.cols, rows: shape.rows, cut: shape.cut || null });
+      out.push({ gx0, gy0, cols: shape.cols, rows: shape.rows, cut: shape.cut || null, fixtures: shape.fixtures });
     }
     return out;
   }
@@ -810,7 +912,8 @@
   // Whether a piece at this spot hangs over the room's notch.
   function spotInCut(shape, itemId, spot, turn) {
     const c = cutRect(shape);
-    return !!c && boxMeetsRect(spot, halfBoxOf(itemId, turn || 0), c);
+    if (c && boxMeetsRect(spot, halfBoxOf(itemId, turn || 0), c)) return true;
+    return fixtureAt(shape, itemId, spot, turn) !== null;
   }
 
   // The piece already standing where this one would go, if any. Two boxes
@@ -939,13 +1042,17 @@
     if (count < 2) return doors;
     const pl = roomPlacements(themeId, count);
     const me = pl[index];
-    [index - 1, index].forEach((k) => {
-      if (k < 0 || k + 1 >= count) return;
-      const c = corridorBetween(themeId, pl[k], pl[k + 1], roomDirFor(themeId, k));
-      if (c.doorRoom !== me) return;
+    // The hub has no walls: it is walked onto from every side.
+    if (isHubAt(themeId, index)) {
+      doors.push({ wall: 'u0', from: 0, to: me.rows }, { wall: 'v0', from: 0, to: me.cols });
+      return doors;
+    }
+    for (let k = 0; k + 1 < count; k++) {
+      const c = corridorBetween(themeId, hallwayFrom(themeId, pl, k + 1), pl[k + 1], roomDirFor(themeId, k));
+      if (c.doorRoom !== me) continue;
       if (c.axis === 'gx') doors.push({ wall: 'u0', from: c.gy0 - me.gy0, to: c.gy0 + c.rows - me.gy0 });
       else doors.push({ wall: 'v0', from: c.gx0 - me.gx0, to: c.gx0 + c.cols - me.gx0 });
-    });
+    }
     return doors;
   }
 
@@ -968,6 +1075,8 @@
       const zone = accessZone(id, sp, t);
       if (item && item.gps > 0 && zone) targets.push({ id, index: i, zone, reached: false });
     });
+    // What the location built there is in the way as much as any machine.
+    (shape.fixtures || []).forEach((f) => boxes.push({ u0: f.u0, u1: f.u1, v0: f.v0, v1: f.v1 }));
     const clear = new Uint8Array(cols * rows);
     for (let j = 0; j < rows; j++) {
       for (let i = 0; i < cols; i++) {
@@ -3086,6 +3195,24 @@
   // four separate rooms rather than one gym, because hardly anybody was
   // ever in the hallway between them.
   const MEMBER_ROAM_CHANCE = 0.28;
+  // The rooms a walk can go between without crossing a third: on a hub plan
+  // the hub and any room off it, on a chain the room either side.
+  function roomNextDoor(from, count) {
+    if (planFor(state.activeTheme).hub) {
+      return from === 0 ? 1 + Math.floor(Math.random() * (count - 1)) : 0;
+    }
+    const to = from + (Math.random() < 0.5 ? -1 : 1);
+    return to >= 0 && to < count ? to : from;
+  }
+  // corridors[i] joins room i+1 to the hub on a hub plan, and rooms i and
+  // i+1 on a chain.
+  function corridorJoining(a, b) {
+    if (planFor(state.activeTheme).hub) {
+      if (a !== 0 && b !== 0) return null;
+      return corridors[Math.max(a, b) - 1] || null;
+    }
+    return corridors[Math.min(a, b)] || null;
+  }
   // A cashier's next stop is the fullest bubble in their room, walked to
   // through the machine's step-on floor; the money is taken on arrival.
   // With nothing to collect they stroll to somewhere and wait a moment,
@@ -3123,11 +3250,7 @@
     if (m.staffRole === 'cashier') { chooseCashierTarget(m); return; }
     const rooms = activeRooms();
     let dest = m.room;
-    if (rooms.length > 1 && Math.random() < MEMBER_ROAM_CHANCE) {
-      const step = Math.random() < 0.5 ? -1 : 1;
-      const tryRoom = m.room + step;
-      if (tryRoom >= 0 && tryRoom < rooms.length) dest = tryRoom;
-    }
+    if (rooms.length > 1 && Math.random() < MEMBER_ROAM_CHANCE) dest = roomNextDoor(m.room, rooms.length);
     const room = rooms[dest];
     const place = placements[dest];
     if (!room || !place) {
@@ -3191,10 +3314,10 @@
     if (dest === m.room) {
       m.path = legs(m);
     } else {
-      // corridors[i] joins rooms i and i+1, and always runs from its nearRoom
-      // to its doorRoom -- which of those is the room being left decides
-      // which way down it this member is walking.
-      const c = corridors[Math.min(m.room, dest)];
+      // A hallway always runs from its nearRoom to its doorRoom -- which of
+      // those is the room being left decides which way down it this member
+      // is walking.
+      const c = corridorJoining(m.room, dest);
       if (!c) {
         m.path = routeInRoom(place, m, goal);
       } else {
@@ -5178,7 +5301,7 @@
     corridors = [];
     for (let i = 0; i < count - 1; i++) {
       corridors.push(corridorBetween(
-        theme, placements[i], placements[i + 1], roomDirFor(theme, i),
+        theme, hallwayFrom(theme, placements, i + 1), placements[i + 1], roomDirFor(theme, i),
       ));
     }
 
@@ -5192,7 +5315,7 @@
       const withNext = roomPlacements(theme, count + 1);
       preview = withNext[count];
       previewCorridor = corridorBetween(
-        theme, placements[count - 1], preview, roomDirFor(theme, count - 1),
+        theme, hallwayFrom(theme, withNext, count), preview, roomDirFor(theme, count - 1),
       );
     }
 
@@ -5390,30 +5513,33 @@
     return out;
   }
   const THEME_COLORS = {
-    garage: { floorA: '#5c4530', floorB: '#4a3624', wallL: '#3a2c1c', wallR: '#2e2116', bgTop: '#241a10', bg: '#171310' },
-    basement: { floorA: '#33404a', floorB: '#28333c', wallL: '#1c242c', wallR: '#161b21', bgTop: '#171b1f', bg: '#0e1114' },
-    rooftop: { floorA: '#5a89ad', floorB: '#4a7594', wallL: '#3f6f94', wallR: '#2f5673', bgTop: '#3f6f94', bg: '#1c3348' },
-    // Sun-bleached decking over green water.
-    boardwalk: { floorA: '#c3a069', floorB: '#ad8b55', wallL: '#8a6a41', wallR: '#6d5232', bgTop: '#2d7f8c', bg: '#0f3846' },
+    // Concrete bays with steel walls, in a dark yard.
+    garage: { floorA: '#6a635a', floorB: '#5e574f', wallL: '#3d434c', wallR: '#30353d', bgTop: '#1a1d22', bg: '#121418' },
+    // Grey concrete in a cellar cut out of the rock.
+    basement: { floorA: '#6f6c66', floorB: '#615f59', wallL: '#4a4a48', wallR: '#3b3b39', bgTop: '#1a1613', bg: '#120f0d' },
+    // Pavers on a roof at night; the wall colour is the stair housings.
+    rooftop: { floorA: '#5d636d', floorB: '#535962', wallL: '#414a5c', wallR: '#333b4b', bgTop: '#1c2638', bg: '#0f1522' },
+    // Warm decking over deep water; the wall colour is the timber.
+    boardwalk: { floorA: '#d6a663', floorB: '#c69552', wallL: '#8f5e33', wallR: '#6f4523', bgTop: '#106079', bg: '#0b4560' },
   };
   // The colour the ground around the plan is washed with -- the theme's own
   // light spilling out past the rooms.
   const AMBIENT_WASH = {
-    garage: 'rgba(120, 82, 40, 0.5)',
-    basement: 'rgba(58, 82, 104, 0.5)',
-    rooftop: 'rgba(96, 148, 190, 0.55)',
-    boardwalk: 'rgba(240, 186, 108, 0.5)',
+    garage: 'rgba(150, 110, 60, 0.42)',
+    basement: 'rgba(170, 110, 50, 0.38)',
+    rooftop: 'rgba(80, 110, 160, 0.30)',
+    boardwalk: 'rgba(70, 160, 180, 0.40)',
   };
 
   // Per-theme light: the colour of the downlights and of the pool they
   // throw on the floor.
   const LIGHT_COLORS = {
-    garage: { glow: 'rgba(255,196,120,0.30)', bulb: '#fff2cf' },
-    basement: { glow: 'rgba(170,210,255,0.20)', bulb: '#eaf7ff' },
-    rooftop: { glow: 'rgba(255,236,180,0.38)', bulb: '#fff4d6' },
-    // Open to the sky like the rooftop, but hung with festoon bulbs rather
-    // than lit by nothing, so it reads as somewhere that stays open late.
-    boardwalk: { glow: 'rgba(255,214,150,0.34)', bulb: '#fff1cd' },
+    // Strip lights in the bays; sconces in the cellar; small lamps on the
+    // roof's railings; lanterns on the pier.
+    garage: { glow: 'rgba(255,190,110,0.32)', bulb: '#ffe3ae' },
+    basement: { glow: 'rgba(255,170,90,0.30)', bulb: '#ffd08a' },
+    rooftop: { glow: 'rgba(255,225,170,0.30)', bulb: '#ffe9b8' },
+    boardwalk: { glow: 'rgba(255,205,130,0.34)', bulb: '#ffdf9c' },
   };
 
   // Placement counts are global across every room in every theme's chain
@@ -6663,7 +6789,7 @@
     const oy = Math.round((cr.top - sr.top) * 100) / 100;
     const z = cr.width / (parseFloat(floorCanvas.style.width) || BASE_W);
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const key = [state.activeTheme, w, h, ox, oy, z.toFixed(4), dpr,
+    const key = [state.activeTheme, placements.length, w, h, ox, oy, z.toFixed(4), dpr,
       Math.round(skyWash().a * 1000)].join('|');
     if (!force && key === groundKey) return;
     groundKey = key;
@@ -6692,8 +6818,12 @@
     groundCtx.setTransform(dpr * z, 0, 0, dpr * z, dpr * ox, dpr * oy);
     const view = { x0: -ox / z, y0: -oy / z, x1: (w - ox) / z, y1: (h - oy) / z };
     try {
-      drawGroundLattice(colors, view);
+      // The site's own surface, the pool of the location's light over it,
+      // and then whatever stands about on it.
+      drawSiteTexture(state.activeTheme, colors, view);
+      if (state.activeTheme === 'garage') drawGroundLattice(colors, view);
       drawSiteWash(AMBIENT_WASH[state.activeTheme] || AMBIENT_WASH.garage);
+      drawSiteProps(state.activeTheme, colors, view);
     } finally {
       groundCtx.restore();
       floorCtx = live;
@@ -6789,39 +6919,63 @@
 
   // A lit rail running the length of both walls, downlights washing the wall
   // beneath each lamp -- the alternative to the single hanging bulb.
-  function drawCeilingStrip(north, east, west, light) {
-    drawLightRails([[north, east], [north, west]], light);
+  function drawHubLight(place, light) {
+    const c = isoPoint(place.gx0 + place.cols / 2, place.gy0 + place.rows / 2);
+    const rx = (place.cols + place.rows) * ROOM.tileW * 0.22;
+    const ry = rx * 0.5;
+    const pool = floorCtx.createRadialGradient(c.x, c.y, 2, c.x, c.y, rx);
+    pool.addColorStop(0, scaleAlpha(light.glow, lampBoost() * 0.7));
+    pool.addColorStop(0.6, scaleAlpha(light.glow, lampBoost() * 0.24));
+    pool.addColorStop(1, 'rgba(0,0,0,0)');
+    floorCtx.save();
+    floorCtx.globalCompositeOperation = 'lighter';
+    floorCtx.translate(c.x, c.y);
+    floorCtx.scale(1, ry / rx);
+    floorCtx.translate(-c.x, -c.y);
+    floorCtx.fillStyle = pool;
+    floorCtx.beginPath();
+    floorCtx.arc(c.x, c.y, rx, 0, Math.PI * 2);
+    floorCtx.fill();
+    floorCtx.restore();
   }
-  function drawLightRails(walls, light) {
+  function drawCeilingStrip(north, east, west, light) {
+    drawLightRails([[north, east], [north, west]], light, styleOf(state.activeTheme).light);
+  }
+  // The fittings that light a walled room: a rail of downlights, strip
+  // lights along the top of the wall, or sconces bracketed to it.
+  function drawLightRails(walls, light, style) {
     const bulbColor = light.bulb || '#eaf7ff';
+    const lampH = style === 'sconce' ? 0.70 : 0.9;
     walls.forEach(([from, to]) => {
-      const railA = wallPoint(from, to, 0.05, 0.92);
-      const railB = wallPoint(from, to, 0.95, 0.92);
-      // A soft line of light along the rail, then the rail itself over it.
-      floorCtx.save();
-      floorCtx.globalCompositeOperation = 'lighter';
-      floorCtx.beginPath();
-      floorCtx.moveTo(railA.x, railA.y);
-      floorCtx.lineTo(railB.x, railB.y);
-      floorCtx.strokeStyle = hexA(bulbColor, 0.10);
-      floorCtx.lineWidth = 9;
-      floorCtx.lineCap = 'round';
-      floorCtx.stroke();
-      floorCtx.restore();
-      floorCtx.beginPath();
-      floorCtx.moveTo(railA.x, railA.y);
-      floorCtx.lineTo(railB.x, railB.y);
-      floorCtx.strokeStyle = 'rgba(198, 214, 228, 0.3)';
-      floorCtx.lineWidth = 2.5;
-      floorCtx.stroke();
+      if (style === 'rail') {
+        const railA = wallPoint(from, to, 0.05, 0.92);
+        const railB = wallPoint(from, to, 0.95, 0.92);
+        // A soft line of light along the rail, then the rail itself over it.
+        floorCtx.save();
+        floorCtx.globalCompositeOperation = 'lighter';
+        floorCtx.beginPath();
+        floorCtx.moveTo(railA.x, railA.y);
+        floorCtx.lineTo(railB.x, railB.y);
+        floorCtx.strokeStyle = hexA(bulbColor, 0.10);
+        floorCtx.lineWidth = 9;
+        floorCtx.lineCap = 'round';
+        floorCtx.stroke();
+        floorCtx.restore();
+        floorCtx.beginPath();
+        floorCtx.moveTo(railA.x, railA.y);
+        floorCtx.lineTo(railB.x, railB.y);
+        floorCtx.strokeStyle = 'rgba(198, 214, 228, 0.3)';
+        floorCtx.lineWidth = 2.5;
+        floorCtx.stroke();
+      }
 
       // Longer wall, more lamps -- a bigger room should read as better lit,
       // not as the same three lights stretched further apart.
       const run = Math.hypot(to.x - from.x, to.y - from.y);
-      const lamps = Math.max(run < 150 ? 2 : 3, Math.min(5, Math.round(run / 95)));
+      const lamps = Math.max(run < 150 ? 2 : 3, Math.min(style === 'sconce' ? 3 : 5, Math.round(run / 95)));
       for (let i = 0; i < lamps; i++) {
         const t = 0.2 + (i * 0.6) / (lamps - 1);
-        const lamp = wallPoint(from, to, t, 0.9);
+        const lamp = wallPoint(from, to, t, lampH);
         const foot = wallPoint(from, to, t, 0);
 
         // The wash down the wall. It used to be one flat cone with a
@@ -6832,8 +6986,8 @@
         // it reaches zero well before the mask's own edges.
         const spread = 0.22;
         const wide = [
-          wallPoint(from, to, t - spread * 0.16, 0.99),
-          wallPoint(from, to, t + spread * 0.16, 0.99),
+          wallPoint(from, to, t - spread * 0.16, lampH + 0.09),
+          wallPoint(from, to, t + spread * 0.16, lampH + 0.09),
           wallPoint(from, to, t + spread, -0.02),
           wallPoint(from, to, t - spread, -0.02),
         ];
@@ -6868,10 +7022,27 @@
         floorCtx.ellipse(lamp.x, lamp.y, 16, 10, 0, 0, Math.PI * 2);
         floorCtx.fill();
         floorCtx.restore();
-        floorCtx.beginPath();
-        floorCtx.ellipse(lamp.x, lamp.y, 4.2, 2.8, 0, 0, Math.PI * 2);
-        floorCtx.fillStyle = bulbColor;
-        floorCtx.fill();
+        if (style === 'tube') {
+          // A strip light: a bar of light along the wall, in a dark housing.
+          paintQuad(wallQuad(from, to, t - 0.062, t + 0.062, lampH - 0.015, lampH + 0.03), '#24272d', null);
+          floorCtx.save();
+          floorCtx.shadowColor = bulbColor;
+          floorCtx.shadowBlur = 8;
+          paintQuad(wallQuad(from, to, t - 0.055, t + 0.055, lampH - 0.01, lampH + 0.018), bulbColor, null);
+          floorCtx.restore();
+        } else if (style === 'sconce') {
+          // A sconce: a bracket on the wall with the lamp on it, throwing
+          // a little light up as well as down.
+          paintQuad(wallQuad(from, to, t - 0.018, t + 0.018, lampH - 0.03, lampH + 0.005), '#2a2622', 'rgba(0,0,0,0.5)', 1);
+          paintQuad(wallQuad(from, to, t - 0.014, t + 0.014, lampH, lampH + 0.05), bulbColor, null);
+          const above = wallPoint(from, to, t, lampH + 0.06);
+          drawGlow(above, 14, bulbColor, 0.35);
+        } else {
+          floorCtx.beginPath();
+          floorCtx.ellipse(lamp.x, lamp.y, 4.2, 2.8, 0, 0, Math.PI * 2);
+          floorCtx.fillStyle = bulbColor;
+          floorCtx.fill();
+        }
 
         // And a pool on the floor at the foot of the wall under it, wider
         // and softer than the wash so the two meet rather than stack.
@@ -6991,13 +7162,16 @@
       const t = candidates[i];
       if (t - half < 0 || t + half > 1) continue;
       const clearOfDoors = spans.every(([lo, hi]) => t + half <= lo || t - half >= hi);
-      const clearOfKit = taken.every((u) => Math.abs(u - t) >= half * 2);
+      // Something already hung there is a position, or a position with a
+      // width of its own.
+      const clearOfKit = taken.every((u) => (typeof u === 'number'
+        ? Math.abs(u - t) >= half * 2 : Math.abs(u.t - t) >= half + u.half));
       if (clearOfDoors && clearOfKit) return t;
     }
     return null;
   }
 
-  function drawRoomFittings(fit, north, east, west, doors) {
+  function drawRoomFittings(fit, north, east, west, doors, took) {
     // Alternating walls, each piece taking the first free position on its
     // wall. Fixed positions were fine while every room had its doorway in
     // the same place; now a piece that would land on a doorway steps along
@@ -7006,7 +7180,7 @@
       { key: 'ne', wall: [north, east], from: [0.22, 0.38, 0.81, 0.62, 0.1] },
       { key: 'nw', wall: [north, west], from: [0.75, 0.24, 0.55, 0.88, 0.12] },
     ];
-    const taken = { ne: [], nw: [] };
+    const taken = { ne: (took && took.ne.slice()) || [], nw: (took && took.nw.slice()) || [] };
     const half = 0.075;
     fit.decor.forEach((name, i) => {
       const draw = WALL_FITTINGS[name];
@@ -7016,7 +7190,7 @@
         const side = order[(i + k) % order.length];
         const t = pickWallSpot(doors[side.key], taken[side.key], side.from, half);
         if (t === null) continue;
-        taken[side.key].push(t);
+        taken[side.key].push({ t, half });
         draw(side.wall[0], side.wall[1], t);
         return;
       }
@@ -7064,90 +7238,976 @@
 
   function drawWallDecor(theme, north, east, west, doors) {
     drawBoughtArt(theme, north, east, west, doors);
-    if (theme === 'garage') {
-      // Mid-wall unless a doorway is there, in which case step along it.
-      const t = pickWallSpot(doors.ne, [], [0.56, 0.34, 0.76, 0.16], 0.14);
-      if (t === null) return;
-      const at = wallFrame(north, east, t, 0.62);
-      paintQuad([at(-32, 24), at(32, 24), at(32, -20), at(-32, -20)],
-        'rgba(0,0,0,0.22)', null);
-      floorCtx.strokeStyle = 'rgba(255,255,255,0.10)';
-      floorCtx.lineWidth = 1;
-      for (let row = 0; row < 4; row++) {
-        for (let col = 0; col < 6; col++) {
-          const hole = at(-26 + col * 11, 17 - row * 11);
-          floorCtx.beginPath();
-          floorCtx.arc(hole.x, hole.y, 1.3, 0, Math.PI * 2);
-          floorCtx.stroke();
+    if (theme === 'garage') return drawGarageWalls(north, east, west, doors);
+    if (theme === 'basement') return drawBasementWalls(north, east, west, doors);
+    return { ne: [], nw: [] };
+  }
+
+  // ---- Edges without walls ----
+  // Every stretch of one edge of a floor with floor on the inside and
+  // nothing on the outside, as spans along that edge. `side` is which
+  // edge: 'n' is the gy0 line, 'w' the gx0 line, 's' the far gy line, 'e'
+  // the far gx line.
+  function exposedRuns(rect, side) {
+    const along = side === 'n' || side === 's' ? rect.cols : rect.rows;
+    const gx1 = rect.gx0 + rect.cols;
+    const gy1 = rect.gy0 + rect.rows;
+    const open = (i) => {
+      if (side === 'n') return onFloorOf(rect, rect.gx0 + i, rect.gy0) && !siteIsFloor(rect.gx0 + i, rect.gy0 - 1);
+      if (side === 's') return onFloorOf(rect, rect.gx0 + i, gy1 - 1) && !siteIsFloor(rect.gx0 + i, gy1);
+      if (side === 'w') return onFloorOf(rect, rect.gx0, rect.gy0 + i) && !siteIsFloor(rect.gx0 - 1, rect.gy0 + i);
+      return onFloorOf(rect, gx1 - 1, rect.gy0 + i) && !siteIsFloor(gx1, rect.gy0 + i);
+    };
+    const runs = [];
+    let start = null;
+    for (let i = 0; i <= along; i++) {
+      const isOpen = i < along && open(i);
+      if (isOpen && start === null) start = i;
+      if (!isOpen && start !== null) {
+        runs.push([start, i]);
+        start = null;
+      }
+    }
+    return runs;
+  }
+  // Floor, or the jetty off the end of the pier, which is not a room but is
+  // not water either.
+  function siteIsFloor(gx, gy) {
+    if (tileIsFloor(gx, gy)) return true;
+    const j = jettyRect();
+    return !!j && inRect(j, gx, gy);
+  }
+  // The lattice point a distance t along an edge.
+  function edgePoint(rect, side, t) {
+    if (side === 'n') return { gx: rect.gx0 + t, gy: rect.gy0 };
+    if (side === 's') return { gx: rect.gx0 + t, gy: rect.gy0 + rect.rows };
+    if (side === 'w') return { gx: rect.gx0, gy: rect.gy0 + t };
+    return { gx: rect.gx0 + rect.cols, gy: rect.gy0 + t };
+  }
+  // The strip of deck running off the pier's far end, where the boat ties
+  // up. Boardwalk only.
+  function jettyRect() {
+    if (state.activeTheme !== 'boardwalk') return null;
+    const hub = hubRect();
+    if (!hub) return null;
+    return { gx0: hub.gx0 + hub.cols, gy0: hub.gy0 + hub.rows - 6, cols: 7, rows: 3 };
+  }
+
+  // ---- Railings ----
+  const RAIL = {
+    rooftop: { h: 50, post: 2.6, every: 2, postColor: '#252c3a', rail: '#9aa5b6',
+      panel: 'rgba(58,74,96,0.42)', mesh: 'rgba(255,255,255,0.07)' },
+    boardwalk: { h: 56, post: 4.4, every: 2.5, postColor: '#6b4423', rail: '#b07c44', mid: '#95683a' },
+  };
+  function railSide(theme, rect, sides, light) {
+    const r = RAIL[theme];
+    if (!r) return;
+    sides.forEach((side) => {
+      exposedRuns(rect, side).forEach(([from, to]) => drawRailRun(theme, rect, side, from, to, light));
+    });
+  }
+  function drawRailRun(theme, rect, side, from, to, light) {
+    const r = RAIL[theme];
+    const at = (t) => {
+      const p = edgePoint(rect, side, t);
+      return isoPoint(p.gx, p.gy);
+    };
+    const a = at(from);
+    const b = at(to);
+    const up = (p, h) => ({ x: p.x, y: p.y - h });
+    const len = to - from;
+    const posts = Math.max(1, Math.round(len / r.every));
+    if (theme === 'rooftop') {
+      // A mesh panel between the posts, the posts, then the top rail.
+      paintQuad([a, b, up(b, r.h - 4), up(a, r.h - 4)], r.panel, null);
+      for (let h = 8; h < r.h - 6; h += 7) strokePolyline([up(a, h), up(b, h)], r.mesh, 1);
+      for (let i = 0; i <= posts; i++) {
+        const p = at(from + (len * i) / posts);
+        paintQuad([{ x: p.x - r.post / 2, y: p.y }, { x: p.x + r.post / 2, y: p.y },
+          { x: p.x + r.post / 2, y: p.y - r.h }, { x: p.x - r.post / 2, y: p.y - r.h }], r.postColor, null);
+        // A small light on every third post, so the deck has somewhere lit.
+        if (i % 3 === 1 && i < posts) {
+          const lamp = up(p, r.h - 8);
+          drawGlow(lamp, 22, light.bulb, 0.5);
+          floorCtx.fillStyle = light.bulb;
+          floorCtx.fillRect(lamp.x - 2.5, lamp.y - 1.5, 5, 3);
+          const inward = side === 'n' ? { gx: 0, gy: 1.2 } : side === 's' ? { gx: 0, gy: -1.2 }
+            : side === 'w' ? { gx: 1.2, gy: 0 } : { gx: -1.2, gy: 0 };
+          const foot = edgePoint(rect, side, from + (len * i) / posts);
+          drawFloorPool(isoPoint(foot.gx + inward.gx, foot.gy + inward.gy), light, 1.0);
         }
       }
-      floorCtx.lineCap = 'round';
-      strokePolyline([at(-14, -12), at(-14, 8)], '#c94f3a', 2.5);
-      strokePolyline([at(-19, 8), at(-9, 8)], '#c94f3a', 2.5);
-      strokePolyline([at(10, -14), at(10, 10)], '#9aa0a8', 2.5);
-      const eye = at(10, 10);
+      strokePolyline([up(a, r.h), up(b, r.h)], r.rail, 2.2);
+      strokePolyline([up(a, r.h - 2.4), up(b, r.h - 2.4)], 'rgba(0,0,0,0.35)', 1);
+      return;
+    }
+    // Boardwalk: wooden posts with two rails and a kickboard, and a
+    // lifebuoy hung on the longer runs.
+    for (let i = 0; i <= posts; i++) {
+      const p = at(from + (len * i) / posts);
+      drawWoodPost(p, r.post, r.h + 6, r.postColor);
+    }
+    strokePolyline([up(a, r.h), up(b, r.h)], r.rail, 3.4);
+    strokePolyline([up(a, r.h + 1.5), up(b, r.h + 1.5)], shade(r.rail, 34), 1);
+    strokePolyline([up(a, r.h * 0.56), up(b, r.h * 0.56)], r.mid, 2.4);
+    strokePolyline([up(a, 5), up(b, 5)], shade(r.mid, -28), 1.6);
+    if (len >= 8) {
+      const t = from + len * (0.35 + 0.3 * noise(rect.gx0 + from, rect.gy0 + to, 3));
+      const ring = up(at(t), r.h * 0.6);
       floorCtx.beginPath();
-      floorCtx.arc(eye.x, eye.y, 4, 0.3, Math.PI * 1.4);
-      floorCtx.strokeStyle = '#9aa0a8';
-      floorCtx.lineWidth = 2.5;
+      floorCtx.ellipse(ring.x, ring.y, 6.5, 6.5, 0, 0, Math.PI * 2);
+      floorCtx.lineWidth = 4;
+      floorCtx.strokeStyle = '#e04a3a';
       floorCtx.stroke();
-    } else if (theme === 'basement') {
-      const t = pickWallSpot(doors.nw, [], [0.5, 0.28, 0.74, 0.14], 0.14);
-      if (t === null) return;
-      const at = wallFrame(north, west, t, 0.6);
-      const sheet = (a0, a1, u0, u1, fill) => paintQuad(
-        [at(a0, u0), at(a1, u0), at(a1, u1), at(a0, u1)], fill, null);
-      sheet(-26, 26, 32, -8, '#1a1512');
-      sheet(-22, 22, 28, -4, '#dcd0b8');
-      sheet(-17, 17, 22, 19, 'rgba(0,0,0,0.55)');
-      sheet(-17, 5, 15, 12, 'rgba(0,0,0,0.55)');
-      sheet(-17, 9, 8, 5, 'rgba(0,0,0,0.55)');
-      sheet(-17, -5, 1, -2, '#c0483a');
-    } else if (theme === 'boardwalk') {
-      // Bunting: a slack line between two corners with flags hung off it,
-      // which is the one thing that says seaside and nothing else does.
-      const flags = ['#e4573f', '#e8c46a', '#3fa8a0', '#eef1f6'];
-      [{ from: north, to: east }, { from: north, to: west }].forEach(({ from, to }, side) => {
-        const sag = (t) => 0.90 - 0.055 * Math.sin(Math.PI * t);
-        const line = [];
-        for (let i = 0; i <= 12; i++) line.push(wallPoint(from, to, i / 12, sag(i / 12)));
-        strokePolyline(line, 'rgba(255,255,255,0.35)', 1.4);
-        for (let i = 1; i < 12; i++) {
-          const t = i / 12;
-          const hang = wallPoint(from, to, t, sag(t));
-          const tipL = wallPoint(from, to, t - 0.022, sag(t));
-          const tipR = wallPoint(from, to, t + 0.022, sag(t));
-          const point = wallPoint(from, to, t, sag(t) - 0.055);
-          paintQuad([tipL, tipR, point], flags[(i + side) % flags.length], null);
-        }
-      });
-    } else if (theme === 'rooftop') {
-      const wallTopColor = 'rgba(255, 236, 190, 0.9)';
-      [
-        { from: north, to: east },
-        { from: north, to: west },
-      ].forEach(({ from, to }) => {
-        floorCtx.beginPath();
-        for (let i = 0; i <= 6; i++) {
-          const q = wallPoint(from, to, i / 6, 0.94);
-          if (i === 0) floorCtx.moveTo(q.x, q.y);
-          else floorCtx.lineTo(q.x, q.y);
-        }
-        floorCtx.strokeStyle = 'rgba(255,255,255,0.18)';
-        floorCtx.lineWidth = 1.5;
-        floorCtx.stroke();
-        for (let i = 0; i <= 6; i++) {
-          const q = wallPoint(from, to, i / 6, 0.94);
-          floorCtx.beginPath();
-          floorCtx.arc(q.x, q.y, 2.4, 0, Math.PI * 2);
-          floorCtx.fillStyle = wallTopColor;
-          floorCtx.shadowColor = wallTopColor;
-          floorCtx.shadowBlur = 8;
-          floorCtx.fill();
-          floorCtx.shadowBlur = 0;
-        }
+      floorCtx.beginPath();
+      floorCtx.ellipse(ring.x, ring.y, 6.5, 6.5, 0, -0.5, 0.5);
+      floorCtx.moveTo(ring.x - 6.5, ring.y);
+      floorCtx.ellipse(ring.x, ring.y, 6.5, 6.5, 0, Math.PI - 0.5, Math.PI + 0.5);
+      floorCtx.strokeStyle = '#f3efe4';
+      floorCtx.stroke();
+    }
+  }
+  function drawWoodPost(p, w, h, color) {
+    paintQuad([{ x: p.x - w / 2, y: p.y }, { x: p.x, y: p.y + 1 }, { x: p.x, y: p.y - h + 1 }, { x: p.x - w / 2, y: p.y - h }],
+      shade(color, -18), null);
+    paintQuad([{ x: p.x, y: p.y + 1 }, { x: p.x + w / 2, y: p.y }, { x: p.x + w / 2, y: p.y - h }, { x: p.x, y: p.y - h + 1 }],
+      shade(color, 10), null);
+    paintQuad([{ x: p.x - w / 2 - 0.6, y: p.y - h }, { x: p.x + w / 2 + 0.6, y: p.y - h },
+      { x: p.x + w / 2 + 0.6, y: p.y - h - 2.5 }, { x: p.x - w / 2 - 0.6, y: p.y - h - 2.5 }], shade(color, 30), null);
+  }
+
+  // ---- Light ----
+  function drawGlow(p, r, color, alpha) {
+    const halo = floorCtx.createRadialGradient(p.x, p.y, 0.5, p.x, p.y, r);
+    halo.addColorStop(0, hexA(color, alpha));
+    halo.addColorStop(0.4, hexA(color, alpha * 0.4));
+    halo.addColorStop(1, 'rgba(255,255,255,0)');
+    floorCtx.save();
+    floorCtx.globalCompositeOperation = 'lighter';
+    floorCtx.fillStyle = halo;
+    floorCtx.beginPath();
+    floorCtx.ellipse(p.x, p.y, r, r * 0.7, 0, 0, Math.PI * 2);
+    floorCtx.fill();
+    floorCtx.restore();
+  }
+  function drawFloorPool(foot, light, scale) {
+    const poolR = ROOM.tileW * 1.5 * (scale || 1);
+    const pool = floorCtx.createRadialGradient(foot.x, foot.y, 2, foot.x, foot.y, poolR);
+    pool.addColorStop(0, scaleAlpha(light.glow, lampBoost() * 0.85));
+    pool.addColorStop(0.45, scaleAlpha(light.glow, lampBoost() * 0.34));
+    pool.addColorStop(0.78, scaleAlpha(light.glow, lampBoost() * 0.09));
+    pool.addColorStop(1, 'rgba(0,0,0,0)');
+    floorCtx.save();
+    floorCtx.globalCompositeOperation = 'lighter';
+    floorCtx.fillStyle = pool;
+    floorCtx.beginPath();
+    floorCtx.ellipse(foot.x, foot.y, poolR, ROOM.tileH * 1.5 * (scale || 1), 0, 0, Math.PI * 2);
+    floorCtx.fill();
+    floorCtx.restore();
+  }
+
+  // A lamp post on the pier: a black post with a lantern on it, and a
+  // pennant on some of them.
+  function drawLampPost(p, light, flag) {
+    const H = 1.85 * PX_PER_METRE_TALL;
+    const post = '#1c1e24';
+    paintQuad([{ x: p.x - 2.2, y: p.y }, { x: p.x + 2.2, y: p.y }, { x: p.x + 2.2, y: p.y - H }, { x: p.x - 2.2, y: p.y - H }],
+      post, null);
+    paintQuad([{ x: p.x - 5, y: p.y }, { x: p.x + 5, y: p.y }, { x: p.x + 5, y: p.y - 6 }, { x: p.x - 5, y: p.y - 6 }],
+      shade(post, 14), 'rgba(0,0,0,0.4)', 1);
+    const top = { x: p.x, y: p.y - H };
+    // The lantern: a warm pane under a little cap.
+    drawGlow({ x: top.x, y: top.y - 9 }, 46, light.bulb, 0.55);
+    paintQuad([{ x: top.x - 6, y: top.y }, { x: top.x + 6, y: top.y }, { x: top.x + 6, y: top.y - 17 }, { x: top.x - 6, y: top.y - 17 }],
+      post, null);
+    paintQuad([{ x: top.x - 4.5, y: top.y - 2 }, { x: top.x + 4.5, y: top.y - 2 }, { x: top.x + 4.5, y: top.y - 15 }, { x: top.x - 4.5, y: top.y - 15 }],
+      light.bulb, null);
+    paintQuad([{ x: top.x - 7.5, y: top.y - 17 }, { x: top.x + 7.5, y: top.y - 17 }, { x: top.x, y: top.y - 23 }], post, null);
+    if (flag) {
+      const pole = { x: p.x, y: top.y - 26 };
+      strokePolyline([pole, { x: pole.x, y: pole.y - 30 }], '#3a3d44', 1.5);
+      paintQuad([{ x: pole.x, y: pole.y - 30 }, { x: pole.x + 11, y: pole.y - 26 }, { x: pole.x, y: pole.y - 8 }], '#2f74d0', null);
+      strokePolyline([{ x: pole.x + 2, y: pole.y - 21 }, { x: pole.x + 6, y: pole.y - 20 }], 'rgba(255,255,255,0.7)', 1.2);
+      strokePolyline([{ x: pole.x + 2, y: pole.y - 17 }, { x: pole.x + 6, y: pole.y - 16 }], 'rgba(255,255,255,0.7)', 1.2);
+    }
+    drawFloorPool(p, light, 1.6);
+  }
+  // Where a floor's lamp posts stand: just off each corner. `back` picks
+  // the two corners behind the floor's contents, `front` the two in front.
+  function lampSpots(rect, back) {
+    const off = 0.45;
+    const gx1 = rect.gx0 + rect.cols;
+    const gy1 = rect.gy0 + rect.rows;
+    return back
+      ? [{ gx: rect.gx0 - off, gy: rect.gy0 - off, flag: true }, { gx: gx1 + off, gy: rect.gy0 - off, flag: false },
+        { gx: rect.gx0 - off, gy: gy1 + off, flag: false }]
+      : [{ gx: gx1 + off, gy: gy1 + off, flag: true }];
+  }
+
+  // ---- Fixtures ----
+  function drawFixture(place, f, theme, colors, light) {
+    const ctx = floorCtx;
+    const hu = (f.u1 - f.u0) / 2;
+    const hv = (f.v1 - f.v0) / 2;
+    const cu = (f.u0 + f.u1) / 2;
+    const cv = (f.v0 + f.v1) / 2;
+    if (f.kind === 'planter') {
+      // Sits on the edge, half over the floor and half off it.
+      const onN = f.v0 === 0 && f.v1 < 1;
+      const onW = f.u0 === 0 && f.u1 < 1;
+      const base = isoPoint(place.gx0 + (onW ? 0 : cu), place.gy0 + (onN ? 0 : cv));
+      drawPlanter(ctx, base, 0.6, theme, noise(place.gx0 + f.u0, place.gy0 + f.v0, 5) < 0.4);
+      return;
+    }
+    const base = isoPoint(place.gx0 + cu, place.gy0 + cv);
+    if (f.kind === 'stairs') drawStairHousing(ctx, base, hu, hv, colors, light);
+    else if (f.kind === 'ac') drawAirUnit(ctx, base, hu, hv);
+    else if (f.kind === 'kiosk') drawKiosk(ctx, base, hu, hv, f.sign, light);
+  }
+  function drawPlanter(ctx, base, half, theme, palm) {
+    const pot = theme === 'boardwalk' ? '#cfc7b8' : '#5e6570';
+    drawIsoBox(ctx, base, 0, 0, half, half, 13, pot, 0);
+    drawIsoBox(ctx, base, 0, 0, half * 0.84, half * 0.84, 2, '#3a2e22', 13);
+    const top = isoScreenPoint(base, 0, 0, 16);
+    if (palm) {
+      drawIsoBar(ctx, base, 0, 0, 0.12, 0.06, 0.42 * PX_PER_METRE_TALL, 4, '#8a6a44');
+      const crown = isoScreenPoint(base, 0.12, 0.06, 0.95 * PX_PER_METRE_TALL);
+      ctx.save();
+      ctx.strokeStyle = '#4d8a45';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(crown.x, crown.y);
+        ctx.quadraticCurveTo(crown.x + Math.cos(a) * 9, crown.y + Math.sin(a) * 4.5 - 5,
+          crown.x + Math.cos(a) * 17, crown.y + Math.sin(a) * 8.5);
+        ctx.stroke();
+      }
+      ctx.restore();
+      return;
+    }
+    // Heads of foliage, darker underneath and lighter on top.
+    const greens = ['#3d7236', '#4f8a42', '#65a24d', '#7bb35a'];
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.4;
+      ctx.beginPath();
+      ctx.arc(top.x + Math.cos(a) * 6, top.y - 3 + Math.sin(a) * 3 - (i % 2) * 3, 5.5 + (i % 3) * 1.2, 0, Math.PI * 2);
+      ctx.fillStyle = greens[i % greens.length];
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(top.x, top.y - 9, 6, 0, Math.PI * 2);
+    ctx.fillStyle = greens[3];
+    ctx.fill();
+  }
+  function drawStairHousing(ctx, base, hu, hv, colors, light) {
+    const H = 2.2 * PX_PER_METRE_TALL;
+    const body = '#434c5e';
+    drawIsoBox(ctx, base, 0, 0, hu, hv, H, body, 0);
+    drawIsoBox(ctx, base, 0, 0, hu + 0.15, hv + 0.15, 6, '#2b3342', H);
+    // The door in the face looking down-left, a strip of light over it,
+    // and its pool on the deck outside.
+    const door = 1.9 * PX_PER_METRE_TALL;
+    const w = Math.min(hu - 0.3, 1.0);
+    drawFacePanel(ctx, base, { u: -w, v: hv + 0.02 }, { u: w, v: hv + 0.02 }, 2, door, '#20262f', 2);
+    drawFacePanel(ctx, base, { u: -w + 0.18, v: hv + 0.03 }, { u: w - 0.18, v: hv + 0.03 }, 6, door - 6, hexA(light.bulb, 0.82), 1.5);
+    drawFacePanel(ctx, base, { u: -0.02, v: hv + 0.04 }, { u: 0.02, v: hv + 0.04 }, 6, door - 6, 'rgba(0,0,0,0.35)', 0);
+    drawFacePanel(ctx, base, { u: -w - 0.25, v: hv + 0.03 }, { u: w + 0.25, v: hv + 0.03 }, door + 9, door + 13, light.bulb, 1);
+    drawGlow(isoScreenPoint(base, 0, hv + 0.02, door + 11), 30, light.bulb, 0.55);
+    drawFloorPool(isoScreenPoint(base, 0, hv + 1.4, 0), light, 1.5);
+    // A vent pipe on the roof.
+    drawIsoBox(ctx, base, -hu + 0.55, -hv + 0.55, 0.18, 0.18, 24, '#8a919c', H + 6);
+    drawIsoBox(ctx, base, -hu + 0.55, -hv + 0.55, 0.26, 0.26, 4, '#6f767f', H + 30);
+  }
+  function drawAirUnit(ctx, base, hu, hv) {
+    drawIsoBox(ctx, base, 0, 0, hu, hv, 26, '#7b828d', 0);
+    const top = isoScreenPoint(base, 0, 0, 27);
+    const r = Math.min(hu, hv) * ROOM.tileW * 0.5;
+    drawIsoDisc(ctx, top, r, r * 0.5, '#383d45');
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1.4;
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI;
+      ctx.beginPath();
+      ctx.moveTo(top.x - Math.cos(a) * r * 0.8, top.y - Math.sin(a) * r * 0.4);
+      ctx.lineTo(top.x + Math.cos(a) * r * 0.8, top.y + Math.sin(a) * r * 0.4);
+      ctx.stroke();
+    }
+    for (let i = 0; i < 4; i++) {
+      drawFacePanel(ctx, base, { u: hu + 0.01, v: -hv + 0.25 }, { u: hu + 0.01, v: hv - 0.25 },
+        5 + i * 5, 7 + i * 5, 'rgba(0,0,0,0.28)', 0);
+    }
+  }
+  function drawSignBoard(p, text, board) {
+    const ctx = floorCtx;
+    ctx.save();
+    ctx.font = '800 13px Inter, system-ui, sans-serif';
+    const w = ctx.measureText(text).width + 22;
+    const h = 22;
+    paintQuad([{ x: p.x - w / 2, y: p.y }, { x: p.x + w / 2, y: p.y }, { x: p.x + w / 2, y: p.y - h }, { x: p.x - w / 2, y: p.y - h }],
+      board, 'rgba(0,0,0,0.6)', 1.2);
+    paintQuad([{ x: p.x - w / 2 + 2, y: p.y - 2 }, { x: p.x + w / 2 - 2, y: p.y - 2 }, { x: p.x + w / 2 - 2, y: p.y - h + 2 }, { x: p.x - w / 2 + 2, y: p.y - h + 2 }],
+      null, 'rgba(255,255,255,0.35)', 1);
+    ctx.fillStyle = '#f7f3e8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, p.x, p.y - h / 2 + 1);
+    ctx.restore();
+  }
+  function drawKiosk(ctx, base, hu, hv, sign, light) {
+    const H = 2.0 * PX_PER_METRE_TALL;
+    const wood = sign === 'SNACKS' ? '#8f5e33' : '#7d5a3a';
+    drawIsoBox(ctx, base, 0, 0, hu, hv, H, wood, 0);
+    // The serving hatch in the face looking down-right, lit from inside,
+    // with a counter under it.
+    drawFacePanel(ctx, base, { u: hu + 0.02, v: -hv + 0.5 }, { u: hu + 0.02, v: hv - 0.5 }, H * 0.44, H * 0.84, '#2b1d12', 2);
+    drawFacePanel(ctx, base, { u: hu + 0.03, v: -hv + 0.6 }, { u: hu + 0.03, v: hv - 0.6 }, H * 0.48, H * 0.80, hexA(light.bulb, 0.55), 2);
+    drawGlow(isoScreenPoint(base, hu + 0.03, 0, H * 0.64), 34, light.bulb, 0.35);
+    drawIsoBox(ctx, base, hu + 0.22, 0, 0.24, hv - 0.5, H * 0.44, shade(wood, 16), 0);
+    // A striped awning sloping out over the counter.
+    const a0 = isoScreenPoint(base, hu + 0.02, -hv, H * 0.94);
+    const a1 = isoScreenPoint(base, hu + 0.02, hv, H * 0.94);
+    const b0 = isoScreenPoint(base, hu + 1.1, -hv - 0.1, H * 0.76);
+    const b1 = isoScreenPoint(base, hu + 1.1, hv + 0.1, H * 0.76);
+    const stripes = 7;
+    for (let i = 0; i < stripes; i++) {
+      const t0 = i / stripes;
+      const t1 = (i + 1) / stripes;
+      paintQuad([lerpPt(a0, a1, t0), lerpPt(a0, a1, t1), lerpPt(b0, b1, t1), lerpPt(b0, b1, t0)],
+        i % 2 ? '#f3efe4' : (sign === 'SNACKS' ? '#d9402f' : '#1f7a80'), 'rgba(0,0,0,0.25)', 0.8);
+    }
+    // A roof a little wider than the walls, and the sign standing on it.
+    drawIsoBox(ctx, base, 0, 0, hu + 0.2, hv + 0.2, 5, '#5a3a1e', H);
+    drawSignBoard(isoScreenPoint(base, 0, 0, H + 8), sign, sign === 'SNACKS' ? '#4a2a14' : '#146068');
+    if (sign !== 'SNACKS') {
+      // Surfboards leaning on the side of the shop.
+      [[0, '#f3efe4', '#2f74d0'], [0.45, '#e04a3a', '#f3efe4']].forEach(([dv, fill, stripe]) => {
+        const foot = isoScreenPoint(base, -hu + 0.6 + dv * 0.4, hv + 0.35 + dv, 0);
+        ctx.save();
+        ctx.translate(foot.x, foot.y - 30);
+        ctx.rotate(-0.12);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 5.5, 31, 0, 0, Math.PI * 2);
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, -26);
+        ctx.lineTo(0, 26);
+        ctx.strokeStyle = stripe;
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+        ctx.restore();
       });
     }
+  }
+
+  // ---- Floor markings ----
+  function drawInsetOutline(place, inset, color, width) {
+    const q = [
+      isoPoint(place.gx0 + inset, place.gy0 + inset),
+      isoPoint(place.gx0 + place.cols - inset, place.gy0 + inset),
+      isoPoint(place.gx0 + place.cols - inset, place.gy0 + place.rows - inset),
+      isoPoint(place.gx0 + inset, place.gy0 + place.rows - inset),
+    ];
+    paintQuad(q, null, color, width || 2);
+  }
+  function drawGrate(gx, gy, half, bars) {
+    const q = [isoPoint(gx - half, gy - half), isoPoint(gx + half, gy - half),
+      isoPoint(gx + half, gy + half), isoPoint(gx - half, gy + half)];
+    paintQuad(q, '#1b1b1d', 'rgba(0,0,0,0.7)', 1.2);
+    const n = bars || 6;
+    for (let i = 1; i < n; i++) {
+      const t = -half + (2 * half * i) / n;
+      strokePolyline([isoPoint(gx + t, gy - half + 0.15), isoPoint(gx + t, gy + half - 0.15)], 'rgba(150,150,150,0.35)', 1);
+      strokePolyline([isoPoint(gx - half + 0.15, gy + t), isoPoint(gx + half - 0.15, gy + t)], 'rgba(150,150,150,0.35)', 1);
+    }
+  }
+  function drawHatch(gx, gy, half) {
+    const q = [isoPoint(gx - half, gy - half), isoPoint(gx + half, gy - half),
+      isoPoint(gx + half, gy + half), isoPoint(gx - half, gy + half)];
+    floorCtx.save();
+    paintQuad(q, 'rgba(242,183,5,0.85)', null);
+    floorCtx.beginPath();
+    floorCtx.moveTo(q[0].x, q[0].y);
+    for (let i = 1; i < 4; i++) floorCtx.lineTo(q[i].x, q[i].y);
+    floorCtx.closePath();
+    floorCtx.clip();
+    floorCtx.strokeStyle = 'rgba(20,20,22,0.85)';
+    floorCtx.lineWidth = 3;
+    for (let t = -half * 2; t <= half * 2; t += 0.55) {
+      strokePolyline([isoPoint(gx + t - half, gy - half), isoPoint(gx + t + half, gy + half)], 'rgba(20,20,22,0.85)', 3);
+    }
+    floorCtx.restore();
+    paintQuad(q, null, 'rgba(0,0,0,0.4)', 1);
+  }
+  function drawWaveMark(gx, gy) {
+    floorCtx.save();
+    floorCtx.lineCap = 'round';
+    for (let k = 0; k < 3; k++) {
+      const pts = [];
+      for (let i = 0; i <= 16; i++) {
+        const t = i / 16;
+        pts.push(isoPoint(gx - 2.2 + t * 4.4 + k * 0.5, gy + k * 0.9 - 0.9 + Math.sin(t * Math.PI * 2) * 0.3));
+      }
+      strokePolyline(pts, 'rgba(255,255,255,0.5)', 3);
+    }
+    floorCtx.restore();
+  }
+  function drawFloorMarks(theme, place, roomIndex) {
+    const hub = isHubAt(theme, roomIndex);
+    if (theme === 'garage') {
+      if (hub) {
+        drawGrate(place.gx0 + place.cols * 0.42, place.gy0 + place.rows * 0.5, 0.9, 5);
+      } else {
+        drawInsetOutline(place, 1.5, 'rgba(255,232,196,0.34)', 2);
+        if (roomIndex === 1) drawHatch(place.gx0 + 2.6, place.gy0 + 2.6, 1.3);
+      }
+    } else if (theme === 'basement') {
+      if (hub) drawGrate(place.gx0 + place.cols * 0.5, place.gy0 + place.rows - 4.5, 2.4, 10);
+    } else if (theme === 'boardwalk') {
+      if (roomIndex === 1 || roomIndex === 2) drawInsetOutline(place, 2, 'rgba(255,255,255,0.42)', 2);
+      if (!hub) drawWaveMark(place.gx0 + place.cols / 2, place.gy0 + place.rows / 2);
+    }
+  }
+
+  // Decking: boards a tile wide and six long, their joints staggered row
+  // by row, each a slightly different shade of the same wood.
+  function drawPlanks(rect, colors, dim) {
+    const L = 6;
+    for (let ry = 0; ry < rect.rows; ry++) {
+      const gy = rect.gy0 + ry;
+      const stagger = (ry * 2) % L;
+      for (let rx = -stagger; rx < rect.cols; rx += L) {
+        const x0 = Math.max(0, rx);
+        const x1 = Math.min(rect.cols, rx + L);
+        if (x1 <= x0) continue;
+        const gx = rect.gx0 + x0;
+        const w = x1 - x0;
+        const n = noise(gx, gy, 7);
+        const tone = shade(n < 0.5 ? colors.floorA : colors.floorB, (dim || 0) + Math.round((n - 0.5) * 18));
+        paintQuad([isoPoint(gx, gy), isoPoint(gx + w, gy), isoPoint(gx + w, gy + 1), isoPoint(gx, gy + 1)],
+          tone, 'rgba(70,36,12,0.5)', 1);
+        strokePolyline([isoPoint(gx + 0.3, gy + 0.5), isoPoint(gx + w - 0.3, gy + 0.5)], 'rgba(0,0,0,0.07)', 1);
+      }
+    }
+  }
+
+  // ---- Walls, by location ----
+  function drawGarageWalls(north, east, west, doors) {
+    const took = { ne: [], nw: [] };
+    const q = (from, to, t0, t1, h0, h1, fill, stroke, lw) => paintQuad(wallQuad(from, to, t0, t1, h0, h1), fill, stroke, lw);
+    // A roller shutter, on the back-right wall unless a doorway is in the
+    // way there, and its guide rails and bollards.
+    const shutter = (from, to, t, half) => {
+      q(from, to, t - half, t + half, 0.02, 0.80, '#5b626b', 'rgba(0,0,0,0.5)', 1);
+      for (let h = 0.06; h < 0.78; h += 0.045) {
+        q(from, to, t - half + 0.006, t + half - 0.006, h, h + 0.018, 'rgba(255,255,255,0.07)', null);
+        q(from, to, t - half + 0.006, t + half - 0.006, h + 0.018, h + 0.045, 'rgba(0,0,0,0.13)', null);
+      }
+      q(from, to, t - half - 0.012, t + half + 0.012, 0.80, 0.88, '#363b43', 'rgba(0,0,0,0.5)', 1);
+      q(from, to, t - half - 0.014, t - half, 0.02, 0.80, '#2a2e34', null);
+      q(from, to, t + half, t + half + 0.014, 0.02, 0.80, '#2a2e34', null);
+      [t - half - 0.026, t + half + 0.026].forEach((tt) => {
+        q(from, to, tt - 0.009, tt + 0.009, 0, 0.17, '#f2b705', 'rgba(0,0,0,0.5)', 1);
+        [0.03, 0.09].forEach((h) => q(from, to, tt - 0.009, tt + 0.009, h, h + 0.03, '#15161a', null));
+      });
+    };
+    let t = pickWallSpot(doors.ne, [], [0.5, 0.36, 0.64, 0.3], 0.22);
+    if (t !== null) {
+      shutter(north, east, t, 0.18);
+      took.ne.push({ t, half: 0.23 });
+    } else {
+      t = pickWallSpot(doors.nw, [], [0.5, 0.36, 0.64], 0.22);
+      if (t !== null) {
+        shutter(north, west, t, 0.18);
+        took.nw.push({ t, half: 0.23 });
+      }
+    }
+    // A bank of lockers on the other wall.
+    const lockersOn = took.ne.length ? 'nw' : 'ne';
+    const lw = lockersOn === 'nw' ? [north, west] : [north, east];
+    t = pickWallSpot(doors[lockersOn], took[lockersOn], [0.72, 0.28, 0.5, 0.85], 0.1);
+    if (t !== null) {
+      q(lw[0], lw[1], t - 0.09, t + 0.09, 0.02, 0.66, '#4b525c', 'rgba(0,0,0,0.55)', 1);
+      q(lw[0], lw[1], t - 0.09, t + 0.09, 0.66, 0.69, '#363c45', null);
+      [-0.03, 0.03].forEach((d) => q(lw[0], lw[1], t + d - 0.002, t + d + 0.002, 0.02, 0.66, 'rgba(0,0,0,0.45)', null));
+      [-0.06, 0, 0.06].forEach((d) => {
+        for (let k = 0; k < 3; k++) q(lw[0], lw[1], t + d - 0.015, t + d + 0.015, 0.55 - k * 0.03, 0.56 - k * 0.03, 'rgba(0,0,0,0.35)', null);
+        q(lw[0], lw[1], t + d + 0.012, t + d + 0.02, 0.33, 0.37, '#9aa2ac', null);
+      });
+      took[lockersOn].push({ t, half: 0.1 });
+    }
+    // A red tool cabinet on castors.
+    const cabOn = lockersOn === 'nw' ? 'ne' : 'nw';
+    const cw = cabOn === 'nw' ? [north, west] : [north, east];
+    t = pickWallSpot(doors[cabOn], took[cabOn], [0.18, 0.82, 0.3], 0.06);
+    if (t !== null) {
+      q(cw[0], cw[1], t - 0.045, t + 0.045, 0.03, 0.42, '#b3281f', 'rgba(0,0,0,0.6)', 1);
+      for (let h = 0.09; h < 0.4; h += 0.07) q(cw[0], cw[1], t - 0.04, t + 0.04, h, h + 0.006, 'rgba(255,255,255,0.22)', null);
+      q(cw[0], cw[1], t - 0.048, t + 0.048, 0.42, 0.45, '#1c1d21', null);
+      [-0.03, 0.03].forEach((d) => q(cw[0], cw[1], t + d - 0.006, t + d + 0.006, 0, 0.03, '#15161a', null));
+      took[cabOn].push({ t, half: 0.06 });
+    }
+    // A duct along the top of both walls, and a downpipe in the corner.
+    [[north, east], [north, west]].forEach(([from, to]) => {
+      q(from, to, 0.0, 1.0, 0.925, 0.965, '#2b3038', null);
+      q(from, to, 0.0, 1.0, 0.958, 0.965, 'rgba(255,255,255,0.08)', null);
+      for (let s = 0.08; s < 1; s += 0.14) q(from, to, s - 0.006, s + 0.006, 0.92, 0.97, '#1e2228', null);
+    });
+    q(north, east, 0.006, 0.02, 0, 0.925, '#3a3f47', 'rgba(0,0,0,0.45)', 0.8);
+    return took;
+  }
+  function drawBasementWalls(north, east, west, doors) {
+    const took = { ne: [], nw: [] };
+    const q = (from, to, t0, t1, h0, h1, fill, stroke, lw) => paintQuad(wallQuad(from, to, t0, t1, h0, h1), fill, stroke, lw);
+    // Copper pipes down the wall in a pair, with couplings.
+    const pipes = (from, to, t) => {
+      [t - 0.012, t + 0.012].forEach((tt) => {
+        q(from, to, tt - 0.007, tt + 0.007, 0, 0.985, '#8c4f2a', 'rgba(0,0,0,0.5)', 0.8);
+        q(from, to, tt - 0.004, tt, 0, 0.985, 'rgba(255,205,160,0.28)', null);
+        [0.3, 0.68].forEach((h) => q(from, to, tt - 0.011, tt + 0.011, h, h + 0.03, '#6e3d20', 'rgba(0,0,0,0.5)', 0.8));
+      });
+    };
+    // A grey box with a conduit up from it and a pilot light.
+    const box = (from, to, t) => {
+      q(from, to, t - 0.03, t + 0.03, 0.48, 0.66, '#9aa0a6', 'rgba(0,0,0,0.6)', 1);
+      q(from, to, t - 0.024, t + 0.024, 0.50, 0.64, '#868c93', null);
+      q(from, to, t - 0.002, t + 0.002, 0.50, 0.64, 'rgba(0,0,0,0.35)', null);
+      q(from, to, t - 0.004, t + 0.004, 0.66, 0.985, '#6d7176', null);
+      const led = wallPoint(from, to, t + 0.017, 0.62);
+      floorCtx.fillStyle = '#ff5a3c';
+      floorCtx.fillRect(led.x - 1, led.y - 1, 2, 2);
+    };
+    let t = pickWallSpot(doors.nw, [], [0.08, 0.2, 0.9, 0.5], 0.03);
+    if (t !== null) {
+      pipes(north, west, t);
+      took.nw.push({ t, half: 0.03 });
+    }
+    t = pickWallSpot(doors.ne, [], [0.3, 0.62, 0.15, 0.8], 0.04);
+    if (t !== null) {
+      box(north, east, t);
+      took.ne.push({ t, half: 0.04 });
+    }
+    t = pickWallSpot(doors.nw, took.nw, [0.72, 0.5, 0.34], 0.1);
+    if (t !== null) {
+      WALL_FITTINGS.vent(north, west, t);
+      took.nw.push({ t, half: 0.08 });
+    }
+    return took;
+  }
+
+  // Square pillars either side of a doorway into the hub, each with a strip
+  // of light down its face. Garage only: that is where the doorways are
+  // framed rather than simply cut.
+  function drawHallwayPosts(c, theme, colors, light) {
+    if (theme !== 'garage') return;
+    const atFar = c.doorRoom === hubRect();
+    let spots;
+    if (c.axis === 'gx') {
+      const gx = atFar ? c.gx0 + c.cols - 0.5 : c.gx0 + 0.5;
+      spots = [{ gx, gy: c.gy0 + 0.5 }, { gx, gy: c.gy0 + c.rows - 0.5 }];
+    } else {
+      const gy = atFar ? c.gy0 + c.rows - 0.5 : c.gy0 + 0.5;
+      spots = [{ gx: c.gx0 + 0.5, gy }, { gx: c.gx0 + c.cols - 0.5, gy }];
+    }
+    spots.forEach((s) => {
+      const base = isoPoint(s.gx, s.gy);
+      drawIsoBox(floorCtx, base, 0, 0, 0.5, 0.5, ROOM.wallH, shade(colors.wallL, 6), 0);
+      drawFacePanel(floorCtx, base, { u: 0.51, v: -0.1 }, { u: 0.51, v: 0.1 },
+        ROOM.wallH * 0.28, ROOM.wallH * 0.72, light.bulb, 1);
+      drawGlow(isoScreenPoint(base, 0.51, 0, ROOM.wallH * 0.5), 24, light.bulb, 0.4);
+      drawFloorPool(isoScreenPoint(base, 1.0, 0.2, 0), light, 0.9);
+    });
+  }
+
+  // ---- The site around the plan ----
+  // What lies beyond the floors, drawn on the ground layer in the plan's
+  // own coordinates: rock and pipework round a cellar, a yard round the
+  // garage, a city below a roof, the sea round a pier. `view` is the part
+  // of the plan's world the window is looking at.
+  function latticeRange(view) {
+    const hw = ROOM.tileW / 2;
+    const hh = ROOM.tileH / 2;
+    let gx0 = Infinity;
+    let gx1 = -Infinity;
+    let gy0 = Infinity;
+    let gy1 = -Infinity;
+    [[view.x0, view.y0], [view.x1, view.y0], [view.x0, view.y1], [view.x1, view.y1]].forEach(([x, y]) => {
+      const rx = (x - worldOrigin.x) / hw;
+      const ry = (y - worldOrigin.y) / hh;
+      const gx = (rx + ry) / 2;
+      const gy = (ry - rx) / 2;
+      gx0 = Math.min(gx0, gx);
+      gx1 = Math.max(gx1, gx);
+      gy0 = Math.min(gy0, gy);
+      gy1 = Math.max(gy1, gy);
+    });
+    // Only so far out: past this the vignette has taken the site to black.
+    const reach = 60;
+    return {
+      gx0: Math.max(Math.floor(gx0) - 2, planBounds.gx0 - reach),
+      gx1: Math.min(Math.ceil(gx1) + 2, planBounds.gx1 + reach),
+      gy0: Math.max(Math.floor(gy0) - 2, planBounds.gy0 - reach),
+      gy1: Math.min(Math.ceil(gy1) + 2, planBounds.gy1 + reach),
+    };
+  }
+  // The floors the site is drawn around: every room and hallway, and on
+  // the pier the jetty too.
+  function siteFloors() {
+    const j = jettyRect();
+    return placements.concat(corridors, j ? [j] : []);
+  }
+  function drawSiteTexture(theme, colors, view) {
+    if (theme === 'basement') drawCavernFloor(colors, view);
+    else if (theme === 'garage') drawYardFloor(colors, view);
+    else if (theme === 'rooftop') drawCitySky(colors, view);
+    else if (theme === 'boardwalk') drawSea(colors, view);
+  }
+  function drawSiteProps(theme, colors, view) {
+    if (theme === 'basement') drawCavernPipes(colors, view);
+    else if (theme === 'garage') drawYardLights(colors, view);
+    else if (theme === 'rooftop') drawBuildingBelow(colors, view);
+    else if (theme === 'boardwalk') drawPierPiles(colors, view);
+  }
+
+  // Cellar: the floor is bedrock, in slabs.
+  function drawCavernFloor(colors, view) {
+    floorCtx.fillStyle = '#100e0f';
+    floorCtx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
+    const r = latticeRange(view);
+    const S = 3;
+    for (let gy = Math.floor(r.gy0 / S) * S; gy < r.gy1; gy += S) {
+      // Courses offset by half a stone, like rubble walling laid flat.
+      const off = Math.round(gy / S) % 2 ? 1.5 : 0;
+      for (let gx = Math.floor(r.gx0 / S) * S - off; gx < r.gx1; gx += S) {
+        const k = Math.round(gx * 2);
+        const n = noise(k, gy, 11);
+        const w = S * (0.75 + noise(k, gy, 13) * 0.55);
+        const h = S * (0.75 + noise(k, gy, 14) * 0.45);
+        const inset = 0.1 + n * 0.25;
+        const tone = shade('#1b191c', Math.round((noise(k, gy, 12) - 0.5) * 30));
+        paintQuad([isoPoint(gx + inset, gy + inset), isoPoint(gx + w - inset, gy + inset * 0.5),
+          isoPoint(gx + w - inset * 0.6, gy + h - inset), isoPoint(gx + inset * 0.7, gy + h - inset * 0.6)],
+        tone, 'rgba(0,0,0,0.6)', 1.2);
+        // A catch of light on the top edge of some of them.
+        if (n > 0.55) {
+          strokePolyline([isoPoint(gx + inset + 0.3, gy + inset + 0.1), isoPoint(gx + w - inset - 0.3, gy + inset * 0.5 + 0.1)],
+            'rgba(255,255,255,' + (0.03 + n * 0.05).toFixed(3) + ')', 1);
+        }
+      }
+    }
+  }
+  // Pipework running round the plan, with torches along it.
+  function drawCavernPipes(colors, view) {
+    const b = planBounds;
+    const back = 22;
+    const front = 7;
+    const ring = [
+      { gx: b.gx0 - back, gy: b.gy0 - back }, { gx: b.gx1 + front, gy: b.gy0 - back },
+      { gx: b.gx1 + front, gy: b.gy1 + front }, { gx: b.gx0 - back, gy: b.gy1 + front },
+      { gx: b.gx0 - back, gy: b.gy0 - back },
+    ];
+    const pts = ring.map((p) => isoPoint(p.gx, p.gy));
+    strokePolyline(pts, 'rgba(0,0,0,0.5)', 13);
+    strokePolyline(pts, '#3a3b3e', 10);
+    strokePolyline(pts.map((p) => ({ x: p.x, y: p.y - 3 })), 'rgba(255,255,255,0.10)', 2.5);
+    // Couplings every so often, and a torch bracketed to the rock between.
+    for (let k = 0; k < 4; k++) {
+      const a = ring[k];
+      const c = ring[k + 1];
+      const len = Math.abs(c.gx - a.gx) + Math.abs(c.gy - a.gy);
+      const steps = Math.max(1, Math.round(len / 9));
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const g = { gx: a.gx + (c.gx - a.gx) * t, gy: a.gy + (c.gy - a.gy) * t };
+        const p = isoPoint(g.gx, g.gy);
+        paintQuad([{ x: p.x - 4, y: p.y - 8 }, { x: p.x + 4, y: p.y - 8 }, { x: p.x + 4, y: p.y + 7 }, { x: p.x - 4, y: p.y + 7 }],
+          '#2c2d30', 'rgba(0,0,0,0.5)', 1);
+        if (i % 2 === 1) {
+          const torch = { x: p.x + 16, y: p.y - 6 };
+          drawGlow(torch, 54, '#ffb35a', 0.5);
+          floorCtx.fillStyle = '#ffd88a';
+          floorCtx.beginPath();
+          floorCtx.ellipse(torch.x, torch.y, 2.6, 4, 0, 0, Math.PI * 2);
+          floorCtx.fill();
+          strokePolyline([{ x: torch.x, y: torch.y + 3 }, { x: torch.x, y: torch.y + 12 }], '#2a2622', 2.5);
+        }
+      }
+    }
+  }
+  // Yard: dark tarmac in big bays.
+  function drawYardFloor(colors, view) {
+    const r = latticeRange(view);
+    const S = 12;
+    for (let gy = Math.floor(r.gy0 / S) * S; gy < r.gy1; gy += S) {
+      for (let gx = Math.floor(r.gx0 / S) * S; gx < r.gx1; gx += S) {
+        const n = noise(gx, gy, 21);
+        paintQuad([isoPoint(gx, gy), isoPoint(gx + S, gy), isoPoint(gx + S, gy + S), isoPoint(gx, gy + S)],
+          shade(colors.bg, Math.round((n - 0.5) * 8)), null);
+      }
+    }
+  }
+  // A few small lamps standing about the yard.
+  function drawYardLights(colors, view) {
+    const b = planBounds;
+    for (let i = 0; i < 14; i++) {
+      const n1 = noise(i, 3, 31);
+      const n2 = noise(i, 5, 32);
+      const side = i % 4;
+      const gx = side === 0 ? b.gx0 - 8 - n1 * 30 : side === 1 ? b.gx1 + 8 + n1 * 30 : b.gx0 + (b.gx1 - b.gx0) * n1;
+      const gy = side === 2 ? b.gy0 - 8 - n2 * 30 : side === 3 ? b.gy1 + 8 + n2 * 30 : b.gy0 + (b.gy1 - b.gy0) * n2;
+      const p = isoPoint(gx, gy);
+      strokePolyline([p, { x: p.x, y: p.y - 14 }], '#2a2c31', 2);
+      drawGlow({ x: p.x, y: p.y - 15 }, 16, '#ffc98a', 0.6);
+      floorCtx.fillStyle = '#ffe2b0';
+      floorCtx.fillRect(p.x - 1.5, p.y - 16.5, 3, 3);
+    }
+  }
+  // Roof: night sky, and the city round about, lower down.
+  function drawCitySky(colors, view) {
+    const g = floorCtx.createLinearGradient(0, view.y0, 0, view.y1);
+    g.addColorStop(0, '#1b2538');
+    g.addColorStop(0.5, '#121a29');
+    g.addColorStop(1, '#0b101a');
+    floorCtx.fillStyle = g;
+    floorCtx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
+    // Other buildings, their tops around the level of this one's floor
+    // and their walls falling away into the haze below.
+    const cx = worldOrigin.x + ((planBounds.gx0 + planBounds.gx1) / 2 - (planBounds.gy0 + planBounds.gy1) / 2) * ROOM.tileW / 2;
+    const cy = worldOrigin.y + ((planBounds.gx0 + planBounds.gx1) / 2 + (planBounds.gy0 + planBounds.gy1) / 2) * ROOM.tileH / 2;
+    const spread = Math.max(PLAN_W, PLAN_H);
+    // A far skyline first, faint in the haze, then the nearer blocks.
+    for (let i = 0; i < 18; i++) {
+      const n1 = noise(i, 7, 45);
+      const n2 = noise(i, 8, 46);
+      const x = cx + (n1 - 0.5) * spread * 3;
+      const w = 50 + n2 * 90;
+      const top = cy - PLAN_H * (0.2 + noise(i, 9, 47) * 0.5);
+      floorCtx.fillStyle = 'rgba(30,40,58,0.55)';
+      floorCtx.fillRect(x - w / 2, top, w, view.y1 - top);
+      for (let wy = top + 14; wy < cy + PLAN_H; wy += 26) {
+        for (let wx = x - w / 2 + 8; wx < x + w / 2 - 8; wx += 18) {
+          if (noise(Math.round(wx), Math.round(wy), 48) < 0.2) {
+            floorCtx.fillStyle = 'rgba(255,214,150,0.22)';
+            floorCtx.fillRect(wx, wy, 7, 10);
+          }
+        }
+      }
+    }
+    for (let i = 0; i < 26; i++) {
+      const n1 = noise(i, 1, 41);
+      const n2 = noise(i, 2, 42);
+      const n3 = noise(i, 3, 43);
+      const x = cx + (n1 - 0.5) * spread * 2.4;
+      const w = 70 + n2 * 150;
+      const top = cy + (n3 - 0.35) * PLAN_H * 1.1;
+      const bottom = view.y1 + 10;
+      if (top > bottom) continue;
+      const far = Math.abs(n1 - 0.5) * 2;
+      const wall = shade('#1a2231', Math.round(far * 10));
+      floorCtx.fillStyle = wall;
+      floorCtx.fillRect(x - w / 2, top, w, bottom - top);
+      floorCtx.fillStyle = 'rgba(255,255,255,0.05)';
+      floorCtx.fillRect(x - w / 2, top, w, 3);
+      for (let wy = top + 18; wy < bottom; wy += 30) {
+        for (let wx = x - w / 2 + 10; wx < x + w / 2 - 12; wx += 22) {
+          const lit = noise(Math.round(wx), Math.round(wy), 44);
+          floorCtx.fillStyle = lit < 0.32 ? 'rgba(255,214,150,0.55)' : 'rgba(150,170,200,0.10)';
+          floorCtx.fillRect(wx, wy, 10, 14);
+        }
+      }
+    }
+    // Haze over the lower half, so the city sinks into it.
+    const fog = floorCtx.createLinearGradient(0, cy, 0, view.y1);
+    fog.addColorStop(0, 'rgba(12,18,30,0)');
+    fog.addColorStop(1, 'rgba(12,18,30,0.75)');
+    floorCtx.fillStyle = fog;
+    floorCtx.fillRect(view.x0, cy, view.x1 - view.x0, view.y1 - cy);
+  }
+  // The building this roof is the top of: its walls under every edge of
+  // the floor that has nothing beyond it, rows of lit windows down them.
+  function drawBuildingBelow(colors, view) {
+    const H = 360;
+    siteFloors().forEach((rect) => {
+      ['s', 'e'].forEach((side) => {
+        exposedRuns(rect, side).forEach(([from, to]) => {
+          const a0 = edgePoint(rect, side, from);
+          const b0 = edgePoint(rect, side, to);
+          const a = isoPoint(a0.gx, a0.gy);
+          const b = isoPoint(b0.gx, b0.gy);
+          const wall = side === 's' ? '#2a3345' : '#1e2635';
+          const grad = floorCtx.createLinearGradient(0, a.y, 0, a.y + H);
+          grad.addColorStop(0, wall);
+          grad.addColorStop(1, shade(wall, -16));
+          paintQuad([a, b, { x: b.x, y: b.y + H }, { x: a.x, y: a.y + H }], grad, 'rgba(0,0,0,0.45)', 1);
+          const len = Math.hypot(b.x - a.x, b.y - a.y);
+          const n = Math.floor(len / 28);
+          for (let row = 0; row < 7; row++) {
+            const y = 44 + row * 46;
+            for (let i = 0; i < n; i++) {
+              const t0 = (i + 0.3) / n;
+              const t1 = (i + 0.7) / n;
+              const p0 = lerpPt(a, b, t0);
+              const p1 = lerpPt(a, b, t1);
+              const lit = noise(Math.round(a.x + i * 7), Math.round(a.y + row * 13), side === 's' ? 51 : 52) < 0.3;
+              paintQuad([{ x: p0.x, y: p0.y + y }, { x: p1.x, y: p1.y + y }, { x: p1.x, y: p1.y + y + 17 }, { x: p0.x, y: p0.y + y + 17 }],
+                lit ? 'rgba(255,214,150,0.5)' : 'rgba(150,170,200,0.1)', null);
+            }
+          }
+        });
+      });
+    });
+    // And the haze again, over the walls this time.
+    const fog = floorCtx.createLinearGradient(0, view.y0 + (view.y1 - view.y0) * 0.55, 0, view.y1);
+    fog.addColorStop(0, 'rgba(12,18,30,0)');
+    fog.addColorStop(1, 'rgba(12,18,30,0.8)');
+    floorCtx.fillStyle = fog;
+    floorCtx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
+  }
+  // Pier: the sea, catching the light.
+  function drawSea(colors, view) {
+    const g = floorCtx.createLinearGradient(0, view.y0, 0, view.y1);
+    g.addColorStop(0, '#0f5477');
+    g.addColorStop(0.55, '#0c4566');
+    g.addColorStop(1, '#093a58');
+    floorCtx.fillStyle = g;
+    floorCtx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
+    const r = latticeRange(view);
+    const S = 2.5;
+    floorCtx.lineCap = 'round';
+    for (let gy = Math.floor(r.gy0 / S) * S; gy < r.gy1; gy += S) {
+      for (let gx = Math.floor(r.gx0 / S) * S; gx < r.gx1; gx += S) {
+        const k = Math.round(gx * 2);
+        const j = Math.round(gy * 2);
+        const n = noise(k, j, 61);
+        const p = isoPoint(gx + noise(k, j, 62) * S, gy + noise(k, j, 63) * S);
+        const len = 10 + n * 30;
+        // Turquoise where the light catches a crest, darker in a trough.
+        const crest = noise(k, j, 64) < 0.6;
+        floorCtx.beginPath();
+        floorCtx.moveTo(p.x - len / 2, p.y);
+        floorCtx.quadraticCurveTo(p.x, p.y - 2 - n * 3, p.x + len / 2, p.y);
+        floorCtx.strokeStyle = crest
+          ? 'rgba(120,225,235,' + (0.08 + n * 0.22).toFixed(3) + ')'
+          : 'rgba(0,20,40,' + (0.10 + n * 0.14).toFixed(3) + ')';
+        floorCtx.lineWidth = crest ? 1.6 : 2.2;
+        floorCtx.stroke();
+      }
+    }
+  }
+  // The posts the pier stands on, under every edge that meets the water,
+  // the jetty, the boat, and the buoys out past it.
+  function drawPierPiles(colors, view) {
+    const j = jettyRect();
+    if (j) {
+      drawPlanks(j, colors, -18);
+      const lipR = shade(colors.floorB, -40);
+      paintQuad([isoPoint(j.gx0 + j.cols, j.gy0), isoPoint(j.gx0 + j.cols, j.gy0 + j.rows),
+        { x: isoPoint(j.gx0 + j.cols, j.gy0 + j.rows).x, y: isoPoint(j.gx0 + j.cols, j.gy0 + j.rows).y + 10 },
+        { x: isoPoint(j.gx0 + j.cols, j.gy0).x, y: isoPoint(j.gx0 + j.cols, j.gy0).y + 10 }], lipR, 'rgba(0,0,0,0.5)', 1);
+      paintQuad([isoPoint(j.gx0, j.gy0 + j.rows), isoPoint(j.gx0 + j.cols, j.gy0 + j.rows),
+        { x: isoPoint(j.gx0 + j.cols, j.gy0 + j.rows).x, y: isoPoint(j.gx0 + j.cols, j.gy0 + j.rows).y + 10 },
+        { x: isoPoint(j.gx0, j.gy0 + j.rows).x, y: isoPoint(j.gx0, j.gy0 + j.rows).y + 10 }], shade(colors.floorB, -28), 'rgba(0,0,0,0.5)', 1);
+    }
+    const pile = (p, h) => {
+      paintQuad([{ x: p.x - 4, y: p.y }, { x: p.x, y: p.y + 2 }, { x: p.x, y: p.y + h + 2 }, { x: p.x - 4, y: p.y + h }], '#3a2412', null);
+      paintQuad([{ x: p.x, y: p.y + 2 }, { x: p.x + 4, y: p.y }, { x: p.x + 4, y: p.y + h }, { x: p.x, y: p.y + h + 2 }], '#4e321a', null);
+      // Its reflection, wavering under it.
+      const g = floorCtx.createLinearGradient(0, p.y + h, 0, p.y + h + 26);
+      g.addColorStop(0, 'rgba(40,26,14,0.45)');
+      g.addColorStop(1, 'rgba(40,26,14,0)');
+      floorCtx.fillStyle = g;
+      floorCtx.fillRect(p.x - 3, p.y + h, 6, 26);
+      strokePolyline([{ x: p.x - 9, y: p.y + h + 1 }, { x: p.x + 9, y: p.y + h + 1 }], 'rgba(190,235,255,0.35)', 1.2);
+    };
+    siteFloors().forEach((rect) => {
+      ['s', 'e'].forEach((side) => {
+        exposedRuns(rect, side).forEach(([from, to]) => {
+          for (let t = from + 1; t < to; t += 3) {
+            const g = edgePoint(rect, side, t);
+            pile(isoPoint(g.gx, g.gy), 44);
+          }
+          const end = edgePoint(rect, side, to - 0.35);
+          pile(isoPoint(end.gx, end.gy), 44);
+        });
+      });
+      // Lamplight on the water under the lamp posts at the front corners.
+      [[rect.gx0 + rect.cols + 0.45, rect.gy0 + rect.rows + 0.45], [rect.gx0 - 0.45, rect.gy0 + rect.rows + 0.45],
+        [rect.gx0 + rect.cols + 0.45, rect.gy0 - 0.45]].forEach(([gx, gy]) => {
+        const c = isoPoint(gx, gy);
+        const g = floorCtx.createLinearGradient(0, c.y + 10, 0, c.y + 120);
+        g.addColorStop(0, 'rgba(255,205,120,0.42)');
+        g.addColorStop(1, 'rgba(255,205,120,0)');
+        floorCtx.fillStyle = g;
+        for (let k = 0; k < 6; k++) {
+          const w = 5 + noise(Math.round(gx), Math.round(gy), 70 + k) * 7;
+          floorCtx.fillRect(c.x - w / 2 + (noise(Math.round(gx), Math.round(gy), 80 + k) - 0.5) * 8, c.y + 10 + k * 18, w, 12);
+        }
+      });
+    });
+    // The boat, tied up at the jetty, and buoys further out.
+    if (j) {
+      const hullAt = isoPoint(j.gx0 + j.cols - 2.5, j.gy0 + j.rows + 3.2);
+      drawBoat(hullAt);
+      [[j.gx0 + 12, j.gy0 + 8], [planBounds.gx0 - 9, planBounds.gy1 + 11]].forEach(([gx, gy]) => drawBuoy(isoPoint(gx, gy)));
+    }
+  }
+  function drawBoat(p) {
+    const ctx = floorCtx;
+    const k = 1.5;
+    const at = (x, y) => ({ x: p.x + x * k, y: p.y + y * k });
+    // The hull in plan, bow up-right: the deck, and the side falling away
+    // below it, white over a red boot-top.
+    const deck = [at(-34, -6), at(4, -14), at(30, -4), at(26, 8), at(-10, 14), at(-36, 4)];
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 16 * k, 42 * k, 13 * k, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    const side = (dy, fill) => paintQuad([deck[5], deck[4], deck[3], deck[2],
+      { x: deck[2].x, y: deck[2].y + dy }, { x: deck[3].x, y: deck[3].y + dy },
+      { x: deck[4].x, y: deck[4].y + dy }, { x: deck[5].x, y: deck[5].y + dy }], fill, 'rgba(0,0,0,0.45)', 1);
+    side(14 * k, '#b42a22');
+    side(9 * k, '#eeeae0');
+    paintQuad(deck, '#dcd6c6', 'rgba(0,0,0,0.5)', 1);
+    paintQuad([at(-30, -4), at(2, -11), at(24, -3), at(20, 5), at(-8, 10), at(-31, 3)], '#8a6a44', null);
+    // The wheelhouse, with a lit window.
+    paintQuad([at(-18, 0), at(6, -5), at(6, -24), at(-18, -19)], '#d3d8de', 'rgba(0,0,0,0.5)', 1);
+    paintQuad([at(6, -5), at(14, -8), at(14, -26), at(6, -24)], '#aeb6bf', 'rgba(0,0,0,0.5)', 1);
+    paintQuad([at(-15, -7), at(3, -11), at(3, -21), at(-15, -17)], '#5a8db8', null);
+    paintQuad([at(-20, -19), at(15, -27), at(15, -30), at(-20, -22)], '#8f99a3', null);
+    drawGlow(at(-6, -14), 16 * k, '#ffd27a', 0.35);
+    drawGlow(at(28, -6), 10 * k, '#ffd27a', 0.7);
+  }
+  function drawBuoy(p) {
+    const ctx = floorCtx;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 4, 11, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    paintQuad([{ x: p.x - 9, y: p.y + 2 }, { x: p.x + 9, y: p.y + 2 }, { x: p.x + 3, y: p.y - 22 }, { x: p.x - 3, y: p.y - 22 }], '#f07a1f', 'rgba(0,0,0,0.5)', 1);
+    paintQuad([{ x: p.x - 6, y: p.y - 9 }, { x: p.x + 6, y: p.y - 9 }, { x: p.x + 4.5, y: p.y - 15 }, { x: p.x - 4.5, y: p.y - 15 }], '#f3efe4', null);
+    drawGlow({ x: p.x, y: p.y - 24 }, 10, '#ffd27a', 0.6);
+    const g = ctx.createLinearGradient(0, p.y + 4, 0, p.y + 30);
+    g.addColorStop(0, 'rgba(240,122,31,0.35)');
+    g.addColorStop(1, 'rgba(240,122,31,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(p.x - 4, p.y + 4, 8, 26);
+  }
+  // The pier's name, on a board at the head of the jetty.
+  function drawPierSign(place) {
+    const j = jettyRect();
+    if (!j) return;
+    const at = isoPoint(j.gx0 + 1.2, j.gy0 - 0.5);
+    [-14, 14].forEach((dx) => strokePolyline([{ x: at.x + dx, y: at.y }, { x: at.x + dx, y: at.y - 44 }], '#4a2f18', 3));
+    drawSignBoard({ x: at.x, y: at.y - 44 }, 'BOARDWALK', '#4a2a14');
   }
 
   // ---- Corridors between rooms ----
@@ -7180,17 +8240,23 @@
   // how much darker a hallway's floor sits than a room's.
   const PLATE = 3;
   function drawPaving(rect, colors, dim) {
-    for (let ry = 0; ry < rect.rows; ry += PLATE) {
-      for (let rx = 0; rx < rect.cols; rx += PLATE) {
+    const style = styleOf(state.activeTheme);
+    if (style.planks) {
+      drawPlanks(rect, colors, dim);
+      return;
+    }
+    const P = style.plate || PLATE;
+    for (let ry = 0; ry < rect.rows; ry += P) {
+      for (let rx = 0; rx < rect.cols; rx += P) {
         const gx = rect.gx0 + rx;
         const gy = rect.gy0 + ry;
-        const w = Math.min(PLATE, rect.cols - rx);
-        const h = Math.min(PLATE, rect.rows - ry);
+        const w = Math.min(P, rect.cols - rx);
+        const h = Math.min(P, rect.rows - ry);
         const p0 = isoPoint(gx, gy);
         const p1 = isoPoint(gx + w, gy);
         const p2 = isoPoint(gx + w, gy + h);
         const p3 = isoPoint(gx, gy + h);
-        const tileColor = shade(((rx / PLATE | 0) + (ry / PLATE | 0)) % 2 === 0
+        const tileColor = shade(((rx / P | 0) + (ry / P | 0)) % 2 === 0
           ? colors.floorA : colors.floorB, dim || 0);
         paintQuad([p0, p1, p2, p3], tileColor, 'rgba(0,0,0,0.25)', 1);
 
@@ -7539,6 +8605,7 @@
     // there is somewhere in it to put anything. The paint goes down either
     // way; that is what makes the short one read as a way through.
     const roomy = along >= 8 && across >= 5;
+    if (along < 6) return;
 
     // Two lanes of tape down the middle. `u` runs along the hallway and `v`
     // across it, whichever way round the axis has them.
@@ -7592,6 +8659,17 @@
     box(fountainAt, 1.5, 0.58, 0.58, postH * 0.14, steel, postH);
   }
 
+  // The lattice corner a hallway's wall ends on at the hub, and whether
+  // another hallway's wall ends on the same corner.
+  function hallwayWallCorner(c) {
+    return c.axis === 'gx' ? { gx: c.gx0 + c.cols, gy: c.gy0 } : { gx: c.gx0, gy: c.gy0 + c.rows };
+  }
+  function hallwayWallMeets(c) {
+    const at = hallwayWallCorner(c);
+    return corridors.some((o) => o !== c && o.doorRoom === c.doorRoom
+      && hallwayWallCorner(o).gx === at.gx && hallwayWallCorner(o).gy === at.gy);
+  }
+
   function drawCorridorShell(c, colors) {
     drawPaving(c, colors, -3);
     drawSlabEdges(c, colors);
@@ -7616,29 +8694,45 @@
     // room's wall, and the near end either carries straight on out of the near
     // room's wall (a hallway flush with the backs of both rooms) or turns out
     // of the end of it by a return.
+    //
+    // A hallway leaving the hub gets no wall at all: the hub is open floor,
+    // and a wall standing along one side of a doorway in it would be a wall
+    // to nowhere. One arriving at the hub keeps its wall, which ends where
+    // the hub begins -- cut off, unless another hallway's wall meets it on
+    // that corner, in which case the two turn the corner as one.
     const near = c.nearRoom;
+    const hub = hubRect();
     const corner = isoPoint(c.gx0, c.gy0);
-    if (c.axis === 'gx') {
+    const farEnd = c.doorRoom === hub && !hallwayWallMeets(c) ? 'cap' : 'open';
+    const theme = state.activeTheme;
+    const light = LIGHT_COLORS[theme] || LIGHT_COLORS.garage;
+    const rails = railed(theme);
+    if (rails) {
+      railSide(theme, c, [c.axis === 'gx' ? 'n' : 'w'], light);
+    } else if (near === hub) {
+      // Nothing to build.
+    } else if (c.axis === 'gx') {
       // Running east along the gy0 edge; thickness backs off up and right.
       const far = isoPoint(c.gx0 + c.cols, c.gy0);
       if (near && c.gy0 > near.gy0) {
         drawWallRun([isoPoint(c.gx0, near.gy0), corner, far], ['gy', 'gx'],
-          ROOM.wallH, colors, ['open', 'open']);
+          ROOM.wallH, colors, ['open', farEnd]);
       } else {
-        drawWallRun([corner, far], ['gx'], ROOM.wallH, colors, ['open', 'open']);
+        drawWallRun([corner, far], ['gx'], ROOM.wallH, colors, ['open', farEnd]);
       }
     } else {
       // Running south along the gx0 edge; thickness backs off up and left.
       const far = isoPoint(c.gx0, c.gy0 + c.rows);
       if (near && c.gx0 > near.gx0) {
         drawWallRun([isoPoint(near.gx0, c.gy0), corner, far], ['gx', 'gy'],
-          ROOM.wallH, colors, ['open', 'open']);
+          ROOM.wallH, colors, ['open', farEnd]);
       } else {
-        drawWallRun([corner, far], ['gy'], ROOM.wallH, colors, ['open', 'open']);
+        drawWallRun([corner, far], ['gy'], ROOM.wallH, colors, ['open', farEnd]);
       }
     }
 
     drawHallwayFittings(c, colors);
+    drawHallwayPosts(c, theme, colors, light);
 
     // Anyone walking between rooms is drawn by the hallway they are in, back
     // to front like everything else, so they pass behind its far wall and in
@@ -7646,6 +8740,7 @@
     membersInside(c)
       .sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy))
       .forEach((m) => drawMember(isoPoint(m.gx, m.gy), m));
+    if (rails) railSide(theme, c, [c.axis === 'gx' ? 's' : 'e'], light);
   }
 
   // A pale casing standing across the corridor mouth: two jambs and a lintel
@@ -7914,27 +9009,33 @@
     // or carries straight on into the hallway that leaves from it.
     // The run goes east -> north -> west, so the north wall is walked
     // backwards relative to the direction its doorways are measured in.
-    const holes = wallApertures(roomIndex);
-    drawWallRun([east, north, west], ['gx', 'gy'], ROOM.wallH, colors, [
-      roomWallEnd(place, eastCorner),
-      roomWallEnd(place, westCorner),
-    ], [holes.ne.map(([t0, t1]) => [1 - t1, 1 - t0]), holes.nw]);
+    // The hub is open floor: no walls, so nothing that hangs on one. Nor
+    // has any floor where the location has railings instead of walls.
+    const hub = isHubAt(theme, roomIndex);
+    const rails = railed(theme);
+    if (!hub && !rails) {
+      const holes = wallApertures(roomIndex);
+      drawWallRun([east, north, west], ['gx', 'gy'], ROOM.wallH, colors, [
+        roomWallEnd(place, eastCorner),
+        roomWallEnd(place, westCorner),
+      ], [holes.ne.map(([t0, t1]) => [1 - t1, 1 - t0]), holes.nw]);
 
-    drawBaseboard(east, north);
-    drawBaseboard(north, west);
-    const doors = wallDoorSpans(roomIndex);
-    drawWallDecor(theme, north, east, west, doors);
-    drawRoomFittings(roomFitFor(roomIndex), north, east, west, doors);
-    // The casing of every doorway cut in these walls goes on now, so it
-    // stands in the wall: over the hallway showing through the hole and
-    // over anything strung along the wall, and under whatever stands in
-    // the room in front of it. Painted after everything, as it used to be,
-    // it sat on top of the gear and the people beside the door.
-    corridors.forEach((c) => {
-      if (c.doorRoom !== place) return;
-      const far = corridorEnd(c, true);
-      drawCorridorDoor(far[0], far[1], colors);
-    });
+      drawBaseboard(east, north);
+      drawBaseboard(north, west);
+      const doors = wallDoorSpans(roomIndex);
+      const took = drawWallDecor(theme, north, east, west, doors);
+      drawRoomFittings(roomFitFor(roomIndex), north, east, west, doors, took);
+      // The casing of every doorway cut in these walls goes on now, so it
+      // stands in the wall: over the hallway showing through the hole and
+      // over anything strung along the wall, and under whatever stands in
+      // the room in front of it. Painted after everything, as it used to be,
+      // it sat on top of the gear and the people beside the door.
+      corridors.forEach((c) => {
+        if (c.doorRoom !== place) return;
+        const far = corridorEnd(c, true);
+        drawCorridorDoor(far[0], far[1], colors);
+      });
+    }
 
     // The floor is the L, not the box: paved inside its outline only.
     floorCtx.save();
@@ -7947,16 +9048,25 @@
       floorCtx.clip();
     }
     drawPaving(place, colors, 0);
+    drawFloorMarks(theme, place, roomIndex);
     floorCtx.restore();
 
     drawSlabEdges(place, colors);
+
+    // Railings round the back of the floor, and the lamp posts behind it,
+    // go down before anything standing on it.
+    if (rails) {
+      railSide(theme, place, ['n', 'w'], light);
+      if (theme === 'boardwalk') lampSpots(place, true).forEach((l) => drawLampPost(isoPoint(l.gx, l.gy), light, l.flag));
+    }
 
     // The light comes from the rail of downlights along the back walls and
     // the pools they throw on the floor beneath them -- there is no longer
     // a fixture in the middle of the room, so nothing pools there either.
     // Drawn before the props loop below, not after, so the rail sits behind
     // tall gear like real ceiling hardware instead of floating on top.
-    drawCeilingStrip(north, east, west, light);
+    if (!hub && !rails) drawCeilingStrip(north, east, west, light);
+    else drawHubLight(place, light);
 
     // Gear stands wherever it was put, not in a grid cell, so the draw
     // order comes from the pieces themselves -- furthest back first, or a
@@ -7973,11 +9083,20 @@
     membersInside(place).forEach((m) => {
       standing.push({ member: m, spot: { u: m.gx - place.gx0, v: m.gy - place.gy0 } });
     });
+    // What the location built onto the floor stands among the gear and
+    // the people, and is sorted with them.
+    (place.fixtures || []).forEach((f) => {
+      standing.push({ fixture: f, spot: { u: (f.u0 + f.u1) / 2, v: (f.v0 + f.v1) / 2 } });
+    });
     standing.sort((a, b) => (a.spot.u + a.spot.v) - (b.spot.u + b.spot.v));
 
-    standing.forEach(({ index, itemId, spot, member }) => {
+    standing.forEach(({ index, itemId, spot, member, fixture }) => {
       if (member) {
         drawMember(isoPoint(place.gx0 + spot.u, place.gy0 + spot.v), member);
+        return;
+      }
+      if (fixture) {
+        drawFixture(place, fixture, theme, colors, light);
         return;
       }
       const item = itemById(itemId);
@@ -8000,6 +9119,15 @@
 
     if (editing && editing.roomIndex === roomIndex) {
       drawHeldPiece(place, editing);
+    }
+
+    // The railings along the front of the floor, over what stands on it.
+    if (rails) {
+      railSide(theme, place, ['s', 'e'], light);
+      if (theme === 'boardwalk') {
+        lampSpots(place, false).forEach((l) => drawLampPost(isoPoint(l.gx, l.gy), light, l.flag));
+        if (hub) drawPierSign(place);
+      }
     }
   }
 
@@ -9130,12 +10258,16 @@
     const room = activeRooms()[editing.roomIndex];
     if (!room) return null;
     const shape = editShape();
+    const fixture = fixtureAt(shape, editing.itemId, editing.spot, editing.turn);
+    if (fixture) return 'fixture:' + fixture;
     if (spotInCut(shape, editing.itemId, editing.spot, editing.turn)) return 'edge';
     if (zoneOffFloor(shape, editing.itemId, editing.spot, editing.turn)) return 'edge';
     return overlapsAnother(room, shape, editing.itemId, editing.spot, editing.turn);
   }
   function blockerName(blocker) {
-    return blocker === 'edge' ? 'edge of the floor' : itemById(blocker).name;
+    if (blocker === 'edge') return 'edge of the floor';
+    if (blocker.indexOf('fixture:') === 0) return FIXTURE_NAMES[blocker.slice(8)] || 'fixture';
+    return itemById(blocker).name;
   }
   // A second one of the same fitting is not an overlap -- it fits fine, it
   // is simply not allowed -- so it is asked about separately and said
