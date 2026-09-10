@@ -299,33 +299,37 @@
       corridorWidth: 10,
     },
     // Open deck: three terraces off the main roof, joined by walkways wide
-    // enough to read as outdoors.
+    // enough to read as outdoors. Both the outdoor locations are laid out
+    // larger than the two indoor ones and stand further apart, with long
+    // walkways between the terraces: a roof and a pier are places you can
+    // see across, and cramming them to the same size as a workshop and a
+    // cellar threw that away.
     rooftop: {
       hub: true,
       shapes: [
-        { cols: 30, rows: 18 },
-        { cols: 14, rows: 18 },
-        { cols: 18, rows: 12, shift: -6 },
-        { cols: 16, rows: 14, shift: -7 },
+        { cols: 38, rows: 24 },
+        { cols: 18, rows: 24 },
+        { cols: 24, rows: 16, shift: -8 },
+        { cols: 21, rows: 19, shift: -9 },
       ],
       caps: [16, 14, 16, 19],
       dirs: ['west', 'north', 'south'],
-      corridorLen: 4,
+      corridorLen: 8,
       corridorWidth: 12,
     },
     // Decking out over the water, the main pier running on to the jetty.
     boardwalk: {
       hub: true,
       shapes: [
-        { cols: 30, rows: 18 },
-        { cols: 14, rows: 18 },
-        { cols: 18, rows: 13, shift: -6 },
-        { cols: 16, rows: 15, shift: -7 },
+        { cols: 38, rows: 24 },
+        { cols: 18, rows: 24 },
+        { cols: 24, rows: 17, shift: -8 },
+        { cols: 21, rows: 20, shift: -9 },
       ],
       caps: [16, 14, 16, 18],
       dirs: ['west', 'north', 'south'],
-      corridorLen: 4,
-      corridorWidth: 11,
+      corridorLen: 8,
+      corridorWidth: 12,
     },
   };
 
@@ -364,29 +368,29 @@
   // edge with its front half over the floor, so its box is that half.
   const ROOM_FIXTURES = {
     rooftop: [
-      [{ kind: 'stairs', u0: 25, v0: 0, u1: 30, v1: 4 }, { kind: 'ac', u0: 21, v0: 0, u1: 23.5, v1: 2 },
-        { kind: 'planter', u0: 13, v0: 0, u1: 14.2, v1: 0.6 }, { kind: 'planter', u0: 17, v0: 0, u1: 18.2, v1: 0.6 },
-        { kind: 'planter', u0: 0, v0: 14, u1: 0.6, v1: 15.2 }],
-      [{ kind: 'stairs', u0: 0, v0: 0, u1: 4, v1: 3 }, { kind: 'ac', u0: 11, v0: 0, u1: 13.5, v1: 2 },
-        { kind: 'planter', u0: 7, v0: 0, u1: 8.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 9, u1: 0.6, v1: 10.2 },
-        { kind: 'planter', u0: 0, v0: 14, u1: 0.6, v1: 15.2 }],
-      [{ kind: 'stairs', u0: 0, v0: 0, u1: 4, v1: 3 }, { kind: 'ac', u0: 0, v0: 9, u1: 2.5, v1: 11 },
-        { kind: 'planter', u0: 8, v0: 0, u1: 9.2, v1: 0.6 }, { kind: 'planter', u0: 13, v0: 0, u1: 14.2, v1: 0.6 },
-        { kind: 'planter', u0: 0, v0: 6, u1: 0.6, v1: 7.2 }],
-      [{ kind: 'stairs', u0: 12, v0: 0, u1: 16, v1: 3 }, { kind: 'ac', u0: 13, v0: 3.4, u1: 15.5, v1: 5.4 },
-        { kind: 'planter', u0: 0, v0: 5, u1: 0.6, v1: 6.2 }, { kind: 'planter', u0: 0, v0: 10, u1: 0.6, v1: 11.2 }],
+      [{ kind: 'stairs', u0: 33, v0: 0, u1: 38, v1: 4 }, { kind: 'ac', u0: 28, v0: 0, u1: 30.5, v1: 2 },
+        { kind: 'planter', u0: 15, v0: 0, u1: 16.2, v1: 0.6 }, { kind: 'planter', u0: 21, v0: 0, u1: 22.2, v1: 0.6 },
+        { kind: 'planter', u0: 0, v0: 18, u1: 0.6, v1: 19.2 }],
+      [{ kind: 'stairs', u0: 0, v0: 0, u1: 4, v1: 3 }, { kind: 'ac', u0: 15, v0: 0, u1: 17.5, v1: 2 },
+        { kind: 'planter', u0: 9, v0: 0, u1: 10.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 11, u1: 0.6, v1: 12.2 },
+        { kind: 'planter', u0: 0, v0: 19, u1: 0.6, v1: 20.2 }],
+      [{ kind: 'stairs', u0: 0, v0: 0, u1: 4, v1: 3 }, { kind: 'ac', u0: 0, v0: 12, u1: 2.5, v1: 14 },
+        { kind: 'planter', u0: 10, v0: 0, u1: 11.2, v1: 0.6 }, { kind: 'planter', u0: 17, v0: 0, u1: 18.2, v1: 0.6 },
+        { kind: 'planter', u0: 0, v0: 7, u1: 0.6, v1: 8.2 }],
+      [{ kind: 'stairs', u0: 17, v0: 0, u1: 21, v1: 3 }, { kind: 'ac', u0: 17, v0: 3.6, u1: 19.5, v1: 5.6 },
+        { kind: 'planter', u0: 0, v0: 6, u1: 0.6, v1: 7.2 }, { kind: 'planter', u0: 0, v0: 13, u1: 0.6, v1: 14.2 }],
     ],
     boardwalk: [
-      [{ kind: 'planter', u0: 14, v0: 0, u1: 15.2, v1: 0.6 }, { kind: 'planter', u0: 20, v0: 0, u1: 21.2, v1: 0.6 },
-        { kind: 'planter', u0: 26, v0: 0, u1: 27.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 14, u1: 0.6, v1: 15.2 }],
+      [{ kind: 'planter', u0: 16, v0: 0, u1: 17.2, v1: 0.6 }, { kind: 'planter', u0: 24, v0: 0, u1: 25.2, v1: 0.6 },
+        { kind: 'planter', u0: 32, v0: 0, u1: 33.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 18, u1: 0.6, v1: 19.2 }],
       [{ kind: 'kiosk', sign: 'SNACKS', u0: 0, v0: 0, u1: 5, v1: 4 },
-        { kind: 'planter', u0: 8, v0: 0, u1: 9.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 8, u1: 0.6, v1: 9.2 },
-        { kind: 'planter', u0: 0, v0: 13, u1: 0.6, v1: 14.2 }],
-      [{ kind: 'planter', u0: 4, v0: 0, u1: 5.2, v1: 0.6 }, { kind: 'planter', u0: 10, v0: 0, u1: 11.2, v1: 0.6 },
-        { kind: 'planter', u0: 15, v0: 0, u1: 16.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 5, u1: 0.6, v1: 6.2 },
-        { kind: 'planter', u0: 0, v0: 10, u1: 0.6, v1: 11.2 }],
-      [{ kind: 'kiosk', sign: 'BEACH SHOP', u0: 11, v0: 0, u1: 16, v1: 4 },
-        { kind: 'planter', u0: 0, v0: 5, u1: 0.6, v1: 6.2 }, { kind: 'planter', u0: 0, v0: 11, u1: 0.6, v1: 12.2 }],
+        { kind: 'planter', u0: 10, v0: 0, u1: 11.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 10, u1: 0.6, v1: 11.2 },
+        { kind: 'planter', u0: 0, v0: 18, u1: 0.6, v1: 19.2 }],
+      [{ kind: 'planter', u0: 5, v0: 0, u1: 6.2, v1: 0.6 }, { kind: 'planter', u0: 12, v0: 0, u1: 13.2, v1: 0.6 },
+        { kind: 'planter', u0: 19, v0: 0, u1: 20.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 6, u1: 0.6, v1: 7.2 },
+        { kind: 'planter', u0: 0, v0: 12, u1: 0.6, v1: 13.2 }],
+      [{ kind: 'kiosk', sign: 'BEACH SHOP', u0: 15, v0: 0, u1: 20, v1: 4 },
+        { kind: 'planter', u0: 0, v0: 6, u1: 0.6, v1: 7.2 }, { kind: 'planter', u0: 0, v0: 14, u1: 0.6, v1: 15.2 }],
     ],
   };
   function fixturesFor(themeId, index) {
