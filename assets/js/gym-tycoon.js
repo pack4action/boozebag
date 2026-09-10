@@ -10826,6 +10826,7 @@
   }
 
   function refreshRoomActions() {
+    if (floorCanvas) floorCanvas.dataset.activeRoom = String(state.activeRoomIndex);
     if (!addRoomBtn) return;
     const rooms = activeRooms();
     // A second room is no use to a location whose first one is not open yet,
