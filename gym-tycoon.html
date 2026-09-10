@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=11" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=6" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=92" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=93" />
 </head>
 <body class="game-body">
 
@@ -86,7 +86,6 @@
 
   <div class="tycoon-designer">
     <div class="tycoon-stage-wrap">
-      <canvas class="tycoon-ground" id="tycoon-ground" aria-hidden="true"></canvas>
       <!-- The locations sit on the plan itself, sticking under the money
            stats. They used to be a row above it, which the stats covered
            the moment you scrolled down to the shop. -->
@@ -96,6 +95,7 @@
 
       <div class="tycoon-room-stage" id="room-stage-scroll">
         <div class="tycoon-room-zoom-wrap" id="room-zoom-wrap">
+          <canvas class="tycoon-ground" id="tycoon-ground" aria-hidden="true"></canvas>
           <canvas id="tycoon-floor" width="480" height="340" aria-label="Your gym, isometric view"></canvas>
         </div>
       </div>
@@ -321,6 +321,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=142"></script>
+<script src="assets/js/gym-tycoon.js?v=143"></script>
 </body>
 </html>

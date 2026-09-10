@@ -141,14 +141,20 @@
      the size of this window rather than of the plan, so it reaches the
      edges however far you zoom out. */
   background: transparent;
+  /* The dark at the edges of the view. An inset shadow is measured from the
+     window rather than from the plan, so it stays where you are looking
+     however far the gym is panned. */
+  box-shadow: inset 0 0 110px 34px rgba(0, 0, 0, 0.5);
   position: relative;
   z-index: 1;
 }
+/* The site the plan stands on, laid over the plan canvas and carrying the
+   same transform, so it pans and zooms with the gym rather than being
+   redrawn from the scroll position. */
 .tycoon-ground {
   position: absolute;
   left: 0;
   top: 0;
-  border-radius: 15px;
   pointer-events: none;
   z-index: 0;
 }
@@ -162,6 +168,7 @@
   position: absolute;
   top: 0;
   left: 0;
+  z-index: 1;
   /* Inherited, not its own: the cursor is decided by what is under the
      pointer, and the code that knows that sets it on the stage. A rule of
      its own here quietly won, so the hand never became a finger over a
