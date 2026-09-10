@@ -1733,9 +1733,27 @@
       if (!wantsStillness()) paintScene();
     }
   }
+  // What every piece in a room earns, worked out once and handed back to
+  // whoever else asks for it this frame. It used to be worked out again for
+  // every piece as the room was drawn, and working it out means scoring the
+  // whole room -- so a room of sixteen machines did that sum two hundred and
+  // fifty-six times a frame, and the gym got slower the more you put in it.
+  let rateStamp = 0;
+  const rateCache = new WeakMap();
+  function ratesNow(room, shape) {
+    const held = rateCache.get(room);
+    if (held && held.stamp === rateStamp) return held.rates;
+    const rates = pieceRates(room, shape);
+    rateCache.set(room, { stamp: rateStamp, rates });
+    return rates;
+  }
+  function ratesChanged() {
+    rateStamp += 1;
+  }
+
   // The cap for one piece, in dollars, and the level its pile is at now.
   function pileOf(room, shape, index) {
-    const rate = pieceRates(room, shape)[index] || 0;
+    const rate = ratesNow(room, shape)[index] || 0;
     const cap = niceCap(rate * pileCapSecondsFor(room));
     const amount = roomCash(room)[index] || 0;
     return { amount, cap, level: pileLevel(amount, cap) };
@@ -5533,16 +5551,22 @@
     zoomLevel = Math.max(ZOOM_MIN, Math.round(fit * 100) / 100);
   }
 
-  function applyStageSizing() {
-    // How far the site has to reach depends on the window and the plan, so
-    // it is measured before anything is laid out against it.
-    measureSitePad();
-    // Sized before the ground is measured against it.
-    queueGroundPaint();
-    // Once the window knows its size, put the gym in the middle of it.
-    if (!viewParked && stageScrollEl && stageScrollEl.clientWidth) {
-      viewParked = true;
-      setTimeout(parkView, 0);
+  // `live` is a frame of a pinch. How far the site reaches is worked out
+  // from the window and the zoom the plan is fitted at, neither of which
+  // moves while fingers are down, so measuring it again on every move of a
+  // gesture only costs a forced layout.
+  function applyStageSizing(live) {
+    if (!live) {
+      // How far the site has to reach depends on the window and the plan, so
+      // it is measured before anything is laid out against it.
+      measureSitePad();
+      // Sized before the ground is measured against it.
+      queueGroundPaint();
+      // Once the window knows its size, put the gym in the middle of it.
+      if (!viewParked && stageScrollEl && stageScrollEl.clientWidth) {
+        viewParked = true;
+        setTimeout(parkView, 0);
+      }
     }
     const off = sitePad * zoomLevel;
     if (zoomWrapEl) {
@@ -5575,10 +5599,17 @@
     resRepaintTimer = setTimeout(renderScene, 110);
   }
 
-  function setZoom(next) {
+  function setZoom(next, live) {
     userSetZoom = true;
-    zoomLevel = Math.max(zoomFloor(), Math.min(ZOOM_MAX, Math.round(next * 100) / 100));
-    applyStageSizing();
+    // A hundredth of a step is three per cent of the way out and seven per
+    // cent further out still, which a pinch feels as a ratchet. A
+    // thousandth is below what the eye can pick out at any zoom.
+    // While the fingers are moving the zoom is taken exactly as the span
+    // between them gives it; rounding is for where it comes to rest, or the
+    // anchor creeps a little on every step of the pinch.
+    const want = live ? next : Math.round(next * 1000) / 1000;
+    zoomLevel = Math.max(zoomFloor(), Math.min(ZOOM_MAX, want));
+    applyStageSizing(live);
     queueResolutionRepaint();
     snapIfWhollyVisible();
   }
@@ -5587,7 +5618,7 @@
   // the view goes back to the middle of it rather than staying wherever
   // zooming out from a corner happened to leave it.
   function snapIfWhollyVisible() {
-    if (!stageScrollEl) return;
+    if (!stageScrollEl || gestureActive) return;
     const padTop = parseFloat(getComputedStyle(stageScrollEl).paddingTop) || 0;
     const availW = stageScrollEl.clientWidth;
     const availH = stageScrollEl.clientHeight - padTop;
@@ -11357,19 +11388,35 @@
   // canvas's own units, with a margin so nothing pops in at the edge.
   // Zoomed in on one corner of a pier, most of the plan is off screen, and
   // painting it was most of the frame.
+  // The stage's padding only moves when the window is laid out again, so
+  // asking the browser for it on every frame is a forced layout for nothing.
+  let padTopCache = -1;
+  function stagePadTop() {
+    if (padTopCache < 0) {
+      padTopCache = parseFloat(getComputedStyle(stageScrollEl).paddingTop) || 0;
+    }
+    return padTopCache;
+  }
+  function forgetStagePad() {
+    padTopCache = -1;
+  }
+
   function visibleCanvasBox() {
-    if (!stageScrollEl || !floorCanvas) return null;
-    const r = floorCanvas.getBoundingClientRect();
-    if (!(r.width > 0) || !(r.height > 0)) return null;
-    const st = stageScrollEl.getBoundingClientRect();
-    const sx = BASE_W / r.width;
-    const sy = BASE_H / r.height;
+    if (!stageScrollEl || !zoomLevel) return null;
+    const w = stageScrollEl.clientWidth;
+    const h = stageScrollEl.clientHeight;
+    if (!w || !h) return null;
+    // Worked out from where the view is scrolled to rather than by asking
+    // the browser for the canvas box, which forces a layout every frame.
+    const padTop = stagePadTop();
     const pad = 200;
+    const x0 = stageScrollEl.scrollLeft / zoomLevel - sitePad;
+    const y0 = (stageScrollEl.scrollTop - padTop) / zoomLevel - sitePad;
     return {
-      x0: (st.left - r.left) * sx - pad,
-      y0: (st.top - r.top) * sy - pad,
-      x1: (st.right - r.left) * sx + pad,
-      y1: (st.bottom - r.top) * sy + pad,
+      x0: x0 - pad,
+      y0: y0 - pad,
+      x1: x0 + w / zoomLevel + pad,
+      y1: y0 + h / zoomLevel + pad,
     };
   }
   // Where a floor and everything standing on it lands on the canvas. The
@@ -11407,11 +11454,19 @@
     corridors.forEach((c) => parts.push(c.gx0, c.gy0, c.cols, c.rows, c.axis));
     return parts.join('|');
   }
+  // Everything the still layers are a picture of that a player can change:
+  // what is on each floor, where it stands, which way it is turned and what
+  // mark it has been upgraded to, plus whatever the pointer is resting on.
   function decorSignature() {
-    // Only what hangs on a wall, which is drawn with the walls.
-    const rooms = activeRooms();
-    let out = '';
-    rooms.forEach((room) => { out += (room.layout || []).join(',') + ';'; });
+    let out = hoverCell ? hoverCell.roomIndex + '.' + hoverCell.index : '-';
+    activeRooms().forEach((room) => {
+      out += '|' + (room.layout || []).join(',');
+      (room.layout || []).forEach((id, i) => {
+        if (!id) return;
+        const sp = (room.spots || [])[i];
+        out += ':' + i + ',' + tierOf(id) + ',' + (sp ? sp.u + ',' + sp.v + ',' + sp.r : '');
+      });
+    });
     return out;
   }
   function ensureStillLayers() {
@@ -11436,6 +11491,7 @@
   }
 
   function paintScene() {
+    ratesChanged();
     const colors = colorsFor(state.activeTheme);
     const light = LIGHT_COLORS[state.activeTheme] || LIGHT_COLORS.garage;
     const W = BASE_W;
@@ -11499,9 +11555,6 @@
     // Anything the window cannot see is not drawn. The floor being worked
     // on is always drawn, so a piece in hand never blinks out.
     const seen = visibleCanvasBox();
-    // Stamped whole. Copying only the part of it the window shows sounds
-    // cheaper and measured slower: a plain full-canvas blit is the path the
-    // browser has made fast, and a cut-out one is not.
     const stamp = (src, mode) => {
       floorCtx.save();
       if (mode) floorCtx.globalCompositeOperation = mode;
@@ -11659,39 +11712,28 @@
     // order comes from the pieces themselves -- furthest back first, or a
     // piece behind another would paint over it.
     const room = activeRooms()[roomIndex];
-    // Gear and members go down in one sorted pass, so a member walking
-    // behind a machine is hidden by it and one walking in front covers it.
-    const standing = [];
+    const items = [];
     layout.forEach((itemId, index) => {
       if (!itemId) return;
       const spot = spotOf(room, index, shape);
-      standing.push({ index, itemId, spot });
+      items.push({ index, itemId, spot });
     });
-    membersInside(place).forEach((m) => {
-      standing.push({ member: m, spot: { u: m.gx - place.gx0, v: m.gy - place.gy0 } });
-    });
-    // Whatever the location built out on the floor rather than against a
-    // back edge stands among the gear and the people, and is sorted with
-    // them.
-    (place.fixtures || []).forEach((f) => {
-      if (fixtureAtBack(f)) return;
-      standing.push({ fixture: f, spot: { u: (f.u0 + f.u1) / 2, v: (f.v0 + f.v1) / 2 } });
-    });
-    standing.sort((a, b) => (a.spot.u + a.spot.v) - (b.spot.u + b.spot.v));
-
-    standing.forEach(({ index, itemId, spot, member, fixture }) => {
-      if (member) {
-        drawMember(isoPoint(place.gx0 + spot.u, place.gy0 + spot.v), member);
+    const loose = (place.fixtures || []).filter((f) => !fixtureAtBack(f))
+      .map((f) => ({ fixture: f, spot: { u: (f.u0 + f.u1) / 2, v: (f.v0 + f.v1) / 2 } }));
+    const depthOf = (e) => e.spot.u + e.spot.v;
+    const paintOne = (e) => {
+      if (e.member) {
+        drawMember(isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v), e.member);
         return;
       }
-      if (fixture) {
-        drawFixture(place, fixture, theme, colors, light);
+      if (e.fixture) {
+        drawFixture(place, e.fixture, theme, colors, light);
         return;
       }
-      const item = itemById(itemId);
+      const item = itemById(e.itemId);
       if (!item) return;
-      const c = isoPoint(place.gx0 + spot.u, place.gy0 + spot.v);
-      if (hoverCell && hoverCell.roomIndex === roomIndex && hoverCell.index === index) {
+      const c = isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v);
+      if (hoverCell && hoverCell.roomIndex === roomIndex && hoverCell.index === e.index) {
         floorCtx.save();
         floorCtx.beginPath();
         floorCtx.ellipse(c.x, c.y + 2, PROP_TILE * 0.36, PROP_TILE * 0.18, 0, 0, Math.PI * 2);
@@ -11700,11 +11742,42 @@
         floorCtx.stroke();
         floorCtx.restore();
       }
-      drawProp(itemId, c, tierOf(itemId), turnAt(room, index));
+      drawProp(e.itemId, c, tierOf(e.itemId), turnAt(room, e.index));
+    };
+
+    // Nothing about a piece of gear moves -- who is using it is shown by the
+    // person standing there, not by the machine -- so all of it goes down
+    // with the room and is not drawn again until something changes. A gym
+    // used to get slower the more you put in it because every piece was
+    // painted afresh twenty times a second.
+    if (stillPass === 'under') {
+      items.concat(loose).sort((a, b) => depthOf(a) - depthOf(b)).forEach(paintOne);
+      return;
+    }
+
+    const people = membersInside(place).map((m) => ({
+      member: m, spot: { u: m.gx - place.gx0, v: m.gy - place.gy0 },
+    }));
+    // The money over each piece and the bar under a counter both move on
+    // their own, so they are worked out every frame whatever else is not.
+    items.forEach(({ index, itemId, spot }) => {
+      const c = isoPoint(place.gx0 + spot.u, place.gy0 + spot.v);
       if (makesStock(itemId)) drawBatchBar(room, index, c);
       const pile = pileOf(room, shape, index);
       if (pile.level > 0) queuePileTag(roomIndex, index, itemId, turnAt(room, index), c, pile);
     });
+    // The people, and anything standing in front of one of them, which has
+    // to come back over the top or somebody would walk through a machine.
+    const standing = people.slice();
+    if (people.length) {
+      items.concat(loose).forEach((e) => {
+        const d = depthOf(e);
+        const covers = people.some((p) => depthOf(p) < d
+          && Math.abs(p.spot.u - e.spot.u) < 5 && Math.abs(p.spot.v - e.spot.v) < 5);
+        if (covers) standing.push(e);
+      });
+      standing.sort((a, b) => depthOf(a) - depthOf(b)).forEach(paintOne);
+    }
 
     if (editing && editing.roomIndex === roomIndex) {
       drawHeldPiece(place, editing);
@@ -12287,6 +12360,23 @@
     floorCtx.stroke();
   }
 
+  let propShadowSprite = null;
+  function propShadow() {
+    if (propShadowSprite) return propShadowSprite;
+    const R = 40;
+    propShadowSprite = document.createElement('canvas');
+    propShadowSprite.width = R * 2;
+    propShadowSprite.height = R * 2;
+    const g = propShadowSprite.getContext('2d');
+    const soft = g.createRadialGradient(R, R, R * 0.08, R, R, R);
+    soft.addColorStop(0, 'rgba(0,0,0,0.55)');
+    soft.addColorStop(0.45, 'rgba(0,0,0,0.34)');
+    soft.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = soft;
+    g.fillRect(0, 0, R * 2, R * 2);
+    return propShadowSprite;
+  }
+
   function drawProp(itemId, c, tier, turn) {
     const catColor = CATEGORY_META[CATEGORY[itemId]].color;
     floorCtx.save();
@@ -12316,15 +12406,12 @@
     const shadowRY = tiles * ROOM.tileH * 0.27 * shadowScale;
     const shadowY = c.y + 2;
     if (shadowScale > 0) {
-      const soft = floorCtx.createRadialGradient(c.x, shadowY, shadowRX * 0.08,
-        c.x, shadowY, shadowRX);
-      soft.addColorStop(0, 'rgba(0,0,0,0.55)');
-      soft.addColorStop(0.45, 'rgba(0,0,0,0.34)');
-      soft.addColorStop(1, 'rgba(0,0,0,0)');
-      floorCtx.beginPath();
-      floorCtx.ellipse(c.x, shadowY, shadowRX, shadowRY, 0, 0, Math.PI * 2);
-      floorCtx.fillStyle = soft;
-      floorCtx.fill();
+      // Every piece on the floor casts one of these, and a full gym has
+      // sixty pieces on it. Built fresh each time it was sixty gradients a
+      // frame; the shape never changes, so it is one little picture
+      // stretched to the piece that is casting it.
+      floorCtx.drawImage(propShadow(), c.x - shadowRX, shadowY - shadowRY,
+        shadowRX * 2, shadowRY * 2);
     }
 
     // An upgraded piece carries its mark: one stripe per tier above the
@@ -12443,6 +12530,13 @@
   const pointers = new Map();
   let dragState = null;
   let pinchState = null;
+  // While fingers are down the stage does not move and its padding does not
+  // change, so both are measured once and held: reading them back on every
+  // move forced a layout in the middle of the gesture.
+  let gestureActive = false;
+  let gestureStageRect = null;
+  let gesturePads = null;
+  const strayPointers = new Map();
 
   function pointerMid() {
     const pts = Array.from(pointers.values());
@@ -12453,23 +12547,42 @@
     };
   }
 
-  // Zoom about a fixed point on screen: work out which world coordinate sits
-  // under it, apply the new zoom, then re-scroll so that same coordinate is
-  // still under it. Without this the plan lurches away from your fingers.
-  function zoomAround(nextZoom, clientX, clientY) {
+  // Zoom about a fixed point on screen: work out which point of the plan
+  // sits under it, apply the new zoom, then re-scroll so that same point is
+  // still under it.
+  //
+  // Two things used to stop that working. The stage carries padding at the
+  // top for the row of locations, which is part of what scrolls -- reading
+  // the point through the canvas's own box allowed for it and writing the
+  // scroll back did not, so every step of a pinch threw the view up the
+  // page by that much and it ran away from the fingers. And the view snaps
+  // back to the middle whenever the whole gym fits the window, which is
+  // true at the zoom the game picks for you, so the first move of every
+  // pinch was overruled. The snap now waits until the fingers are lifted.
+  function stagePads() {
+    const cs = getComputedStyle(stageScrollEl);
+    return { top: parseFloat(cs.paddingTop) || 0, left: parseFloat(cs.paddingLeft) || 0 };
+  }
+  function zoomAround(nextZoom, clientX, clientY, live) {
     if (!stageScrollEl) return;
-    const rect = floorCanvas.getBoundingClientRect();
-    const clamp = (v, hi) => Math.max(0, Math.min(hi, v));
-    // Clamp to the plan: pinching about a point off in the background would
-    // otherwise anchor to a coordinate outside it and fling the view away.
-    const worldX = clamp(rect.width ? (clientX - rect.left) * (BASE_W / rect.width) : 0, BASE_W);
-    const worldY = clamp(rect.height ? (clientY - rect.top) * (BASE_H / rect.height) : 0, BASE_H);
-    const stageRect = stageScrollEl.getBoundingClientRect();
+    const box = gestureStageRect || stageScrollEl.getBoundingClientRect();
+    const pads = gesturePads || stagePads();
+    const z = zoomLevel || 1;
+    // Measured off the scroll position rather than by asking the browser
+    // for the canvas box, which forces a layout on every move of a pinch.
+    // Clamped to the ground the plan stands on, not to the plan: pinching
+    // about a point out in the background is ordinary, and anchoring that
+    // to the nearest corner of the floors is what used to fling the view.
+    const clamp = (v, a, c) => Math.max(a, Math.min(c, v));
+    const worldX = clamp((clientX - box.left - pads.left + stageScrollEl.scrollLeft) / z - sitePad,
+      -sitePad, BASE_W + sitePad);
+    const worldY = clamp((clientY - box.top - pads.top + stageScrollEl.scrollTop) / z - sitePad,
+      -sitePad, BASE_H + sitePad);
 
-    setZoom(nextZoom);
+    setZoom(nextZoom, live);
 
-    stageScrollEl.scrollLeft = stageRect.left + (worldX + sitePad) * zoomLevel - clientX;
-    stageScrollEl.scrollTop = stageRect.top + (worldY + sitePad) * zoomLevel - clientY;
+    stageScrollEl.scrollLeft = box.left + pads.left + (worldX + sitePad) * zoomLevel - clientX;
+    stageScrollEl.scrollTop = box.top + pads.top + (worldY + sitePad) * zoomLevel - clientY;
     snapIfWhollyVisible();
   }
 
@@ -12503,7 +12616,7 @@
     }
   }
 
-  gestureEl.addEventListener('pointerdown', (e) => {
+  function onPointerDown(e) {
     if (!stageScrollEl) return;
     // The primary pointer is the first one down of a gesture, so this is
     // where a new gesture begins -- clear anything the last one left behind.
@@ -12514,6 +12627,15 @@
       pointers.clear();
       pinchState = null;
     }
+    // A finger that went down off the window a moment ago is part of this
+    // gesture too -- see the note on the document listeners below.
+    const now = Date.now();
+    strayPointers.forEach((at, id) => {
+      if (id === e.pointerId) return;
+      if (now - at.at > 300) { strayPointers.delete(id); return; }
+      pointers.set(id, { x: at.x, y: at.y });
+      try { gestureEl.setPointerCapture(id); } catch (err) { /* not critical */ }
+    });
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { gestureEl.setPointerCapture(e.pointerId); } catch (err) { /* not critical */ }
 
@@ -12521,6 +12643,9 @@
       // Second finger down: stop panning, start pinching.
       dragState = null;
       const mid = pointerMid();
+      gestureActive = true;
+      gestureStageRect = stageScrollEl.getBoundingClientRect();
+      gesturePads = stagePads();
       pinchState = { startDist: mid.dist || 1, startZoom: zoomLevel, lastX: mid.x, lastY: mid.y };
       return;
     }
@@ -12548,9 +12673,20 @@
       carrying,
     };
     gestureEl.style.cursor = 'grabbing';
-  });
+  }
+  gestureEl.addEventListener('pointerdown', onPointerDown);
+  // A pinch is two fingers, and on a phone the plan window is barely three
+  // hundred pixels across: the second finger very often lands just off it,
+  // on the page beside the gym. Only counting fingers that land on the
+  // window itself meant those pinches did nothing but pan, which is most
+  // of what made pinching feel unreliable. Once a gesture has started here,
+  // a finger put down anywhere joins it.
+  document.addEventListener('pointerdown', (e) => {
+    if (!pointers.size || gestureEl.contains(e.target)) return;
+    onPointerDown(e);
+  }, true);
 
-  gestureEl.addEventListener('pointermove', (e) => {
+  function onPointerMove(e) {
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -12560,7 +12696,7 @@
       // Both at once, the way every map does it: the span between the
       // fingers sets the zoom, and the midpoint moving drags the view.
       // Zooming first, so the pan is measured in the new scale.
-      zoomAround(pinchState.startZoom * (mid.dist / pinchState.startDist), mid.x, mid.y);
+      zoomAround(pinchState.startZoom * (mid.dist / pinchState.startDist), mid.x, mid.y, true);
       nudgeView(mid.x - pinchState.lastX, mid.y - pinchState.lastY);
       pinchState.lastX = mid.x;
       pinchState.lastY = mid.y;
@@ -12581,7 +12717,8 @@
       return;
     }
     panBy(dx, dy);
-  });
+  }
+  gestureEl.addEventListener('pointermove', onPointerMove);
 
   function samePiece(a, b) {
     return (!a && !b)
@@ -12652,10 +12789,25 @@
     };
   }
 
-  gestureEl.addEventListener('pointerup', (e) => {
+  // The gesture is over: let the view settle, put the plan back in the
+  // middle if the whole gym now fits, and draw it at the resolution the
+  // zoom it landed on deserves.
+  function endGesture() {
+    if (!gestureActive) return;
+    gestureActive = false;
+    gestureStageRect = null;
+    gesturePads = null;
+    zoomLevel = Math.round(zoomLevel * 1000) / 1000;
+    applyStageSizing();
+    snapIfWhollyVisible();
+  }
+
+  function onPointerUp(e) {
     const wasPinching = !!pinchState;
     pointers.delete(e.pointerId);
+    strayPointers.delete(e.pointerId);
     if (pointers.size < 2) pinchState = null;
+    if (!pinchState) endGesture();
     // One of a pinch's two fingers has come off. The other is still on the
     // glass and has to go on meaning something.
     if (wasPinching && !pinchState) resumeSinglePointer();
@@ -12669,7 +12821,33 @@
 
     const p = pointFromEvent(e);
     onFloorTap(p.x, p.y);
-  });
+  }
+  gestureEl.addEventListener('pointerup', onPointerUp);
+
+  // A pinch is two fingers, and on a phone the plan window is barely three
+  // hundred pixels across: one of them very often lands just off it, on the
+  // page beside the gym. Only counting fingers that land on the window
+  // itself meant those pinches did nothing but pan, which is most of what
+  // made pinching feel unreliable.
+  //
+  // So every finger that goes down anywhere else is remembered for a
+  // moment, and a finger landing on the window takes any of them with it;
+  // after that the gesture follows them wherever they go.
+  document.addEventListener('pointerdown', (e) => {
+    if (gestureEl.contains(e.target)) return;
+    strayPointers.set(e.pointerId, { x: e.clientX, y: e.clientY, at: Date.now() });
+    if (pointers.size) onPointerDown(e);
+  }, true);
+  document.addEventListener('pointermove', (e) => {
+    if (gestureEl.contains(e.target) || !pointers.has(e.pointerId)) return;
+    onPointerMove(e);
+  }, true);
+  document.addEventListener('pointerup', (e) => {
+    strayPointers.delete(e.pointerId);
+    if (gestureEl.contains(e.target) || !pointers.has(e.pointerId)) return;
+    onPointerUp(e);
+  }, true);
+  document.addEventListener('pointercancel', (e) => strayPointers.delete(e.pointerId), true);
 
   // The wheel zooms the plan, no modifier needed: over the stage a scroll
   // is a zoom, the way it is on every map. Two different things arrive
@@ -12696,6 +12874,7 @@
     const wasPinching = !!pinchState;
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchState = null;
+    if (!pinchState) endGesture();
     dragState = null;
     if (wasPinching && !pinchState) resumeSinglePointer();
     restCursor();
@@ -14221,6 +14400,7 @@
   // because a resize fires on every frame of the drag.
   let resizeTimer = null;
   window.addEventListener('resize', () => {
+    forgetStagePad();
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => { renderScene(); parkView(); }, 120);
   });
