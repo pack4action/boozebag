@@ -317,19 +317,25 @@
       corridorLen: 8,
       corridorWidth: 12,
     },
-    // Decking out over the water, the main pier running on to the jetty.
+    // A pier, laid out like a pier rather than like the roof: a long
+    // promenade running out over the water, with a sun deck hung off the
+    // seaward side of it near the far end, a smaller sheltered deck off
+    // the landward side near the shore, and the pier head square across
+    // the end of the walk. Nothing about it is symmetrical, and the three
+    // decks stand at three different distances off the promenade, which
+    // is what stops it reading as the same cross as every other location.
     boardwalk: {
       hub: true,
       shapes: [
-        { cols: 38, rows: 24 },
-        { cols: 18, rows: 24 },
-        { cols: 24, rows: 17, shift: -8 },
-        { cols: 21, rows: 20, shift: -9 },
+        { cols: 48, rows: 15 },
+        { cols: 24, rows: 20, shift: 8, gap: 7 },
+        { cols: 20, rows: 17, shift: -12, gap: 5 },
+        { cols: 22, rows: 24, gap: 4 },
       ],
       caps: [16, 14, 16, 18],
-      dirs: ['west', 'north', 'south'],
-      corridorLen: 8,
-      corridorWidth: 12,
+      dirs: ['north', 'south', 'east'],
+      corridorLen: 6,
+      corridorWidth: 11,
     },
   };
 
@@ -381,16 +387,23 @@
         { kind: 'planter', u0: 0, v0: 6, u1: 0.6, v1: 7.2 }, { kind: 'planter', u0: 0, v0: 13, u1: 0.6, v1: 14.2 }],
     ],
     boardwalk: [
-      [{ kind: 'planter', u0: 16, v0: 0, u1: 17.2, v1: 0.6 }, { kind: 'planter', u0: 24, v0: 0, u1: 25.2, v1: 0.6 },
-        { kind: 'planter', u0: 32, v0: 0, u1: 33.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 18, u1: 0.6, v1: 19.2 }],
+      // The promenade: tubs down the seaward rail at even intervals, the
+      // way a pier walk is planted.
+      [{ kind: 'planter', u0: 7, v0: 0, u1: 8.2, v1: 0.6 }, { kind: 'planter', u0: 16, v0: 0, u1: 17.2, v1: 0.6 },
+        { kind: 'planter', u0: 25, v0: 0, u1: 26.2, v1: 0.6 }, { kind: 'planter', u0: 34, v0: 0, u1: 35.2, v1: 0.6 },
+        { kind: 'planter', u0: 43, v0: 0, u1: 44.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 9, u1: 0.6, v1: 10.2 }],
+      // The sun deck, with the snack stand in its landward corner.
       [{ kind: 'kiosk', sign: 'SNACKS', u0: 0, v0: 0, u1: 5, v1: 4 },
-        { kind: 'planter', u0: 10, v0: 0, u1: 11.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 10, u1: 0.6, v1: 11.2 },
-        { kind: 'planter', u0: 0, v0: 18, u1: 0.6, v1: 19.2 }],
-      [{ kind: 'planter', u0: 5, v0: 0, u1: 6.2, v1: 0.6 }, { kind: 'planter', u0: 12, v0: 0, u1: 13.2, v1: 0.6 },
-        { kind: 'planter', u0: 19, v0: 0, u1: 20.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 6, u1: 0.6, v1: 7.2 },
-        { kind: 'planter', u0: 0, v0: 12, u1: 0.6, v1: 13.2 }],
-      [{ kind: 'kiosk', sign: 'BEACH SHOP', u0: 15, v0: 0, u1: 20, v1: 4 },
-        { kind: 'planter', u0: 0, v0: 6, u1: 0.6, v1: 7.2 }, { kind: 'planter', u0: 0, v0: 14, u1: 0.6, v1: 15.2 }],
+        { kind: 'planter', u0: 11, v0: 0, u1: 12.2, v1: 0.6 }, { kind: 'planter', u0: 18, v0: 0, u1: 19.2, v1: 0.6 },
+        { kind: 'planter', u0: 0, v0: 9, u1: 0.6, v1: 10.2 }, { kind: 'planter', u0: 0, v0: 15, u1: 0.6, v1: 16.2 }],
+      // The sheltered deck by the shore: more planting, no stand.
+      [{ kind: 'planter', u0: 5, v0: 0, u1: 6.2, v1: 0.6 }, { kind: 'planter', u0: 11, v0: 0, u1: 12.2, v1: 0.6 },
+        { kind: 'planter', u0: 16, v0: 0, u1: 17.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 5, u1: 0.6, v1: 6.2 },
+        { kind: 'planter', u0: 0, v0: 11, u1: 0.6, v1: 12.2 }],
+      // The pier head, with the beach shop across the seaward corner.
+      [{ kind: 'kiosk', sign: 'BEACH SHOP', u0: 16, v0: 0, u1: 21, v1: 4 },
+        { kind: 'planter', u0: 6, v0: 0, u1: 7.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 8, u1: 0.6, v1: 9.2 },
+        { kind: 'planter', u0: 0, v0: 16, u1: 0.6, v1: 17.2 }],
     ],
   };
   function fixturesFor(themeId, index) {
@@ -516,19 +529,23 @@
       const prev = plan.hub ? out[0] : out[i - 1];
       const dir = roomDirFor(themeId, i - 1);
       const shift = shape.shift || 0;
+      // How long the walkway to this one is. A location can give a shape
+      // its own gap, so the pieces of it need not all stand the same
+      // distance off the middle.
+      const gap = shape.gap == null ? plan.corridorLen : shape.gap;
       let gx0;
       let gy0;
       if (dir === 'east') {
-        gx0 = prev.gx0 + prev.cols + plan.corridorLen;
+        gx0 = prev.gx0 + prev.cols + gap;
         gy0 = prev.gy0 + Math.round((prev.rows - shape.rows) / 2) + shift;
       } else if (dir === 'west') {
-        gx0 = prev.gx0 - plan.corridorLen - shape.cols;
+        gx0 = prev.gx0 - gap - shape.cols;
         gy0 = prev.gy0 + Math.round((prev.rows - shape.rows) / 2) + shift;
       } else if (dir === 'north') {
-        gy0 = prev.gy0 - plan.corridorLen - shape.rows;
+        gy0 = prev.gy0 - gap - shape.rows;
         gx0 = prev.gx0 + Math.round((prev.cols - shape.cols) / 2) + shift;
       } else {
-        gy0 = prev.gy0 + prev.rows + plan.corridorLen;
+        gy0 = prev.gy0 + prev.rows + gap;
         gx0 = prev.gx0 + Math.round((prev.cols - shape.cols) / 2) + shift;
       }
       out.push({ gx0, gy0, cols: shape.cols, rows: shape.rows, cut: shape.cut || null, fixtures: shape.fixtures });
@@ -7561,11 +7578,16 @@
   }
   // The strip of deck running off the pier's far end, where the boat ties
   // up. Boardwalk only.
+  // The jetty a boat ties up at: off the seaward end of whatever the pier
+  // reaches to, which is the pier head once that is built and the
+  // promenade before then. It used to be pinned to the end of the
+  // promenade, which is where the walk out to the pier head now goes.
   function jettyRect() {
     if (state.activeTheme !== 'boardwalk') return null;
-    const hub = hubRect();
-    if (!hub) return null;
-    return { gx0: hub.gx0 + hub.cols, gy0: hub.gy0 + hub.rows - 6, cols: 7, rows: 3 };
+    let far = null;
+    placements.forEach((p) => { if (!far || p.gx0 + p.cols > far.gx0 + far.cols) far = p; });
+    if (!far) return null;
+    return { gx0: far.gx0 + far.cols, gy0: far.gy0 + far.rows - 6, cols: 7, rows: 3 };
   }
 
   // ---- Railings ----
@@ -7644,6 +7666,34 @@
       floorCtx.ellipse(ring.x, ring.y, 6.5, 6.5, 0, Math.PI - 0.5, Math.PI + 0.5);
       floorCtx.strokeStyle = '#f3efe4';
       floorCtx.stroke();
+    }
+    // Festoon lights strung post to post over the rail, sagging between
+    // them. A pier is a place people come to in the evening; this is what
+    // makes it feel like one rather than a deck with a fence round it.
+    const sag = 9;
+    const head = (i) => up(at(from + (len * i) / posts), r.h + 13);
+    for (let i = 0; i < posts; i++) {
+      const p0 = head(i);
+      const p1 = head(i + 1);
+      floorCtx.beginPath();
+      floorCtx.moveTo(p0.x, p0.y);
+      floorCtx.quadraticCurveTo((p0.x + p1.x) / 2, (p0.y + p1.y) / 2 + sag * 2, p1.x, p1.y);
+      floorCtx.strokeStyle = 'rgba(24,18,12,0.65)';
+      floorCtx.lineWidth = 1.4;
+      floorCtx.stroke();
+      // Three bulbs along each swag, hung off the low of the curve.
+      [0.28, 0.5, 0.72].forEach((t) => {
+        const mx = (p0.x + p1.x) / 2;
+        const my = (p0.y + p1.y) / 2 + sag * 2;
+        const x = (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * mx + t * t * p1.x;
+        const y = (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * my + t * t * p1.y;
+        strokePolyline([{ x, y }, { x, y: y + 3 }], 'rgba(24,18,12,0.6)', 1);
+        drawGlow({ x, y: y + 5 }, 11, light.bulb, 0.55);
+        floorCtx.beginPath();
+        floorCtx.ellipse(x, y + 5, 2, 2.6, 0, 0, Math.PI * 2);
+        floorCtx.fillStyle = light.bulb;
+        floorCtx.fill();
+      });
     }
   }
   function drawWoodPost(p, w, h, color) {
