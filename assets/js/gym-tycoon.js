@@ -9993,9 +9993,26 @@
     floorCtx.fillRect(view.x0, cy, view.x1 - view.x0, view.y1 - cy);
   }
   // The building this roof is the top of: its walls under every edge of
-  // the floor that has nothing beyond it, rows of lit windows down them.
+  // the floor that has nothing beyond it, carried all the way down the
+  // canvas.
+  //
+  // It is deliberately not built like the skyline behind it. The city is
+  // flat silhouettes in the haze; this is the thing you are standing on,
+  // so it is lighter, it has a parapet under the roof edge, a band at
+  // every storey, windows in proper columns, and a bright arris where its
+  // two faces meet. Without that it read as one more distant block and
+  // the roof looked like it was floating.
   function drawBuildingBelow(colors, view) {
-    const H = 360;
+    // The haze goes on first now. It used to be painted over the walls,
+    // which swallowed the lower half of the building.
+    const fog = floorCtx.createLinearGradient(0, view.y0 + (view.y1 - view.y0) * 0.5, 0, view.y1);
+    fog.addColorStop(0, 'rgba(12,18,30,0)');
+    fog.addColorStop(1, 'rgba(12,18,30,0.85)');
+    floorCtx.fillStyle = fog;
+    floorCtx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
+
+    const STOREY = 46;
+    const corners = [];
     siteFloors().forEach((rect) => {
       ['s', 'e'].forEach((side) => {
         exposedRuns(rect, side).forEach(([from, to]) => {
@@ -10003,34 +10020,63 @@
           const b0 = edgePoint(rect, side, to);
           const a = isoPoint(a0.gx, a0.gy);
           const b = isoPoint(b0.gx, b0.gy);
-          const wall = side === 's' ? '#2a3345' : '#1e2635';
+          // Down to the bottom of whatever the window is showing, with a
+          // margin, so the building never stops in mid-air.
+          const H = Math.max(view.y1 - a.y, view.y1 - b.y) + 120;
+          const wall = side === 's' ? '#3c4761' : '#2c3549';
           const grad = floorCtx.createLinearGradient(0, a.y, 0, a.y + H);
-          grad.addColorStop(0, wall);
-          grad.addColorStop(1, shade(wall, -16));
-          paintQuad([a, b, { x: b.x, y: b.y + H }, { x: a.x, y: a.y + H }], grad, 'rgba(0,0,0,0.45)', 1);
+          grad.addColorStop(0, shade(wall, 8));
+          grad.addColorStop(0.28, wall);
+          grad.addColorStop(1, shade(wall, -30));
+          const down = (p, d) => ({ x: p.x, y: p.y + d });
+          paintQuad([a, b, down(b, H), down(a, H)], grad, 'rgba(0,0,0,0.45)', 1);
+          // The parapet the railing stands on, and the shadow it casts.
+          paintQuad([a, b, down(b, 9), down(a, 9)], shade(wall, 26), null);
+          paintQuad([down(a, 9), down(b, 9), down(b, 15), down(a, 15)], 'rgba(0,0,0,0.30)', null);
           const len = Math.hypot(b.x - a.x, b.y - a.y);
-          const n = Math.floor(len / 28);
-          for (let row = 0; row < 7; row++) {
-            const y = 44 + row * 46;
+          const n = Math.max(1, Math.floor(len / 28));
+          // A band at every storey, as far down as it can still be told
+          // apart; below that the wall carries on into the haze.
+          const bands = Math.min(H - 20, 1900);
+          for (let y = 22 + STOREY; y < bands; y += STOREY) {
+            paintQuad([down(a, y), down(b, y), down(b, y + 3), down(a, y + 3)], 'rgba(0,0,0,0.22)', null);
+            paintQuad([down(a, y + 3), down(b, y + 3), down(b, y + 5), down(a, y + 5)], 'rgba(255,255,255,0.05)', null);
+          }
+          // Windows, in columns, down as far as the haze lets them read.
+          const lit = Math.min(H - 40, 1500);
+          for (let y = 26; y < lit; y += STOREY) {
+            const fade = 1 - Math.max(0, (y - 700) / 1100);
+            if (fade <= 0.05) break;
             for (let i = 0; i < n; i++) {
-              const t0 = (i + 0.3) / n;
-              const t1 = (i + 0.7) / n;
-              const p0 = lerpPt(a, b, t0);
-              const p1 = lerpPt(a, b, t1);
-              const lit = noise(Math.round(a.x + i * 7), Math.round(a.y + row * 13), side === 's' ? 51 : 52) < 0.3;
-              paintQuad([{ x: p0.x, y: p0.y + y }, { x: p1.x, y: p1.y + y }, { x: p1.x, y: p1.y + y + 17 }, { x: p0.x, y: p0.y + y + 17 }],
-                lit ? 'rgba(255,214,150,0.5)' : 'rgba(150,170,200,0.1)', null);
+              const p0 = lerpPt(a, b, (i + 0.28) / n);
+              const p1 = lerpPt(a, b, (i + 0.72) / n);
+              const on = noise(Math.round(a.x + i * 7), Math.round(a.y + y), side === 's' ? 51 : 52) < 0.34;
+              paintQuad([down(p0, y), down(p1, y), down(p1, y + 19), down(p0, y + 19)],
+                on ? 'rgba(255,216,152,' + (0.55 * fade).toFixed(3) + ')'
+                  : 'rgba(148,170,206,' + (0.12 * fade).toFixed(3) + ')', null);
             }
           }
+          corners.push(side === 's' ? b : a, side === 's' ? a : b);
         });
       });
     });
-    // And the haze again, over the walls this time.
-    const fog = floorCtx.createLinearGradient(0, view.y0 + (view.y1 - view.y0) * 0.55, 0, view.y1);
-    fog.addColorStop(0, 'rgba(12,18,30,0)');
-    fog.addColorStop(1, 'rgba(12,18,30,0.8)');
-    floorCtx.fillStyle = fog;
-    floorCtx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
+    // The arris where two faces of the same building meet: a bright line
+    // straight down, which is what tells the eye it is one solid block
+    // rather than a row of flats.
+    const seen = new Set();
+    corners.forEach((p) => {
+      const key = Math.round(p.x) + ':' + Math.round(p.y);
+      if (seen.has(key)) return;
+      seen.add(key);
+      const same = corners.filter((q) => Math.abs(q.x - p.x) < 1.5 && Math.abs(q.y - p.y) < 1.5);
+      if (same.length < 2) return;
+      const g = floorCtx.createLinearGradient(0, p.y, 0, view.y1);
+      g.addColorStop(0, 'rgba(190,206,236,0.30)');
+      g.addColorStop(0.35, 'rgba(150,168,200,0.12)');
+      g.addColorStop(1, 'rgba(150,168,200,0)');
+      floorCtx.fillStyle = g;
+      floorCtx.fillRect(p.x - 1.5, p.y, 3, view.y1 - p.y);
+    });
   }
   // Pier: the sea, catching the light.
   function drawSea(colors, view) {
