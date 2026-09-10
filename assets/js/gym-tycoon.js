@@ -3481,12 +3481,12 @@
     }
     if (!levelValueEl) return;
     const p = levelProgress();
-    levelValueEl.textContent = p.level;
+    setText(levelValueEl, p.level);
     if (levelWrapEl) levelWrapEl.classList.toggle('is-capped', p.capped);
-    xpFillEl.style.width = (p.frac * 100).toFixed(1) + '%';
-    xpTextEl.textContent = p.capped
+    setWidth(xpFillEl, (p.frac * 100).toFixed(1) + '%');
+    setText(xpTextEl, p.capped
       ? formatNum(Math.floor(state.xp || 0)) + ' XP'
-      : formatNum(Math.floor((state.xp || 0) - p.from)) + ' / ' + formatNum(p.to - p.from) + ' XP';
+      : formatNum(Math.floor((state.xp || 0) - p.from)) + ' / ' + formatNum(p.to - p.from) + ' XP');
   }
 
   // What this level just opened up, so a level-up says something more useful
@@ -3566,8 +3566,8 @@
       const stamp = shown + '/' + p.target + (p.ready ? '!' : '');
       if (els.last === stamp) return;
       els.last = stamp;
-      els.text.textContent = JOB_KINDS[job.kind].text(job);
-      els.fill.style.width = ((shown / Math.max(1, p.target)) * 100).toFixed(1) + '%';
+      setText(els.text, JOB_KINDS[job.kind].text(job));
+      setWidth(els.fill, ((shown / Math.max(1, p.target)) * 100).toFixed(1) + '%');
       els.meta.innerHTML = '<span class="tycoon-job-reward">$' + formatNum(job.cash)
         + ' + ' + job.xp + ' XP</span> &middot; ' + formatNum(shown) + ' / ' + formatNum(p.target);
       els.claim.disabled = !p.ready;
@@ -3653,7 +3653,7 @@
       rushRow.row.hidden = true;
       rushRow.row.classList.remove('is-ready');
       rushRow.wait.hidden = false;
-      rushRow.wait.textContent = 'Next rush order in ' + clockOf(rushNextInSeconds());
+      setText(rushRow.wait, 'Next rush order in ' + clockOf(rushNextInSeconds()));
       rushSignature = '';
       return;
     }
@@ -3662,7 +3662,7 @@
     const signature = job.kind + ':' + job.target + ':' + (job.item || job.cat || '');
     if (signature !== rushSignature) {
       rushSignature = signature;
-      rushRow.text.textContent = 'RUSH: ' + JOB_KINDS[job.kind].text(job);
+      setText(rushRow.text, 'RUSH: ' + JOB_KINDS[job.kind].text(job));
       rushRow.last = null;
     }
     const p = jobProgress(job, floorTally());
@@ -3671,7 +3671,7 @@
     const stamp = shown + '/' + p.target + '/' + left + (p.ready ? '!' : '');
     if (rushRow.last === stamp) return;
     rushRow.last = stamp;
-    rushRow.fill.style.width = ((shown / Math.max(1, p.target)) * 100).toFixed(1) + '%';
+    setWidth(rushRow.fill, ((shown / Math.max(1, p.target)) * 100).toFixed(1) + '%');
     rushRow.meta.innerHTML = '<span class="tycoon-job-reward">$' + formatNum(job.cash)
       + ' + ' + job.xp + ' XP</span> &middot; ' + formatNum(shown) + ' / ' + formatNum(p.target)
       + ' &middot; <span class="tycoon-rush-clock' + (left < 60 ? ' is-late' : '') + '">'
@@ -3697,19 +3697,19 @@
     // Nothing to see until it is either worth something or already earned.
     franchisePanelEl.hidden = held === 0 && offer === 0;
     if (franchisePanelEl.hidden) return;
-    franchiseHeldEl.textContent = held
+    setText(franchiseHeldEl, held
       ? held + ' point' + (held === 1 ? '' : 's') + ', +'
         + Math.round((franchiseMultiplier() - 1) * 100) + '% on everything, forever'
-      : 'nothing banked yet';
-    franchiseNoteEl.textContent = offer
+      : 'nothing banked yet');
+    setText(franchiseNoteEl, offer
       ? 'Cash this gym in for ' + offer + ' more point' + (offer === 1 ? '' : 's') + '. '
         + 'You keep your level and everything it unlocked, and your points. '
         + 'You lose the gear, every room past the first, and the staff.'
-      : 'Keep earning. The next point is worth more the bigger the gym gets.';
+      : 'Keep earning. The next point is worth more the bigger the gym gets.');
     franchiseBtn.disabled = offer === 0;
     franchiseBtn.classList.toggle('is-confirming', franchiseArmed);
-    franchiseBtn.textContent = !offer ? 'Nothing to cash in yet'
-      : franchiseArmed ? 'Really clear the gym?' : 'Franchise out for +' + offer;
+    setText(franchiseBtn, !offer ? 'Nothing to cash in yet'
+      : franchiseArmed ? 'Really clear the gym?' : 'Franchise out for +' + offer);
   }
 
   function disarmFranchise() {
@@ -3794,7 +3794,7 @@
   })();
   function showTip(target, text) {
     if (!text) return;
-    tipEl.textContent = text;
+    setText(tipEl, text);
     tipEl.hidden = false;
     const box = target.getBoundingClientRect();
     const tip = tipEl.getBoundingClientRect();
@@ -3822,8 +3822,8 @@
       el.innerHTML = '<span class="tycoon-trophy-name"></span>'
         + '<span class="tycoon-trophy-hint"></span>'
         + '<span class="tycoon-trophy-got" hidden></span>';
-      el.querySelector('.tycoon-trophy-name').textContent = t.name;
-      el.querySelector('.tycoon-trophy-hint').textContent = t.hint;
+      setText(el.querySelector('.tycoon-trophy-name'), t.name);
+      setText(el.querySelector('.tycoon-trophy-hint'), t.hint);
       // What it was for, on hover or a long press, so a won trophy is
       // still a record of what you did rather than the word "Done".
       el.dataset.goal = t.hint + '. +$' + formatNum(t.cash);
@@ -3851,12 +3851,12 @@
       el.classList.toggle('is-won', won);
       // The objective stays on the card whether it is won or not; what
       // winning adds is the payout under it.
-      el.querySelector('.tycoon-trophy-hint').textContent = t.hint;
+      setText(el.querySelector('.tycoon-trophy-hint'), t.hint);
       const got = el.querySelector('.tycoon-trophy-got');
-      got.textContent = 'Done. +$' + formatNum(t.cash);
+      setText(got, 'Done. +$' + formatNum(t.cash));
       if (got.hidden !== !won) got.hidden = !won;
     });
-    trophyCountEl.textContent = trophiesWon() + ' of ' + TROPHIES.length;
+    setText(trophyCountEl, trophiesWon() + ' of ' + TROPHIES.length);
   }
 
   // Swept off the earnings tick, so a total that creeps past a milestone
@@ -3990,7 +3990,7 @@
     if (!counters.length) {
       const none = document.createElement('p');
       none.className = 'tycoon-counter-empty';
-      none.textContent = 'No counter placed yet.';
+      setText(none, 'No counter placed yet.');
       counterListEl.appendChild(none);
       return;
     }
@@ -4030,7 +4030,7 @@
       const collect = document.createElement('button');
       collect.type = 'button';
       collect.className = 'tycoon-collect-btn';
-      collect.textContent = 'Collect';
+      setText(collect, 'Collect');
       collect.hidden = true;
       collect.addEventListener('click', () => {
         if (collectBatches(c.themeId, c.roomIndex, c.index)) {
@@ -4063,7 +4063,7 @@
     if (!held.length) {
       const none = document.createElement('span');
       none.className = 'tycoon-larder-empty';
-      none.textContent = 'Larder empty.';
+      setText(none, 'Larder empty.');
       larderEl.appendChild(none);
       return;
     }
@@ -4074,9 +4074,9 @@
       pill.innerHTML = '<span class="tycoon-stock-dot"></span>'
         + '<span class="tycoon-stock-name"></span>'
         + '<span class="tycoon-stock-n"></span>';
-      pill.querySelector('.tycoon-stock-name').textContent = PRODUCTS[p].name;
-      pill.querySelector('.tycoon-stock-n').textContent = larderCount(p)
-        + (larderCount(p) >= larderCap() ? ' / full' : '');
+      setText(pill.querySelector('.tycoon-stock-name'), PRODUCTS[p].name);
+      setText(pill.querySelector('.tycoon-stock-n'), larderCount(p)
+        + (larderCount(p) >= larderCap() ? ' / full' : ''));
       larderEl.appendChild(pill);
     });
   }
@@ -4114,7 +4114,7 @@
         if (!b) {
           pip.root.style.color = 'transparent';
           pip.root.classList.remove('is-done');
-          pip.fill.style.width = '0%';
+          setWidth(pip.fill, '0%');
           return;
         }
         const product = PRODUCTS[b.p];
@@ -4126,7 +4126,7 @@
         } else {
           pip.root.classList.remove('is-done');
           const frac = 1 - Math.min(1, left / (b.secs || product.seconds));
-          pip.fill.style.width = Math.round(frac * 100) + '%';
+          setWidth(pip.fill, Math.round(frac * 100) + '%');
           if (!nextDone) nextDone = left;
         }
       });
@@ -4169,46 +4169,46 @@
       const have = role.perRoom ? here : staffCount(role.id);
       const cost = staffHireCost(role.id);
       els.root.classList.toggle('is-locked', !unlocked);
-      els.count.textContent = role.perRoom
+      setText(els.count, role.perRoom
         ? ' ' + roomLabel(state.activeRoomIndex) + ' \u00b7 ' + here + ' of ' + cashiersPerRoom()
-        : have ? ' x' + have : '';
+        : have ? ' x' + have : '');
       els.letGo.hidden = !have;
       if (!unlocked) {
-        els.note.textContent = 'From level ' + role.unlockLevel;
-        els.btn.textContent = 'Locked';
+        setText(els.note, 'From level ' + role.unlockLevel);
+        setText(els.btn, 'Locked');
         els.btn.disabled = true;
         return;
       }
       if (role.perRoom) {
         const full = here >= cashiersPerRoom();
-        els.note.textContent = full ? 'Fully staffed'
-          : 'Walks to the bubbles and empties them \u00b7 ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings each';
-        els.btn.textContent = full ? 'Room full' : 'Hire here for $' + formatNum(cost);
+        setText(els.note, full ? 'Fully staffed'
+          : 'Walks to the bubbles and empties them \u00b7 ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings each');
+        setText(els.btn, full ? 'Room full' : 'Hire here for $' + formatNum(cost));
         els.btn.disabled = full || state.balance < cost;
         return;
       }
       const cap = staffCap(role.id);
-      if (cap > 0) els.count.textContent = ' ' + have + ' of ' + cap;
+      if (cap > 0) setText(els.count, ' ' + have + ' of ' + cap);
       if (staffFull(role.id)) {
-        els.note.textContent = role.note(have) + ' \u00b7 that is the most you can have';
-        els.btn.textContent = 'Full';
+        setText(els.note, role.note(have) + ' \u00b7 that is the most you can have');
+        setText(els.btn, 'Full');
         els.btn.disabled = true;
         return;
       }
       // What they are worth now, and what one more would add on top.
       const next = staffEffect(role.id, have + 1) - staffEffect(role.id, have);
-      els.note.textContent = (have ? role.note(have) + ' \u00b7 ' : '')
+      setText(els.note, (have ? role.note(have) + ' \u00b7 ' : '')
         + 'next +' + (role.id === 'cleaner'
           ? next.toFixed(1) + ' vibe' : Math.round(next * 100) + '%')
-        + ' for ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings';
-      els.btn.textContent = 'Hire for $' + formatNum(cost);
+        + ' for ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings');
+      setText(els.btn, 'Hire for $' + formatNum(cost));
       els.btn.disabled = state.balance < cost;
     });
     const share = wageShare();
-    staffWagesEl.textContent = share > 0
+    setText(staffWagesEl, share > 0
       ? staffTotal() + ' on staff. Wages: ' + Math.round(share * 100) + '% of the takings'
         + (share >= WAGE_SHARE_MAX ? ' (the cap).' : '.')
-      : 'No wages yet.';
+      : 'No wages yet.');
   }
 
   // Free to do, and no severance: over-hiring should be a mistake you can
@@ -4575,8 +4575,8 @@
   }
   function refreshSoundBtn() {
     if (!soundBtn) return;
-    soundBtn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
-    soundBtn.setAttribute('aria-label', soundOn ? 'Sound on' : 'Sound off');
+    setAttr(soundBtn, 'aria-pressed', soundOn ? 'true' : 'false');
+    setAttr(soundBtn, 'aria-label', soundOn ? 'Sound on' : 'Sound off');
     soundBtn.title = soundOn ? 'Sound on' : 'Sound off';
   }
   if (soundBtn) {
@@ -4600,7 +4600,7 @@
   });
 
   function toast(msg, cls, ms) {
-    toastEl.textContent = msg;
+    setText(toastEl, msg);
     toastEl.className = 'game-toast show' + (cls ? ' ' + cls : '');
     clearTimeout(toast._t);
     toast._t = setTimeout(() => { toastEl.classList.remove('show'); }, ms || 1100);
@@ -4621,12 +4621,12 @@
   const hudGps = document.getElementById('hud-gps');
   const hudFloor = document.getElementById('hud-floor');
   function refreshHud() {
-    hudTotal.textContent = '$' + formatNum(state.balance);
-    hudGps.textContent = formatNum(gps) + '/s';
+    setText(hudTotal, '$' + formatNum(state.balance));
+    setText(hudGps, formatNum(gps) + '/s');
     // The figure alone, and never anything else: this box is a fixed size
     // and a longer string in it would resize the whole row of stats and
     // shove the page about.
-    if (hudFloor) hudFloor.textContent = '$' + formatMoney(floorCash());
+    if (hudFloor) setText(hudFloor, '$' + formatMoney(floorCash()));
   }
 
   function recomputeStats() {
@@ -4796,9 +4796,9 @@
     const rowEls = synergyEl.querySelectorAll('.tycoon-bd-row');
     rows.concat([['This room earns', '', formatNum(roomGps) + '/s']]).forEach((r, i) => {
       const el = rowEls[i];
-      el.children[0].textContent = r[0];
-      el.children[1].textContent = r[1];
-      el.children[2].textContent = r[2];
+      setText(el.children[0], r[0]);
+      setText(el.children[1], r[1]);
+      setText(el.children[2], r[2]);
     });
   }
 
@@ -4924,9 +4924,9 @@
       const off = cats.filter((c) => shopHidden[c]);
       const on = cats.filter((c) => !shopHidden[c]);
       shopFilterEl.classList.toggle('is-on', off.length > 0);
-      state.textContent = off.length === 0 ? 'All gear'
+      setText(state, off.length === 0 ? 'All gear'
         : on.length === 1 ? CATEGORY_META[on[0]].name
-          : on.length + ' of ' + cats.length;
+          : on.length + ' of ' + cats.length);
       reset.hidden = off.length === 0;
       refreshShopUI();
     };
@@ -5120,8 +5120,8 @@
     if (openHintEl) {
       openHintEl.hidden = open;
       if (!open) {
-        openHintEl.textContent = 'The ' + theme.name
-          + ' is closed. Take its free Customer Desk from the Shop and put it down.';
+        setText(openHintEl, 'The ' + theme.name
+          + ' is closed. Take its free Customer Desk from the Shop and put it down.');
       }
     }
     // The same thing on the plan, which is where somebody who has never
@@ -5193,7 +5193,7 @@
       const unlocked = unlockedFor(item);
       els.root.classList.toggle('is-locked', !unlocked);
       if (!unlocked) {
-        els.ownedEl.textContent = '';
+        setText(els.ownedEl, '');
         setHtml(els.buyBtn, '<span class="btn-lock-icon">' + iconMarkup('lock', 13) + '</span> '
           + '<span class="btn-long">Unlocks at level ' + item.unlockLevel + '</span>'
           + '<span class="btn-short">Level ' + item.unlockLevel + '</span>');
@@ -5206,13 +5206,13 @@
       const cost = costFor(item);
       // "x0" on every row you own none of is noise; the count only shows
       // once there is one to count.
-      els.ownedEl.textContent = owned ? 'x' + owned : '';
+      setText(els.ownedEl, owned ? 'x' + owned : '');
       // The mark, the line and the upgrade first: they are true of the row
       // whether or not there is anything left to buy on it, and a placed
       // desk -- which has nothing left to buy -- is exactly the row whose
       // mark you want to see.
       const tier = tierOf(item.id);
-      els.tierEl.textContent = item.name + (tier > 1 ? ' ' + TIER_NAMES[tier] : '');
+      setText(els.tierEl, item.name + (tier > 1 ? ' ' + TIER_NAMES[tier] : ''));
       setHtml(els.gpsEl, earnsLine(item.id));
       refreshUpgradeBtn(els.upBtn, item.id);
       // Shut until the Customer Desk is down, apart from the desk itself --
@@ -5606,17 +5606,9 @@
     floorCanvas.style.transformOrigin = 'top left';
     // The site rides the same transform, so panning and zooming move it
     // with the gym instead of asking for it to be drawn again.
-    if (groundCanvas) {
-      // Scaled about the plan's own origin, then slid back by the margin it
-      // carries, so the lattice under the site lines up with the floors.
-      // Slid up by whatever it reaches above the plan beyond the margin the
-      // wrap already allows for, so the site lines up with the floors.
-      groundCanvas.style.transform = 'translate(0px,'
-        + (-(siteTop - sitePad) * zoomLevel) + 'px)';
-      groundCanvas.style.transformOrigin = 'top left';
-      groundCanvas.style.width = (groundSize.w * zoomLevel) + 'px';
-      groundCanvas.style.height = (groundSize.h * zoomLevel) + 'px';
-    }
+    // The site rides the same zoom, so a pinch moves it with the gym; it is
+    // drawn again once the pinch settles and the resolution has changed.
+    layOutGround();
   }
 
   // Re-rendering on every frame of a pinch would mean redrawing a canvas
@@ -7115,22 +7107,34 @@
   const groundCanvas = document.getElementById('tycoon-ground');
   const groundCtx = groundCanvas ? groundCanvas.getContext('2d') : null;
   let groundKey = '';
-  // How many pixels of backing store the site may have. A phone cannot
-  // allocate a full-resolution copy of a plan this size, and does not need
-  // one: it is rock, water and haze, and it is always seen through a zoom.
-  const SITE_MAX_PIXELS = 1.0e6;
-  let groundSize = { w: 1, h: 1 };
+  // The site used to be one picture of the whole plan, and one picture of
+  // the whole plan cannot be sharp: at the zoom a phone frames the gym at
+  // it is already a couple of thousand pixels across, so it was drawn at
+  // about half that and stretched -- and pinching in stretched it further,
+  // which is why the water and the buildings went soft the moment you
+  // looked closely at them.
+  //
+  // It is drawn to fit the window instead, at the resolution the screen is
+  // actually showing, reaching half a window past every edge so that
+  // panning does not need it drawn again. Because it is drawn in the site's
+  // own coordinates, with the whole site's rectangle handed to the
+  // drawings, the sky, the sea and the yard are laid out exactly where they
+  // were: what changes is only how much of them is kept.
+  const SITE_MAX_PIXELS = 3.6e6;
+  // How far past the window it reaches, as a fraction of the window.
+  const SITE_MARGIN = 0.55;
+  let groundCover = null;
   // The site reaches this far past the plan canvas on every side, so that
   // at the zoom a phone frames the gym at there is still site out beyond
   // the window rather than an edge in the middle of the view.
   const SITE_FADE = 300;
   function drawSiteFalloff(colors, r) {
     const band = (x0, y0, x1, y1, rx, ry, rw, rh) => {
-      const g = groundCtx.createLinearGradient(x0, y0, x1, y1);
+      const g = floorCtx.createLinearGradient(x0, y0, x1, y1);
       g.addColorStop(0, hexA(colors.bg, 0));
       g.addColorStop(1, hexA(colors.bg, 1));
-      groundCtx.fillStyle = g;
-      groundCtx.fillRect(rx, ry, rw, rh);
+      floorCtx.fillStyle = g;
+      floorCtx.fillRect(rx, ry, rw, rh);
     };
     const f = SITE_FADE;
     const w = r.x1 - r.x0;
@@ -7140,55 +7144,86 @@
     band(0, r.y0 + f, 0, r.y0, r.x0, r.y0, w, f);
     band(0, r.y1 - f, 0, r.y1, r.x0, r.y1 - f, w, f);
   }
+  // The whole site, in the plan's own coordinates: what every drawing below
+  // is handed, whichever piece of it is being kept.
+  function siteRect() {
+    return { x0: -sitePad, y0: -siteTop, x1: BASE_W + sitePad, y1: BASE_H + sitePad };
+  }
+  // Where the piece in hand sits on the stage. The wrap's own corner is the
+  // site's corner plus the margin, so a point of the plan lands that far in.
+  function layOutGround() {
+    if (!groundCanvas || !groundCover) return;
+    groundCanvas.style.transformOrigin = 'top left';
+    groundCanvas.style.transform = 'translate(' + ((groundCover.x0 + sitePad) * zoomLevel) + 'px,'
+      + ((groundCover.y0 + sitePad) * zoomLevel) + 'px)';
+    groundCanvas.style.width = ((groundCover.x1 - groundCover.x0) * zoomLevel) + 'px';
+    groundCanvas.style.height = ((groundCover.y1 - groundCover.y0) * zoomLevel) + 'px';
+  }
   function paintStageGround(force) {
-    if (!groundCtx || !stageScrollEl) return;
-    const pad = sitePad;
-    const top = siteTop;
-    const w = BASE_W + pad * 2;
-    const h = BASE_H + pad + top;
-    if (!BASE_W || !BASE_H) return;
+    if (!groundCtx || !stageScrollEl || !BASE_W || !BASE_H) return;
+    const seen = measureVisibleBox();
+    if (!seen) return;
+    const site = siteRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const k = Math.max(0.2, Math.min(dpr, Math.sqrt(SITE_MAX_PIXELS / (w * h))));
-    // The hour's tint is keyed coarsely: a step of a fiftieth is below
-    // what the eye picks up, and keying it any finer had the whole site
-    // repainting every few seconds through dusk and dawn.
-    const key = [state.activeTheme, placements.length, w, h, pad, top, k.toFixed(3),
-      Math.round(skyWash().a * 50)].join('|');
-    if (!force && key === groundKey) return;
-    groundKey = key;
+    // The hour's tint is keyed coarsely: a step of a fiftieth is below what
+    // the eye picks up, and keying it any finer had the site repainting
+    // every few seconds through dusk and dawn.
+    const key = [state.activeTheme, placements.length, sitePad, siteTop,
+      Math.round(skyWash().a * 50), Math.round(dpr * zoomLevel * 100)].join('|');
+    // What of the site the window needs, and whether what is in hand holds
+    // it already. Clamped to the site, because past its edges there is
+    // nothing to hold.
+    const need = {
+      x0: Math.max(site.x0, seen.x0), y0: Math.max(site.y0, seen.y0),
+      x1: Math.min(site.x1, seen.x1), y1: Math.min(site.y1, seen.y1),
+    };
+    const held = groundCover && key === groundKey
+      && need.x0 >= groundCover.x0 - 0.5 && need.y0 >= groundCover.y0 - 0.5
+      && need.x1 <= groundCover.x1 + 0.5 && need.y1 <= groundCover.y1 + 0.5;
+    if (held && !force) return;
 
-    const bw = Math.max(1, Math.round(w * k));
-    const bh = Math.max(1, Math.round(h * k));
+    const mw = (seen.x1 - seen.x0) * SITE_MARGIN;
+    const mh = (seen.y1 - seen.y0) * SITE_MARGIN;
+    const cover = {
+      x0: Math.max(site.x0, seen.x0 - mw), y0: Math.max(site.y0, seen.y0 - mh),
+      x1: Math.min(site.x1, seen.x1 + mw), y1: Math.min(site.y1, seen.y1 + mh),
+    };
+    const cw = cover.x1 - cover.x0;
+    const ch = cover.y1 - cover.y0;
+    if (!(cw > 1 && ch > 1)) return;
+    const k = Math.max(0.2, Math.min(dpr * zoomLevel, Math.sqrt(SITE_MAX_PIXELS / (cw * ch))));
+    const bw = Math.max(1, Math.round(cw * k));
+    const bh = Math.max(1, Math.round(ch * k));
     if (groundCanvas.width !== bw || groundCanvas.height !== bh) {
       groundCanvas.width = bw;
       groundCanvas.height = bh;
     }
-    groundSize = { w, h };
-    groundCanvas.style.width = (w * zoomLevel) + 'px';
-    groundCanvas.style.height = (h * zoomLevel) + 'px';
+    groundKey = key;
+    groundCover = cover;
+    layOutGround();
 
     const colors = colorsFor(state.activeTheme);
-    // Drawn in the plan's own coordinates -- the same isoPoint the rooms
-    // are built from -- with the margin outside them.
-    const view = { x0: -pad, y0: -top, x1: BASE_W + pad, y1: BASE_H + pad };
     const live = floorCtx;
     floorCtx = groundCtx;
-    groundCtx.setTransform(k, 0, 0, k, pad * k, top * k);
-    groundCtx.clearRect(view.x0, view.y0, w, h);
+    // The site's own coordinates, with the corner of this piece of it at the
+    // corner of the bitmap. Every drawing is asked for the whole site; the
+    // canvas keeps the part of it that lands here.
+    groundCtx.setTransform(k, 0, 0, k, -cover.x0 * k, -cover.y0 * k);
+    groundCtx.clearRect(cover.x0, cover.y0, cw, ch);
     try {
       groundCtx.fillStyle = colors.bg;
-      groundCtx.fillRect(view.x0, view.y0, w, h);
-      drawSiteTexture(state.activeTheme, colors, view);
+      groundCtx.fillRect(cover.x0, cover.y0, cw, ch);
+      drawSiteTexture(state.activeTheme, colors, site);
       drawSiteWash(AMBIENT_WASH[state.activeTheme] || AMBIENT_WASH.garage);
-      drawSiteProps(state.activeTheme, colors, view);
+      drawSiteProps(state.activeTheme, colors, site);
       // Out into the dark first, then the hour over all of it -- so the
       // colour the site ends on is the colour the stage carries, tint and
       // all, and there is no edge to see.
-      drawSiteFalloff(colors, view);
+      drawSiteFalloff(colors, site);
       const sky = skyWash();
       if (sky.a > 0.002) {
         groundCtx.fillStyle = 'rgba(' + sky.r + ',' + sky.g + ',' + sky.b + ',' + sky.a.toFixed(3) + ')';
-        groundCtx.fillRect(view.x0, view.y0, w, h);
+        groundCtx.fillRect(cover.x0, cover.y0, cw, ch);
       }
     } finally {
       groundCtx.setTransform(1, 0, 0, 1, 0, 0);
@@ -12619,6 +12654,20 @@
 
   // A regular's name on a small dark tag over their head, so the one person
   // in the room who is somebody can be picked out at a glance.
+  // How wide a regular's name is set, by name and by size. Measuring text
+  // is one of the more expensive things a canvas does, and a name is the
+  // same width every frame for as long as that regular is in the gym.
+  const nameWidths = new Map();
+  function nameWidth(ctx, name, size) {
+    const key = name + '|' + size;
+    let w = nameWidths.get(key);
+    if (w === undefined) {
+      w = ctx.measureText(name).width;
+      if (nameWidths.size > 400) nameWidths.clear();
+      nameWidths.set(key, w);
+    }
+    return w;
+  }
   function drawNameTag(c, m, H) {
     const ctx = floorCtx;
     const size = Math.max(7, Math.min(11, H * 0.11));
@@ -12626,7 +12675,7 @@
     ctx.font = '700 ' + size + 'px Inter, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const w = ctx.measureText(m.regular).width + size * 1.1;
+    const w = nameWidth(ctx, m.regular, size) + size * 1.1;
     const h = size * 1.6;
     const x = c.x - w / 2;
     const y = c.y - H - h - size * 0.5;
@@ -12828,7 +12877,15 @@
   // Listen on the stage window rather than the canvas: zoomed out the plan
   // is smaller than the window, and a pinch that happens to start on the
   // background beside it should still work.
-  if (stageScrollEl) stageScrollEl.addEventListener('scroll', forgetVisibleBox, { passive: true });
+  if (stageScrollEl) {
+    stageScrollEl.addEventListener('scroll', () => {
+      forgetVisibleBox();
+      // Straight away rather than on a timer: the site reaches half a window
+      // past the screen, so this is once every half-screen of panning, and
+      // waiting would show the bare stage at the leading edge.
+      paintStageGround();
+    }, { passive: true });
+  }
   const gestureEl = stageScrollEl || floorCanvas;
   const DRAG_THRESHOLD = 6;
   const pointers = new Map();
@@ -13652,7 +13709,7 @@
         const meta = SHOP_SECTIONS.find((x) => x.id === here);
         const h = document.createElement('p');
         h.className = 'tycoon-store-sect';
-        h.textContent = meta ? meta.name : here;
+        setText(h, meta ? meta.name : here);
         inventoryEl.appendChild(h);
       }
       const cat = CATEGORY_META[CATEGORY[item.id]];
@@ -13703,7 +13760,7 @@
       const sellBtn = document.createElement('button');
       sellBtn.type = 'button';
       sellBtn.className = 'tycoon-inv-sell';
-      sellBtn.textContent = 'Sell $' + formatNum(sellPrice(item));
+      setText(sellBtn, 'Sell $' + formatNum(sellPrice(item)));
       sellBtn.title = 'Sell one back for 60% of what you paid for it';
       sellBtn.addEventListener('click', () => sellItem(item.id));
       acts.appendChild(sellBtn);
@@ -13720,7 +13777,7 @@
           take += Math.floor(Math.ceil(item.baseCost * Math.pow(COST_GROWTH, owned - 1)) * SELL_REFUND_RATE);
           owned--;
         }
-        allBtn.textContent = 'Sell all';
+        setText(allBtn, 'Sell all');
         allBtn.title = 'Sell all ' + spare + ' spare for $' + formatNum(take);
         allBtn.dataset.pays = '$' + formatNum(take);
         allBtn.addEventListener('click', () => {
@@ -13800,7 +13857,7 @@
       btn.classList.toggle('is-active', state.activeTheme === t.id);
       btn.classList.toggle('is-locked', !unlocked);
       btn.classList.toggle('is-shut', unlocked && !open);
-      btn.setAttribute('aria-disabled', unlocked ? 'false' : 'true');
+      setAttr(btn, 'aria-disabled', unlocked ? 'false' : 'true');
       btn.dataset.tip = unlocked ? '' : 'Unlocks at level ' + t.unlockLevel;
     });
   }
@@ -13925,10 +13982,10 @@
     const dupe = editRefusal();
     if (placeLabelEl) {
       const where = activeRooms().length > 1 ? ' in ' + roomLabel(editing.roomIndex) : '';
-      placeLabelEl.textContent = (item ? item.name : 'Gear')
+      setText(placeLabelEl, (item ? item.name : 'Gear')
         + (blocker ? ' \u00b7 too close to the ' + blockerName(blocker)
           : dupe ? ' \u00b7 ' + dupe.short
-          : where + ' \u00b7 drag, then Place');
+          : where + ' \u00b7 drag, then Place'));
     }
     if (placeConfirmBtn) placeConfirmBtn.disabled = !!blocker || dupe;
     if (placeStoreBtn) placeStoreBtn.hidden = editing.fromIndex === null;
@@ -14571,6 +14628,24 @@
   }
   function setHtml(el, html) {
     if (el && el.innerHTML !== html) el.innerHTML = html;
+  }
+  // The same, for a plain string. The panel beside the gym is gone over ten
+  // times a second, and almost nothing on it has changed since the last
+  // time -- but writing a string back over the identical string still
+  // replaces the text node, which is enough to have the browser lay the
+  // panel out and paint it again. On a phone that alone was costing a third
+  // of the frame rate the gym itself was fighting for.
+  function setText(el, text) {
+    const s = text == null ? '' : String(text);
+    if (el && el.textContent !== s) el.textContent = s;
+  }
+  // And the same for the two other things the panel writes on every pass:
+  // the width of a progress bar and the state on a button.
+  function setWidth(el, css) {
+    if (el && el.style.width !== css) el.style.width = css;
+  }
+  function setAttr(el, name, value) {
+    if (el && el.getAttribute(name) !== value) el.setAttribute(name, value);
   }
 
   // ---- Init ----
