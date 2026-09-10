@@ -10173,12 +10173,15 @@
   // through the gap between it and the slab's own edge -- so the cut end of
   // a wall is carried down the depth of the slab and meets it.
   const SLAB_DEPTH = 15;
-  // How far a floor stands up off the ground it is laid on. A concrete slab
-  // and a deck over water stand a good lip proud; boards laid on the earth
-  // of the cellar sit almost flush with it, or the rooms read as raised
-  // platforms rather than floors of the place.
+  // How far a floor stands up off the ground it is laid on. A deck over
+  // water and pavers on a roof stand a good lip proud; the bays of the
+  // garage and the boards of the cellar are laid on the ground they stand
+  // in and sit almost flush with it, or the rooms read as raised platforms
+  // rather than floors of the place.
+  const SLAB_LIP = { garage: 6, basement: 5 };
   function slabDepth() {
-    return state.activeTheme === 'basement' ? 5 : SLAB_DEPTH;
+    const lip = SLAB_LIP[state.activeTheme];
+    return lip == null ? SLAB_DEPTH : lip;
   }
   function pushPast(p, towards) {
     const dx = p.x - towards.x;
