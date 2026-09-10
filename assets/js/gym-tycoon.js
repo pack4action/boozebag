@@ -5328,6 +5328,14 @@
   let stillKey = '';
   let stillOverUsed = false;
   let crowdBoxes = [];
+  // Where the live pass actually painted on the floor being drawn: one box
+  // per person and per piece of gear redrawn beside them. Null while no
+  // floor has a wall in front of it to repair (see paintScene), so the
+  // usual case costs nothing.
+  let liveBoxes = null;
+  function markLive(at, w, h) {
+    if (liveBoxes) liveBoxes.push({ x: at.x - w / 2, y: at.y - h, w, h: h + 24 });
+  }
   const inventoryEl = document.getElementById('tycoon-inventory');
   const themeRowEl = document.getElementById('theme-row');
   let armedItemId = null;
@@ -11021,6 +11029,139 @@
     });
   }
 
+  // What a wall run actually covers, as one closed polygon: along the foot
+  // of the wall, dropping to the head of every doorway on the way, and back
+  // along the top. The still layer gets this right on its own, because a
+  // wall is painted after the floors behind it -- but the crowd, and the
+  // gear beside them, are painted fresh every frame on top of that layer,
+  // and without this they walked straight over any wall standing in front
+  // of them (see frontWallCuts).
+  function wallBandPath(centreLine, axes, h, ends, apertures) {
+    const n = axes.length;
+    const dep = axes.map(wallDepth);
+    const pts = centreLine.slice();
+    if (ends[0] !== 'cap') pts[0] = pushPast(pts[0], pts[1]);
+    if (ends[1] !== 'cap') pts[n] = pushPast(pts[n], pts[n - 1]);
+    const shift = (p, d, up) => ({ x: p.x + d.x, y: p.y + d.y - (up ? h : 0) });
+    // The same mitre the wall's own top band is drawn with, so the polygon
+    // follows the silhouette exactly rather than a few pixels inside it.
+    const outer = pts.map((p, i) => {
+      const before = dep[i - 1];
+      const after = dep[i];
+      if (!before) return shift(p, after, true);
+      if (!after) return shift(p, before, true);
+      if (sameVec(before, after)) return shift(p, after, true);
+      return shift(p, { x: before.x + after.x, y: before.y + after.y }, true);
+    });
+    const bottom = [];
+    for (let i = 0; i < n; i++) {
+      const a = pts[i];
+      const b = pts[i + 1];
+      const holes = ((apertures && apertures[i]) || [])
+        .map(([t0, t1]) => [Math.max(0, t0), Math.min(1, t1)])
+        .filter(([t0, t1]) => t1 > t0)
+        .sort((x, y) => x[0] - y[0]);
+      bottom.push(a);
+      // A doorway is a hole in the wall, so it is a hole in what the wall
+      // covers: whoever is standing in it still shows through.
+      holes.forEach(([t0, t1]) => {
+        const p0 = lerpPt(a, b, t0);
+        const p1 = lerpPt(a, b, t1);
+        bottom.push(p0, liftPt(p0, DOOR_HEAD), liftPt(p1, DOOR_HEAD), p1);
+      });
+      bottom.push(b);
+    }
+    const poly = bottom.concat(outer.slice().reverse());
+    // The foot of the wall, segment by segment, so a box can be tested
+    // against the wall itself rather than against a rectangle round it --
+    // the rectangle round a wall covers half the floor behind it, and every
+    // machine on that floor would have asked for a repair it did not need.
+    const segs = [];
+    for (let i = 0; i < n; i++) segs.push({ a: pts[i], b: pts[i + 1] });
+    return { poly, segs, h };
+  }
+
+  // Is any part of this box behind that wall -- between the foot of it and
+  // the top?
+  function boxBehindWall(b, band) {
+    for (let i = 0; i < band.segs.length; i++) {
+      const { a, o } = { a: band.segs[i].a, o: band.segs[i].b };
+      const lo = Math.min(a.x, o.x);
+      const hi = Math.max(a.x, o.x);
+      if (b.x + b.w < lo || b.x > hi) continue;
+      const slope = o.x === a.x ? 0 : (o.y - a.y) / (o.x - a.x);
+      const at = (x) => a.y + (x - a.x) * slope;
+      const yA = at(Math.max(lo, b.x));
+      const yB = at(Math.min(hi, b.x + b.w));
+      if (b.y > Math.max(yA, yB)) continue;
+      if (b.y + b.h < Math.min(yA, yB) - band.h) continue;
+      return true;
+    }
+    return false;
+  }
+
+  // The wall a floor or a hallway stands behind, if it has one. The hub is
+  // open floor and the two outdoor locations have railings, which are put
+  // back over the crowd by the over layer instead.
+  function wallBandOf(piece) {
+    const theme = state.activeTheme;
+    if (railed(theme)) return null;
+    if (piece.roomIndex != null) {
+      const i = piece.roomIndex;
+      if (isHubAt(theme, i)) return null;
+      const place = placements[i];
+      if (!place) return null;
+      const eastCorner = { gx: place.gx0 + place.cols, gy: place.gy0 };
+      const westCorner = { gx: place.gx0, gy: place.gy0 + place.rows };
+      const holes = wallApertures(i);
+      return wallBandPath(
+        [isoPoint(eastCorner.gx, eastCorner.gy), isoPoint(place.gx0, place.gy0),
+          isoPoint(westCorner.gx, westCorner.gy)],
+        ['gx', 'gy'], ROOM.wallH,
+        [roomWallEnd(place, eastCorner), roomWallEnd(place, westCorner)],
+        [holes.ne.map(([t0, t1]) => [1 - t1, 1 - t0]), holes.nw],
+      );
+    }
+    const c = piece.corridor;
+    if (!c) return null;
+    const near = c.nearRoom;
+    const hub = hubRect();
+    if (near === hub) return null;
+    const corner = isoPoint(c.gx0, c.gy0);
+    const farEnd = c.doorRoom === hub && !hallwayWallMeets(c) ? 'cap' : 'open';
+    if (c.axis === 'gx') {
+      const far = isoPoint(c.gx0 + c.cols, c.gy0);
+      if (near && c.gy0 > near.gy0) {
+        return wallBandPath([isoPoint(c.gx0, near.gy0), corner, far], ['gy', 'gx'],
+          ROOM.wallH, ['open', farEnd], null);
+      }
+      return wallBandPath([corner, far], ['gx'], ROOM.wallH, ['open', farEnd], null);
+    }
+    const far = isoPoint(c.gx0, c.gy0 + c.rows);
+    if (near && c.gx0 > near.gx0) {
+      return wallBandPath([isoPoint(near.gx0, c.gy0), corner, far], ['gx', 'gy'],
+        ROOM.wallH, ['open', farEnd], null);
+    }
+    return wallBandPath([corner, far], ['gy'], ROOM.wallH, ['open', farEnd], null);
+  }
+
+  // For each floor in the painting order, the walls of everything painted
+  // after it -- the walls that stand in front of it. Worked out once and
+  // kept until the plan itself changes, because none of it moves.
+  let cutKey = '';
+  let frontCuts = [];
+  function frontWallCuts(order, key) {
+    if (cutKey === key) return frontCuts;
+    cutKey = key;
+    const bands = order.map(wallBandOf);
+    frontCuts = order.map((_, i) => {
+      const out = [];
+      for (let j = i + 1; j < order.length; j++) if (bands[j]) out.push(bands[j]);
+      return out;
+    });
+    return frontCuts;
+  }
+
   // The two floor corners spanning a corridor's end, in the order that keeps
   // the frame facing the viewer.
   function corridorEnd(c, far) {
@@ -11170,6 +11311,7 @@
         .forEach((m) => {
           const at = isoPoint(m.gx, m.gy);
           drawMember(at, m);
+          markLive(at, 92, 148);
           if (rails) crowdBoxes.push({ x: at.x - 46, y: at.y - 140, w: 92, h: 172 });
         });
       return;
@@ -11572,11 +11714,13 @@
     const build = () => {
       const pieces = rooms.map((room, i) => ({
         rect: placements[i],
+        roomIndex: i,
         depth: placements[i].gx0 + placements[i].gy0,
         always: !!editing && editing.roomIndex === i,
         draw: () => drawRoom(room.layout, colors, light, i),
       })).concat(corridors.map((c) => ({
         rect: c,
+        corridor: c,
         depth: c.gx0 + c.gy0,
         draw: () => drawCorridorShell(c, colors),
       })));
@@ -11592,10 +11736,13 @@
 
     ensureStillLayers();
     const key = stillSignature();
+    // One painting order a frame, shared by the still layers and the live
+    // pass -- it was worked out twice, and the cuts below have to line up
+    // with it exactly.
+    const order = build();
     if (key !== stillKey) {
       stillKey = key;
       const live = floorCtx;
-      const order = build();
       // The whole footprint first, then everything built on it. Two passes
       // over one list rather than one pass that does both per floor: with
       // both together, a floor drawn later laid its paving and its slab
@@ -11632,10 +11779,45 @@
     // 'copy' puts the still layer down and clears whatever was there in the
     // same pass, rather than wiping the canvas and then drawing over it.
     stamp(stillUnder, 'copy');
-    build().forEach((p) => {
+    // The crowd, and the gear standing beside them, are painted over the
+    // still layer every frame -- so on their own they walk straight over
+    // any wall that stands in front of them. After each floor has had its
+    // turn, the walls of every floor painted after it are put back over
+    // whatever strayed behind them, straight off the still layer.
+    //
+    // Clipping each floor to a hole cut for those walls instead is the
+    // obvious way round and cost a third of the frame rate: the hole is
+    // the size of the whole plan, so every floor paid for a full-canvas
+    // mask whether anyone was near a wall or not. This pays only where
+    // somebody actually is, which is a person or two.
+    const cuts = frontWallCuts(order, key);
+    order.forEach((p, i) => {
       if (seen && !p.always && !boxesMeet(floorScreenBox(p.rect), seen)) return;
+      const cut = cuts[i];
+      liveBoxes = cut.length ? [] : null;
       p.draw();
+      if (!cut.length || !liveBoxes.length) return;
+      const hit = cut.filter((band) => liveBoxes.some((b) => boxBehindWall(b, band)));
+      if (!hit.length) return;
+      // Only the wall behind the people who strayed onto it, not the whole
+      // wall: the repair is the size of a person, wherever they happen to
+      // be standing.
+      const near = liveBoxes.filter((b) => hit.some((band) => boxBehindWall(b, band)));
+      floorCtx.save();
+      floorCtx.beginPath();
+      hit.forEach(({ poly }) => {
+        floorCtx.moveTo(poly[0].x, poly[0].y);
+        for (let k = 1; k < poly.length; k++) floorCtx.lineTo(poly[k].x, poly[k].y);
+        floorCtx.closePath();
+      });
+      floorCtx.clip();
+      floorCtx.beginPath();
+      near.forEach((b) => floorCtx.rect(b.x, b.y, b.w, b.h));
+      floorCtx.clip();
+      floorCtx.drawImage(stillUnder, 0, 0, W, H);
+      floorCtx.restore();
     });
+    liveBoxes = null;
     // The railings are already down with their own floors. This puts them
     // back over anybody standing at one, and only there -- stamped whole
     // over the plan it was a far floor's railing crossing a nearer one.
@@ -11787,11 +11969,13 @@
       if (e.member) {
         const at = isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v);
         drawMember(at, e.member);
+        markLive(at, 92, 148);
         if (rails) crowdBoxes.push({ x: at.x - 46, y: at.y - 140, w: 92, h: 172 });
         return;
       }
       if (e.fixture) {
         drawFixture(place, e.fixture, theme, colors, light);
+        markLive(isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v), 200, 200);
         return;
       }
       const item = itemById(e.itemId);
@@ -11807,6 +11991,7 @@
         floorCtx.restore();
       }
       drawProp(e.itemId, c, tierOf(e.itemId), turnAt(room, e.index));
+      markLive(c, 170, 180);
     };
 
     // Nothing about a piece of gear moves -- who is using it is shown by the
@@ -11886,6 +12071,10 @@
 
     if (editing && editing.roomIndex === roomIndex) {
       drawHeldPiece(place, editing);
+      // Whatever is in hand moves with the pointer, so its whole floor is
+      // marked rather than guessing where it landed.
+      const box = floorScreenBox(place);
+      if (liveBoxes) liveBoxes.push({ x: box.x0, y: box.y0, w: box.x1 - box.x0, h: box.y1 - box.y0 });
     }
 
   }
