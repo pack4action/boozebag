@@ -11565,6 +11565,10 @@
     fitZoomToStage();
     fitCanvasResolution();
     applyStageSizing();
+    // The site is drawn at the resolution the screen is showing it at, so a
+    // zoom that comes to rest at a new one has to have it drawn again. This
+    // costs nothing when neither the zoom nor the view has moved.
+    paintStageGround();
     paintScene();
   }
 
