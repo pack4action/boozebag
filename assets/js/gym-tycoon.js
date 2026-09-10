@@ -5433,7 +5433,10 @@
     // it against the edges: the site around it is drawn now, and a plan
     // fitted edge to edge hides all of it. The margin scales with the window
     // so a phone, where every pixel of plan counts, gives up almost none.
-    const margin = Math.min(70, availW * 0.08);
+    // Enough of a margin that the place the gym stands in is part of the
+    // picture -- the wall behind it, the drop and the steps in front --
+    // rather than something out past the edges of the window.
+    const margin = Math.min(130, availW * 0.13);
     // Framed on the rooms that are built, with a little of the plot beside
     // them showing: fitting the whole plan, plot included, drew the gym at
     // half the size it could be and left bands of empty ground around it.
@@ -6944,7 +6947,6 @@
       groundCtx.fillStyle = colors.bg;
       groundCtx.fillRect(view.x0, view.y0, w, h);
       drawSiteTexture(state.activeTheme, colors, view);
-      if (state.activeTheme === 'garage') drawGroundLattice(colors, view);
       drawSiteWash(AMBIENT_WASH[state.activeTheme] || AMBIENT_WASH.garage);
       drawSiteProps(state.activeTheme, colors, view);
       // Out into the dark first, then the hour over all of it -- so the
@@ -8018,7 +8020,7 @@
   }
   function drawSiteProps(theme, colors, view) {
     if (theme === 'basement') drawCavernPipes(colors, view);
-    else if (theme === 'garage') drawYardLights(colors, view);
+    else if (theme === 'garage') drawYardProps(colors, view);
     else if (theme === 'rooftop') drawBuildingBelow(colors, view);
     else if (theme === 'boardwalk') drawPierPiles(colors, view);
   }
@@ -8088,34 +8090,562 @@
       }
     }
   }
-  // Yard: dark tarmac in big bays.
+  // ---- The garage yard ----
+  // The bays stand on a concrete apron in a yard cut out of the ground:
+  // a wall rising behind it with the services strung along it, a drop to a
+  // lower deck in front with a handrail along the edge and a steel flight
+  // down to it, a gantry overhead, and the clutter of a working garage on
+  // both levels. Everything here is placed off the plan's own bounds, so a
+  // yard is the same yard on every repaint and from one session to the next.
+  const YARD = {
+    apron: '#42403c',
+    apronB: '#3b3936',
+    asphalt: '#1b1c20',
+    wallL: '#3d4148',
+    wallR: '#31343a',
+    steel: '#6d737c',
+    rust: '#6a4326',
+    drop: 96,
+    wall: 240,
+  };
+  function yardApron() {
+    const b = planBounds;
+    const out = 4;
+    return {
+      gx0: b.gx0 - out,
+      gy0: b.gy0 - out,
+      cols: (b.gx1 - b.gx0) + out * 2,
+      rows: (b.gy1 - b.gy0) + out * 2,
+    };
+  }
+
+  // The yard floor: asphalt everywhere, the apron's concrete over the middle
+  // of it, and what is painted and worn onto both.
   function drawYardFloor(colors, view) {
     const r = latticeRange(view);
-    const S = 12;
+    const S = 8;
+    floorCtx.fillStyle = YARD.asphalt;
+    floorCtx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
+    // Asphalt, laid in big slabs with a joint between them.
     for (let gy = Math.floor(r.gy0 / S) * S; gy < r.gy1; gy += S) {
       for (let gx = Math.floor(r.gx0 / S) * S; gx < r.gx1; gx += S) {
         const n = noise(gx, gy, 21);
         paintQuad([isoPoint(gx, gy), isoPoint(gx + S, gy), isoPoint(gx + S, gy + S), isoPoint(gx, gy + S)],
-          shade(colors.bg, Math.round((n - 0.5) * 8)), null);
+          shade(YARD.asphalt, Math.round((n - 0.5) * 14)), 'rgba(0,0,0,0.5)', 1);
+        // A stain of spilt oil here and there, and a puddle catching the light.
+        if (n > 0.86) {
+          const c = isoPoint(gx + 2 + n * 4, gy + 2 + noise(gx, gy, 22) * 4);
+          floorCtx.save();
+          floorCtx.translate(c.x, c.y);
+          floorCtx.rotate(-0.46);
+          const g = floorCtx.createRadialGradient(0, 0, 2, 0, 0, 22 + n * 14);
+          g.addColorStop(0, 'rgba(0,0,0,0.34)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          floorCtx.fillStyle = g;
+          floorCtx.beginPath();
+          floorCtx.ellipse(0, 0, 22 + n * 14, (11 + n * 7), 0, 0, Math.PI * 2);
+          floorCtx.fill();
+          floorCtx.restore();
+        } else if (n < 0.06) {
+          const c = isoPoint(gx + 3, gy + 4);
+          floorCtx.beginPath();
+          floorCtx.ellipse(c.x, c.y, 20, 10, 0, 0, Math.PI * 2);
+          floorCtx.fillStyle = 'rgba(120,150,170,0.10)';
+          floorCtx.fill();
+        }
       }
     }
+
+    // The apron the bays stand on: concrete, in plates half the size.
+    const a = yardApron();
+    const P = 4;
+    for (let ry = 0; ry < a.rows; ry += P) {
+      for (let rx = 0; rx < a.cols; rx += P) {
+        const gx = a.gx0 + rx;
+        const gy = a.gy0 + ry;
+        const w = Math.min(P, a.cols - rx);
+        const h = Math.min(P, a.rows - ry);
+        const n = noise(gx, gy, 23);
+        const tone = shade(((rx / P | 0) + (ry / P | 0)) % 2 === 0 ? YARD.apron : YARD.apronB,
+          Math.round((n - 0.5) * 12));
+        paintQuad([isoPoint(gx, gy), isoPoint(gx + w, gy), isoPoint(gx + w, gy + h), isoPoint(gx, gy + h)],
+          tone, 'rgba(0,0,0,0.34)', 1);
+      }
+    }
+    // Bay markings painted on the apron in front of the shutters, a hatched
+    // keep-clear box, and the channel drain that runs the length of it.
+    const paint = 'rgba(226,214,186,0.30)';
+    // A keep-clear box at the head of the steps, dashes along the edge,
+    // and the channel drain that runs the length of the apron.
+    drawHatch(a.gx0 + a.cols * 0.34, a.gy0 + a.rows - 2.1, 1.7);
+    for (let k = 0; k < 9; k++) {
+      const t = 0.08 + k * 0.1;
+      strokePolyline([isoPoint(a.gx0 + a.cols * t, a.gy0 + a.rows - 3.4),
+        isoPoint(a.gx0 + a.cols * t, a.gy0 + a.rows - 2.9)], paint, 2);
+    }
+    for (let k = 0; k < 8; k++) {
+      drawGrate(a.gx0 + a.cols - 1.9, a.gy0 + 2 + k * 3.4, 0.7, 4);
+    }
+    // Rubber laid down where vehicles have turned on the apron.
+    floorCtx.save();
+    floorCtx.lineCap = 'round';
+    for (let k = 0; k < 9; k++) {
+      const n = noise(k, 3, 27);
+      const u = 2 + n * (a.cols - 5);
+      const v = 2 + noise(k, 5, 28) * (a.rows - 5);
+      const len = 3 + n * 5;
+      const dir = noise(k, 7, 29) < 0.5;
+      [0, 0.5].forEach((off) => {
+        strokePolyline([isoPoint(a.gx0 + u + (dir ? 0 : off), a.gy0 + v + (dir ? off : 0)),
+          isoPoint(a.gx0 + u + (dir ? len : off), a.gy0 + v + (dir ? off : len))],
+        'rgba(0,0,0,0.20)', 4);
+      });
+    }
+    floorCtx.restore();
   }
-  // A few small lamps standing about the yard.
-  function drawYardLights(colors, view) {
-    const b = planBounds;
-    for (let i = 0; i < 14; i++) {
-      const n1 = noise(i, 3, 31);
-      const n2 = noise(i, 5, 32);
-      const side = i % 4;
-      const gx = side === 0 ? b.gx0 - 8 - n1 * 30 : side === 1 ? b.gx1 + 8 + n1 * 30 : b.gx0 + (b.gx1 - b.gx0) * n1;
-      const gy = side === 2 ? b.gy0 - 8 - n2 * 30 : side === 3 ? b.gy1 + 8 + n2 * 30 : b.gy0 + (b.gy1 - b.gy0) * n2;
-      const p = isoPoint(gx, gy);
-      strokePolyline([p, { x: p.x, y: p.y - 14 }], '#2a2c31', 2);
-      drawGlow({ x: p.x, y: p.y - 15 }, 16, '#ffc98a', 0.6);
-      floorCtx.fillStyle = '#ffe2b0';
-      floorCtx.fillRect(p.x - 1.5, p.y - 16.5, 3, 3);
+
+  // A short steel flight, dropping `YARD.drop` from the apron edge down to
+  // the yard, with a handrail down each side.
+  function drawSteelStairs(gx, gy, along, steps) {
+    const rise = YARD.drop / steps;
+    const run = 1.5;
+    const wide = 3.2;
+    const at = (u, v) => (along === 'gx' ? isoPoint(gx + u, gy + v) : isoPoint(gx + v, gy + u));
+    for (let i = 0; i < steps; i++) {
+      const drop = rise * (i + 1);
+      const a0 = at(i * run, 0);
+      const a1 = at(i * run, wide);
+      const b0 = at((i + 1) * run, 0);
+      const b1 = at((i + 1) * run, wide);
+      const down = (p, d) => ({ x: p.x, y: p.y + d });
+      // The tread, then the riser under its front edge.
+      paintQuad([down(a0, drop - rise), down(a1, drop - rise), down(b1, drop - rise), down(b0, drop - rise)],
+        shade(YARD.steel, -6), 'rgba(0,0,0,0.5)', 1);
+      paintQuad([down(b0, drop - rise), down(b1, drop - rise), down(b1, drop), down(b0, drop)],
+        shade(YARD.steel, -40), 'rgba(0,0,0,0.55)', 1);
+      // Chequer plate: a couple of scores across each tread.
+      strokePolyline([down(a0, drop - rise - 1), down(a1, drop - rise - 1)], 'rgba(255,255,255,0.10)', 1);
+    }
+    // A handrail down each side: posts every other step, a top rail and a
+    // mid rail following the pitch.
+    [0, wide].forEach((v) => {
+      const H = 46;
+      const top = [];
+      const mid = [];
+      for (let i = 0; i <= steps; i++) {
+        const p = at(i * run, v);
+        const drop = rise * i;
+        const foot = { x: p.x, y: p.y + drop };
+        top.push({ x: foot.x, y: foot.y - H });
+        mid.push({ x: foot.x, y: foot.y - H * 0.5 });
+        if (i % 2 === 0) {
+          paintQuad([{ x: foot.x - 1.6, y: foot.y }, { x: foot.x + 1.6, y: foot.y },
+            { x: foot.x + 1.6, y: foot.y - H }, { x: foot.x - 1.6, y: foot.y - H }], YARD.steel, null);
+        }
+      }
+      strokePolyline(top, shade(YARD.steel, 26), 2.6);
+      strokePolyline(mid, YARD.steel, 1.8);
+    });
+  }
+
+  // A run of steel handrail along an edge of the apron.
+  function drawYardRail(from, to, light) {
+    const H = 48;
+    const len = Math.hypot(to.x - from.x, to.y - from.y);
+    const posts = Math.max(2, Math.round(len / 46));
+    const up = (p, h) => ({ x: p.x, y: p.y - h });
+    for (let i = 0; i <= posts; i++) {
+      const t = i / posts;
+      const p = lerpPt(from, to, t);
+      paintQuad([{ x: p.x - 1.7, y: p.y }, { x: p.x + 1.7, y: p.y },
+        { x: p.x + 1.7, y: p.y - H }, { x: p.x - 1.7, y: p.y - H }], YARD.steel, null);
+      if (i % 4 === 1 && i < posts) {
+        const lamp = up(p, H + 6);
+        drawGlow(lamp, 40, light.bulb, 0.55);
+        floorCtx.fillStyle = light.bulb;
+        floorCtx.fillRect(lamp.x - 3, lamp.y - 2, 6, 4);
+        drawFloorPool(p, light, 1.4);
+      }
+    }
+    strokePolyline([up(from, H), up(to, H)], shade(YARD.steel, 30), 2.8);
+    strokePolyline([up(from, H * 0.52), up(to, H * 0.52)], YARD.steel, 2);
+    strokePolyline([up(from, 4), up(to, 4)], shade(YARD.steel, -30), 3);
+  }
+
+  // The clutter of a garage: a drum, a stack of tyres, a pallet of boxes,
+  // a cone, a gas bottle, a toolbox, a compressor.
+  function drawDrum(p, colour) {
+    const H = 44;
+    drawIsoDisc(floorCtx, { x: p.x, y: p.y }, 11, 5.5, shade(colour, -34));
+    paintQuad([{ x: p.x - 11, y: p.y }, { x: p.x + 11, y: p.y },
+      { x: p.x + 11, y: p.y - H }, { x: p.x - 11, y: p.y - H }], colour, 'rgba(0,0,0,0.45)', 1);
+    [0.28, 0.62].forEach((h) => paintQuad([{ x: p.x - 11, y: p.y - H * h }, { x: p.x + 11, y: p.y - H * h },
+      { x: p.x + 11, y: p.y - H * h - 3 }, { x: p.x - 11, y: p.y - H * h - 3 }], shade(colour, -26), null));
+    strokePolyline([{ x: p.x - 8, y: p.y - 6 }, { x: p.x - 8, y: p.y - H + 4 }], 'rgba(255,255,255,0.10)', 3);
+    drawIsoDisc(floorCtx, { x: p.x, y: p.y - H }, 11, 5.5, shade(colour, 18));
+  }
+  function drawTyreStack(p, n) {
+    for (let i = 0; i < n; i++) {
+      const y = p.y - i * 11;
+      drawIsoDisc(floorCtx, { x: p.x, y }, 15, 7.5, i % 2 ? '#1e1f22' : '#232427');
+      floorCtx.beginPath();
+      floorCtx.ellipse(p.x, y - 1, 7, 3.4, 0, 0, Math.PI * 2);
+      floorCtx.fillStyle = 'rgba(0,0,0,0.5)';
+      floorCtx.fill();
     }
   }
+  function drawPallet(p, boxes) {
+    drawIsoBox(floorCtx, p, 0, 0, 1.5, 1.2, 9, '#6b5233', 0);
+    for (let i = 0; i < boxes; i++) {
+      const n = noise(Math.round(p.x), Math.round(p.y), 40 + i);
+      drawIsoBox(floorCtx, p, (n - 0.5) * 0.8, (noise(i, 2, 41) - 0.5) * 0.6,
+        0.85, 0.7, 24, i % 2 ? '#7d6647' : '#8a7150', 9 + i * 24);
+    }
+  }
+  function drawCone(p) {
+    paintQuad([{ x: p.x - 8, y: p.y }, { x: p.x + 8, y: p.y },
+      { x: p.x + 2.6, y: p.y - 26 }, { x: p.x - 2.6, y: p.y - 26 }], '#e2591f', 'rgba(0,0,0,0.45)', 1);
+    paintQuad([{ x: p.x - 5.4, y: p.y - 11 }, { x: p.x + 5.4, y: p.y - 11 },
+      { x: p.x + 4.3, y: p.y - 17 }, { x: p.x - 4.3, y: p.y - 17 }], '#efe6d6', null);
+    drawIsoDisc(floorCtx, p, 10, 4.4, '#c94a17');
+  }
+  function drawGasBottles(p) {
+    [-7, 0, 7].forEach((dx, i) => {
+      const H = 52 + i * 3;
+      const c = ['#3f6f4a', '#4a5f7a', '#6a4040'][i];
+      paintQuad([{ x: p.x + dx - 5, y: p.y + i }, { x: p.x + dx + 5, y: p.y + i },
+        { x: p.x + dx + 5, y: p.y + i - H }, { x: p.x + dx - 5, y: p.y + i - H }], c, 'rgba(0,0,0,0.45)', 1);
+      drawIsoDisc(floorCtx, { x: p.x + dx, y: p.y + i - H }, 5, 2.4, shade(c, 22));
+      paintQuad([{ x: p.x + dx - 1.6, y: p.y + i - H }, { x: p.x + dx + 1.6, y: p.y + i - H },
+        { x: p.x + dx + 1.6, y: p.y + i - H - 6 }, { x: p.x + dx - 1.6, y: p.y + i - H - 6 }], '#8a9099', null);
+    });
+    // The cage they stand in.
+    strokePolyline([{ x: p.x - 14, y: p.y - 30 }, { x: p.x + 14, y: p.y - 28 }], 'rgba(160,170,180,0.5)', 2);
+  }
+  function drawCompressor(p) {
+    drawIsoBox(floorCtx, p, 0, 0, 1.5, 0.8, 22, '#2e3238', 0);
+    drawIsoBox(floorCtx, p, 0, 0, 1.35, 0.66, 16, '#b03a2a', 22);
+    drawIsoBox(floorCtx, p, -0.7, 0, 0.45, 0.45, 14, '#4a4f57', 38);
+    const c = isoScreenPoint(p, 0.9, 0, 40);
+    drawIsoDisc(floorCtx, c, 6, 6, '#6d737c');
+  }
+  // A panel van, four and a half metres of it, standing along +u.
+  function drawVan(base, colour) {
+    const ctx = floorCtx;
+    const M = TILES_PER_METRE;
+    const wheel = 0.34 * M;
+    // Wheels first, then the body over them, then the cab and its glass.
+    [[-1.5 * M, 0.86 * M], [-1.5 * M, -0.86 * M], [1.3 * M, 0.86 * M], [1.3 * M, -0.86 * M]]
+      .forEach(([u, v]) => drawIsoDisc(ctx, isoScreenPoint(base, u, v, 20), 13, 9, '#17181b'));
+    drawIsoBox(ctx, base, -0.55 * M, 0, 1.65 * M, 0.9 * M, 1.45 * PX_PER_METRE_TALL, colour, wheel * 3);
+    drawIsoBox(ctx, base, 1.5 * M, 0, 0.65 * M, 0.86 * M, 0.95 * PX_PER_METRE_TALL,
+      shade(colour, -8), wheel * 3);
+    // The windscreen, and the window down the side you can see.
+    drawFacePanel(ctx, base, { u: 2.16 * M, v: -0.84 * M }, { u: 2.16 * M, v: 0.84 * M },
+      55, 88, '#2e4256', 3);
+    drawFacePanel(ctx, base, { u: 0.9 * M, v: 0.88 * M }, { u: 2.05 * M, v: 0.88 * M },
+      55, 88, '#33485e', 3);
+    // A stripe down the flank, the bumper, and the lamps at the front.
+    drawFacePanel(ctx, base, { u: -2.2 * M, v: 0.91 * M }, { u: 2.05 * M, v: 0.91 * M },
+      40, 52, shade(colour, -30), 1);
+    drawIsoBox(ctx, base, 2.15 * M, 0, 0.1 * M, 0.94 * M, 12, '#26282c', 22);
+    drawGlow(isoScreenPoint(base, 2.2 * M, 0.6 * M, 30), 22, '#ffe6b4', 0.55);
+    drawGlow(isoScreenPoint(base, 2.2 * M, -0.6 * M, 30), 22, '#ffe6b4', 0.4);
+  }
+
+  function drawWorkbench(p, along) {
+    const L = along === 'gx' ? 3.4 : 0.9;
+    const W = along === 'gx' ? 0.9 : 3.4;
+    drawIsoBox(floorCtx, p, 0, 0, L, W, 40, '#3a3f46', 0);
+    drawIsoBox(floorCtx, p, 0, 0, L + 0.12, W + 0.12, 5, '#8a9099', 40);
+    // A vice on one end, and a board of tools behind it.
+    const v = isoScreenPoint(p, along === 'gx' ? L - 0.6 : 0, along === 'gx' ? 0 : L - 0.6, 45);
+    drawIsoDisc(floorCtx, v, 7, 4, '#5a6068');
+    paintQuad([{ x: v.x - 5, y: v.y - 2 }, { x: v.x + 5, y: v.y - 2 },
+      { x: v.x + 5, y: v.y - 12 }, { x: v.x - 5, y: v.y - 12 }], '#4a5058', null);
+  }
+
+  // Chain-link on posts: what a yard is fenced with.
+  function drawYardFence(from, to, light) {
+    const H = 96;
+    const len = Math.hypot(to.x - from.x, to.y - from.y);
+    const bays = Math.max(2, Math.round(len / 90));
+    const up = (p, h) => ({ x: p.x, y: p.y - h });
+    // The mesh: a wash with the weave scratched into it, so it reads as
+    // something you see through rather than a panel.
+    paintQuad([from, to, up(to, H), up(from, H)], 'rgba(150,165,180,0.07)', null);
+    floorCtx.save();
+    floorCtx.beginPath();
+    floorCtx.moveTo(from.x, from.y);
+    floorCtx.lineTo(to.x, to.y);
+    floorCtx.lineTo(up(to, H).x, up(to, H).y);
+    floorCtx.lineTo(up(from, H).x, up(from, H).y);
+    floorCtx.closePath();
+    floorCtx.clip();
+    for (let d = -H; d < len + H; d += 13) {
+      const a0 = lerpPt(from, to, d / len);
+      strokePolyline([{ x: a0.x, y: a0.y }, { x: a0.x + H * 0.55, y: a0.y - H }],
+        'rgba(180,195,210,0.12)', 1);
+      strokePolyline([{ x: a0.x, y: a0.y }, { x: a0.x - H * 0.55, y: a0.y - H }],
+        'rgba(180,195,210,0.09)', 1);
+    }
+    floorCtx.restore();
+    for (let i = 0; i <= bays; i++) {
+      const p = lerpPt(from, to, i / bays);
+      paintQuad([{ x: p.x - 2.2, y: p.y }, { x: p.x + 2.2, y: p.y },
+        { x: p.x + 2.2, y: p.y - H }, { x: p.x - 2.2, y: p.y - H }], '#4a5058', 'rgba(0,0,0,0.4)', 1);
+      // A floodlight on every third post, aimed back at the yard.
+      if (i % 3 === 1) {
+        const head = up(p, H + 14);
+        paintQuad([{ x: p.x - 1.6, y: p.y - H }, { x: p.x + 1.6, y: p.y - H },
+          { x: p.x + 1.6, y: head.y }, { x: p.x - 1.6, y: head.y }], '#4a5058', null);
+        paintQuad([{ x: head.x - 11, y: head.y - 7 }, { x: head.x + 11, y: head.y - 7 },
+          { x: head.x + 8, y: head.y + 3 }, { x: head.x - 8, y: head.y + 3 }], '#2b2e33', 'rgba(0,0,0,0.5)', 1);
+        paintQuad([{ x: head.x - 7, y: head.y + 1 }, { x: head.x + 7, y: head.y + 1 },
+          { x: head.x + 7, y: head.y + 3 }, { x: head.x - 7, y: head.y + 3 }], light.bulb, null);
+        drawGlow({ x: head.x, y: head.y + 3 }, 62, light.bulb, 0.4);
+      }
+    }
+    strokePolyline([up(from, H), up(to, H)], '#5a6068', 2.4);
+    strokePolyline([up(from, H * 0.5), up(to, H * 0.5)], 'rgba(120,132,145,0.35)', 1.4);
+  }
+
+  // What stands about the yard, and the structure it stands in.
+  function drawYardProps(colors, view) {
+    const light = LIGHT_COLORS.garage;
+    const a = yardApron();
+    const gx1 = a.gx0 + a.cols;
+    const gy1 = a.gy0 + a.rows;
+    const wallColors = { wallL: YARD.wallL, wallR: YARD.wallR };
+
+    // ---- Behind: the ground is higher, so a wall rises off the apron's
+    // two back edges, with the services running along it.
+    const back = YARD.wall;
+    const nw = isoPoint(a.gx0, a.gy0);
+    const ne = isoPoint(gx1, a.gy0);
+    const sw = isoPoint(a.gx0, gy1);
+    drawWallRun([ne, nw, sw], ['gx', 'gy'], back, wallColors, ['cap', 'cap']);
+    // Laid in courses, with a capping along the top: a wall somebody built,
+    // not a flat band standing behind the bays.
+    [[ne, nw], [nw, sw]].forEach(([from, to]) => {
+      const len = Math.hypot(to.x - from.x, to.y - from.y);
+      const blocks = Math.max(4, Math.round(len / 46));
+      for (let k = 0; k < 11; k++) {
+        const h = 0.06 + k * 0.085;
+        paintQuad(wallQuad(from, to, 0, 1, h, h - 0.006), 'rgba(0,0,0,0.26)', null);
+        for (let i = 1; i < blocks; i++) {
+          const t = (i + (k % 2) * 0.5) / blocks;
+          if (t <= 0 || t >= 1) continue;
+          paintQuad(wallQuad(from, to, t - 0.002, t + 0.002, h, h + 0.079), 'rgba(0,0,0,0.2)', null);
+        }
+      }
+      paintQuad(wallQuad(from, to, 0, 1, 1, 0.955), 'rgba(255,255,255,0.06)', null);
+    });
+
+    // A run of pipework along both, with couplings and a lamp under it.
+    [[ne, nw], [nw, sw]].forEach(([from, to], side) => {
+      [0.80, 0.72].forEach((h, k) => {
+        const a0 = wallPoint(from, to, 0.02, h);
+        const b0 = wallPoint(from, to, 0.98, h);
+        strokePolyline([a0, b0], 'rgba(0,0,0,0.45)', 9 - k * 2);
+        strokePolyline([a0, b0], k ? '#7a4a2c' : shade(YARD.steel, -18), 7 - k * 2);
+        strokePolyline([{ x: a0.x, y: a0.y - 2 }, { x: b0.x, y: b0.y - 2 }], 'rgba(255,255,255,0.10)', 1.6);
+      });
+      for (let i = 1; i < 8; i++) {
+        const t = i / 8;
+        const p = wallPoint(from, to, t, 0.76);
+        paintQuad([{ x: p.x - 4, y: p.y - 12 }, { x: p.x + 4, y: p.y - 12 },
+          { x: p.x + 4, y: p.y + 10 }, { x: p.x - 4, y: p.y + 10 }], '#2c2f34', 'rgba(0,0,0,0.5)', 1);
+        if (i % 2 === (side ? 0 : 1)) {
+          // A bulkhead lamp on the wall, and its pool on the apron below.
+          const lp = wallPoint(from, to, t, 0.52);
+          paintQuad([{ x: lp.x - 7, y: lp.y - 5 }, { x: lp.x + 7, y: lp.y - 5 },
+            { x: lp.x + 6, y: lp.y + 4 }, { x: lp.x - 6, y: lp.y + 4 }], '#22252a', 'rgba(0,0,0,0.5)', 1);
+          paintQuad([{ x: lp.x - 5, y: lp.y - 3.5 }, { x: lp.x + 5, y: lp.y - 3.5 },
+            { x: lp.x + 4.4, y: lp.y + 2.5 }, { x: lp.x - 4.4, y: lp.y + 2.5 }], light.bulb, null);
+          drawGlow(lp, 42, light.bulb, 0.5);
+          drawFloorPool(wallPoint(from, to, t, 0), light, 1.3);
+        }
+      }
+      // The office over the yard, its lights on, and a vehicle shutter in
+      // the wall beside it -- the way in and out of a yard like this.
+      if (!side) {
+        const o0 = 0.30;
+        const o1 = 0.52;
+        paintQuad(wallQuad(from, to, o0 - 0.01, o1 + 0.01, 0.88, 0.52), '#2a2d33', 'rgba(0,0,0,0.6)', 1.4);
+        for (let k = 0; k < 3; k++) {
+          const t0 = o0 + 0.015 + k * 0.072;
+          paintQuad(wallQuad(from, to, t0, t0 + 0.055, 0.84, 0.60), hexA(light.bulb, 0.78), 'rgba(0,0,0,0.5)', 1);
+          paintQuad(wallQuad(from, to, t0 + 0.024, t0 + 0.031, 0.84, 0.60), 'rgba(0,0,0,0.35)', null);
+        }
+        paintQuad(wallQuad(from, to, o0 - 0.02, o1 + 0.02, 0.92, 0.88), '#4a4f58', null);
+        drawGlow(wallPoint(from, to, (o0 + o1) / 2, 0.72), 70, light.bulb, 0.28);
+      } else {
+        const d0 = 0.52;
+        const d1 = 0.74;
+        paintQuad(wallQuad(from, to, d0, d1, 0.02, 0.46), '#4e545c', 'rgba(0,0,0,0.6)', 1.4);
+        for (let h = 0.05; h < 0.45; h += 0.042) {
+          paintQuad(wallQuad(from, to, d0 + 0.004, d1 - 0.004, h, h + 0.016), 'rgba(255,255,255,0.06)', null);
+          paintQuad(wallQuad(from, to, d0 + 0.004, d1 - 0.004, h + 0.016, h + 0.042), 'rgba(0,0,0,0.16)', null);
+        }
+        paintQuad(wallQuad(from, to, d0 - 0.014, d1 + 0.014, 0.46, 0.51), '#33373d', 'rgba(0,0,0,0.5)', 1);
+        [d0 - 0.024, d1 + 0.024].forEach((tt) => {
+          paintQuad(wallQuad(from, to, tt - 0.008, tt + 0.008, 0, 0.1), '#f2b705', 'rgba(0,0,0,0.5)', 1);
+          [0.02, 0.06].forEach((h) => paintQuad(wallQuad(from, to, tt - 0.008, tt + 0.008, h, h + 0.02), '#15161a', null));
+        });
+      }
+      // A hose reel, and the fire point beside it.
+      const hr = wallPoint(from, to, side ? 0.86 : 0.14, 0.38);
+      floorCtx.beginPath();
+      floorCtx.ellipse(hr.x, hr.y, 11, 11, 0, 0, Math.PI * 2);
+      floorCtx.fillStyle = '#b03a2a';
+      floorCtx.fill();
+      floorCtx.strokeStyle = 'rgba(0,0,0,0.5)';
+      floorCtx.lineWidth = 1.2;
+      floorCtx.stroke();
+      floorCtx.beginPath();
+      floorCtx.ellipse(hr.x, hr.y, 4, 4, 0, 0, Math.PI * 2);
+      floorCtx.fillStyle = '#2b2e33';
+      floorCtx.fill();
+      const fp = wallPoint(from, to, side ? 0.92 : 0.08, 0.34);
+      paintQuad([{ x: fp.x - 9, y: fp.y - 12 }, { x: fp.x + 9, y: fp.y - 12 },
+        { x: fp.x + 9, y: fp.y + 12 }, { x: fp.x - 9, y: fp.y + 12 }], '#8c2f22', 'rgba(0,0,0,0.5)', 1);
+      paintQuad([{ x: fp.x - 3, y: fp.y - 8 }, { x: fp.x + 3, y: fp.y - 8 },
+        { x: fp.x + 3, y: fp.y + 8 }, { x: fp.x - 3, y: fp.y + 8 }], '#d24a30', null);
+
+      // An extract grille set into the wall.
+      const g = wallPoint(from, to, side ? 0.22 : 0.62, 0.42);
+      paintQuad([{ x: g.x - 20, y: g.y - 16 }, { x: g.x + 20, y: g.y - 16 },
+        { x: g.x + 20, y: g.y + 16 }, { x: g.x - 20, y: g.y + 16 }], '#23262b', 'rgba(0,0,0,0.6)', 1.4);
+      for (let k = 0; k < 6; k++) {
+        paintQuad([{ x: g.x - 17, y: g.y - 13 + k * 5 }, { x: g.x + 17, y: g.y - 13 + k * 5 },
+          { x: g.x + 17, y: g.y - 11 + k * 5 }, { x: g.x - 17, y: g.y - 11 + k * 5 }], 'rgba(255,255,255,0.09)', null);
+      }
+    });
+
+    // ---- In front: the apron ends and the yard drops away, with a rail
+    // along the edge and a flight of steps down at one corner.
+    const drop = YARD.drop;
+    const down = (p) => ({ x: p.x, y: p.y + drop });
+    const se = isoPoint(gx1, gy1);
+    const swp = isoPoint(a.gx0, gy1);
+    const nep = isoPoint(gx1, a.gy0);
+    // The two faces of the drop, lit differently the way the walls are.
+    paintQuad([swp, se, down(se), down(swp)], shade(YARD.wallL, -12), 'rgba(0,0,0,0.55)', 1);
+    paintQuad([nep, se, down(se), down(nep)], shade(YARD.wallR, -12), 'rgba(0,0,0,0.55)', 1);
+    // A concrete lip over each, so the apron reads as a slab and not a fold.
+    paintQuad([swp, se, { x: se.x, y: se.y + 9 }, { x: swp.x, y: swp.y + 9 }], YARD.apron, 'rgba(0,0,0,0.5)', 1);
+    paintQuad([nep, se, { x: se.x, y: se.y + 9 }, { x: nep.x, y: nep.y + 9 }], YARD.apronB, 'rgba(0,0,0,0.5)', 1);
+    // Cast in panels, with a buttress at every joint and the staining that
+    // runs down a concrete face left out in the weather.
+    for (let i = 1; i < 8; i++) {
+      [lerpPt(swp, se, i / 8), lerpPt(nep, se, i / 8)].forEach((p, k) => {
+        paintQuad([{ x: p.x - 5, y: p.y + 8 }, { x: p.x + 5, y: p.y + 8 },
+          { x: p.x + 5, y: p.y + drop }, { x: p.x - 5, y: p.y + drop }], 'rgba(255,255,255,0.05)', null);
+        strokePolyline([{ x: p.x, y: p.y + 8 }, { x: p.x, y: p.y + drop }], 'rgba(0,0,0,0.32)', 1);
+        if ((i + k) % 3 === 0) {
+          const g = floorCtx.createLinearGradient(0, p.y + 8, 0, p.y + drop);
+          g.addColorStop(0, 'rgba(0,0,0,0.30)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          floorCtx.fillStyle = g;
+          floorCtx.fillRect(p.x - 13, p.y + 8, 9, drop - 8);
+        }
+      });
+    }
+
+    // The steps: one flight down off each front edge, with a gap left in
+    // the rail at the head of each.
+    const stairAt = 0.34;
+    drawSteelStairs(a.gx0 + a.cols * stairAt, a.gy0 + a.rows, 'gy', 7);
+    drawYardRail(swp, lerpPt(swp, se, stairAt - 0.06), light);
+    drawYardRail(lerpPt(swp, se, stairAt + 0.1), se, light);
+
+    const eastAt = 0.46;
+    drawSteelStairs(a.gx0 + a.cols, a.gy0 + a.rows * eastAt, 'gx', 7);
+    drawYardRail(nep, lerpPt(nep, se, eastAt - 0.06), light);
+    drawYardRail(lerpPt(nep, se, eastAt + 0.1), se, light);
+
+    // A caged ladder up the wall behind, to whatever is on the roof.
+    const lad = wallPoint(ne, nw, 0.78, 0);
+    const ladTop = wallPoint(ne, nw, 0.78, 0.98);
+    strokePolyline([{ x: lad.x - 6, y: lad.y }, { x: ladTop.x - 6, y: ladTop.y }], '#5a6068', 2.4);
+    strokePolyline([{ x: lad.x + 6, y: lad.y }, { x: ladTop.x + 6, y: ladTop.y }], '#5a6068', 2.4);
+    const rungs = Math.max(6, Math.round((lad.y - ladTop.y) / 13));
+    for (let i = 1; i < rungs; i++) {
+      const y = lad.y + (ladTop.y - lad.y) * (i / rungs);
+      strokePolyline([{ x: lad.x - 6, y }, { x: lad.x + 6, y }], '#6d737c', 1.6);
+    }
+    for (let i = 1; i < rungs; i += 2) {
+      const y = lad.y + (ladTop.y - lad.y) * (i / rungs);
+      strokePolyline([{ x: lad.x - 11, y }, { x: lad.x + 11, y }], 'rgba(120,132,145,0.4)', 1.2);
+    }
+
+    // ---- What is standing about. Against the wall behind, along the
+    // edge in front, and more of it on the deck below.
+    const on = (u, v) => isoPoint(a.gx0 + u, a.gy0 + v);
+    drawWorkbench(on(a.cols * 0.36, 1.5), 'gx');
+    drawCompressor(on(a.cols * 0.52, 1.6));
+    drawTyreStack(on(a.cols - 1.8, 2.6), 4);
+    drawTyreStack(on(a.cols - 1.8, 4.2), 3);
+    drawGasBottles(on(a.cols - 1.9, 6.4));
+    drawDrum(on(1.7, a.rows * 0.42), '#4a5a3a');
+    drawDrum(on(1.7, a.rows * 0.42 + 1.5), '#7a4a20');
+    drawDrum(on(2.9, a.rows * 0.42 + 0.7), '#3a4a5a');
+    drawPallet(on(1.9, a.rows * 0.62), 2);
+    drawCone(on(a.cols * 0.62, a.rows - 1.4));
+    drawCone(on(a.cols * 0.68, a.rows - 1.9));
+    drawPallet(on(a.cols - 2.2, a.rows - 3.4), 1);
+    // Bollards along the head of the steps, and a jack left out beside them.
+    for (let i = 0; i < 4; i++) {
+      const p = on(a.cols * (0.44 + i * 0.035), a.rows - 1.1);
+      paintQuad([{ x: p.x - 3, y: p.y }, { x: p.x + 3, y: p.y },
+        { x: p.x + 3, y: p.y - 26 }, { x: p.x - 3, y: p.y - 26 }], '#f2b705', 'rgba(0,0,0,0.5)', 1);
+      [0.2, 0.55].forEach((h) => paintQuad([{ x: p.x - 3, y: p.y - 26 * h }, { x: p.x + 3, y: p.y - 26 * h },
+        { x: p.x + 3, y: p.y - 26 * h - 5 }, { x: p.x - 3, y: p.y - 26 * h - 5 }], '#15161a', null));
+    }
+    const jack = on(a.cols * 0.22, a.rows - 1.8);
+    drawIsoBox(floorCtx, jack, 0, 0, 1.6, 0.7, 12, '#a33528', 0);
+    strokePolyline([{ x: jack.x + 6, y: jack.y - 10 }, { x: jack.x + 22, y: jack.y - 30 }], '#2b2e33', 3);
+
+    // And on the deck below, drawn a drop lower than the lattice puts them.
+    const below = (u, v) => {
+      const p = isoPoint(a.gx0 + u, a.gy0 + v);
+      return { x: p.x, y: p.y + drop };
+    };
+    drawTyreStack(below(a.cols * 0.62, a.rows + 4), 5);
+    drawTyreStack(below(a.cols * 0.69, a.rows + 5.4), 3);
+    drawPallet(below(a.cols * 0.5, a.rows + 6), 3);
+    drawDrum(below(a.cols * 0.2, a.rows + 3.4), '#6a4326');
+    drawDrum(below(a.cols * 0.25, a.rows + 4.8), '#3f4a55');
+    drawCone(below(a.cols * 0.42, a.rows + 2.6));
+    drawPallet(below(a.cols + 4.5, a.rows * 0.55), 2);
+    drawDrum(below(a.cols + 3.4, a.rows * 0.3), '#4a5a3a');
+    drawTyreStack(below(a.cols + 5.2, a.rows * 0.2), 4);
+    drawCompressor(below(a.cols + 4.2, a.rows * 0.76));
+    drawVan(below(a.cols * 0.18, a.rows + 7.5), '#7a4a3a');
+    drawVan(below(a.cols * 0.56, a.rows + 9.5), '#3f5f7a');
+    drawVan(below(a.cols + 7, a.rows * 0.46), '#3f4a55');
+    drawPallet(below(a.cols * 0.82, a.rows + 5.2), 3);
+    drawTyreStack(below(a.cols * 0.88, a.rows + 3.6), 4);
+    drawDrum(below(a.cols + 7.6, a.rows * 0.86), '#7a4a20');
+    drawCone(below(a.cols + 5.6, a.rows * 0.62));
+
+    // The fence the yard ends at, and the floodlights standing on it.
+    const fenceOut = 13;
+    const f0 = below(-fenceOut, a.rows + fenceOut);
+    const f1 = below(a.cols + fenceOut, a.rows + fenceOut);
+    const f2 = below(a.cols + fenceOut, -fenceOut);
+    drawYardFence(f0, f1, light);
+    drawYardFence(f1, f2, light);
+
+    // A skip parked on the lower deck, because every yard has one.
+    const skip = below(a.cols * 0.32, a.rows + 4.4);
+    drawIsoBox(floorCtx, skip, 0, 0, 3.6, 2.1, 40, '#7a4326', 0);
+    drawIsoBox(floorCtx, skip, 0, 0, 3.3, 1.85, 6, '#2a2018', 40);
+    strokePolyline([{ x: skip.x - 44, y: skip.y - 26 }, { x: skip.x + 44, y: skip.y - 34 }],
+      'rgba(255,255,255,0.08)', 3);
+  }
+
   // Roof: night sky, and the city round about, lower down.
   function drawCitySky(colors, view) {
     const g = floorCtx.createLinearGradient(0, view.y0, 0, view.y1);
