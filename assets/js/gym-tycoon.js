@@ -10069,7 +10069,7 @@
   // Edges that a hallway continues through are skipped, so the floor stays
   // unbroken where you can actually walk between two spaces.
   function drawSlabEdges(rect, colors) {
-    const h = SLAB_DEPTH;
+    const h = slabDepth();
     const right = shade(colors.floorB, -40);
     const left = shade(colors.floorB, -26);
     const outline = 'rgba(0,0,0,0.55)';
@@ -10173,6 +10173,13 @@
   // through the gap between it and the slab's own edge -- so the cut end of
   // a wall is carried down the depth of the slab and meets it.
   const SLAB_DEPTH = 15;
+  // How far a floor stands up off the ground it is laid on. A concrete slab
+  // and a deck over water stand a good lip proud; boards laid on the earth
+  // of the cellar sit almost flush with it, or the rooms read as raised
+  // platforms rather than floors of the place.
+  function slabDepth() {
+    return state.activeTheme === 'basement' ? 5 : SLAB_DEPTH;
+  }
   function pushPast(p, towards) {
     const dx = p.x - towards.x;
     const dy = p.y - towards.y;
@@ -10285,7 +10292,7 @@
     // Cut ends first: whatever stands in front of them is drawn after.
     // Carried down the depth of the floor slab, so the end of the wall
     // lands on the slab's edge rather than hanging over it.
-    const drop = (p) => ({ x: p.x, y: p.y + SLAB_DEPTH });
+    const drop = (p) => ({ x: p.x, y: p.y + slabDepth() });
     const endIndex = [0, n];
     endIndex.forEach((i, which) => {
       if (ends[which] !== 'cap') return;
