@@ -5822,7 +5822,15 @@
   let resRepaintTimer = null;
   function queueResolutionRepaint() {
     clearTimeout(resRepaintTimer);
-    resRepaintTimer = setTimeout(renderScene, 110);
+    resRepaintTimer = setTimeout(() => {
+      // Never in the middle of a pinch. A slow phone can take longer than
+      // this timer to deliver the next move, and a full redraw landing
+      // between two frames of a gesture is the one thing the whole
+      // arrangement exists to avoid. endGesture draws it properly once the
+      // fingers are off.
+      if (gestureActive) return;
+      renderScene();
+    }, 110);
   }
 
   function setZoom(next, live) {
@@ -5843,9 +5851,18 @@
   // A gym that fits the window whole has nothing left to look around, so
   // the view goes back to the middle of it rather than staying wherever
   // zooming out from a corner happened to leave it.
+  // The stage keeps a band of padding at the top for the row of locations.
+  // Asking the browser for it forces a style recalculation, and a pinch asks
+  // several times a frame -- so while the fingers are down the figure
+  // measured at the start of the gesture stands.
+  function stagePadTop() {
+    if (!stageScrollEl) return 0;
+    if (gesturePads) return gesturePads.top;
+    return parseFloat(getComputedStyle(stageScrollEl).paddingTop) || 0;
+  }
   function whollyVisible() {
     if (!stageScrollEl) return false;
-    const padTop = parseFloat(getComputedStyle(stageScrollEl).paddingTop) || 0;
+    const padTop = stagePadTop();
     const availW = stageScrollEl.clientWidth;
     const availH = stageScrollEl.clientHeight - padTop;
     return BUILT_W * zoomLevel <= availW && BUILT_H * zoomLevel <= availH;
@@ -5860,7 +5877,7 @@
     // The row of locations floats over the top of the window, so the stage
     // holds that much padding above the plan. It is part of what scrolls,
     // so centring has to allow for it or the gym sits low by half a bar.
-    const padTop = parseFloat(getComputedStyle(stageScrollEl).paddingTop) || 0;
+    const padTop = stagePadTop();
     stageScrollEl.scrollTo({
       left: Math.max(0, (x + sitePad) * zoomLevel - stageScrollEl.clientWidth / 2),
       top: Math.max(0, (y + sitePad) * zoomLevel + padTop - stageScrollEl.clientHeight / 2),
@@ -7382,6 +7399,9 @@
   }
   function paintStageGround(force) {
     if (!groundCtx || !stageScrollEl || !BASE_W || !BASE_H) return;
+    // Same reason as the scroll handler above: whatever asks for it, the
+    // site is not redrawn in the middle of a pinch.
+    if (gestureActive && !force) return;
     const seen = measureVisibleBox();
     if (!seen) return;
     const site = siteRect();
@@ -13508,6 +13528,16 @@
       // Straight away rather than on a timer: the site reaches half a window
       // past the screen, so this is once every half-screen of panning, and
       // waiting would show the bare stage at the leading edge.
+      //
+      // Never while two fingers are on the glass, though. A pinch writes the
+      // scroll position on every frame, which lands here, and the site's own
+      // cache is keyed partly on the zoom -- which is also changing every
+      // frame -- so every single frame of a pinch missed the cache and
+      // repainted a canvas of up to five million pixels. Twenty-one of them
+      // in one pinch, measured. The site rides the gesture as a CSS scale,
+      // the way the comment in applyStageSizing always said it did, and is
+      // drawn again once when the fingers come off.
+      if (gestureActive) return;
       paintStageGround();
     }, { passive: true });
   }
@@ -13799,6 +13829,10 @@
     zoomLevel = Math.round(zoomLevel * 1000) / 1000;
     applyStageSizing();
     snapIfWhollyVisible();
+    // Nothing was drawn while the fingers were down, so the picture on the
+    // canvas is the one from before the pinch, stretched. Draw it properly
+    // for the zoom it has landed on.
+    renderScene();
   }
 
   function onPointerUp(e) {
@@ -15542,6 +15576,19 @@
     if (document.hidden || !stageOnScreen) {
       lastFrameAt = 0;
       lastRafAt = 0;
+      return;
+    }
+    // While two fingers are on the glass the plan rides the zoom as a CSS
+    // scale, and nothing drawn on it needs drawing again: the crowd can
+    // stand still for the half second the pinch takes. Painting through the
+    // gesture is what made pinching on a phone a slideshow -- the paint is
+    // the most expensive thing this page does, and doing it on every frame
+    // of a pinch leaves the browser nothing to scale the picture with.
+    // Measured on a four-times-throttled phone, a pinch went at three and a
+    // half frames a second; without the painting it keeps up with the hand.
+    if (pinchState) {
+      lastFrameAt = 0;
+      lastRafAt = now;
       return;
     }
     // Every frame the browser gives us, painted or not -- this is the
