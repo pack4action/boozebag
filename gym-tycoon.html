@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=11" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=6" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=98" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=99" />
 </head>
 <body class="game-body">
 
@@ -155,6 +155,16 @@
           </div>
         </div>
       </div>
+    </div>
+    <!-- Drag to set how tall the plan window is. A short screen has the
+         plan and the shop under it fighting for the same space, and which
+         one wins is the player's call, not ours. -->
+    <div class="tycoon-stage-size">
+      <button class="tycoon-stage-grip" id="stage-grip" type="button"
+        aria-label="Drag to set the height of the plan window"
+        title="Drag up or down to set the height of the plan window. Double-click to reset.">
+        <span></span><span></span>
+      </button>
     </div>
     <!-- Under the plan, not over it: as a bar across the top of the page
          the stats took a fifth of a phone screen and covered the controls
@@ -337,6 +347,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=192"></script>
+<script src="assets/js/gym-tycoon.js?v=193"></script>
 </body>
 </html>

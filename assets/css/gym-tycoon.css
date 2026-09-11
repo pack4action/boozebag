@@ -3287,3 +3287,43 @@
   .tycoon-streak { gap: 9px; padding: 8px 11px; font-size: 12px; }
   .tycoon-streak-pip { width: 8px; height: 8px; }
 }
+
+
+/* ---- The plan window is yours to size ----
+   A grab bar under the frame: pull it down for a taller window, up for a
+   shorter one, double-click to put it back. Where you leave it is where it
+   stays, because on a short screen the plan and the shop under it are
+   fighting over the same space and which one wins is not our call. */
+.tycoon-stage-size {
+  display: flex;
+  justify-content: center;
+  margin: -6px auto 10px;
+}
+.tycoon-stage-grip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 74px;
+  padding: 7px 0;
+  border: 1px solid var(--panel-border, #2a2732);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted, #8b8b93);
+  cursor: ns-resize;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.tycoon-stage-grip > span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.7;
+}
+.tycoon-stage-grip:hover,
+.tycoon-stage-grip:focus-visible,
+.tycoon-stage-grip.is-dragging { color: #ffd166; background: rgba(255, 209, 102, 0.09); }

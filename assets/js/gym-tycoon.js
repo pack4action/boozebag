@@ -13409,6 +13409,89 @@
   }
 
 
+  // ---- How tall the plan window is ----
+  // The stylesheet picks a height off the viewport, which is a guess about
+  // how the plan and the shop under it should divide a screen. On a short
+  // one they are genuinely fighting over the same space and which of them
+  // wins is the player's call, so the bar under the frame sets it and the
+  // choice is kept. Double-click puts it back to the stylesheet's guess.
+  const STAGE_H_KEY = 'gymTycoonStageH';
+  const STAGE_H_MIN = 220;
+  function stageHeightMax() {
+    return Math.max(STAGE_H_MIN + 120, Math.round(window.innerHeight - 120));
+  }
+  function setStageHeight(px) {
+    if (!stageScrollEl) return;
+    stageScrollEl.style.height = px ? Math.round(px) + 'px' : '';
+  }
+  // Re-measure, re-fit and redraw for the window's new size. The zoom is
+  // taken off the window, so a taller one simply frames the plan larger --
+  // but only while the player has not set a zoom of their own.
+  function stageResized() {
+    forgetVisibleBox();
+    fitZoomToStage();
+    applyStageSizing();
+    paintStageGround(true);
+    snapIfWhollyVisible();
+    renderScene();
+  }
+  const stageGrip = document.getElementById('stage-grip');
+  if (stageGrip && stageScrollEl) {
+    let held = null;
+    try {
+      const kept = Number(localStorage.getItem(STAGE_H_KEY));
+      if (Number.isFinite(kept) && kept >= STAGE_H_MIN) {
+        setStageHeight(Math.min(kept, stageHeightMax()));
+      }
+    } catch (err) { /* storage can be off; the stylesheet's height stands */ }
+    const remember = (px) => {
+      try {
+        if (px) localStorage.setItem(STAGE_H_KEY, String(Math.round(px)));
+        else localStorage.removeItem(STAGE_H_KEY);
+      } catch (err) { /* nothing to do about it */ }
+    };
+    stageGrip.addEventListener('pointerdown', (e) => {
+      held = { y: e.clientY, from: stageScrollEl.getBoundingClientRect().height };
+      stageGrip.classList.add('is-dragging');
+      try { stageGrip.setPointerCapture(e.pointerId); } catch (err) { /* not critical */ }
+      e.preventDefault();
+    });
+    stageGrip.addEventListener('pointermove', (e) => {
+      if (!held) return;
+      const want = Math.max(STAGE_H_MIN,
+        Math.min(stageHeightMax(), held.from + (e.clientY - held.y)));
+      setStageHeight(want);
+      // Cheap every frame: the layout and the transform, not the redraw.
+      forgetVisibleBox();
+      applyStageSizing(true);
+    });
+    const letGo = () => {
+      if (!held) return;
+      held = null;
+      stageGrip.classList.remove('is-dragging');
+      remember(stageScrollEl.getBoundingClientRect().height);
+      stageResized();
+    };
+    stageGrip.addEventListener('pointerup', letGo);
+    stageGrip.addEventListener('pointercancel', letGo);
+    stageGrip.addEventListener('dblclick', () => {
+      setStageHeight(0);
+      remember(0);
+      stageResized();
+    });
+    // The keyboard gets it too: it is a real control, not a decoration.
+    stageGrip.addEventListener('keydown', (e) => {
+      const step = e.key === 'ArrowDown' ? 24 : (e.key === 'ArrowUp' ? -24 : 0);
+      if (!step) return;
+      e.preventDefault();
+      const now = stageScrollEl.getBoundingClientRect().height;
+      const want = Math.max(STAGE_H_MIN, Math.min(stageHeightMax(), now + step));
+      setStageHeight(want);
+      remember(want);
+      stageResized();
+    });
+  }
+
   // ---- Pan and pinch ----
   // One pointer drags the plan around; two fingers pinch to zoom. The canvas
   // takes the whole touch gesture (touch-action: none) so a pinch can't be
