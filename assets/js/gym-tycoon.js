@@ -9777,23 +9777,46 @@
   function drawVanBody(ctx, base, colour) {
     const M = TILES_PER_METRE;
     const wheel = 0.34 * M;
+    const sit = wheel * 3;                     // how far the body rides off the road
+    const boxH = 1.45 * PX_PER_METRE_TALL;     // the cargo body
+    const cabH = 0.95 * PX_PER_METRE_TALL;     // the cab, which is lower than it
     // Wheels first, then the body over them, then the cab and its glass.
     [[-1.5 * M, 0.86 * M], [-1.5 * M, -0.86 * M], [1.3 * M, 0.86 * M], [1.3 * M, -0.86 * M]]
       .forEach(([u, v]) => drawIsoDisc(ctx, isoScreenPoint(base, u, v, 20), 13, 9, '#17181b'));
-    drawIsoBox(ctx, base, -0.55 * M, 0, 1.65 * M, 0.9 * M, 1.45 * PX_PER_METRE_TALL, colour, wheel * 3);
-    drawIsoBox(ctx, base, 1.5 * M, 0, 0.65 * M, 0.86 * M, 0.95 * PX_PER_METRE_TALL,
-      shade(colour, -8), wheel * 3);
-    // The windscreen, and the window down the side you can see.
-    drawFacePanel(ctx, base, { u: 2.16 * M, v: -0.84 * M }, { u: 2.16 * M, v: 0.84 * M },
-      55, 88, '#2e4256', 3);
-    drawFacePanel(ctx, base, { u: 0.9 * M, v: 0.88 * M }, { u: 2.05 * M, v: 0.88 * M },
-      55, 88, '#33485e', 3);
-    // A stripe down the flank, the bumper, and the lamps at the front.
-    drawFacePanel(ctx, base, { u: -2.2 * M, v: 0.91 * M }, { u: 2.05 * M, v: 0.91 * M },
-      40, 52, shade(colour, -30), 1);
-    drawIsoBox(ctx, base, 2.15 * M, 0, 0.1 * M, 0.94 * M, 12, '#26282c', 22);
-    drawGlow(isoScreenPoint(base, 2.2 * M, 0.6 * M, 30), 22, '#ffe6b4', 0.55);
-    drawGlow(isoScreenPoint(base, 2.2 * M, -0.6 * M, 30), 22, '#ffe6b4', 0.4);
+    drawIsoBox(ctx, base, -0.55 * M, 0, 1.65 * M, 0.9 * M, boxH, colour, sit);
+    drawIsoBox(ctx, base, 1.5 * M, 0, 0.65 * M, 0.86 * M, cabH, shade(colour, -8), sit);
+    // A cap over the cab, so its roof has an edge and the glass has
+    // something to stop against.
+    drawIsoBox(ctx, base, 1.5 * M, 0, 0.67 * M, 0.88 * M, 4, shade(colour, 12), sit + cabH);
+    // The glass sits in the top of the cab and is inset from its corners,
+    // so the pillars and a band of roof are left standing round it. It used
+    // to run from 55 up to 88 -- the cab's own roof is at 60 -- which is why
+    // it read as a slab of blue stuck on the front of the van rather than a
+    // windscreen set into it.
+    const zLo = sit + cabH * 0.47;
+    const zHi = sit + cabH * 0.86;
+    if (faceShows(1, 0)) {
+      drawFacePanel(ctx, base, { u: 2.16 * M, v: -0.66 * M }, { u: 2.16 * M, v: 0.66 * M },
+        zLo, zHi, '#2e4256', 3);
+      // The grille, the lamps either side of it and the bumper under them,
+      // none of which is wider than the cab they are bolted to.
+      drawFacePanel(ctx, base, { u: 2.16 * M, v: -0.38 * M }, { u: 2.16 * M, v: 0.38 * M },
+        20, 28, '#1d1f23', 2);
+      [0.6, -0.6].forEach((s, i) => {
+        drawFacePanel(ctx, base, { u: 2.17 * M, v: (s - 0.15) * M }, { u: 2.17 * M, v: (s + 0.15) * M },
+          20, 28, '#e8d9b0', 2);
+        drawGlow(isoScreenPoint(base, 2.2 * M, s * M, 24), 15, '#ffe6b4', i ? 0.3 : 0.42);
+      });
+      drawIsoBox(ctx, base, 2.2 * M, 0, 0.08 * M, 0.78 * M, 9, '#26282c', 8);
+    }
+    // The window down whichever flank is turned toward you, and the stripe
+    // under it, which stops where the cargo body does instead of carrying
+    // on past the cab into thin air.
+    const side = faceShows(0, 1) ? 1 : -1;
+    drawFacePanel(ctx, base, { u: 1.05 * M, v: side * 0.865 * M },
+      { u: 1.95 * M, v: side * 0.865 * M }, zLo, zHi, '#33485e', 3);
+    drawFacePanel(ctx, base, { u: -2.2 * M, v: side * 0.905 * M },
+      { u: 1.05 * M, v: side * 0.905 * M }, 40, 52, shade(colour, -30), 1);
   }
 
   function drawWorkbench(p, along) {
@@ -9912,14 +9935,43 @@
   }
   function drawCarBody(ctx, base, colour) {
     const M = TILES_PER_METRE;
+    const sit = 20;                          // the underside, clear of the wheels
+    const bodyH = 0.5 * PX_PER_METRE_TALL;
+    const cabH = 0.42 * PX_PER_METRE_TALL;
+    const cabFoot = sit + bodyH;
     [[-1.1 * M, 0.7 * M], [-1.1 * M, -0.7 * M], [1.1 * M, 0.7 * M], [1.1 * M, -0.7 * M]]
       .forEach(([u, v]) => drawIsoDisc(ctx, isoScreenPoint(base, u, v, 14), 10, 7, '#17181b'));
-    drawIsoBox(ctx, base, 0, 0, 1.9 * M, 0.78 * M, 0.5 * PX_PER_METRE_TALL, colour, 20);
-    drawIsoBox(ctx, base, -0.15 * M, 0, 0.95 * M, 0.7 * M, 0.42 * PX_PER_METRE_TALL,
-      shade(colour, -14), 20 + 0.5 * PX_PER_METRE_TALL);
-    drawFacePanel(ctx, base, { u: 0.82 * M, v: 0.72 * M }, { u: -1.1 * M, v: 0.72 * M },
-      52, 74, '#33485e', 3);
-    drawGlow(isoScreenPoint(base, 2.0 * M, 0.5 * M, 26), 16, '#ffe6b4', 0.4);
+    drawIsoBox(ctx, base, 0, 0, 1.9 * M, 0.78 * M, bodyH, colour, sit);
+    drawIsoBox(ctx, base, -0.15 * M, 0, 0.95 * M, 0.7 * M, cabH, shade(colour, -14), cabFoot);
+    drawIsoBox(ctx, base, -0.15 * M, 0, 0.97 * M, 0.72 * M, 3, shade(colour, 10), cabFoot + cabH);
+    // Glass in the top of the cabin only, with a pillar between the two
+    // side windows and one at each corner. The whole flank of the cabin
+    // used to be a single blue panel running its full height, which is
+    // what made a parked car read as a coloured slab with a stripe on it
+    // rather than as a car.
+    const zLo = cabFoot + cabH * 0.26;
+    const zHi = cabFoot + cabH * 0.76;
+    const side = faceShows(0, 1) ? 1 : -1;
+    const flank = side * 0.705 * M;
+    drawFacePanel(ctx, base, { u: -1.0 * M, v: flank }, { u: -0.22 * M, v: flank },
+      zLo, zHi, '#33485e', 3);
+    drawFacePanel(ctx, base, { u: -0.06 * M, v: flank }, { u: 0.72 * M, v: flank },
+      zLo, zHi, '#33485e', 3);
+    // The line the doors break on, down the side of the body.
+    drawFacePanel(ctx, base, { u: -1.85 * M, v: side * 0.785 * M },
+      { u: 1.85 * M, v: side * 0.785 * M },
+      sit + bodyH * 0.52, sit + bodyH * 0.62, shade(colour, -26), 1);
+    if (faceShows(1, 0)) {
+      drawFacePanel(ctx, base, { u: 0.81 * M, v: -0.52 * M }, { u: 0.81 * M, v: 0.52 * M },
+        zLo, zHi, '#2e4256', 3);
+      drawFacePanel(ctx, base, { u: 1.91 * M, v: -0.32 * M }, { u: 1.91 * M, v: 0.32 * M },
+        24, 32, '#1d1f23', 2);
+      [0.56, -0.56].forEach((s, i) => {
+        drawFacePanel(ctx, base, { u: 1.91 * M, v: (s - 0.14) * M }, { u: 1.91 * M, v: (s + 0.14) * M },
+          24, 32, '#e8d9b0', 2);
+        drawGlow(isoScreenPoint(base, 1.95 * M, s * M, 28), 13, '#ffe6b4', i ? 0.26 : 0.36);
+      });
+    }
   }
   // A row of lock-ups: a long low shed with a shutter to each bay.
   function drawLockups(p, bays, along) {
@@ -10318,9 +10370,21 @@
       [0.2, 0.55].forEach((h) => paintQuad([{ x: p.x - 3, y: p.y - 26 * h }, { x: p.x + 3, y: p.y - 26 * h },
         { x: p.x + 3, y: p.y - 26 * h - 5 }, { x: p.x - 3, y: p.y - 26 * h - 5 }], '#15161a', null));
     }
+    // A trolley jack left out beside them. It was a plain red box with a
+    // three-pixel line leaning off it, which at this size read as a red
+    // slab and nothing else -- it needs its castors, its lifting pad and a
+    // handle with a grip on the end before anyone can tell what it is.
     const jack = on(a.cols * 0.22, a.rows - 1.8);
-    drawIsoBox(floorCtx, jack, 0, 0, 1.6, 0.7, 12, '#a33528', 0);
-    strokePolyline([{ x: jack.x + 6, y: jack.y - 10 }, { x: jack.x + 22, y: jack.y - 30 }], '#2b2e33', 3);
+    [[-1.25, 0.46], [-1.25, -0.46], [1.15, 0.46], [1.15, -0.46]]
+      .forEach(([u, v]) => drawIsoDisc(floorCtx, isoScreenPoint(jack, u, v, 3), 3.4, 2.2, '#15161a'));
+    drawIsoBox(floorCtx, jack, 0, 0, 1.55, 0.5, 8, '#8e3328', 3);
+    drawIsoBox(floorCtx, jack, -0.45, 0, 0.95, 0.34, 7, '#a33528', 11);
+    drawIsoBox(floorCtx, jack, 0.95, 0, 0.34, 0.3, 4, '#4a4f57', 11);
+    drawIsoDisc(floorCtx, isoScreenPoint(jack, 0.95, 0, 15), 5, 3, '#6d737c');
+    const hFrom = isoScreenPoint(jack, -1.5, 0, 13);
+    const hTo = isoScreenPoint(jack, -3.6, 0, 38);
+    strokePolyline([hFrom, hTo], '#2b2e33', 3.4);
+    strokePolyline([hTo, { x: hTo.x - 8, y: hTo.y + 3 }], '#1d1f23', 5);
 
     // And on the deck below, drawn a drop lower than the lattice puts them.
     const below = (u, v) => {
