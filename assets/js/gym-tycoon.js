@@ -2953,6 +2953,11 @@
     { id: 'pier', name: 'Out On The Pier', hint: 'Open the Boardwalk and put gear on it',
       cash: 50000000, got: (c) => c.themesUsed >= 4 },
 
+    { id: 'week', name: 'Every Day This Week', hint: 'Come in seven days running',
+      cash: 400000, got: (c) => c.streak >= 7 },
+    { id: 'month', name: 'Never Misses', hint: 'Come in thirty days running',
+      cash: 40000000, got: (c) => c.streak >= 30 },
+
     { id: 'staff1', name: 'On The Payroll', hint: 'Hire your first member of staff',
       cash: 2000, got: (c) => c.staff >= 1 },
     { id: 'staffall', name: 'Full Team', hint: 'Employ every kind of staff at once',
@@ -3000,6 +3005,7 @@
       if (chain.length > mostRooms) mostRooms = chain.length;
       if (chain.some((r) => r.layout.some(Boolean))) themesUsed++;
     });
+    const run = state.streak && Number.isFinite(state.streak.n) ? state.streak.n : 0;
     let topTier = 1;
     // And the best tier reached on a piece that is not pocket change to
     // upgrade: upgrading costs forty times the piece's price, so the tiers
@@ -3029,6 +3035,7 @@
       jobsDone: state.jobsDone || 0,
       rushDone: state.rushDone || 0,
       runs: (state.franchise && state.franchise.runs) || 0,
+      streak: run,
     };
   }
 
@@ -5731,6 +5738,11 @@
     // two-thousand-pixel layer being redrawn to move somebody one step.
     floorCanvas.style.width = (BASE_W * zoomLevel) + 'px';
     floorCanvas.style.height = (BASE_H * zoomLevel) + 'px';
+    // The size of the space everything on the plan is drawn in. The element
+    // used to be that size and scaled by a transform, so anything measuring
+    // the page could read it off the element itself; it is sized to the zoom
+    // now, so the element says one and means the other. It says both.
+    floorCanvas.dataset.plan = BASE_W + 'x' + BASE_H;
     floorCanvas.style.transform = 'translate(' + off + 'px,' + off + 'px)';
     floorCanvas.style.transformOrigin = 'top left';
     // The site rides the same transform, so panning and zooming move it
