@@ -2621,7 +2621,17 @@
   .tycoon-status .hud-level { flex: 1 1 100%; max-width: none; margin-left: 0; }
 }
 
-/* Storage folds away like the room details, and reads the same when shut. */
+/* Storage folds away like the room details, and reads the same when shut --
+   except for the crate on its summary. It is the one block under the plan
+   you come back to between every purchase, and set in the same grey as
+   everything else around it, the word alone took a moment to find. */
+.tycoon-rd-icon {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  color: #ffd166;
+}
+.tycoon-tray.tycoon-room-details > summary .tycoon-rd-label { color: #d8d8e0; }
 .tycoon-tray.tycoon-room-details { padding: 0; }
 .tycoon-tray.tycoon-room-details > .tycoon-inventory { padding: 0 12px 12px; }
 .tycoon-tray.tycoon-room-details > summary { justify-content: center; }

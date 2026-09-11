@@ -1537,23 +1537,24 @@
   // The gym pays while you are away, and nothing has ever asked you to
   // come back. This does. It is ready twelve hours after it was last
   // collected, so it comes round twice a day rather than once, and it pays
-  // twelve hours of whatever the gym earns a second. A gym that earns
-  // nothing is paid nothing for turning up, which is the point -- the
-  // reward is the gym's own output handed over in a lump, not a number
-  // bolted on beside it.
+  // a fifth of what the gym would earn in those twelve hours. A gym that
+  // earns nothing is paid nothing for turning up, which is the point --
+  // the reward is a share of the gym's own output, not a number bolted on
+  // beside it.
   //
-  // What it pays used to climb a ladder -- an hour the first time, then
-  // two, then three, up to twelve on the seventh. That meant the card had
-  // to name two different numbers of hours in the same breath ("Then 2
-  // hours, and 12 on the seventh in a row"), and no one could tell which
-  // was the wait and which was the money. It is twelve hours, every time.
-  // The run of seven still matters: the seventh in a row hands the Open Day
-  // back, and leaving it more than a day and a half starts the run again.
+  // It paid the full twelve hours before that, and a climbing ladder of
+  // hours before that again, which meant the card had to name two
+  // different numbers of hours in the same breath ("Then 2 hours, and 12
+  // on the seventh in a row") and nobody could tell which was the wait and
+  // which was the money. One share, every time, and the card says one
+  // thing at a time. The run of seven still matters: the seventh in a row
+  // hands the Open Day back, and leaving it more than a day and a half
+  // starts the run again.
   const STREAK_RUN = 7;
   const STREAK_CYCLE_MS = 12 * 3600 * 1000;
   const STREAK_LAPSE_MS = 36 * 3600 * 1000;
-  // Hours of the gym's takings, every collection, whichever one it is.
-  const STREAK_PAY_HOURS = 12;
+  // The share of the cycle's takings it hands over, every collection.
+  const STREAK_SHARE = 0.2;
   function streakState() {
     const s = state.streak;
     if (!s || typeof s !== 'object') state.streak = { n: 0, at: 0 };
@@ -1595,7 +1596,7 @@
     return ((Math.max(1, n) - 1) % STREAK_RUN) + 1;
   }
   function streakCash() {
-    return Math.max(100, Math.round(gps * 3600 * STREAK_PAY_HOURS));
+    return Math.max(100, Math.round(gps * (STREAK_CYCLE_MS / 1000) * STREAK_SHARE));
   }
   function streakXp(n) {
     return 10 * streakRunStep(n);
@@ -1629,7 +1630,7 @@
     refreshStreakUI();
     refreshPromoUI();
     sfx.coin();
-    toast(STREAK_PAY_HOURS + ' hours of takings: $' + formatMoney(cash) + '.' + extra, 'good');
+    toast('Daily bonus: $' + formatMoney(cash) + '.' + extra, 'good');
   }
 
   const streakCard = document.getElementById('streak-card');
@@ -1645,7 +1646,7 @@
     for (let i = 0; i < STREAK_RUN; i++) {
       const pip = document.createElement('span');
       pip.className = 'tycoon-streak-pip';
-      pip.title = 'Collection ' + (i + 1) + ' of seven'
+      pip.title = 'Day ' + (i + 1) + ' of seven'
         + (i === STREAK_RUN - 1 ? ', which hands the Open Day back' : '');
       streakDaysEl.appendChild(pip);
       streakPips.push(pip);
@@ -1668,15 +1669,14 @@
       pip.classList.toggle('is-next', due && i === run - 1);
     });
     streakCard.classList.toggle('is-due', due);
-    // One number for the money and one for the wait, never both at once.
-    setText(streakTitleEl, due
-      ? STREAK_PAY_HOURS + ' hours of takings'
-      : 'Back in ' + streakClock(streakWaitMs()));
+    // One thing at a time: the money when there is money, the wait when
+    // there is a wait, and one short line under it saying why.
+    setText(streakTitleEl, due ? 'Daily bonus ready' : 'Back in ' + streakClock(streakWaitMs()));
     setText(streakNoteEl, due
       ? (run === STREAK_RUN
-        ? 'The seventh in a row, so the Open Day comes back with it'
-        : 'Number ' + run + ' of seven. The seventh brings the Open Day back')
-      : STREAK_PAY_HOURS + ' hours of takings, every ' + STREAK_PAY_HOURS + ' hours');
+        ? 'Seven in a row. The Open Day comes back too'
+        : Math.round(STREAK_SHARE * 100) + '% of what the gym earns in 12 hours')
+      : 'A bonus every 12 hours');
     setHtml(streakBtn, due
       ? '<span class="btn-long">Collect $' + formatMoney(streakCash()) + '</span>'
         + '<span class="btn-short">$' + formatMoney(streakCash()) + '</span>'
@@ -10352,13 +10352,19 @@
     // the rail at the head of each.
     const stairAt = 0.34;
     drawSteelStairs(a.gx0 + a.cols * stairAt, a.gy0 + a.rows, 'gy', 7);
-    drawYardRail(swp, lerpPt(swp, se, stairAt - 0.06), light);
-    drawYardRail(lerpPt(swp, se, stairAt + 0.1), se, light);
-
     const eastAt = 0.46;
     drawSteelStairs(a.gx0 + a.cols, a.gy0 + a.rows * eastAt, 'gx', 7);
-    drawYardRail(nep, lerpPt(nep, se, eastAt - 0.06), light);
-    drawYardRail(lerpPt(nep, se, eastAt + 0.1), se, light);
+    // The rail runs along the very front of the apron, so everything
+    // standing on the apron is behind it and it has to go down after them.
+    // It used to be painted here, before the drums and cones and the jack
+    // by the steps -- and a jack parked a tile and a half back from the
+    // edge came out sitting on top of the handrail in front of it.
+    const frontRails = () => {
+      drawYardRail(swp, lerpPt(swp, se, stairAt - 0.06), light);
+      drawYardRail(lerpPt(swp, se, stairAt + 0.1), se, light);
+      drawYardRail(nep, lerpPt(nep, se, eastAt - 0.06), light);
+      drawYardRail(lerpPt(nep, se, eastAt + 0.1), se, light);
+    };
 
     // A caged ladder up the wall behind, to whatever is on the roof.
     const lad = wallPoint(ne, nw, 0.78, 0);
@@ -10402,7 +10408,7 @@
     // three-pixel line leaning off it, which at this size read as a red
     // slab and nothing else -- it needs its castors, its lifting pad and a
     // handle with a grip on the end before anyone can tell what it is.
-    const jack = on(a.cols * 0.22, a.rows - 1.8);
+    const jack = on(a.cols * 0.22, a.rows - 3.6);
     [[-1.25, 0.46], [-1.25, -0.46], [1.15, 0.46], [1.15, -0.46]]
       .forEach(([u, v]) => drawIsoDisc(floorCtx, isoScreenPoint(jack, u, v, 3), 3.4, 2.2, '#15161a'));
     drawIsoBox(floorCtx, jack, 0, 0, 1.55, 0.5, 8, '#8e3328', 3);
@@ -10413,6 +10419,8 @@
     const hTo = isoScreenPoint(jack, -3.6, 0, 38);
     strokePolyline([hFrom, hTo], '#2b2e33', 3.4);
     strokePolyline([hTo, { x: hTo.x - 8, y: hTo.y + 3 }], '#1d1f23', 5);
+
+    frontRails();
 
     // And on the deck below, drawn a drop lower than the lattice puts them.
     const below = (u, v) => {
