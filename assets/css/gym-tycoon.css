@@ -2784,45 +2784,6 @@
 /* ---- Room goals ----
    The two things a whole room can do, in the same box as the vibe and the
    busy meter. A met goal reads in green; an unmet one says what is missing. */
-.tycoon-goals {
-  border: 1px solid var(--panel-border, #2a2732);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 9px 11px 10px;
-  margin: 0 0 10px;
-  text-align: left;
-}
-.tycoon-goals .tycoon-vibe-num { color: #8fe9be; }
-.tycoon-goals .tycoon-vibe-num.is-none { color: var(--muted, #8b8b93); }
-.tycoon-goal-list {
-  margin: 7px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: var(--muted, #8b8b93);
-}
-.tycoon-goal-list li {
-  position: relative;
-  padding-left: 16px;
-  margin: 2px 0;
-}
-.tycoon-goal-list li::before {
-  content: '';
-  position: absolute;
-  left: 2px;
-  top: 6px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  border: 1.5px solid var(--muted, #8b8b93);
-  box-sizing: border-box;
-}
-.tycoon-goal-list li.is-met { color: var(--text, #e8e8ea); }
-.tycoon-goal-list li.is-met::before {
-  border-color: #7fd8a8;
-  background: #7fd8a8;
-}
 
 /* ---- Sound toggle ----
    A pill the size of the clock beside it. Off it is dim with a struck

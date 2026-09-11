@@ -1054,175 +1054,6 @@
   // Per-slot multiplier from adjacent gear: +12% for each neighbour of the
   // same category.
 
-  // ---- Room goals ----
-  // The arrangement bonus is a few percent for standing like beside like,
-  // which is not enough to make anyone think about a room: a carefully
-  // planned floor earned about what a randomly filled one did, and the
-  // dragging and turning existed to serve nothing. Two goals a whole room
-  // can meet, each worth a real slice, and each said in the room details
-  // with what is missing when it is not met:
-  //
-  //   A specialist room: four or more machines and every one of them the
-  //   same kind -- a cardio room, a weights room, a recovery suite.
-  //
-  //   Easy to get around: three or more machines and every one of them can
-  //   be walked to from the door without squeezing between anything. That
-  //   is a real walk on a grid of the floor, not a guess: a machine whose
-  //   step-on floor is boxed in by its neighbours fails it, which is the
-  //   blind-corner layout that looks fine and is not.
-  const SPECIALIST_MIN = 4;
-  const SPECIALIST_BONUS = 0.15;
-  const CLEAR_WALK_MIN = 3;
-  const CLEAR_WALK_BONUS = 0.10;
-  // The floor is walked on a grid of half tiles, and a point on it is
-  // standing room only if it is this far from every piece: a passage
-  // narrower than about half a metre is not a passage.
-  const WALK_CELL = 0.5;
-  const WALK_CLEAR = 0.6;
-
-  // Which theme a room belongs to and where it stands in the chain, found
-  // by identity: the rooms are the saved objects themselves.
-  function whereIs(room) {
-    for (let t = 0; t < THEMES.length; t++) {
-      const rooms = state.themeRooms[THEMES[t].id] || [];
-      const i = rooms.indexOf(room);
-      if (i !== -1) return { themeId: THEMES[t].id, index: i, count: rooms.length };
-    }
-    return null;
-  }
-
-  // The doorways into a room from the hallways, on its two back walls, as
-  // spans in the room's own tiles. The open front is always a way in.
-  function roomDoors(themeId, index, count) {
-    const doors = [];
-    if (count < 2) return doors;
-    const pl = roomPlacements(themeId, count);
-    const me = pl[index];
-    // The hub has no walls: it is walked onto from every side.
-    if (isHubAt(themeId, index)) {
-      doors.push({ wall: 'u0', from: 0, to: me.rows }, { wall: 'v0', from: 0, to: me.cols });
-      return doors;
-    }
-    for (let k = 0; k + 1 < count; k++) {
-      const c = corridorBetween(themeId, hallwayFrom(themeId, pl, k + 1), pl[k + 1], roomDirFor(themeId, k));
-      if (c.doorRoom !== me) continue;
-      if (c.axis === 'gx') doors.push({ wall: 'u0', from: c.gy0 - me.gy0, to: c.gy0 + c.rows - me.gy0 });
-      else doors.push({ wall: 'v0', from: c.gx0 - me.gx0, to: c.gx0 + c.cols - me.gx0 });
-    }
-    return doors;
-  }
-
-  // Every machine in the room that has step-on floor, with where it stands,
-  // and whether each can be reached. A walk from the doors and the open
-  // front across every half tile that is clear of every piece; a machine is
-  // reached when the walk gets onto its step-on floor.
-  function walkReach(room, shape, doors) {
-    const cols = Math.ceil(shape.cols / WALK_CELL);
-    const rows = Math.ceil(shape.rows / WALK_CELL);
-    const cut = cutRect(shape);
-    const boxes = [];
-    const targets = [];
-    room.layout.forEach((id, i) => {
-      if (!id) return;
-      const sp = spotOf(room, i, shape);
-      const t = turnAt(room, i);
-      boxes.push(boxRect(sp, halfBoxOf(id, t)));
-      const item = itemById(id);
-      const zone = accessZone(id, sp, t);
-      if (item && item.gps > 0 && zone) targets.push({ id, index: i, zone, reached: false });
-    });
-    // What the location built there is in the way as much as any machine.
-    (shape.fixtures || []).forEach((f) => boxes.push({ u0: f.u0, u1: f.u1, v0: f.v0, v1: f.v1 }));
-    const clear = new Uint8Array(cols * rows);
-    for (let j = 0; j < rows; j++) {
-      for (let i = 0; i < cols; i++) {
-        const u = (i + 0.5) * WALK_CELL;
-        const v = (j + 0.5) * WALK_CELL;
-        if (u > shape.cols || v > shape.rows) continue;
-        if (cut && inRect(cut, u, v)) continue;
-        let free = true;
-        for (let b = 0; b < boxes.length && free; b++) {
-          const bx = boxes[b];
-          if (u > bx.u0 - WALK_CLEAR && u < bx.u1 + WALK_CLEAR
-            && v > bx.v0 - WALK_CLEAR && v < bx.v1 + WALK_CLEAR) free = false;
-        }
-        clear[j * cols + i] = free ? 1 : 0;
-      }
-    }
-    // Where the walk starts: the cells along each doorway, and the whole of
-    // the open front -- the two edges nearest you, which have no wall.
-    const seen = new Uint8Array(cols * rows);
-    const queue = [];
-    const start = (i, j) => {
-      if (i < 0 || j < 0 || i >= cols || j >= rows) return;
-      const k = j * cols + i;
-      if (!clear[k] || seen[k]) return;
-      seen[k] = 1;
-      queue.push(k);
-    };
-    doors.forEach((d) => {
-      const lo = Math.floor(d.from / WALK_CELL);
-      const hi = Math.ceil(d.to / WALK_CELL);
-      for (let k = lo; k < hi; k++) {
-        if (d.wall === 'u0') start(0, k); else start(k, 0);
-      }
-    });
-    for (let i = 0; i < cols; i++) start(i, rows - 1);
-    for (let j = 0; j < rows; j++) start(cols - 1, j);
-    while (queue.length) {
-      const k = queue.shift();
-      const i = k % cols;
-      const j = (k - i) / cols;
-      const u = (i + 0.5) * WALK_CELL;
-      const v = (j + 0.5) * WALK_CELL;
-      targets.forEach((tg) => {
-        if (!tg.reached && u > tg.zone.u0 && u < tg.zone.u1 && v > tg.zone.v0 && v < tg.zone.v1) tg.reached = true;
-      });
-      start(i + 1, j); start(i - 1, j); start(i, j + 1); start(i, j - 1);
-    }
-    return targets;
-  }
-
-  // What a room's layout is worth beyond the sum of its pieces, and why.
-  // Remembered per layout, because the earnings ask ten times a second and
-  // the walk is the one sum here that is not a handful of multiplications.
-  const goalMemo = new Map();
-  function roomGoals(room, shape) {
-    const key = room.layout.join(',') + '|'
-      + (room.spots || []).map((sp) => (sp ? sp.u + ',' + sp.v + ',' + (sp.r || 0) : '')).join(';')
-      + '|' + shape.cols + 'x' + shape.rows;
-    const at = whereIs(room);
-    const fullKey = (at ? at.themeId + at.index + '/' + at.count : '?') + '#' + key;
-    const hit = goalMemo.get(room);
-    if (hit && hit.key === fullKey) return hit.goals;
-
-    const machines = room.layout.filter((id) => id && itemById(id) && itemById(id).gps > 0);
-    const kinds = [...new Set(machines.map((id) => CATEGORY[id]))];
-    const specialist = machines.length >= SPECIALIST_MIN && kinds.length === 1;
-    const targets = at
-      ? walkReach(room, shape, roomDoors(at.themeId, at.index, at.count))
-      : walkReach(room, shape, []);
-    const stuck = targets.filter((t) => !t.reached);
-    const clearWalk = targets.length >= CLEAR_WALK_MIN && stuck.length === 0;
-    const goals = {
-      specialist,
-      kind: kinds.length === 1 ? kinds[0] : null,
-      kinds,
-      machines: machines.length,
-      clearWalk,
-      walkers: targets.length,
-      stuck: stuck.map((t) => itemById(t.id).name),
-      // Added, not compounded, so the header, the two lines and the rows in
-      // the breakdown all say the same number.
-      multiplier: 1 + (specialist ? SPECIALIST_BONUS : 0) + (clearWalk ? CLEAR_WALK_BONUS : 0),
-    };
-    goalMemo.set(room, { key: fullKey, goals });
-    return goals;
-  }
-  function roomGoalMultiplier(room, shape) {
-    return roomGoals(room, shape).multiplier;
-  }
-
   // ---- Upgrades ----
   // A room has a fixed number of slots, so a gym that has filled its rooms
   // and bought every room it can has nowhere left to go: the shop still
@@ -1569,7 +1400,10 @@
   const STREAK_CYCLE_MS = 12 * 3600 * 1000;
   const STREAK_LAPSE_MS = 36 * 3600 * 1000;
   // The share of the cycle's takings it hands over, every collection.
-  const STREAK_SHARE = 0.2;
+  const STREAK_SHARE = 0.1;
+  // And the XP, as a share of what the level you are on costs to clear. A
+  // flat handful was worth a level early on and a rounding error by twenty,
+  // so it is measured against the climb you are actually making.
   function streakState() {
     const s = state.streak;
     if (!s || typeof s !== 'object') state.streak = { n: 0, at: 0 };
@@ -1614,7 +1448,13 @@
     return Math.max(100, Math.round(gps * (STREAK_CYCLE_MS / 1000) * STREAK_SHARE));
   }
   function streakXp(n) {
-    return 10 * streakRunStep(n);
+    const level = currentLevel();
+    const span = Math.max(1, xpForLevel(level + 1) - xpForLevel(level));
+    // A twelfth of the level for an ordinary collection, a third of it for
+    // the seventh in a row -- so seven days running is most of a level
+    // however far up you are.
+    const share = streakRunStep(n) === STREAK_RUN ? 0.34 : 0.085;
+    return Math.max(10, Math.round(span * share));
   }
   // Eight hours and a bit, said the way a person would.
   function streakClock(ms) {
@@ -1822,7 +1662,7 @@
   // lands in the pile at its foot.
   function pieceRates(room, shape) {
     const mult = synergyMultipliers(room, shape);
-    const rm = roomMultiplier(room) * roomGoalMultiplier(room, shape);
+    const rm = roomMultiplier(room);
     return room.layout.map((itemId, index) => (itemId ? gpsOf(itemId) * mult[index] * rm : 0));
   }
   function computeGps(room, shape) {
@@ -4874,17 +4714,6 @@
       rows.push([label, '+' + pct + '%', '+' + formatNum(baseSum * (pct / 100) * from) + '/s']);
     };
     add('Arrangement', bonusPct, 1);
-    // The two goals a whole room can meet. Each is a slice of what the
-    // arranged pieces make, in the same terms as the rows around it.
-    const goals = roomGoals(room, shape);
-    if (goals.specialist) {
-      rows.push(['Specialist room', '+' + Math.round(SPECIALIST_BONUS * 100) + '%',
-        '+' + formatNum(arrangedGps * SPECIALIST_BONUS) + '/s']);
-    }
-    if (goals.clearWalk) {
-      rows.push(['Easy to get around', '+' + Math.round(CLEAR_WALK_BONUS * 100) + '%',
-        '+' + formatNum(arrangedGps * CLEAR_WALK_BONUS) + '/s']);
-    }
     if (vibe > 0) {
       rows.push(['Decor' + (vibe > VIBE_MAX_POINTS ? ' (at the cap)' : ''),
         '+' + vibePct + '%', '+' + formatNum(arrangedGps * (vibePct / 100)) + '/s']);
@@ -4944,37 +4773,8 @@
       ? '<p class="tycoon-regular"><b>' + reg.name + '</b> is a regular here, and comes in for the '
         + itemById(reg.fav).name + '.</p>'
       : '';
-    const kindName = (k) => (CATEGORY_META[k] ? CATEGORY_META[k].name.toLowerCase() : k);
-    const specLine = goals.specialist
-      ? 'Specialist room: all ' + kindName(goals.kind) + '. +' + Math.round(SPECIALIST_BONUS * 100) + '%'
-      : goals.kinds.length > 1
-        ? 'Specialist room: mixed (' + goals.kinds.map(kindName).join(', ') + '). One kind of machine only'
-        : 'Specialist room: ' + goals.machines + ' of ' + SPECIALIST_MIN
-          + (goals.kind ? ' ' + kindName(goals.kind) : '') + ' machines';
-    const walkLine = goals.clearWalk
-      ? 'Easy to get around: every machine can be walked to. +' + Math.round(CLEAR_WALK_BONUS * 100) + '%'
-      : goals.stuck.length
-        ? 'Easy to get around: the ' + goals.stuck[0] + ' cannot be walked to'
-          + (goals.stuck.length > 1 ? ' (' + (goals.stuck.length - 1) + ' more)' : '')
-          + '. Leave a way through'
-        : 'Easy to get around: ' + goals.walkers + ' of ' + CLEAR_WALK_MIN + ' machines';
-    const goalPct = Math.round((goals.multiplier - 1) * 100);
-    const goalsHtml = '<div class="tycoon-goals">'
-      + '<div class="tycoon-vibe-top">'
-        + '<span class="tycoon-vibe-name">Room goals</span>'
-        + '<span class="tycoon-vibe-num' + (goalPct > 0 ? '' : ' is-none') + '">'
-          + (goalPct > 0 ? '+' + goalPct + '%' : 'none met') + '</span>'
-      + '</div>'
-      + '<ul class="tycoon-goal-list">'
-        + '<li class="' + (goals.specialist ? 'is-met' : '') + '">' + specLine + '</li>'
-        + '<li class="' + (goals.clearWalk ? 'is-met' : '') + '">' + walkLine + '</li>'
-      + '</ul>'
-      + '<p class="tycoon-vibe-note">Two things a whole room can do. One kind of machine, four or more, '
-        + 'is a specialist room. A clear walk from the door to every machine, with nothing to squeeze past, '
-        + 'is easy to get around.</p>'
-      + '</div>';
     const cell = (text, cls) => '<span class="' + cls + '"></span>';
-    synergyEl.innerHTML = busyHtml + vibeHtml + goalsHtml + regHtml + '<p class="tycoon-bd-head"></p>'
+    synergyEl.innerHTML = busyHtml + vibeHtml + regHtml + '<p class="tycoon-bd-head"></p>'
       + rows.map(() => '<span class="tycoon-bd-row">' + cell('', 'tycoon-bd-label')
         + cell('', 'tycoon-bd-pct') + cell('', 'tycoon-bd-num') + '</span>').join('')
       + '<span class="tycoon-bd-row is-total">' + cell('', 'tycoon-bd-label')
@@ -9538,9 +9338,14 @@
     const storeAt = west
       ? { gx: west.gx0 + west.cols * 0.5, gy: west.gy0 + west.rows + 11 }
       : { gx: a.gx0 + 2.5, gy: (hub ? hub.gy0 + hub.rows : planBounds.gy1) - 2 };
+    // Out past the corner of the plan on both axes. With only the first
+    // room built these used to land a few tiles inside the bottom edge, and
+    // the site is drawn under the floors -- so the crates ended up wedged
+    // under the floor's own overhang with the slab cutting the top one in
+    // half.
     const cratesAt = east
       ? { gx: east.gx0 + east.cols * 0.5, gy: east.gy0 + east.rows + 8 }
-      : { gx: planBounds.gx1 + 3.5, gy: planBounds.gy1 - 4 };
+      : { gx: planBounds.gx1 + 6, gy: planBounds.gy1 + 5 };
     const bp = isoPoint(boilerAt.gx, boilerAt.gy);
     drawBoiler(bp, light);
     const px = bp.x + 24;
