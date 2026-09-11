@@ -174,9 +174,17 @@
     </div>
 
     <p class="tycoon-open-hint" id="open-hint" hidden></p>
-    <!-- The one thing that is worth coming back tomorrow for: a day's
-         takings for turning up, more for every day running, and the week
-         starting again if one is missed. -->
+    <div class="tycoon-next" id="next-step" hidden>
+      <span class="tycoon-next-text"></span>
+      <button class="tycoon-next-go" type="button" hidden></button>
+    </div>
+    <details class="tycoon-room-details" id="room-details" hidden>
+      <summary><span class="tycoon-rd-label">Room details</span><span class="tycoon-rd-sum" id="room-details-sum"></span></summary>
+      <div class="tycoon-synergy" id="tycoon-synergy"></div>
+    </details>
+    <!-- The one thing that is worth coming back for: twelve hours of the
+         gym's takings, ready every twelve hours, and the Open Day handed
+         back on the seventh collection in a row. -->
     <div class="tycoon-streak" id="streak-card" hidden>
       <span class="tycoon-streak-days" id="streak-days" aria-hidden="true"></span>
       <span class="tycoon-streak-body">
@@ -185,17 +193,14 @@
       </span>
       <button class="tycoon-streak-btn" id="btn-streak" type="button"></button>
     </div>
-    <div class="tycoon-next" id="next-step" hidden>
-      <span class="tycoon-next-text"></span>
-      <button class="tycoon-next-go" type="button" hidden></button>
-    </div>
+    <!-- Storage comes last of everything under the plan, so that on a phone
+         -- where the two columns stack -- what is in your hands sits
+         directly above the Shop it came out of, with nothing in between.
+         Room details and the daily used to be wedged there and pushed the
+         two apart. -->
     <details class="tycoon-room-details tycoon-tray" id="storage-fold" open>
       <summary><span class="tycoon-rd-label">Storage</span><span class="tycoon-rd-sum" id="storage-sum"></span></summary>
       <div class="tycoon-inventory" id="tycoon-inventory"></div>
-    </details>
-    <details class="tycoon-room-details" id="room-details" hidden>
-      <summary><span class="tycoon-rd-label">Room details</span><span class="tycoon-rd-sum" id="room-details-sum"></span></summary>
-      <div class="tycoon-synergy" id="tycoon-synergy"></div>
     </details>
   </div>
 
@@ -332,6 +337,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=183"></script>
+<script src="assets/js/gym-tycoon.js?v=184"></script>
 </body>
 </html>

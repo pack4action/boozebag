@@ -34,17 +34,17 @@
     // effect stacks, up to a cap; a gym effect counts once, however many
     // you own.
     { id: 'palm', name: 'Potted Palm', baseCost: 1400, unlockLevel: 2,
-      effect: { kind: 'vibe', amount: 2 } },
+      effect: { kind: 'vibe', amount: 2, max: 8 } },
     { id: 'cooler', name: 'Water Cooler', baseCost: 11000, unlockLevel: 3,
       effect: { kind: 'cap', amount: 0.25, max: 1 } },
     { id: 'mirrorwall', name: 'Mirror Wall', baseCost: 130000, unlockLevel: 4,
-      effect: { kind: 'rush', amount: 0.5, max: 1 } },
+      effect: { kind: 'rush', amount: 0.5, max: 0.9 } },
     { id: 'gearfridge', name: 'Gear Fridge', baseCost: 900000, unlockLevel: 5,
       effect: { kind: 'stock', amount: 0.3, max: 0.6 } },
     { id: 'neon', name: 'Neon Sign', baseCost: 1700000, unlockLevel: 6,
       effect: { kind: 'promo', amount: 0.5, gym: true } },
     { id: 'soundsystem', name: 'Hype Sound System', baseCost: 3600000, unlockLevel: 7,
-      effect: { kind: 'floor', amount: 0.45, max: 0.45 } },
+      effect: { kind: 'floor', amount: 0.45, max: 0.6 } },
     { id: 'desk', name: "Manager's Desk", baseCost: 14000000, unlockLevel: 8,
       effect: { kind: 'wages', amount: 0.25, gym: true } },
     { id: 'cubicle', name: 'Sales Cubicle', baseCost: 56000000, unlockLevel: 9,
@@ -57,7 +57,7 @@
     // orders on the Jobs tab, so they read as the last and biggest thing a
     // room can have rather than the first.
     { id: 'juicebar', name: 'Juice Bar', baseCost: 36000, unlockLevel: 3,
-      effect: { kind: 'room', amount: 0.15, max: 0.15 } },
+      effect: { kind: 'room', amount: 0.15, max: 0.25 } },
     { id: 'proshop', name: 'Pro Shop', baseCost: 2200000, unlockLevel: 7,
       effect: { kind: 'xp', amount: 0.25, gym: true } },
   ];
@@ -69,24 +69,51 @@
     const item = itemById(id);
     return !!(item && item.effect);
   }
-  // One of each fitting per room. Two Water Coolers in one room were never
-  // twice as good -- the caps saw to that -- they were just the cheapest way
-  // to fill a room with the same thing. The Potted Palm is the exception,
-  // because a room full of plants is a look.
-  const CROWDABLE = { palm: true };
-  // And a cap per location on the big machines. A gym with four boxing
-  // rings in it is not a gym, and the cheapest way to a big number was
-  // always to fill every room with whatever earned most. One ring to a
-  // location; the rest of the top end is two. Everything not named here is
-  // unlimited, which is most of the shop.
+  // How many of a thing one location may hold, counted across all four of
+  // its rooms. Everything not named here is unlimited, which is most of the
+  // machines.
+  //
+  // The fittings used to be one to a *room* instead, which is four to a
+  // location and sixteen across the gym, and the Potted Palm was exempt
+  // from even that -- so the cheapest floor plan in the game was a room
+  // packed with plants, six of them buying the whole +36% vibe ceiling for
+  // less than nine thousand dollars. A room cap is also the wrong shape of
+  // rule: it says nothing about how strong a fitting is, only that you must
+  // spread it out, so the answer was always to build another room.
+  //
+  // A location cap says the real thing. You get one, two, three or four of
+  // a fitting for the whole location, and where they go is yours: all four
+  // in one room, stacked up to that effect's own ceiling, or one in each of
+  // four rooms. The ceilings below are set so that the full stack in one
+  // room is worth having and never worth more than the floor space it eats.
   const MAX_PER_LOCATION = {
+    // Machines: a gym with four boxing rings in it is not a gym.
     boxingring: 1,
     climbingwall: 1,
     cryo: 1,
-    proshop: 1,
     sauna: 2,
     stairclimber: 2,
+    // Fittings whose effect is gym-wide. It counts once however many you
+    // own, so the cap is what stops a wall of them, not what balances them.
+    neon: 1,
+    proshop: 1,
+    desk: 1,
+    cubicle: 1,
+    officepod: 2,
+    // Fittings that work on the room they stand in, and stack there up to
+    // the ceiling in their effect: two Mirror Walls in one room take the
+    // busy hours from +50% to +90%, two Sound Systems hold the room at 60%
+    // busy instead of 45%, two Juice Bars lift it 25% instead of 15%, two
+    // Gear Fridges make stock 60% faster instead of 30%.
+    mirrorwall: 2,
+    soundsystem: 2,
     juicebar: 2,
+    gearfridge: 2,
+    // And the two cheap ones, which are worth four: four Water Coolers in a
+    // room double what its bubbles hold, four Palms are +24% vibe and a
+    // look, and either way that is four slots a machine wanted.
+    palm: 4,
+    cooler: 4,
   };
   function maxPerLocation(itemId) {
     return MAX_PER_LOCATION[itemId] || 0;
@@ -100,13 +127,6 @@
     const cap = maxPerLocation(itemId);
     return cap > 0 && placedInTheme(themeId, itemId) >= cap;
   }
-  function onePerRoom(id) {
-    return isDecor(id) && !CROWDABLE[id];
-  }
-  function roomAlreadyHas(room, itemId) {
-    if (!room || !onePerRoom(itemId)) return false;
-    return room.layout.some((id) => id === itemId);
-  }
   // What a piece of decor does, in one line, for the shop row and the
   // Storage chip. Written once here so the two never disagree.
   const EFFECT_TEXT = {
@@ -119,7 +139,7 @@
     stock: (a) => ['Counters in its room make stock ' + Math.round(a * 100) + '% faster',
       'stock ' + Math.round(a * 100) + '% faster'],
     promo: (a) => ['Promo lasts ' + Math.round(a * 100) + '% longer', 'promo +' + Math.round(a * 100) + '%'],
-    floor: () => ['Its room is never Quiet', 'never quiet'],
+    floor: (a) => ['Its room is never quieter than ' + Math.round(a * 100) + '% busy', 'never quiet'],
     wages: (a) => ['Wages ' + Math.round(a * 100) + '% lower', 'wages -' + Math.round(a * 100) + '%'],
     jobs: (a) => ['Jobs pay ' + Math.round(a * 100) + '% more', 'jobs +' + Math.round(a * 100) + '%'],
     cashiers: (a) => [(a === 1 ? 'One more cashier' : a + ' more cashiers') + ' in every room',
@@ -1516,21 +1536,24 @@
   // ---- Coming back ----
   // The gym pays while you are away, and nothing has ever asked you to
   // come back. This does. It is ready twelve hours after it was last
-  // collected, so it comes round twice a day rather than once, and what it
-  // pays is simply what the gym earns: an hour of its takings the first
-  // time, working up to a full twelve hours on the seventh collection in a
-  // row. A gym that earns nothing is paid nothing for turning up, which is
-  // the point -- the reward is the gym's own output handed over in a lump,
-  // not a number bolted on beside it.
+  // collected, so it comes round twice a day rather than once, and it pays
+  // twelve hours of whatever the gym earns a second. A gym that earns
+  // nothing is paid nothing for turning up, which is the point -- the
+  // reward is the gym's own output handed over in a lump, not a number
+  // bolted on beside it.
   //
-  // Leave it more than a day and a half and the run starts again. That is
-  // the whole of the mechanism and the only reason any of it is worth
-  // anything.
+  // What it pays used to climb a ladder -- an hour the first time, then
+  // two, then three, up to twelve on the seventh. That meant the card had
+  // to name two different numbers of hours in the same breath ("Then 2
+  // hours, and 12 on the seventh in a row"), and no one could tell which
+  // was the wait and which was the money. It is twelve hours, every time.
+  // The run of seven still matters: the seventh in a row hands the Open Day
+  // back, and leaving it more than a day and a half starts the run again.
   const STREAK_RUN = 7;
   const STREAK_CYCLE_MS = 12 * 3600 * 1000;
   const STREAK_LAPSE_MS = 36 * 3600 * 1000;
-  // Hours of the gym's takings, by how many collections in a row this is.
-  const STREAK_PAY_HOURS = [1, 2, 3, 4, 6, 9, 12];
+  // Hours of the gym's takings, every collection, whichever one it is.
+  const STREAK_PAY_HOURS = 12;
   function streakState() {
     const s = state.streak;
     if (!s || typeof s !== 'object') state.streak = { n: 0, at: 0 };
@@ -1566,24 +1589,16 @@
     return k.n + 1;
   }
   // Where in the run of seven a collection sits. The run itself keeps
-  // counting -- the fortieth is the fortieth -- while what it pays goes
-  // round the seven, so there is always a twelve-hour one to reach again
-  // rather than a number that runs away from the gym that has to pay it.
+  // counting -- the fortieth is the fortieth -- while the Open Day it hands
+  // back comes round every seventh, so there is always one to reach again.
   function streakRunStep(n) {
     return ((Math.max(1, n) - 1) % STREAK_RUN) + 1;
   }
-  function streakHours(n) {
-    return STREAK_PAY_HOURS[streakRunStep(n) - 1];
-  }
-  function streakCash(n) {
-    return Math.max(100, Math.round(gps * 3600 * streakHours(n)));
+  function streakCash() {
+    return Math.max(100, Math.round(gps * 3600 * STREAK_PAY_HOURS));
   }
   function streakXp(n) {
     return 10 * streakRunStep(n);
-  }
-  function streakHoursWord(n) {
-    const h = streakHours(n);
-    return h + (h === 1 ? ' hour' : ' hours');
   }
   // Eight hours and a bit, said the way a person would.
   function streakClock(ms) {
@@ -1599,7 +1614,7 @@
     const step = streakStepNow();
     k.n = step;
     k.at = Date.now();
-    const cash = streakCash(step);
+    const cash = streakCash();
     state.balance += cash;
     state.lifetime += cash;
     addXp(streakXp(step));
@@ -1614,7 +1629,7 @@
     refreshStreakUI();
     refreshPromoUI();
     sfx.coin();
-    toast(streakHoursWord(step) + ' of takings: $' + formatMoney(cash) + '.' + extra, 'good');
+    toast(STREAK_PAY_HOURS + ' hours of takings: $' + formatMoney(cash) + '.' + extra, 'good');
   }
 
   const streakCard = document.getElementById('streak-card');
@@ -1630,7 +1645,8 @@
     for (let i = 0; i < STREAK_RUN; i++) {
       const pip = document.createElement('span');
       pip.className = 'tycoon-streak-pip';
-      pip.title = STREAK_PAY_HOURS[i] + (STREAK_PAY_HOURS[i] === 1 ? ' hour' : ' hours') + ' of takings';
+      pip.title = 'Collection ' + (i + 1) + ' of seven'
+        + (i === STREAK_RUN - 1 ? ', which hands the Open Day back' : '');
       streakDaysEl.appendChild(pip);
       streakPips.push(pip);
     }
@@ -1652,19 +1668,18 @@
       pip.classList.toggle('is-next', due && i === run - 1);
     });
     streakCard.classList.toggle('is-due', due);
-    const last = STREAK_PAY_HOURS[STREAK_RUN - 1];
+    // One number for the money and one for the wait, never both at once.
     setText(streakTitleEl, due
-      ? streakHoursWord(step) + ' of takings'
+      ? STREAK_PAY_HOURS + ' hours of takings'
       : 'Back in ' + streakClock(streakWaitMs()));
-    const ahead = step + 1;
     setText(streakNoteEl, due
       ? (run === STREAK_RUN
-        ? 'The seventh in a row, and the Open Day back'
-        : 'Back inside a day and a half for ' + streakHoursWord(ahead))
-      : 'Then ' + streakHoursWord(ahead) + ', and ' + last + ' on the seventh in a row');
+        ? 'The seventh in a row, so the Open Day comes back with it'
+        : 'Number ' + run + ' of seven. The seventh brings the Open Day back')
+      : STREAK_PAY_HOURS + ' hours of takings, every ' + STREAK_PAY_HOURS + ' hours');
     setHtml(streakBtn, due
-      ? '<span class="btn-long">Collect $' + formatMoney(streakCash(step)) + '</span>'
-        + '<span class="btn-short">$' + formatMoney(streakCash(step)) + '</span>'
+      ? '<span class="btn-long">Collect $' + formatMoney(streakCash()) + '</span>'
+        + '<span class="btn-short">$' + formatMoney(streakCash()) + '</span>'
       : streakClock(streakWaitMs()));
     streakBtn.disabled = !due;
   }
@@ -5032,14 +5047,18 @@
       // Two lengths of the same sentence. A fitting's line runs to three
       // clauses, which is three lines of a phone's shop row, so the phone
       // gets the short form of each: the stylesheet picks.
+      // A gym-wide effect counts once however many you own, and the row has
+      // to say so: with a cap per location printed beside it, four Neon
+      // Signs otherwise look like four times the promo.
+      const wide = !!item.effect.gym;
       const long = effectLine(item)
+        + (wide ? ', for the whole gym, however many you own' : '')
         + (makesStock(itemId) ? '. Makes ' + RECIPES_OF[itemId]
           .map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ') : '')
-        + (onePerRoom(itemId) ? '. Max one per room' : '')
         + (maxPerLocation(itemId) ? '. Max ' + maxPerLocation(itemId) + ' per location' : '');
       const short = effectLine(item, true)
+        + (wide ? ' \u00b7 whole gym, counts once' : '')
         + (makesStock(itemId) ? ' \u00b7 makes stock' : '')
-        + (onePerRoom(itemId) ? ' \u00b7 1 per room' : '')
         + (maxPerLocation(itemId) ? ' \u00b7 ' + maxPerLocation(itemId) + '/location' : '');
       return '<span class="btn-long">' + long + '</span>'
         + '<span class="btn-short">' + short + '</span>';
@@ -5442,14 +5461,13 @@
     // buy, scroll down, find the chip, pick it up.
     //
     // It still drops into Storage rather than your hands where it cannot go
-    // anywhere: your hands are already full, or this room has its one
-    // fitting, or this location has its fill of that machine. Where it
-    // stands is still a decision -- nothing is ever dropped into a slot for
-    // you, which is what made the old shop deal a piece into a room and
-    // move the one you were looking at out from under the cursor.
+    // anywhere: your hands are already full, or this location has its fill
+    // of that piece. Where it stands is still a decision -- nothing is ever
+    // dropped into a slot for you, which is what made the old shop deal a
+    // piece into a room and move the one you were looking at out from under
+    // the cursor.
     const idx = state.activeRoomIndex;
-    const room = activeRooms()[idx];
-    const holdIt = !editing && !roomAlreadyHas(room, id) && !locationFull(state.activeTheme, id);
+    const holdIt = !editing && !locationFull(state.activeTheme, id);
     if (holdIt) {
       const shape = roomShapeFor(state.activeTheme, idx);
       beginEdit(id, idx, { u: shape.cols / 2, v: shape.rows / 2 }, null);
@@ -13818,15 +13836,11 @@
   // is simply not allowed -- so it is asked about separately and said
   // differently.
   // Why the held piece cannot go down where it is, other than something
-  // being in the way: one fitting to a room, and a cap per location on the
-  // big machines. Returns the sentence to say, or null.
+  // being in the way: the cap per location. Returns the sentence to say, or
+  // null.
   function editRefusal() {
     if (!editing) return null;
     const item = itemById(editing.itemId);
-    if (roomAlreadyHas(activeRooms()[editing.roomIndex], editing.itemId)) {
-      return { short: 'this room already has one',
-        long: 'One ' + item.name + ' per room. This one has one' };
-    }
     if (locationFull(state.activeTheme, editing.itemId)) {
       const cap = maxPerLocation(editing.itemId);
       const where = (THEMES.find((t) => t.id === state.activeTheme) || {}).name || 'this location';
@@ -13928,8 +13942,6 @@
     if (!fromTray || availableCount(itemId) <= 0) return;
     // One desk per location, so putting one down is the end of it.
     if (itemById(itemId) && itemById(itemId).starter) return;
-    // Same for a fitting: the room it would land in already has one.
-    if (onePerRoom(itemId)) return;
     // And for anything capped, once the location has its fill.
     if (locationFull(state.activeTheme, itemId)) return;
     const shape = roomShapeFor(state.activeTheme, roomIndex);
@@ -14174,6 +14186,17 @@
           return;
         }
         if (availableCount(item.id) <= 0) return;
+        // The location may already have its fill of this one. Say so here
+        // rather than putting it in your hands for every slot in the room
+        // to refuse -- the Shop has always worked that way, and Storage
+        // handing out a piece that cannot be put down is the same dead end.
+        if (locationFull(state.activeTheme, item.id)) {
+          const cap = maxPerLocation(item.id);
+          toast(cap === 1
+            ? 'One ' + item.name + ' to a location, and this one has it'
+            : 'Only ' + cap + ' ' + item.name + ' to a location, and this one has ' + cap);
+          return;
+        }
         const idx = state.activeRoomIndex;
         const shape = roomShapeFor(state.activeTheme, idx);
         // It appears in the middle of the room you are looking at, which is
