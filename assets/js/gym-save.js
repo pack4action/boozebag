@@ -22,33 +22,68 @@
   function makeStore(config) {
     const themeIds = config.themeIds;
     const itemIds = config.itemIds || [];
-    const slotCountFor = config.slotCountFor;
+    const roomShapeFor = config.roomShapeFor;
     const maxRooms = config.maxRooms;
     const defaultTheme = config.defaultTheme || themeIds[0];
     const storage = config.storage;
     const key = config.key;
+    const place = config.place || (typeof window !== 'undefined' && window.BoozebagGymPlace);
 
-    function emptyRoom(themeId, index) {
-      return { layout: new Array(slotCountFor(themeId, index)).fill(null) };
+    function emptyRoom() {
+      return { items: [] };
     }
 
     function defaultThemeRooms() {
       const byTheme = {};
-      themeIds.forEach((id) => { byTheme[id] = [emptyRoom(id, 0)]; });
+      themeIds.forEach((id) => { byTheme[id] = [emptyRoom()]; });
       return byTheme;
     }
 
-    // Resizes each saved room to the footprint its position now calls for.
-    // Every footprint holds at least the 12 slots rooms used to have, so a
-    // save written before rooms varied in size only ever gains slots, never
-    // drops gear off the end.
+    // A machine's position is stored RELATIVE TO ITS OWN ROOM: {id, gx, gy}
+    // where gx is tiles from the room's left corner. Absolute lattice
+    // coordinates would have been simpler to draw, and wrong to store --
+    // where a room sits on the lattice depends on the size of every room
+    // before it in the chain, so retuning any room's footprint would move
+    // every gym built after it. Room-relative survives that.
+    function normalizedRoom(themeId, index, saved) {
+      const shape = roomShapeFor(themeId, index);
+      const room = { items: [] };
+
+      if (saved && Array.isArray(saved.items)) {
+        room.items = saved.items
+          .filter((it) => it && typeof it.id === 'string'
+            && Number.isFinite(it.gx) && Number.isFinite(it.gy))
+          .map((it) => ({ id: it.id, gx: it.gx, gy: it.gy }));
+      } else if (saved && Array.isArray(saved.layout)) {
+        // Before machines had positions they had slots: one cell of a
+        // cols*rows grid each. Each lands in the middle of the cell it used
+        // to occupy, so nobody's gym is rearranged by the upgrade -- it just
+        // becomes nudgeable.
+        room.items = place
+          ? place.fromLayout(saved.layout, shape.cols, 0, 0)
+          : [];
+      }
+
+      // Anything that would now hang off the edge -- because a footprint
+      // changed, or a save is older than the room shapes -- is pulled back
+      // on. Better a machine that moved slightly than one standing in a wall.
+      if (place) {
+        room.items = room.items.map((it) => {
+          const f = place.footprintOf(it.id);
+          return {
+            id: it.id,
+            gx: Math.min(Math.max(it.gx, f.w / 2), Math.max(f.w / 2, shape.cols - f.w / 2)),
+            gy: Math.min(Math.max(it.gy, f.h / 2), Math.max(f.h / 2, shape.rows - f.h / 2)),
+          };
+        });
+      }
+      return room;
+    }
+
     function normalizedRoomChain(themeId, source) {
       const arr = Array.isArray(source) ? source : [];
-      const rooms = arr.slice(0, maxRooms).map((r, i) => {
-        const old = Array.isArray(r && r.layout) ? r.layout : [];
-        return { layout: new Array(slotCountFor(themeId, i)).fill(null).map((_, s) => old[s] || null) };
-      });
-      return rooms.length ? rooms : [emptyRoom(themeId, 0)];
+      const rooms = arr.slice(0, maxRooms).map((r, i) => normalizedRoom(themeId, i, r));
+      return rooms.length ? rooms : [emptyRoom()];
     }
 
     function defaultState() {
@@ -97,9 +132,7 @@
         // Migrate from the original single top-level layout/theme shape.
         const theme = saved.theme || defaultTheme;
         const byTheme = defaultThemeRooms();
-        byTheme[theme] = [{
-          layout: new Array(slotCountFor(theme, 0)).fill(null).map((_, i) => saved.layout[i] || null),
-        }];
+        byTheme[theme] = [normalizedRoom(theme, 0, { layout: saved.layout })];
         s.themeRooms = byTheme;
         s.activeTheme = theme;
         s.activeRoomIndex = 0;
@@ -119,18 +152,26 @@
         : 0;
 
       // Migration for saves from before placement mattered: if every room in
-      // every theme is empty but the player owns gear, auto-fill the first
-      // room of the default theme so returning players don't come back to a
-      // sudden $0/s.
-      const allEmpty = themeIds.every((id) => s.themeRooms[id].every((r) => r.layout.every((x) => !x)));
+      // every theme is empty but the player owns gear, lay the owned gear out
+      // on the first room of the default theme so returning players don't
+      // come back to a sudden $0/s. Laid out in rows with a tile of air
+      // between machines, which is a tidy starting gym rather than a raft.
+      const allEmpty = themeIds.every((id) => s.themeRooms[id].every((r) => !r.items.length));
       if (allEmpty) {
         const toPlace = [];
         itemIds.forEach((id) => {
           const count = s.owned[id] || 0;
           for (let i = 0; i < count; i++) toPlace.push(id);
         });
-        const firstLayout = s.themeRooms[defaultTheme][0].layout;
-        toPlace.slice(0, firstLayout.length).forEach((id, i) => { firstLayout[i] = id; });
+        const shape = roomShapeFor(defaultTheme, 0);
+        const perRow = Math.max(1, Math.floor((shape.cols - 1) / 2));
+        s.themeRooms[defaultTheme][0].items = toPlace
+          .slice(0, perRow * Math.max(1, Math.floor((shape.rows - 1) / 2)))
+          .map((id, i) => ({
+            id,
+            gx: 1 + (i % perRow) * 2,
+            gy: 1 + Math.floor(i / perRow) * 2,
+          }));
       }
 
       // Nothing is credited for the time the tab was gone: gear earns while

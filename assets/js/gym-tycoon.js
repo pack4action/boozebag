@@ -71,12 +71,16 @@
   // file. Destructured here so every call site below reads as before.
   const {
     roomShapeFor,
-    slotCountFor,
     roomDirFor,
     roomPlacements,
     corridorBetween,
     corridorsFor,
   } = window.BoozebagGymPlan;
+
+  // Where a machine may stand and what it covers -- see gym-place.js. A
+  // machine's position is stored relative to its own room, so everything
+  // below adds the room's own origin before it draws or paths.
+  const place = window.BoozebagGymPlace;
 
   // Screen position of the lattice's (0,0), set by updateWorldBounds so the
   // whole plan sits inside the canvas with a margin.
@@ -109,57 +113,59 @@
     return ITEMS.find((i) => i.id === id);
   }
 
-  function neighborIndexes(index, shape) {
-    const gx = index % shape.cols;
-    const gy = Math.floor(index / shape.cols);
+  // How close two machines have to be to count as neighbours. Adjacency used
+  // to mean "the next slot along", which was exact because there were only
+  // slots. Now that a machine can stand anywhere, it means what it looks
+  // like it means: close enough to be part of the same huddle. A tile and a
+  // half between centres is touching-to-nearly-touching for the footprints
+  // in use.
+  const SYNERGY_REACH = 1.5;
+
+  function neighboursOf(items, index) {
+    const self = items[index];
     const out = [];
-    if (gx > 0) out.push(index - 1);
-    if (gx < shape.cols - 1) out.push(index + 1);
-    if (gy > 0) out.push(index - shape.cols);
-    if (gy < shape.rows - 1) out.push(index + shape.cols);
+    items.forEach((other, i) => {
+      if (i === index) return;
+      if (Math.hypot(other.gx - self.gx, other.gy - self.gy) <= SYNERGY_REACH) out.push(other);
+    });
     return out;
   }
 
-  // Per-slot multiplier from adjacent gear: +12% for each neighbor of the
-  // same category, +20% for each neighboring booster (trainer/gear/hq) of
+  // Per-machine multiplier from nearby gear: +12% for each neighbour of the
+  // same category, +20% for each neighbouring booster (trainer/gear/hq) of
   // a *different* category. Two boosters next to each other just count as
   // a same-category match.
-  function itemSynergyMultiplier(layout, index, shape) {
-    const itemId = layout[index];
-    if (!itemId) return 1;
+  function itemSynergyMultiplier(items, index) {
+    const itemId = items[index].id;
     const cat = CATEGORY[itemId];
     let mult = 1;
-    neighborIndexes(index, shape).forEach((nIdx) => {
-      const nId = layout[nIdx];
-      if (!nId) return;
-      const nCat = CATEGORY[nId];
+    neighboursOf(items, index).forEach((other) => {
+      const nCat = CATEGORY[other.id];
       if (nCat === cat) mult += SAME_CATEGORY_BONUS;
       else if (nCat === 'booster') mult += BOOSTER_NEARBY_BONUS;
     });
     return mult;
   }
 
-  // Gains/sec now comes entirely from what's placed in the room, not from
-  // raw ownership -- gear sitting unplaced in inventory earns nothing.
-  // Synergy is computed per-room: adjacency only matters within the same
-  // grid, so equipment in different rooms never interacts.
-  function computeGps(layout, shape) {
+  // Gains/sec comes entirely from what's standing on the floor, not from raw
+  // ownership -- gear sitting unplaced in inventory earns nothing. Synergy
+  // is computed per-room: only machines in the same room can be near each
+  // other.
+  function computeGps(items) {
     let total = 0;
-    layout.forEach((itemId, index) => {
-      const item = itemId && itemById(itemId);
+    items.forEach((placed, index) => {
+      const item = itemById(placed.id);
       if (!item) return;
-      total += item.gps * itemSynergyMultiplier(layout, index, shape);
+      total += item.gps * itemSynergyMultiplier(items, index);
     });
     return total;
   }
 
-  // Total across every room in every theme's chain -- gear earns
-  // regardless of which theme/room is currently in view. Each room is scored
-  // against its own footprint, since that decides which slots are neighbours.
+  // Total across every room in every theme's chain -- gear earns regardless
+  // of which theme/room is currently in view.
   function computeTotalGps(themeRooms) {
     return THEMES.reduce((sum, t) => (
-      sum + (themeRooms[t.id] || []).reduce(
-        (s2, room, i) => s2 + computeGps(room.layout, roomShapeFor(t.id, i)), 0)
+      sum + (themeRooms[t.id] || []).reduce((s2, room) => s2 + computeGps(room.items), 0)
     ), 0);
   }
 
@@ -194,8 +200,9 @@
   const saveStore = window.BoozebagGymSave.makeStore({
     themeIds: THEMES.map((t) => t.id),
     itemIds: ITEMS.map((i) => i.id),
-    slotCountFor,
+    roomShapeFor,
     maxRooms: MAX_ROOMS_PER_THEME,
+    place,
     defaultTheme: 'garage',
     storage: localStorage,
     key: SAVE_KEY,
@@ -276,25 +283,25 @@
   const synergyEl = document.getElementById('tycoon-synergy');
   function refreshSynergyText() {
     if (!synergyEl) return;
-    const layout = activeRoom().layout;
+    const items = activeRoom().items;
     // Without the tabs, this line is where you read which room the numbers
     // below are describing.
     const roomLabel = () => 'Room ' + (state.activeRoomIndex + 1);
-    const placed = layout.filter(Boolean).length;
-    if (placed === 0) {
+    if (!items.length) {
       synergyEl.textContent = roomLabel() + ' is empty = $0/s from here. '
-        + 'Arm a piece of gear below and click a tile to start earning.';
+        + 'Pick a piece of gear below, drag it where you want it, and hit the tick.';
       return;
     }
-    const baseSum = layout.reduce((sum, id) => {
-      const item = id && itemById(id);
+    const baseSum = items.reduce((sum, placed) => {
+      const item = itemById(placed.id);
       return sum + (item ? item.gps : 0);
     }, 0);
-    const roomGps = computeGps(layout, roomShapeFor(state.activeTheme, state.activeRoomIndex));
+    const roomGps = computeGps(items);
     const bonusPct = baseSum > 0 ? Math.round((roomGps / baseSum - 1) * 100) : 0;
-    synergyEl.textContent = roomLabel() + ': ' + placed + '/' + layout.length
-      + ' slots filled -- base ' + formatNum(baseSum) + '/s'
-      + (bonusPct > 0 ? ', +' + bonusPct + '% from arrangement synergy' : ', no synergy bonus yet')
+    const shape = roomShapeFor(state.activeTheme, state.activeRoomIndex);
+    synergyEl.textContent = roomLabel() + ': ' + items.length + ' machines on '
+      + shape.cols + 'x' + shape.rows + ' of floor -- base ' + formatNum(baseSum) + '/s'
+      + (bonusPct > 0 ? ', +' + bonusPct + '% from gear standing together' : ', nothing close enough to pair up yet')
       + ' = ' + formatNum(roomGps) + '/s from this room.';
   }
 
@@ -386,17 +393,12 @@
     if (state.balance < cost) return;
     state.balance -= cost;
     state.owned[id] = (state.owned[id] || 0) + 1;
-    // Auto-drop new gear into an open slot in the room+theme currently in
-    // view so it starts earning right away. Once that's full, further
-    // purchases sit in inventory until you free up a slot somewhere --
-    // that's the point where arranging what to keep on the floor (or
-    // switching theme, or buying another room) actually becomes a decision.
-    const layout = activeRoom().layout;
-    const emptyIndex = layout.indexOf(null);
-    if (emptyIndex !== -1) {
-      layout[emptyIndex] = id;
-      renderScene();
-    }
+    // Auto-drop new gear onto the first clear patch of the room currently in
+    // view so it starts earning right away, and so a purchase always shows
+    // up somewhere rather than silently joining a list. Once the floor is
+    // full, further purchases wait in inventory until you make room -- which
+    // is the point where where-things-go becomes a decision.
+    if (dropIntoRoom(id)) renderScene();
     recomputeStats();
     refreshShopUI();
     renderInventory();
@@ -433,6 +435,10 @@
   let PLAN_H = 380;
   // The plan's extent in tiles, which is what the site is built around.
   const planBounds = { gx0: 0, gy0: 0, gx1: 4, gy1: 3 };
+  // The middle of the gym you actually own, in canvas coordinates. The
+  // canvas is bigger than that -- it has to hold the staked-out plot for
+  // the next room -- so this is what the view centres on.
+  const planFocus = { x: 0, y: 0 };
   let placements = [];
   let corridors = [];
   let preview = null;
@@ -458,35 +464,61 @@
       );
     }
 
-    let minGx = Infinity;
-    let maxGx = -Infinity;
-    let minGy = Infinity;
-    let maxGy = -Infinity;
-    placements.concat(corridors, preview ? [preview, previewCorridor] : []).forEach((r) => {
-      minGx = Math.min(minGx, r.gx0);
-      maxGx = Math.max(maxGx, r.gx0 + r.cols);
-      minGy = Math.min(minGy, r.gy0);
-      maxGy = Math.max(maxGy, r.gy0 + r.rows);
-    });
+    // Two different extents, because they answer two different questions.
+    //
+    // The CANVAS has to be big enough to draw everything, the staked-out
+    // plot for the next room included. The auto-fit zoom must NOT frame all
+    // of that: the plot is the size of a whole room and the corridor that
+    // will reach it, so framing it halves the size of the gym you actually
+    // own. That is why the gym looked like a doll's house standing in a
+    // warehouse -- most of the frame was floor you had not bought yet.
+    //
+    // So: fit to what you own, draw what you can see.
+    const bounds = (rects) => {
+      let minGx = Infinity;
+      let maxGx = -Infinity;
+      let minGy = Infinity;
+      let maxGy = -Infinity;
+      rects.forEach((r) => {
+        minGx = Math.min(minGx, r.gx0);
+        maxGx = Math.max(maxGx, r.gx0 + r.cols);
+        minGy = Math.min(minGy, r.gy0);
+        maxGy = Math.max(maxGy, r.gy0 + r.rows);
+      });
+      const halfW = ROOM.tileW / 2;
+      const halfH = ROOM.tileH / 2;
+      // Screen extremes of the lattice: widest points are the west and east
+      // corners; the top is a wall's height above the back corner.
+      return {
+        minGx,
+        maxGx,
+        minGy,
+        maxGy,
+        xMin: (minGx - maxGy) * halfW - WORLD_PAD,
+        xMax: (maxGx - minGy) * halfW + WORLD_PAD,
+        yMin: (minGx + minGy) * halfH - ROOM.wallH - WORLD_PAD,
+        yMax: (maxGx + maxGy) * halfH + WORLD_PAD,
+      };
+    };
 
-    const halfW = ROOM.tileW / 2;
-    const halfH = ROOM.tileH / 2;
-    // Screen extremes of the lattice: widest points are the west and east
-    // corners; the top is a wall's height above the back corner.
-    const xMin = (minGx - maxGy) * halfW - WORLD_PAD;
-    const xMax = (maxGx - minGy) * halfW + WORLD_PAD;
-    const yMin = (minGx + minGy) * halfH - ROOM.wallH - WORLD_PAD;
-    const yMax = (maxGx + maxGy) * halfH + WORLD_PAD;
-    PLAN_W = Math.round(xMax - xMin);
-    PLAN_H = Math.round(yMax - yMin);
-    planBounds.gx0 = minGx;
-    planBounds.gy0 = minGy;
-    planBounds.gx1 = maxGx;
-    planBounds.gy1 = maxGy;
-    worldOrigin.x = -xMin + BLEED_SIDE;
-    worldOrigin.y = -yMin + BLEED_TOP;
-    BASE_W = PLAN_W + BLEED_SIDE * 2;
-    BASE_H = PLAN_H + BLEED_TOP + BLEED_BOTTOM;
+    const built = bounds(placements.concat(corridors));
+    const drawn = bounds(placements.concat(corridors, preview ? [preview, previewCorridor] : []));
+
+    PLAN_W = Math.round(built.xMax - built.xMin);
+    PLAN_H = Math.round(built.yMax - built.yMin);
+    planBounds.gx0 = drawn.minGx;
+    planBounds.gy0 = drawn.minGy;
+    planBounds.gx1 = drawn.maxGx;
+    planBounds.gy1 = drawn.maxGy;
+    worldOrigin.x = -drawn.xMin + BLEED_SIDE;
+    worldOrigin.y = -drawn.yMin + BLEED_TOP;
+    BASE_W = Math.round(drawn.xMax - drawn.xMin) + BLEED_SIDE * 2;
+    BASE_H = Math.round(drawn.yMax - drawn.yMin) + BLEED_TOP + BLEED_BOTTOM;
+
+    // Where the gym you own sits inside that bigger canvas, so the camera
+    // can centre on it rather than on the middle of the plot next door.
+    planFocus.x = (built.xMin + built.xMax) / 2 - drawn.xMin + BLEED_SIDE;
+    planFocus.y = (built.yMin + built.yMax) / 2 - drawn.yMin + BLEED_TOP;
   }
 
   // Pan is native container scrolling (or the click-and-drag/touch-swipe
@@ -533,6 +565,21 @@
       FIT_MAX,
     );
     zoomLevel = Math.max(ZOOM_MIN, Math.round(fit * 100) / 100);
+  }
+
+  // Put the gym you own in the middle of the window. The canvas is wider
+  // than the gym -- it carries the staked-out plot for the next room and a
+  // margin of the site around it -- so left to itself the scroll container
+  // centres on empty floor, and the gym sits off to one side.
+  //
+  // Only while the player has not taken the camera themselves: once they
+  // have panned or zoomed, moving the view under them would be rude.
+  function centreOnPlan() {
+    if (!stageScrollEl || userSetZoom) return;
+    const targetX = planFocus.x * zoomLevel - stageScrollEl.clientWidth / 2;
+    const targetY = planFocus.y * zoomLevel - stageScrollEl.clientHeight / 2;
+    stageScrollEl.scrollLeft = Math.max(0, targetX);
+    stageScrollEl.scrollTop = Math.max(0, targetY);
   }
 
   function applyStageSizing() {
@@ -625,7 +672,8 @@
   // you put it.
   function placedCount(itemId) {
     return THEMES.reduce((sum, t) => (
-      sum + state.themeRooms[t.id].reduce((s2, room) => s2 + room.layout.filter((x) => x === itemId).length, 0)
+      sum + state.themeRooms[t.id].reduce(
+        (s2, room) => s2 + room.items.filter((it) => it.id === itemId).length, 0)
     ), 0);
   }
   function availableCount(itemId) {
@@ -2392,7 +2440,8 @@
     floorCtx.fillText('ROOM ' + (index + 1), top.x, top.y + 13);
     floorCtx.fillStyle = 'rgba(244,240,234,0.72)';
     floorCtx.font = '700 10px Inter, system-ui, sans-serif';
-    floorCtx.fillText(slotCountFor(state.activeTheme, index) + ' SLOTS', top.x, top.y + 27);
+    const nextShape = roomShapeFor(state.activeTheme, index);
+    floorCtx.fillText(nextShape.cols + ' x ' + nextShape.rows + ' FLOOR', top.x, top.y + 27);
     floorCtx.fillStyle = affordable ? '#ffd66b' : 'rgba(244,240,234,0.5)';
     floorCtx.font = '800 12px Inter, system-ui, sans-serif';
     floorCtx.fillText('$' + formatNum(cost), top.x, top.y + 41);
@@ -2476,6 +2525,7 @@
     fitZoomToStage();
     fitCanvasResolution();
     applyStageSizing();
+    centreOnPlan();
   }
 
   function paintFrame() {
@@ -2498,7 +2548,7 @@
     const rooms = activeRooms();
     const pieces = rooms.map((room, i) => ({
       depth: placements[i].gx0 + placements[i].gy0,
-      draw: () => drawRoom(room.layout, colors, light, i),
+      draw: () => drawRoom(room.items, colors, light, i),
     })).concat(corridors.map((c) => ({
       depth: c.gx0 + c.gy0,
       draw: () => drawCorridorShell(c, colors),
@@ -2520,6 +2570,178 @@
     vignette.addColorStop(1, 'rgba(0,0,0,0.45)');
     floorCtx.fillStyle = vignette;
     floorCtx.fillRect(0, 0, W, H);
+
+    // The edit HUD goes on last of all, over the vignette: it is interface,
+    // not scenery, and it should not be dimmed by the room's own lighting.
+    drawEditHud();
+  }
+
+  // ---- The edit HUD ----
+  // Drawn on the canvas rather than as DOM, because the stage claims every
+  // pointer that goes down inside it (setPointerCapture with no target
+  // check, touch-action: none, a second finger starting a pinch). A DOM
+  // button in there would have its own events stolen out from under it.
+  // Canvas controls are hit-tested by hand against the rectangles recorded
+  // here as they are drawn, which is a few lines and no fighting.
+  let editHud = [];
+
+  const HUD_BUTTON_R = 17;
+  const HUD_ARROW_R = 15;
+
+  function hudCircle(kind, x, y, r) {
+    editHud.push({ kind, x, y, r });
+  }
+
+  function drawHudDisc(x, y, r, fill, stroke) {
+    floorCtx.beginPath();
+    floorCtx.arc(x, y, r, 0, Math.PI * 2);
+    floorCtx.fillStyle = fill;
+    floorCtx.fill();
+    floorCtx.strokeStyle = stroke;
+    floorCtx.lineWidth = 2;
+    floorCtx.stroke();
+  }
+
+  // A chevron pointing along one of the lattice axes, in screen space.
+  //
+  // It has to be clearly longer than it is wide. The lattice axes are 2:1,
+  // so the perpendicular of an axis is mostly vertical -- with a squat
+  // triangle the spread across the base dominates the point, and all four
+  // arrows read as plain up and down chevrons whichever way they actually
+  // face. Long and narrow, they point where they mean.
+  function drawHudArrow(x, y, dx, dy) {
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    const px = -uy;
+    const py = ux;
+    const tip = 9;
+    const wing = 4.5;
+    floorCtx.beginPath();
+    floorCtx.moveTo(x + ux * tip, y + uy * tip);
+    floorCtx.lineTo(x - ux * 5 + px * wing, y - uy * 5 + py * wing);
+    floorCtx.lineTo(x - ux * 5 - px * wing, y - uy * 5 - py * wing);
+    floorCtx.closePath();
+    floorCtx.fillStyle = '#10121a';
+    floorCtx.fill();
+  }
+
+  function drawEditHud() {
+    editHud = [];
+    if (!editing) return;
+
+    const roomRect = placements[state.activeRoomIndex];
+    if (!roomRect) return;
+    const ok = !editing.problem;
+    const accent = ok ? '#4ad07a' : '#ff5a4a';
+    const centre = isoPoint(roomRect.gx0 + editing.item.gx, roomRect.gy0 + editing.item.gy);
+    const foot = place.footprintOf(editing.item.id);
+
+    // The footprint on the floor, as the diamond it really is, so you can
+    // see exactly how much room the thing takes before you commit to it.
+    const half = { u: foot.w / 2, v: foot.h / 2 };
+    const corners = [
+      isoPoint(roomRect.gx0 + editing.item.gx - half.u, roomRect.gy0 + editing.item.gy - half.v),
+      isoPoint(roomRect.gx0 + editing.item.gx + half.u, roomRect.gy0 + editing.item.gy - half.v),
+      isoPoint(roomRect.gx0 + editing.item.gx + half.u, roomRect.gy0 + editing.item.gy + half.v),
+      isoPoint(roomRect.gx0 + editing.item.gx - half.u, roomRect.gy0 + editing.item.gy + half.v),
+    ];
+    paintQuad(corners, hexA(accent, ok ? 0.22 : 0.3), accent, 2);
+
+    // The machine itself, ghosted, so you are moving the thing and not an
+    // abstract box.
+    floorCtx.save();
+    floorCtx.globalAlpha = 0.85;
+    const sprite = itemSprites[editing.item.id];
+    if (!(sprite && drawItemSprite(floorCtx, centre, sprite, editing.item.id))) {
+      const build = PROP_BUILDERS[editing.item.id];
+      if (build) build(floorCtx, centre);
+    }
+    floorCtx.restore();
+
+    // Four arrows, one per lattice axis, sitting just outside the footprint
+    // so they never cover the thing being moved. The arrow that points
+    // down-right on screen moves the machine along +gx, which is what it
+    // looks like it does.
+    const axes = [
+      { dir: 'gxPlus', dx: ROOM.tileW / 2, dy: ROOM.tileH / 2, reach: half.u },
+      { dir: 'gxMinus', dx: -ROOM.tileW / 2, dy: -ROOM.tileH / 2, reach: half.u },
+      { dir: 'gyPlus', dx: -ROOM.tileW / 2, dy: ROOM.tileH / 2, reach: half.v },
+      { dir: 'gyMinus', dx: ROOM.tileW / 2, dy: -ROOM.tileH / 2, reach: half.v },
+    ];
+    axes.forEach((axis) => {
+      const out = axis.reach + 0.45;
+      const x = centre.x + axis.dx * out;
+      const y = centre.y + axis.dy * out;
+      drawHudDisc(x, y, HUD_ARROW_R, 'rgba(244,240,234,0.92)', '#10121a');
+      drawHudArrow(x, y, axis.dx, axis.dy);
+      hudCircle(axis.dir, x, y, HUD_ARROW_R);
+    });
+
+    // Confirm, cancel, and -- for a machine lifted off the floor -- pack it
+    // away instead of putting it back down.
+    const lift = ROOM.tileH * (half.v + 1.1);
+    const row = [{ kind: 'confirm' }, { kind: 'cancel' }];
+    if (editing.fromIndex !== null) row.push({ kind: 'pack' });
+    const spacing = HUD_BUTTON_R * 2.5;
+    row.forEach((btn, i) => {
+      const x = centre.x + (i - (row.length - 1) / 2) * spacing;
+      const y = centre.y - lift;
+      if (btn.kind === 'confirm') {
+        drawHudDisc(x, y, HUD_BUTTON_R, ok ? '#4ad07a' : 'rgba(120,124,132,0.85)', '#10121a');
+        floorCtx.strokeStyle = '#10121a';
+        floorCtx.lineWidth = 3;
+        floorCtx.lineCap = 'round';
+        floorCtx.beginPath();
+        floorCtx.moveTo(x - 6, y);
+        floorCtx.lineTo(x - 1.5, y + 5);
+        floorCtx.lineTo(x + 6, y - 5);
+        floorCtx.stroke();
+      } else if (btn.kind === 'cancel') {
+        drawHudDisc(x, y, HUD_BUTTON_R, '#ff5a4a', '#10121a');
+        floorCtx.strokeStyle = '#10121a';
+        floorCtx.lineWidth = 3;
+        floorCtx.lineCap = 'round';
+        floorCtx.beginPath();
+        floorCtx.moveTo(x - 5, y - 5);
+        floorCtx.lineTo(x + 5, y + 5);
+        floorCtx.moveTo(x + 5, y - 5);
+        floorCtx.lineTo(x - 5, y + 5);
+        floorCtx.stroke();
+      } else {
+        drawHudDisc(x, y, HUD_BUTTON_R, '#e8c24a', '#10121a');
+        floorCtx.fillStyle = '#10121a';
+        floorCtx.fillRect(x - 6, y - 4, 12, 9);
+        floorCtx.fillRect(x - 3, y - 7, 6, 2);
+      }
+      hudCircle(btn.kind, x, y, HUD_BUTTON_R);
+    });
+
+    // Why it cannot go here, said out loud. "Off the floor" and "on top of
+    // the squat rack" are different problems and you can only fix the one
+    // you are told about.
+    if (editing.problem) {
+      floorCtx.save();
+      floorCtx.font = '700 13px Inter, system-ui, sans-serif';
+      floorCtx.textAlign = 'center';
+      const label = editing.problem;
+      const w = floorCtx.measureText(label).width + 18;
+      const y = centre.y - lift + HUD_BUTTON_R + 20;
+      floorCtx.fillStyle = 'rgba(16,15,21,0.9)';
+      floorCtx.fillRect(centre.x - w / 2, y - 13, w, 21);
+      floorCtx.fillStyle = '#ff8a7a';
+      floorCtx.fillText(label, centre.x, y + 2);
+      floorCtx.restore();
+    }
+  }
+
+  // Which HUD control, if any, is under a point.
+  function hudHit(px, py) {
+    for (let i = 0; i < editHud.length; i++) {
+      const c = editHud[i];
+      if (Math.hypot(px - c.x, py - c.y) <= c.r + 4) return c.kind;
+    }
+    return null;
   }
 
   // What every existing caller means: the world may have changed, so work it
@@ -2556,14 +2778,17 @@
     floorCtx.stroke();
   }
 
-  function drawRoom(layout, colors, light, roomIndex) {
+  function drawRoom(items, colors, light, roomIndex) {
     const theme = state.activeTheme;
-    const place = placements[roomIndex];
-    const shape = { cols: place.cols, rows: place.rows };
+    const roomRect = placements[roomIndex];
+    const shape = { cols: roomRect.cols, rows: roomRect.rows };
+    // Which tiles a machine really stands on. Positions are room-relative,
+    // so these keys are too, which is what the floor loop below counts in.
+    const coveredTiles = place.blockedTiles(items);
 
-    const north = isoPoint(place.gx0, place.gy0);
-    const east = isoPoint(place.gx0 + place.cols, place.gy0);
-    const west = isoPoint(place.gx0, place.gy0 + place.rows);
+    const north = isoPoint(roomRect.gx0, roomRect.gy0);
+    const east = isoPoint(roomRect.gx0 + roomRect.cols, roomRect.gy0);
+    const west = isoPoint(roomRect.gx0, roomRect.gy0 + roomRect.rows);
 
     // Both back walls, as solids. The north corner they share gets its own
     // patch of ceiling so the two top faces mitre instead of leaving a notch,
@@ -2581,7 +2806,7 @@
     drawWallDecor(theme, north, east, west, doors);
     drawRoomFittings(roomFitFor(roomIndex), north, east, west, doors);
 
-    const cells = cellsBackToFront(place);
+    const cells = cellsBackToFront(roomRect);
 
     cells.forEach(({ gx, gy, rx, ry }) => {
       const p0 = isoPoint(gx, gy);
@@ -2626,13 +2851,13 @@
 
       if (hoverCell && hoverCell.laneIndex === roomIndex
           && hoverCell.cellIndex === ry * shape.cols + rx) {
-        drawHoverTile([p0, p1, p2, p3], layout[ry * shape.cols + rx]);
+        drawHoverTile([p0, p1, p2, p3], coveredTiles.has(rx + ',' + ry));
       }
     });
 
-    drawSlabEdges(place, colors);
+    drawSlabEdges(roomRect, colors);
 
-    const roomCenterFloor = isoPoint(place.gx0 + shape.cols / 2, place.gy0 + shape.rows / 2);
+    const roomCenterFloor = isoPoint(roomRect.gx0 + shape.cols / 2, roomRect.gy0 + shape.rows / 2);
     drawLightPool(roomCenterFloor, light.glow);
     // Drawn before the props loop below, not after -- otherwise a fixture
     // would float on top of tall gear placed in the center-ish slots
@@ -2643,15 +2868,19 @@
       drawLampFixture({ x: roomCenterFloor.x, y: roomCenterFloor.y - ROOM.wallH + 6 }, light);
     }
 
-    cells.forEach(({ gx, gy, rx, ry }) => {
-      const index = ry * shape.cols + rx;
-      const itemId = layout[index];
-      if (!itemId) return;
+    // Machines are drawn from their positions now, not from the tiles they
+    // sit on, so the order has to be computed rather than inherited from the
+    // floor loop: furthest-back first, by the same gx+gy the tiles use.
+    place.backToFront(items).forEach((placed) => {
+      // The piece currently in hand is drawn by the edit HUD instead, at
+      // wherever it is being moved to.
+      if (editing && editing.source === placed && roomIndex === state.activeRoomIndex) return;
+      const itemId = placed.id;
       const item = itemById(itemId);
       if (!item) return;
-      const c = cellCenter(gx, gy);
+      const c = isoPoint(roomRect.gx0 + placed.gx, roomRect.gy0 + placed.gy);
       const catColor = CATEGORY_META[CATEGORY[itemId]].color;
-      const mult = itemSynergyMultiplier(layout, index, shape);
+      const mult = itemSynergyMultiplier(items, items.indexOf(placed));
 
       // A glowing ring means this piece is currently getting a synergy
       // bonus from its neighbors -- direct visual payoff for arrangement.
@@ -2703,6 +2932,26 @@
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   }
 
+  // Where a point lands on the lattice, in tiles, WITHOUT rounding to a
+  // tile. Free placement needs the fraction: a machine dropped at 4.31 is
+  // meant to be at 4.31, not in the middle of tile 4.
+  function tileFromPoint(px, py) {
+    const dx = px - worldOrigin.x;
+    const dy = py - worldOrigin.y;
+    const a = dx / (ROOM.tileW / 2);
+    const b = dy / (ROOM.tileH / 2);
+    return { gx: (a + b) / 2, gy: (b - a) / 2 };
+  }
+
+  // The same point, relative to the room currently being edited.
+  function roomPointFromEvent(e) {
+    const p = pointFromEvent(e);
+    const t = tileFromPoint(p.x, p.y);
+    const roomRect = placements[state.activeRoomIndex];
+    if (!roomRect) return null;
+    return { gx: t.gx - roomRect.gx0, gy: t.gy - roomRect.gy0 };
+  }
+
   // Every room is on the one lattice, so a click resolves to a single tile
   // and then to whichever room's rectangle contains it -- no per-room origin
   // to unwind first.
@@ -2737,6 +2986,11 @@
   const DRAG_THRESHOLD = 6;
   const pointers = new Map();
   let dragState = null;
+  // The pointer currently working the edit HUD, if any: a held arrow, or the
+  // piece being dragged. Kept apart from `pointers` so a finger on an arrow
+  // is never counted as half of a pinch.
+  let editPointer = null;
+  let nudgeRepeat = null;
   let pinchState = null;
 
   function pointerMid() {
@@ -2786,6 +3040,37 @@
 
   gestureEl.addEventListener('pointerdown', (e) => {
     if (!stageScrollEl) return;
+
+    // Edit mode gets first refusal on a pointer. A press on one of the HUD
+    // controls, or on the piece being moved, must not also start panning the
+    // plan underneath it.
+    if (editing && pointers.size === 0) {
+      const p = pointFromEvent(e);
+      const hit = hudHit(p.x, p.y);
+      if (hit) {
+        try { gestureEl.setPointerCapture(e.pointerId); } catch (err) { /* not critical */ }
+        editPointer = { pointerId: e.pointerId, kind: hit };
+        if (hit === 'gxPlus' || hit === 'gxMinus' || hit === 'gyPlus' || hit === 'gyMinus') {
+          nudgeEdit(hit);
+          startNudgeRepeat(hit);
+        }
+        return;
+      }
+      const local = roomPointFromEvent(e);
+      if (local) {
+        const r = place.rectOf(editing.item);
+        if (local.gx >= r.x0 && local.gx <= r.x1 && local.gy >= r.y0 && local.gy <= r.y1) {
+          try { gestureEl.setPointerCapture(e.pointerId); } catch (err) { /* not critical */ }
+          editPointer = {
+            pointerId: e.pointerId,
+            kind: 'drag',
+            grabDx: editing.item.gx - local.gx,
+            grabDy: editing.item.gy - local.gy,
+          };
+          return;
+        }
+      }
+    }
     // The primary pointer is the first one down of a gesture, so this is
     // where a new gesture begins -- clear anything the last one left behind.
     // A pointerup can go missing (capture lost, the browser cancelling a
@@ -2820,6 +3105,12 @@
   });
 
   gestureEl.addEventListener('pointermove', (e) => {
+    if (editPointer && e.pointerId === editPointer.pointerId) {
+      if (editPointer.kind !== 'drag') return;
+      const local = roomPointFromEvent(e);
+      if (local) moveEditTo(local.gx + editPointer.grabDx, local.gy + editPointer.grabDy);
+      return;
+    }
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -2870,6 +3161,16 @@
   });
 
   gestureEl.addEventListener('pointerup', (e) => {
+    if (editPointer && e.pointerId === editPointer.pointerId) {
+      const kind = editPointer.kind;
+      editPointer = null;
+      stopNudgeRepeat();
+      if (kind === 'confirm') confirmEdit();
+      else if (kind === 'cancel') cancelEdit();
+      else if (kind === 'pack') packAwayEdit();
+      return;
+    }
+
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchState = null;
 
@@ -2887,11 +3188,34 @@
       refreshRoomActions();
       // The status line is the only thing that names the room you are in now
       // that the tabs are gone, so it has to follow the click even when the
-      // click itself does nothing (an empty tile with no gear armed).
+      // click itself does nothing (an empty tile with nothing in hand).
       refreshSynergyText();
     }
-    onFloorCellClick(hit.cellIndex);
+    onFloorTap(e);
   });
+
+  // A tap on the floor, once it is established that it was a tap and not a
+  // drag. Three things it can mean, in order: move the piece already in
+  // hand, put the piece from inventory down here, or pick up whatever is
+  // standing here.
+  function onFloorTap(e) {
+    const local = roomPointFromEvent(e);
+    if (!local) return;
+
+    if (editing) {
+      moveEditTo(local.gx, local.gy);
+      return;
+    }
+
+    const roomItems = activeRoom().items;
+    if (armedItemId && availableCount(armedItemId) > 0) {
+      beginEdit(armedItemId, null, place.snap(local.gx), place.snap(local.gy));
+      return;
+    }
+
+    const under = place.itemAt(roomItems, local.gx, local.gy);
+    if (under) beginEdit(under.id, roomItems.indexOf(under), under.gx, under.gy);
+  }
 
   // A trackpad pinch arrives as a wheel event with ctrlKey set, and ctrl with
   // a mouse wheel is the same gesture by hand -- with the +/- buttons gone
@@ -2907,33 +3231,155 @@
   }, { passive: false });
 
   gestureEl.addEventListener('pointercancel', (e) => {
+    if (editPointer && e.pointerId === editPointer.pointerId) {
+      editPointer = null;
+      stopNudgeRepeat();
+      return;
+    }
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchState = null;
     dragState = null;
     restCursor();
   });
 
-  function onFloorCellClick(index) {
-    const layout = activeRoom().layout;
-    const current = layout[index];
-    if (current) {
-      layout[index] = null;
-      renderScene();
-      renderInventory();
-      recomputeStats();
-      refreshRoomActions();
-      save();
-      return;
+  // Holding an arrow keeps nudging, after a pause long enough that a tap is
+  // still one step. Without this, crossing a room a sixteenth of a tile at a
+  // time is forty presses.
+  function startNudgeRepeat(direction) {
+    stopNudgeRepeat();
+    nudgeRepeat = setTimeout(() => {
+      nudgeRepeat = setInterval(() => nudgeEdit(direction), 60);
+    }, 350);
+  }
+  function stopNudgeRepeat() {
+    clearTimeout(nudgeRepeat);
+    clearInterval(nudgeRepeat);
+    nudgeRepeat = null;
+  }
+
+  // ---- Edit mode ----
+  // Putting a machine down is no longer a click on a square. You pick the
+  // piece up, it follows your finger, four arrows nudge it a sixteenth of a
+  // tile at a time, and a tick puts it down -- the way you move a building
+  // in Clash of Clans, and for the same reason: on a phone you cannot land
+  // a fingertip on the exact spot you mean, and you should not have to.
+  // Nothing is committed until the tick, so dragging is free.
+  //
+  // `editing` holds the piece in hand: where it is, whether it came off the
+  // floor (and from which index, so cancelling can put it back), and whether
+  // where it currently hovers is somewhere it could actually go.
+  let editing = null;
+
+  function beginEdit(itemId, fromIndex, gx, gy) {
+    const lifted = typeof fromIndex === 'number';
+    editing = {
+      item: { id: itemId, gx, gy },
+      fromIndex: lifted ? fromIndex : null,
+      origin: lifted ? { gx, gy } : null,
+      // The object still sits in the room's list while it is in hand, so
+      // that counts of what is placed stay right; the renderer skips it by
+      // identity, otherwise the machine would appear twice -- once where it
+      // was and once under your finger.
+      source: lifted ? activeRoom().items[fromIndex] : null,
+    };
+    armedItemId = null;
+    refreshEditState();
+    renderInventory();
+    renderScene();
+  }
+
+  // The room the piece is being placed in, as a rectangle in its own
+  // coordinates -- positions are room-relative, so the room starts at 0,0.
+  function editRoomRect() {
+    const shape = roomShapeFor(state.activeTheme, state.activeRoomIndex);
+    return { gx0: 0, gy0: 0, cols: shape.cols, rows: shape.rows };
+  }
+
+  function refreshEditState() {
+    if (!editing) return;
+    const items = activeRoom().items;
+    editing.problem = place.placementProblem(
+      items, editing.item, editRoomRect(),
+      editing.fromIndex === null ? -1 : editing.fromIndex,
+    );
+  }
+
+  function moveEditTo(gx, gy) {
+    if (!editing) return;
+    editing.item = place.snapped({ id: editing.item.id, gx, gy });
+    refreshEditState();
+    paintFrame();
+  }
+
+  function nudgeEdit(direction) {
+    if (!editing) return;
+    editing.item = place.nudge(editing.item, direction);
+    refreshEditState();
+    paintFrame();
+  }
+
+  function confirmEdit() {
+    if (!editing || editing.problem) return;
+    const items = activeRoom().items;
+    if (editing.fromIndex === null) {
+      items.push(editing.item);
+    } else {
+      items[editing.fromIndex] = editing.item;
     }
-    if (armedItemId && availableCount(armedItemId) > 0) {
-      layout[index] = armedItemId;
-      if (availableCount(armedItemId) <= 0) armedItemId = null;
-      renderScene();
-      renderInventory();
-      recomputeStats();
-      refreshRoomActions();
-      save();
+    editing = null;
+    renderScene();
+    renderInventory();
+    recomputeStats();
+    refreshRoomActions();
+    refreshSynergyText();
+    save();
+  }
+
+  function cancelEdit() {
+    if (!editing) return;
+    // A piece lifted off the floor goes back exactly where it was. A piece
+    // that came out of inventory goes back to inventory, which happens by
+    // simply not placing it.
+    if (editing.fromIndex !== null && editing.origin) {
+      activeRoom().items[editing.fromIndex] = {
+        id: editing.item.id, gx: editing.origin.gx, gy: editing.origin.gy,
+      };
     }
+    editing = null;
+    renderScene();
+    renderInventory();
+    recomputeStats();
+    refreshSynergyText();
+    save();
+  }
+
+  // Take a machine back off the floor and into inventory, from edit mode.
+  function packAwayEdit() {
+    if (!editing) return;
+    if (editing.fromIndex !== null) {
+      activeRoom().items.splice(editing.fromIndex, 1);
+    }
+    editing = null;
+    renderScene();
+    renderInventory();
+    recomputeStats();
+    refreshRoomActions();
+    refreshSynergyText();
+    save();
+  }
+
+  // Drop a newly bought machine onto the first clear patch of floor, working
+  // outward from the middle of the room so a gym grows from its centre
+  // rather than filling from one corner.
+  function dropIntoRoom(itemId) {
+    const items = activeRoom().items;
+    const rect = editRoomRect();
+    const cx = rect.cols / 2;
+    const cy = rect.rows / 2;
+    const candidate = place.nudgeToFit(items, { id: itemId, gx: cx, gy: cy }, rect, -1);
+    if (!candidate) return false;
+    items.push(candidate);
+    return true;
   }
 
   function renderInventory() {
@@ -2942,7 +3388,7 @@
     if (ownedItems.length === 0) {
       const p = document.createElement('p');
       p.className = 'tycoon-inv-empty';
-      p.textContent = THEMES.some((t) => state.themeRooms[t.id].some((r) => r.layout.some(Boolean)))
+      p.textContent = THEMES.some((t) => state.themeRooms[t.id].some((r) => r.items.length))
         ? 'Everything you own is already on the floor.'
         : 'Buy some gear below, then place it up here.';
       inventoryEl.appendChild(p);
@@ -2953,7 +3399,8 @@
       // A wrapping div rather than a button, since it holds two separate
       // clickable controls (arm-to-place, and sell) -- buttons can't nest.
       const chip = document.createElement('div');
-      chip.className = 'tycoon-inv-item' + (armedItemId === item.id ? ' is-armed' : '');
+      const inHand = editing && editing.fromIndex === null && editing.item.id === item.id;
+      chip.className = 'tycoon-inv-item' + (inHand ? ' is-armed' : '');
 
       const armBtn = document.createElement('button');
       armBtn.type = 'button';
@@ -2962,8 +3409,21 @@
         + '<span class="inv-icon">' + iconMarkup(item.id, 15) + '</span> '
         + item.name + ' <span class="inv-count">x' + availableCount(item.id) + '</span>';
       armBtn.addEventListener('click', () => {
-        armedItemId = armedItemId === item.id ? null : item.id;
-        renderInventory();
+        // Picking gear out of inventory puts it straight in your hand, in
+        // the middle of the room, with the HUD up. There is nothing to aim
+        // at yet and nothing to get wrong -- you drag it where you want it
+        // and hit the tick.
+        if (editing && editing.item.id === item.id && editing.fromIndex === null) {
+          cancelEdit();
+          return;
+        }
+        const rect = editRoomRect();
+        const start = place.nudgeToFit(
+          activeRoom().items,
+          { id: item.id, gx: rect.cols / 2, gy: rect.rows / 2 },
+          rect, -1,
+        ) || { id: item.id, gx: rect.cols / 2, gy: rect.rows / 2 };
+        beginEdit(item.id, null, start.gx, start.gy);
       });
       chip.appendChild(armBtn);
 
@@ -3025,8 +3485,9 @@
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'tycoon-add-room' + (affordable ? '' : ' is-locked');
-    btn.textContent = '+ Add Room (' + slotCountFor(state.activeTheme, rooms.length)
-      + ' slots) — $' + formatNum(cost);
+    const nextShape = roomShapeFor(state.activeTheme, rooms.length);
+    btn.textContent = '+ Add Room (' + nextShape.cols + 'x' + nextShape.rows
+      + ' floor) — $' + formatNum(cost);
     btn.disabled = !affordable;
     btn.addEventListener('click', () => {
       if (state.balance < cost) return;
