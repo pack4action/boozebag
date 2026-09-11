@@ -3191,3 +3191,11 @@
   .tycoon-inv-acts { margin-left: auto; }
   .tycoon-inv-item .tycoon-inv-sell { padding: 4px 9px; }
 }
+
+/* The mark on a shop row, in the metal its plate is made of on the plan:
+   bronze, steel, gold. A piece that has been rebuilt three times should
+   say so in the same breath in both places. */
+.shop-mark {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}

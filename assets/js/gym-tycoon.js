@@ -5212,7 +5212,12 @@
       // desk -- which has nothing left to buy -- is exactly the row whose
       // mark you want to see.
       const tier = tierOf(item.id);
-      setText(els.tierEl, item.name + (tier > 1 ? ' ' + TIER_NAMES[tier] : ''));
+      // In the metal the mark is made of on the plan, so the row and the
+      // plate under the machine are plainly the same fact.
+      setHtml(els.tierEl, item.name + (tier > 1
+        ? ' <span class="shop-mark" style="color:' + MARK_PLATE[tier].rim + '">'
+          + TIER_NAMES[tier] + '</span>'
+        : ''));
       setHtml(els.gpsEl, earnsLine(item.id));
       refreshUpgradeBtn(els.upBtn, item.id);
       // Shut until the Customer Desk is down, apart from the desk itself --
@@ -5694,15 +5699,17 @@
   // -- is one texel per screen pixel at every zoom level. The bounds stop a
   // big plan on a retina screen asking for an absurd texture, and stop a
   // zoomed-out one asking for a mushy little thumbnail.
-  const MAX_BACKING_SCALE = 2.2;
+  const MAX_BACKING_SCALE = 3;
   const MIN_BACKING_SCALE = 0.3;
-  // How many bitmap pixels to spend per screen pixel. A phone reports three,
-  // and painting the gym three deep is nine times the work of painting it
-  // one deep for a sharpness nobody can see at arm's length. Two is the
-  // ceiling, and a device that still cannot keep up is stepped down until
-  // it can -- a steady picture is worth more than a crisp one.
-  const PIXEL_STEPS = [2, 1.5, 1.15, 0.9];
-  let pixelStep = 0;
+  // How many bitmap pixels to spend per screen pixel. A phone screen is
+  // three to the point, and painting the gym three deep is more than twice
+  // the work of painting it two deep -- so it starts at two, which every
+  // device this runs on can hold, and only goes to three once it has shown
+  // it can paint a frame in well under the time it has. A device that
+  // cannot keep up at two is stepped down instead: a steady picture is
+  // worth more than a crisp one.
+  const PIXEL_STEPS = [3, 2.2, 1.6, 1.15, 0.9];
+  let pixelStep = 1;
   function pixelBudget() {
     return PIXEL_STEPS[pixelStep];
   }
@@ -12780,20 +12787,8 @@
         shadowRX * 2, shadowRY * 2);
     }
 
-    // An upgraded piece carries its mark: one stripe per tier above the
-    // first, painted on the floor in front of it, so a room of Mk III
-    // treadmills reads differently from a room of new ones without having
-    // to be told.
-    if (tier > 1) {
-      for (let i = 0; i < tier - 1; i++) {
-        const px = c.x + (i - (tier - 2) / 2) * ROOM.tileW * 0.11;
-        roundRectPath(floorCtx, px - ROOM.tileW * 0.022,
-          shadowY + shadowRY * 0.72, ROOM.tileW * 0.044, ROOM.tileH * 0.14,
-          ROOM.tileW * 0.018);
-        floorCtx.fillStyle = hexA(catColor, 0.9);
-        floorCtx.fill();
-      }
-    }
+    // An upgraded piece stands on a plate, and the plate is the mark.
+    if (tier > 1) drawMarkPlate(c, tiles, tier);
 
     const build = PROP_BUILDERS[itemId];
     if (build) {
@@ -12805,6 +12800,65 @@
         catColor, 0);
     }
     floorCtx.restore();
+  }
+
+  // What a mark is made of. Mark I is a machine as it came; every mark
+  // after it is a machine that has been rebuilt, and the money that went
+  // into it shows in what it stands on. Bronze, then steel, then gold,
+  // then gold with the lights on -- so a room of Mark IVs reads as a room
+  // somebody has spent a fortune on from right across the plan, without
+  // anything having to say so.
+  //
+  // It goes under the piece rather than on it, which is what lets it work:
+  // the machines themselves are painted in whatever finish the gym is
+  // dressed in, and a mark that changed their colour would either be
+  // invisible on some finishes or would undo the finish on others.
+  const MARK_PLATE = [null, null,
+    { rim: '#b9803f', top: '#3a2a18', near: '#241a0f', side: '#2e2113' },
+    { rim: '#cfdae6', top: '#2b323b', near: '#1b2027', side: '#232931' },
+    { rim: '#e8be55', top: '#4a3a15', near: '#2c230c', side: '#3b2e11' },
+    { rim: '#ffd166', top: '#5a441b', near: '#382a10', side: '#483615' },
+  ];
+  function drawMarkPlate(c, tiles, tier) {
+    const p = MARK_PLATE[Math.min(tier, MARK_PLATE.length - 1)];
+    if (!p) return;
+    const rx = tiles * ROOM.tileW * 0.36;
+    const ry = tiles * ROOM.tileH * 0.36;
+    const lip = Math.max(1.6, ROOM.tileH * 0.13);
+    const n = { x: c.x, y: c.y - ry };
+    const e = { x: c.x + rx, y: c.y };
+    const sth = { x: c.x, y: c.y + ry };
+    const w = { x: c.x - rx, y: c.y };
+    const drop = (q) => ({ x: q.x, y: q.y + lip });
+    // The two faces you can see the thickness of, so it reads as something
+    // the machine is standing on rather than a ring painted on the floor.
+    paintQuad([w, sth, drop(sth), drop(w)], p.near, null);
+    paintQuad([sth, e, drop(e), drop(sth)], p.side, null);
+    // The plate: dark metal with the light catching its edge. Dark is what
+    // makes it a plate -- filled in the metal's own colour it read as a
+    // bright mat laid on the floor, which is a different object.
+    paintQuad([n, e, sth, w], p.top, hexA(p.rim, 0.9), 1.4);
+    // The last mark gets a second line inside the first. Four pips already
+    // tell it from three; this is so the top of the range reads as the top
+    // of the range from across the plan, where pips are a pixel each.
+    if (tier >= MAX_TIER) {
+      const k = 0.72;
+      paintQuad([{ x: c.x, y: c.y - ry * k }, { x: c.x + rx * k, y: c.y },
+        { x: c.x, y: c.y + ry * k }, { x: c.x - rx * k, y: c.y }],
+      null, hexA(p.rim, 0.5), 1);
+    }
+    // And the count along the near edge: one pip per mark above the first,
+    // so IV and V are told apart at a glance and not only by their colour.
+    const pips = tier - 1;
+    const step = rx * 0.3;
+    const pw = Math.max(1.7, ROOM.tileW * 0.045);
+    const ph = Math.max(1, ROOM.tileH * 0.09);
+    for (let i = 0; i < pips; i++) {
+      const px = c.x + (i - (pips - 1) / 2) * step;
+      const py = c.y + ry * 0.5;
+      paintQuad([{ x: px, y: py - ph }, { x: px + pw, y: py },
+        { x: px, y: py + ph }, { x: px - pw, y: py }], p.rim, null);
+    }
   }
 
   // A piece is a dozen gradient-filled faces, and a full gym has sixty of
@@ -14808,18 +14862,67 @@
   let lastPaintMs = 0;
   let paintAvg = 0;
   let lastTuneAt = 0;
-  // Step the picture down when the device cannot paint it in time, and back
+  // How often the browser is managing to run a frame at all, smoothed.
+  let rafGapAvg = 0;
+  let lastRafAt = 0;
+  // Step the picture down when the device cannot keep up with it, and back
   // up when it can. Slowly, and never on a single slow frame: switching
   // costs a full repaint, so it is not worth doing over a hiccup.
+  //
+  // There are two costs here and only one of them is the drawing. paintAvg
+  // is what the gym costs to draw, and it barely moves with the size of
+  // the picture -- the same shapes, a few more pixels each. What does move
+  // is what the browser spends putting a picture that size on the screen,
+  // and the only place that shows up is in how often it manages a frame at
+  // all. Tuning on the paint alone had every device climbing to the finest
+  // picture on offer and sitting there at half the frame rate, because by
+  // the measure it was watching, nothing had got any worse.
+  let easyRuns = 0;
+  let slowRuns = 0;
+  // The finest picture this device is still allowed to try. Once a size has
+  // been shown to be too much for it, it is never offered again: the gym
+  // empties out between rushes, and without this a phone would climb back
+  // up every quiet minute and fall down again the moment somebody walked
+  // in, which is worse to look at than either size on its own.
+  let stepFloor = 0;
   function tunePixelBudget(now) {
+    // The first look is a warm-up. A page that has just loaded has a
+    // frame or two of everything else going on in it, and judging the
+    // device on those had it stepping the picture down before the gym had
+    // even settled.
+    if (!lastTuneAt) {
+      lastTuneAt = now;
+      rafGapAvg = 0;
+      paintAvg = 0;
+      return;
+    }
     if (now - lastTuneAt < 2500) return;
-    let next = pixelStep;
-    if (paintAvg > 42 && pixelStep < PIXEL_STEPS.length - 1) next = pixelStep + 1;
-    else if (paintAvg < 14 && pixelStep > 0) next = pixelStep - 1;
-    if (next === pixelStep) return;
     lastTuneAt = now;
+    // Thirty frames a second is the floor: above it a finer picture is
+    // worth having and below it nothing is. A step up is a little under
+    // twice the pixels and costs about a fifth of the frame rate, so a
+    // device running at forty has the room for one and a device running at
+    // thirty-five has not.
+    const slow = paintAvg > 42 || rafGapAvg > 34;
+    const easy = paintAvg < 14 && rafGapAvg > 0 && rafGapAvg < 26;
+    // Two bad looks running to go down, three easy ones to go up. One of
+    // either is a page still settling or a rush that has just ended, and
+    // changing size costs a full repaint of everything.
+    easyRuns = easy ? easyRuns + 1 : 0;
+    slowRuns = slow ? slowRuns + 1 : 0;
+    let next = pixelStep;
+    if (slowRuns >= 2 && pixelStep < PIXEL_STEPS.length - 1) {
+      next = pixelStep + 1;
+      stepFloor = Math.max(stepFloor, next);
+    } else if (easyRuns >= 3 && pixelStep > stepFloor) {
+      next = pixelStep - 1;
+    }
+    if (next === pixelStep) return;
+    easyRuns = 0;
+    slowRuns = 0;
     pixelStep = next;
     paintAvg = 0;
+    rafGapAvg = 0;
     renderScene();
   }
   let lastFrameAt = 0;
@@ -14836,8 +14939,17 @@
     requestAnimationFrame(animateMembers);
     if (document.hidden || !stageOnScreen) {
       lastFrameAt = 0;
+      lastRafAt = 0;
       return;
     }
+    // Every frame the browser gives us, painted or not -- this is the
+    // measure of what it has left over, which is what decides how fine a
+    // picture it can afford.
+    if (lastRafAt) {
+      const gap = now - lastRafAt;
+      if (gap > 0 && gap < 400) rafGapAvg = rafGapAvg ? rafGapAvg * 0.9 + gap * 0.1 : gap;
+    }
+    lastRafAt = now;
     if (!lastFrameAt) {
       lastFrameAt = now;
       return;
