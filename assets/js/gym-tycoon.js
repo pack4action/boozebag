@@ -9726,8 +9726,21 @@
     drawIsoDisc(floorCtx, c, 6, 6, '#6d737c');
   }
   // A panel van, four and a half metres of it, standing along +u.
-  function drawVan(base, colour) {
+  // A box van, four and a half metres of it. `turn` parks it along the
+  // other axis: the strip of deck down the side of the yard is narrower
+  // than the van is long, so one parked nose-on there came out through the
+  // fence at the far end of it.
+  function drawVan(base, colour, turn) {
     const ctx = floorCtx;
+    const was = propTurn;
+    propTurn = turn || 0;
+    try {
+      drawVanBody(ctx, base, colour);
+    } finally {
+      propTurn = was;
+    }
+  }
+  function drawVanBody(ctx, base, colour) {
     const M = TILES_PER_METRE;
     const wheel = 0.34 * M;
     // Wheels first, then the body over them, then the cab and its glass.
@@ -9853,8 +9866,17 @@
     drawIsoDisc(floorCtx, { x: p.x - 5, y: p.y + 1 }, 3, 1.8, '#17181b');
     drawIsoDisc(floorCtx, { x: p.x + 5, y: p.y + 1 }, 3, 1.8, '#17181b');
   }
-  function drawCar(base, colour) {
+  function drawCar(base, colour, turn) {
     const ctx = floorCtx;
+    const was = propTurn;
+    propTurn = turn || 0;
+    try {
+      drawCarBody(ctx, base, colour);
+    } finally {
+      propTurn = was;
+    }
+  }
+  function drawCarBody(ctx, base, colour) {
     const M = TILES_PER_METRE;
     [[-1.1 * M, 0.7 * M], [-1.1 * M, -0.7 * M], [1.1 * M, 0.7 * M], [1.1 * M, -0.7 * M]]
       .forEach(([u, v]) => drawIsoDisc(ctx, isoScreenPoint(base, u, v, 14), 10, 7, '#17181b'));
@@ -9914,6 +9936,21 @@
 
   // The ground beyond the yard, on both of its levels: the higher ground
   // the wall holds back, and the deck the yard drops to.
+  // Nothing out beyond the yard stands on anything else. Everything put
+  // down out there claims a rectangle of lattice first, and anything that
+  // would land on a claim already made is simply not drawn: there is more
+  // scenery out there than any view ever shows, so losing a bush to a lamp
+  // post costs nothing, while a tree growing up through the roof of a
+  // parked van costs the whole picture.
+  function outsideClaim(claims, gx, gy, w, h) {
+    const r = { x0: gx - w / 2, y0: gy - h / 2, x1: gx + w / 2, y1: gy + h / 2 };
+    for (let i = 0; i < claims.length; i++) {
+      const c = claims[i];
+      if (r.x0 < c.x1 && r.x1 > c.x0 && r.y0 < c.y1 && r.y1 > c.y0) return false;
+    }
+    claims.push(r);
+    return true;
+  }
   function drawYardOutskirts(a, light, level) {
     const R = 40;
     const gx1 = a.gx0 + a.cols;
@@ -9967,11 +10004,57 @@
       }
     });
 
+    // What stands out here on purpose, claimed before a single bush goes
+    // down, and drawn after the scrub so a tree behind a van does not come
+    // out in front of it.
+    const claims = [];
+    const fixed = [];
+    const place = (gx, gy, w, h, draw) => {
+      outsideClaim(claims, gx, gy, w, h);
+      fixed.push({ d: gx + gy, draw });
+    };
+    if (level === 'up') {
+      // Behind the wall: the bins, a row of lock-ups and a van on the lane.
+      ['#2f4a3a', '#3a3f4a', '#4a3a2f', '#2f3a4a'].forEach((c, i) => {
+        place(a.gx0 + 6 + i * 2.2, a.gy0 - 9, 2.4, 2.4,
+          () => drawBin(at(a.gx0 + 6 + i * 2.2, a.gy0 - 9), c));
+      });
+      place(a.gx0 + a.cols * 0.62, a.gy0 - 20, 4 * 3.2 + 2, 4.4 + 2,
+        () => drawLockups(at(a.gx0 + a.cols * 0.62, a.gy0 - 20), 4, 'gx'));
+      place(a.gx0 - 20, a.gy0 + a.rows * 0.5, 4.4 + 2, 3 * 3.2 + 2,
+        () => drawLockups(at(a.gx0 - 20, a.gy0 + a.rows * 0.5), 3, 'gy'));
+      place(a.gx0 + a.cols * 0.28, a.gy0 - 12, 15, 8,
+        () => drawVan(at(a.gx0 + a.cols * 0.28, a.gy0 - 12), '#4a5058'));
+      place(a.gx0 - 11, a.gy0 + a.rows * 0.24, 8, 13,
+        () => drawCar(at(a.gx0 - 11, a.gy0 + a.rows * 0.24), '#5a3a3a', 1));
+      place(a.gx0 + a.cols * 0.46, a.gy0 - 28, 4, 4,
+        () => drawStreetLamp(at(a.gx0 + a.cols * 0.46, a.gy0 - 28), light));
+      place(a.gx0 - 28, a.gy0 + a.rows * 0.7, 4, 4,
+        () => drawStreetLamp(at(a.gx0 - 28, a.gy0 + a.rows * 0.7), light));
+    } else {
+      // Past the fence: the road, with cars on it and lamps down the side.
+      place(a.gx0 + a.cols * 0.3, gy1 + 24, 15, 8,
+        () => drawCar(at(a.gx0 + a.cols * 0.3, gy1 + 24), '#3a4a5a'));
+      place(gx1 + 24, a.gy0 + a.rows * 0.62, 8, 15,
+        () => drawCar(at(gx1 + 24, a.gy0 + a.rows * 0.62), '#4a4a3a', 1));
+      ['#2f4a3a', '#3a3f4a', '#4a3a2f'].forEach((c, i) => {
+        place(a.gx0 + a.cols * 0.74 + i * 2.2, gy1 + 17, 2.4, 2.4,
+          () => drawBin(at(a.gx0 + a.cols * 0.74 + i * 2.2, gy1 + 17), c));
+      });
+      place(a.gx0 + a.cols * 0.14, gy1 + 33, 3 * 3.2 + 2, 4.4 + 2,
+        () => drawLockups(at(a.gx0 + a.cols * 0.14, gy1 + 33), 3, 'gx'));
+      place(a.gx0 + a.cols * 0.56, gy1 + 20, 4, 4,
+        () => drawStreetLamp(at(a.gx0 + a.cols * 0.56, gy1 + 20), light));
+      place(gx1 + 20, a.gy0 + a.rows * 0.74, 4, 4,
+        () => drawStreetLamp(at(gx1 + 20, a.gy0 + a.rows * 0.74), light));
+    }
+
     // Scrub over whatever the two bands do not cover, so a wide view never
     // runs out of ground with something on it.
     const outside = (gx, gy) => (level === 'up'
       ? (gx < a.gx0 - 2 || gy < a.gy0 - 2)
       : (gx > gx1 + 11 || gy > gy1 + 11));
+    const scrub = [];
     for (let k = 0; k < 90; k++) {
       const n1 = noise(k, 11, level === 'up' ? 81 : 82);
       const n2 = noise(k, 13, level === 'up' ? 83 : 84);
@@ -9979,24 +10062,19 @@
       const gx = a.gx0 - R + n1 * (a.cols + R * 2);
       const gy = a.gy0 - R + n2 * (a.rows + R * 2);
       if (!outside(gx, gy)) continue;
-      if (n3 < 0.34) drawTree(at(gx, gy), 54 + n3 * 90);
-      else if (n3 < 0.82) drawBush(at(gx, gy), 9 + n3 * 9);
-      else drawBin(at(gx, gy), ['#2f4a3a', '#3a3f4a', '#4a3a2f'][k % 3]);
+      if (n3 < 0.34) {
+        if (!outsideClaim(claims, gx, gy, 7, 7)) continue;
+        scrub.push({ d: gx + gy, draw: () => drawTree(at(gx, gy), 54 + n3 * 90) });
+      } else if (n3 < 0.82) {
+        if (!outsideClaim(claims, gx, gy, 3.5, 3.5)) continue;
+        scrub.push({ d: gx + gy, draw: () => drawBush(at(gx, gy), 9 + n3 * 9) });
+      } else {
+        if (!outsideClaim(claims, gx, gy, 3, 3)) continue;
+        scrub.push({ d: gx + gy, draw: () => drawBin(at(gx, gy), ['#2f4a3a', '#3a3f4a', '#4a3a2f'][k % 3]) });
+      }
     }
-
-    if (level === 'up') {
-      // Behind the wall: the bins, a row of lock-ups and a van on the lane.
-      ['#2f4a3a', '#3a3f4a', '#4a3a2f', '#2f3a4a'].forEach((c, i) => {
-        drawBin(at(a.gx0 + 6 + i * 2.2, a.gy0 - 9), c);
-      });
-      drawLockups(at(a.gx0 + a.cols * 0.62, a.gy0 - 20), 4, 'gx');
-      drawLockups(at(a.gx0 - 20, a.gy0 + a.rows * 0.5), 3, 'gy');
-      drawVan(at(a.gx0 + a.cols * 0.28, a.gy0 - 12), '#4a5058');
-      drawCar(at(a.gx0 - 11, a.gy0 + a.rows * 0.24), '#5a3a3a');
-      drawStreetLamp(at(a.gx0 + a.cols * 0.46, a.gy0 - 28), light);
-      drawStreetLamp(at(a.gx0 - 28, a.gy0 + a.rows * 0.7), light);
-      return;
-    }
+    scrub.concat(fixed).sort((x, y) => x.d - y.d).forEach((e) => e.draw());
+    if (level === 'up') return;
     // Past the fence: the road, with a car on it and lamps down the side.
     for (let k = 0; k < 12; k++) {
       const gx = a.gx0 - R + 8 + k * 6;
@@ -10006,14 +10084,6 @@
       const gy = a.gy0 - R + 10 + k * 6;
       strokePolyline([at(gx1 + 26, gy), at(gx1 + 26, gy + 3)], 'rgba(220,208,180,0.16)', 2.6);
     }
-    drawCar(at(a.gx0 + a.cols * 0.3, gy1 + 24), '#3a4a5a');
-    drawCar(at(gx1 + 24, a.gy0 + a.rows * 0.62), '#4a4a3a');
-    ['#2f4a3a', '#3a3f4a', '#4a3a2f'].forEach((c, i) => {
-      drawBin(at(a.gx0 + a.cols * 0.74 + i * 2.2, gy1 + 17), c);
-    });
-    drawLockups(at(a.gx0 + a.cols * 0.14, gy1 + 33), 3, 'gx');
-    drawStreetLamp(at(a.gx0 + a.cols * 0.56, gy1 + 20), light);
-    drawStreetLamp(at(gx1 + 20, a.gy0 + a.rows * 0.28), light);
   }
 
   // What stands about the yard, and the structure it stands in.
@@ -10223,39 +10293,71 @@
       const p = isoPoint(a.gx0 + u, a.gy0 + v);
       return { x: p.x, y: p.y + drop };
     };
-    drawTyreStack(below(a.cols * 0.62, a.rows + 4), 5);
-    drawTyreStack(below(a.cols * 0.69, a.rows + 5.4), 3);
-    drawPallet(below(a.cols * 0.5, a.rows + 6), 3);
-    drawDrum(below(a.cols * 0.2, a.rows + 3.4), '#6a4326');
-    drawDrum(below(a.cols * 0.25, a.rows + 4.8), '#3f4a55');
-    drawCone(below(a.cols * 0.42, a.rows + 2.6));
-    drawPallet(below(a.cols + 4.5, a.rows * 0.55), 2);
-    drawDrum(below(a.cols + 3.4, a.rows * 0.3), '#4a5a3a');
-    drawTyreStack(below(a.cols + 5.2, a.rows * 0.2), 4);
-    drawCompressor(below(a.cols + 4.2, a.rows * 0.76));
-    drawVan(below(a.cols * 0.18, a.rows + 7.5), '#7a4a3a');
-    drawVan(below(a.cols * 0.56, a.rows + 9.5), '#3f5f7a');
-    drawVan(below(a.cols + 7, a.rows * 0.46), '#3f4a55');
-    drawPallet(below(a.cols * 0.82, a.rows + 5.2), 3);
-    drawTyreStack(below(a.cols * 0.88, a.rows + 3.6), 4);
-    drawDrum(below(a.cols + 7.6, a.rows * 0.86), '#7a4a20');
-    drawCone(below(a.cols + 5.6, a.rows * 0.62));
+    // Everything standing on the lower deck, back to front, and nothing
+    // standing inside anything else. It used to be whatever order it was
+    // written in, at whatever position: the road beyond the fence painted
+    // over the vans parked inside it, the skip went on last of all over the
+    // fence and the steps, and a stack of tyres and an oil drum stood in
+    // the middle of a van. The vans claim their ground first because they
+    // are the biggest things out there; everything else gives way to them.
+    const deckClaims = [];
+    const deck = [];
+    // A van is four and a half metres long and a metre and a half wide,
+    // and it is the length that has to point along the strip it is parked
+    // in -- the side strip is narrower than the van is long, which is why
+    // the one down there is turned.
+    const vans = [
+      { u: a.cols * 0.18, v: a.rows + 5, turn: 0, colour: '#7a4a3a' },
+      { u: a.cols * 0.56, v: a.rows + 6, turn: 0, colour: '#3f5f7a' },
+      { u: a.cols + 5, v: a.rows * 0.42, turn: 1, colour: '#3f4a55' },
+    ];
+    vans.forEach((k) => {
+      const long = 14.5;
+      const wide = 6.5;
+      outsideClaim(deckClaims, k.u, k.v, k.turn ? wide : long, k.turn ? long : wide);
+      deck.push({ d: k.u + k.v, draw: () => drawVan(below(k.u, k.v), k.colour, k.turn) });
+    });
+    // And the clutter round them, each of which stands down if the ground
+    // it wanted is already taken.
+    const put = (u, v, w, h, draw) => {
+      if (!outsideClaim(deckClaims, u, v, w, h)) return;
+      deck.push({ d: u + v, draw });
+    };
+    put(a.cols * 0.62, a.rows + 4, 4, 4, () => drawTyreStack(below(a.cols * 0.62, a.rows + 4), 5));
+    put(a.cols * 0.69, a.rows + 5.4, 3.5, 3.5, () => drawTyreStack(below(a.cols * 0.69, a.rows + 5.4), 3));
+    put(a.cols * 0.5, a.rows + 6, 5, 5, () => drawPallet(below(a.cols * 0.5, a.rows + 6), 3));
+    put(a.cols * 0.2, a.rows + 3.4, 3, 3, () => drawDrum(below(a.cols * 0.2, a.rows + 3.4), '#6a4326'));
+    put(a.cols * 0.25, a.rows + 4.8, 3, 3, () => drawDrum(below(a.cols * 0.25, a.rows + 4.8), '#3f4a55'));
+    put(a.cols * 0.42, a.rows + 2.6, 2.5, 2.5, () => drawCone(below(a.cols * 0.42, a.rows + 2.6)));
+    put(a.cols + 4.5, a.rows * 0.55, 5, 5, () => drawPallet(below(a.cols + 4.5, a.rows * 0.55), 2));
+    put(a.cols + 3.4, a.rows * 0.3, 3, 3, () => drawDrum(below(a.cols + 3.4, a.rows * 0.3), '#4a5a3a'));
+    put(a.cols + 5.2, a.rows * 0.2, 4, 4, () => drawTyreStack(below(a.cols + 5.2, a.rows * 0.2), 4));
+    put(a.cols + 4.2, a.rows * 0.76, 5, 5, () => drawCompressor(below(a.cols + 4.2, a.rows * 0.76)));
+    put(a.cols * 0.85, a.rows + 8.4, 5, 5, () => drawPallet(below(a.cols * 0.85, a.rows + 8.4), 3));
+    put(a.cols * 0.9, a.rows + 6.6, 4, 4, () => drawTyreStack(below(a.cols * 0.9, a.rows + 6.6), 4));
+    put(a.cols + 7.6, a.rows * 0.86, 3, 3, () => drawDrum(below(a.cols + 7.6, a.rows * 0.86), '#7a4a20'));
+    put(a.cols + 8.4, a.rows * 0.62, 2.5, 2.5, () => drawCone(below(a.cols + 8.4, a.rows * 0.62)));
+    // A skip parked on the lower deck, because every yard has one. It is
+    // one of the things standing there, not a lid over the whole picture.
+    put(a.cols * 0.34, a.rows + 9.4, 9, 6, () => {
+      const skip = below(a.cols * 0.34, a.rows + 9.4);
+      drawIsoBox(floorCtx, skip, 0, 0, 3.6, 2.1, 40, '#7a4326', 0);
+      drawIsoBox(floorCtx, skip, 0, 0, 3.3, 1.85, 6, '#2a2018', 40);
+      strokePolyline([{ x: skip.x - 44, y: skip.y - 26 }, { x: skip.x + 44, y: skip.y - 34 }],
+        'rgba(255,255,255,0.08)', 3);
+    });
 
-    // The fence the yard ends at, and the floodlights standing on it.
+    // The fence the yard ends at stands at the far edge of the deck, so it
+    // goes down before the road beyond it and after everything parked
+    // inside it.
     const fenceOut = 13;
     const f0 = below(-fenceOut, a.rows + fenceOut);
     const f1 = below(a.cols + fenceOut, a.rows + fenceOut);
     const f2 = below(a.cols + fenceOut, -fenceOut);
-    drawYardOutskirts(a, light, 'down');
+    deck.sort((x, y) => x.d - y.d).forEach((e) => e.draw());
     drawYardFence(f0, f1, light);
     drawYardFence(f1, f2, light);
-
-    // A skip parked on the lower deck, because every yard has one.
-    const skip = below(a.cols * 0.32, a.rows + 4.4);
-    drawIsoBox(floorCtx, skip, 0, 0, 3.6, 2.1, 40, '#7a4326', 0);
-    drawIsoBox(floorCtx, skip, 0, 0, 3.3, 1.85, 6, '#2a2018', 40);
-    strokePolyline([{ x: skip.x - 44, y: skip.y - 26 }, { x: skip.x + 44, y: skip.y - 34 }],
-      'rgba(255,255,255,0.08)', 3);
+    drawYardOutskirts(a, light, 'down');
   }
 
   // Roof: night sky, and the city round about, lower down.
