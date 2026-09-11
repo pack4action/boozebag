@@ -8179,7 +8179,15 @@
     drawIsoBox(ctx, base, 0, 0, half * 0.84, half * 0.84, 2, '#3a2e22', 13);
     const top = isoScreenPoint(base, 0, 0, 16);
     if (palm) {
-      drawIsoBar(ctx, base, 0, 0, 0.12, 0.06, 0.42 * PX_PER_METRE_TALL, 4, '#8a6a44');
+      // The stem, in three: up out of the pot, a kick sideways, and up
+      // again to the crown. drawIsoBar lays a bar flat at one height, so
+      // the single call that used to be here was a stick lying across the
+      // pot at 0.42 of a metre with the fronds drawn at 0.95 -- nothing at
+      // all in between, and a crown floating over the planter on nothing.
+      drawIsoBox(ctx, base, 0, 0, 0.05, 0.05, 0.19 * PX_PER_METRE_TALL, '#7d5f3e', 14);
+      drawIsoBar(ctx, base, 0, 0, 0.12, 0.06, 0.43 * PX_PER_METRE_TALL, 5, '#8a6a44');
+      drawIsoBox(ctx, base, 0.12, 0.06, 0.05, 0.05, 0.52 * PX_PER_METRE_TALL,
+        '#8a6a44', 0.43 * PX_PER_METRE_TALL);
       const crown = isoScreenPoint(base, 0.12, 0.06, 0.95 * PX_PER_METRE_TALL);
       ctx.save();
       ctx.strokeStyle = '#4d8a45';
