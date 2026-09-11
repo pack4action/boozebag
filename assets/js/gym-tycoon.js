@@ -10055,6 +10055,16 @@
     claims.push(r);
     return true;
   }
+  // The same rectangle, taken whether or not it is free. Scenery that is
+  // placed on purpose -- a van, a row of lock-ups -- is not a candidate to
+  // be talked out of its spot; it needs the ground recorded so that the
+  // scattered stuff, which does stand down, keeps off it. Asking
+  // outsideClaim and ignoring the answer is not the same thing: it records
+  // nothing at all when the padding round two deliberate pieces happens to
+  // touch, and then the ground is unclaimed and anything may stand there.
+  function holdClaim(claims, gx, gy, w, h) {
+    claims.push({ x0: gx - w / 2, y0: gy - h / 2, x1: gx + w / 2, y1: gy + h / 2 });
+  }
   function drawYardOutskirts(a, light, level) {
     const R = 40;
     const gx1 = a.gx0 + a.cols;
@@ -10114,7 +10124,7 @@
     const claims = [];
     const fixed = [];
     const place = (gx, gy, w, h, draw) => {
-      outsideClaim(claims, gx, gy, w, h);
+      holdClaim(claims, gx, gy, w, h);
       fixed.push({ d: gx + gy, draw });
     };
     if (level === 'up') {
@@ -10430,7 +10440,7 @@
     vans.forEach((k) => {
       const long = 14.5;
       const wide = 6.5;
-      outsideClaim(deckClaims, k.u, k.v, k.turn ? wide : long, k.turn ? long : wide);
+      holdClaim(deckClaims, k.u, k.v, k.turn ? wide : long, k.turn ? long : wide);
       deck.push({ d: k.u + k.v, draw: () => drawVan(below(k.u, k.v), k.colour, k.turn) });
     });
     // And the clutter round them, each of which stands down if the ground
