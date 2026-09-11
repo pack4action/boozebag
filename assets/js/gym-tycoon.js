@@ -221,11 +221,14 @@
     return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' + inner + '</svg>';
   }
 
+  // Where you start is the cellar: a low brick room under a house is what
+  // somebody's first gym actually is, and it gives the ladder somewhere to
+  // climb from -- a lock-up with a yard, then a roof, then a pier.
   const THEMES = [
-    { id: 'garage', name: 'Garage', unlockLevel: 1 },
+    { id: 'basement', name: 'Basement', unlockLevel: 1 },
     // A second location is a mid-game thing, not a level-2 thing: the first
     // gym should be half built before there is another one to think about.
-    { id: 'basement', name: 'Basement', unlockLevel: 5 },
+    { id: 'garage', name: 'Garage', unlockLevel: 5 },
     { id: 'rooftop', name: 'Rooftop', unlockLevel: 10 },
     // The far end of the ladder. Nothing else unlocks past level ten, and
     // forty levels of nothing to look forward to is a long way to walk.
@@ -705,6 +708,18 @@
   }
   function unlockedFor(thing) {
     return currentLevel() >= (thing.unlockLevel || 1);
+  }
+  // Whether a location is open to you. A location you have already built in
+  // stays yours whatever level it now says it opens at: the Basement and
+  // the Garage swapped places -- the cellar is where everyone starts -- and
+  // without this a save that began in the Garage would come back to find it
+  // locked behind level five with a whole gym standing inside it.
+  function themeBuilt(id) {
+    return ((state.themeRooms || {})[id] || [])
+      .some((room) => room && room.layout && room.layout.some(Boolean));
+  }
+  function themeOpen(t) {
+    return unlockedFor(t) || themeBuilt(t.id);
   }
 
   // ---- What a level is worth ----
@@ -1646,8 +1661,8 @@
     for (let i = 0; i < STREAK_RUN; i++) {
       const pip = document.createElement('span');
       pip.className = 'tycoon-streak-pip';
-      pip.title = 'Day ' + (i + 1) + ' of seven'
-        + (i === STREAK_RUN - 1 ? ', which hands the Open Day back' : '');
+      pip.title = 'Day ' + (i + 1) + ' of ' + STREAK_RUN
+        + (i === STREAK_RUN - 1 ? ' - Open Day comes back' : '');
       streakDaysEl.appendChild(pip);
       streakPips.push(pip);
     }
@@ -1669,14 +1684,11 @@
       pip.classList.toggle('is-next', due && i === run - 1);
     });
     streakCard.classList.toggle('is-due', due);
-    // One thing at a time: the money when there is money, the wait when
-    // there is a wait, and one short line under it saying why.
-    setText(streakTitleEl, due ? 'Daily bonus ready' : 'Back in ' + streakClock(streakWaitMs()));
+    // Plain: what it is, then whether you can have it yet.
+    setText(streakTitleEl, 'Daily rewards');
     setText(streakNoteEl, due
-      ? (run === STREAK_RUN
-        ? 'Seven in a row. The Open Day comes back too'
-        : Math.round(STREAK_SHARE * 100) + '% of what the gym earns in 12 hours')
-      : 'A bonus every 12 hours');
+      ? (run === STREAK_RUN ? 'Ready, and the Open Day comes back' : 'Ready to collect')
+      : 'Come back in ' + streakClock(streakWaitMs()));
     setHtml(streakBtn, due
       ? '<span class="btn-long">Collect $' + formatMoney(streakCash()) + '</span>'
         + '<span class="btn-short">$' + formatMoney(streakCash()) + '</span>'
@@ -2255,7 +2267,7 @@
       franchise: { points: 0, runs: 0 },
       owned: {},
       themeRooms: defaultThemeRooms(),
-      activeTheme: 'garage',
+      activeTheme: 'basement',
       activeRoomIndex: 0,
       lastSaved: Date.now(),
     };
@@ -2292,11 +2304,11 @@
       });
       s.themeRooms = byTheme;
       const oldActiveSlot = saved.rooms[saved.activeRoom];
-      s.activeTheme = (oldActiveSlot && oldActiveSlot.theme) || 'garage';
+      s.activeTheme = (oldActiveSlot && oldActiveSlot.theme) || 'basement';
       s.activeRoomIndex = Number.isInteger(saved.activeRoom) ? saved.activeRoom : 0;
     } else if (Array.isArray(saved.layout)) {
       // Migrate from the original single top-level layout/theme shape.
-      const theme = saved.theme || 'garage';
+      const theme = saved.theme || 'basement';
       const byTheme = defaultThemeRooms();
       byTheme[theme] = [{ layout: new Array(slotCountFor(theme, 0)).fill(null).map((_, i) => saved.layout[i] || null) }];
       s.themeRooms = byTheme;
@@ -2310,7 +2322,7 @@
       s.themeRooms = byTheme;
     }
 
-    if (!THEMES.some((t) => t.id === s.activeTheme)) s.activeTheme = 'garage';
+    if (!THEMES.some((t) => t.id === s.activeTheme)) s.activeTheme = 'basement';
     const activeChain = s.themeRooms[s.activeTheme] || [];
     s.activeRoomIndex = Number.isInteger(s.activeRoomIndex) && s.activeRoomIndex >= 0 && s.activeRoomIndex < activeChain.length
       ? s.activeRoomIndex
@@ -5254,7 +5266,7 @@
     }
     // A spare desk in Storage belongs to a location that has none yet, and
     // the useful thing to say about it is which one.
-    const deskless = THEMES.filter((t) => unlockedFor(t) && !deskPlacedIn(t.id));
+    const deskless = THEMES.filter((t) => themeOpen(t) && !deskPlacedIn(t.id));
     if (deskless.length && deskless[0].id !== state.activeTheme) {
       return ['The ' + deskless[0].name + ' has no desk yet. Go there and take its free desk from the Shop.', null];
     }
@@ -14379,7 +14391,7 @@
       btn.addEventListener('mouseleave', hideTip);
       btn.addEventListener('blur', hideTip);
       btn.addEventListener('click', () => {
-        if (!unlockedFor(t)) {
+        if (!themeOpen(t)) {
           if (tipEl.hidden) tellLock(); else hideTip();
           return;
         }
@@ -14407,7 +14419,7 @@
     THEMES.forEach((t) => {
       const btn = themeBtns[t.id];
       if (!btn) return;
-      const unlocked = unlockedFor(t);
+      const unlocked = themeOpen(t);
       const rooms = state.themeRooms[t.id] || [];
       const open = chainHasDesk(rooms);
       const rate = open ? rooms.reduce(
@@ -15132,7 +15144,7 @@
       row.innerHTML = '<span class="ov-main"><span class="ov-name"></span>'
         + '<span class="ov-meta"></span></span><span class="ov-rate"></span>';
       row.addEventListener('click', () => {
-        if (!unlockedFor(t) || state.activeTheme === t.id) return;
+        if (!themeOpen(t) || state.activeTheme === t.id) return;
         sfx.door();
         state.activeTheme = t.id;
         state.activeRoomIndex = Math.min(state.activeRoomIndex, activeRooms().length - 1);
@@ -15163,7 +15175,7 @@
       const els = overviewRows[t.id];
       if (!els) return;
       const rooms = state.themeRooms[t.id] || [];
-      const unlocked = unlockedFor(t);
+      const unlocked = themeOpen(t);
       const open = chainHasDesk(rooms);
       const placed = rooms.reduce((n, r) => n + r.layout.filter(Boolean).length, 0);
       const rate = open ? rooms.reduce(
