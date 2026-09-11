@@ -19,48 +19,74 @@
   // N times either: every position in a chain has its own footprint, and the
   // later ones are bigger, which is most of what they are bought for.
   //
-  // The three chains come to 63, 63 and 65 slots, so no theme is a better
+  // ROOM SIZES ARE FOR A PLACE YOU WALK AROUND IN.
+  //
+  // These used to be much smaller -- the starter bay was 6x2, and the biggest
+  // room in any theme was 21 tiles. That was the right size for a board you
+  // fill: every tile was a slot, and a full room was a solid raft of
+  // equipment with no gaps, which is exactly what you want when arranging
+  // gear IS the game.
+  //
+  // It is the wrong size for a room. A gym floor has to hold a front desk, a
+  // shelf of things to sell, the equipment itself, and -- most of it -- the
+  // space between them, wide enough that a member, an employee and the owner
+  // can pass each other without anybody standing still. Two machines in a
+  // 6x2 bay cut it in half; you cannot walk a 6x2 bay at all.
+  //
+  // So the footprints below are roughly three times the area they were, and
+  // the extra is circulation, not slots. Half of a room is meant to stay
+  // empty. A room is not full when every tile is covered -- it is full when
+  // there is no longer a sensible way through it.
+  //
+  // Growing is the safe direction for a save: normalizedRoomChain copies a
+  // saved layout into the new footprint by flat index, so a room that gets
+  // bigger only ever gains empty tiles at the end and never drops gear.
+  // Shrinking any of these numbers later would throw away whatever sat in
+  // the tiles that vanished.
+  //
+  // The three chains come to 217, 219 and 215 tiles, so no theme is a better
   // buy than another for the same run of prices -- what differs is the shape
-  // of the space you are arranging gear in.
+  // of the space you are arranging a gym in.
   const ROOM_PLANS = {
-    // A row of vehicle bays down one unit: wide, shallow, side by side, with
-    // just enough between them to walk through.
+    // Vehicle bays: wide and shallow, side by side down one unit. Deep
+    // enough now for equipment along the back wall and a lane in front of it.
     garage: {
       shapes: [
-        { cols: 6, rows: 2 }, // 12 -- the starter bay
-        { cols: 7, rows: 2 }, // 14
-        { cols: 8, rows: 2 }, // 16 -- the long bay
-        { cols: 7, rows: 3 }, // 21 -- deep enough for two rows of kit
+        { cols: 8, rows: 5 }, // 40 -- the starter bay
+        { cols: 9, rows: 6 }, // 54
+        { cols: 10, rows: 6 }, // 60 -- the long bay
+        { cols: 9, rows: 7 }, // 63 -- deep enough for an island in the middle
       ],
       dirs: ['east', 'east', 'south'],
       corridorLen: 2,
-      corridorWidth: 2,
+      corridorWidth: 3,
     },
-    // Cellar rooms: narrow, deep, and strung together by real tunnels that
-    // turn corners rather than opening straight onto each other.
+    // Cellar rooms: still narrow and deep relative to the others, still
+    // strung together by real tunnels that turn corners rather than opening
+    // straight onto each other -- but now wide enough for two people to pass.
     basement: {
       shapes: [
-        { cols: 3, rows: 4 }, // 12
-        { cols: 3, rows: 5 }, // 15 -- the long cell
-        { cols: 4, rows: 4 }, // 16
-        { cols: 4, rows: 5 }, // 20
+        { cols: 6, rows: 7 }, // 42
+        { cols: 7, rows: 7 }, // 49 -- the long cell
+        { cols: 7, rows: 8 }, // 56
+        { cols: 8, rows: 9 }, // 72
       ],
       dirs: ['south', 'east', 'south'],
       corridorLen: 4,
-      corridorWidth: 2,
+      corridorWidth: 3,
     },
-    // Open deck: broad platforms that spread across the roof, joined by
-    // walkways wide enough to read as outdoors.
+    // Open deck: broad, shallow platforms that spread across the roof,
+    // joined by walkways wide enough to read as outdoors.
     rooftop: {
       shapes: [
-        { cols: 4, rows: 3 }, // 12
-        { cols: 5, rows: 3 }, // 15
-        { cols: 6, rows: 3 }, // 18 -- the wide deck
-        { cols: 5, rows: 4 }, // 20
+        { cols: 9, rows: 5 }, // 45
+        { cols: 10, rows: 5 }, // 50
+        { cols: 11, rows: 6 }, // 66 -- the wide deck
+        { cols: 9, rows: 6 }, // 54
       ],
       dirs: ['east', 'south', 'west'],
       corridorLen: 3,
-      corridorWidth: 3,
+      corridorWidth: 4,
     },
   };
 

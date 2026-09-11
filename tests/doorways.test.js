@@ -167,19 +167,32 @@ test('every doorway is framed in the wall it is cut into', async (t) => {
         }
 
         // Every hallway in a theme is the same width and the whole plan is
-        // drawn at one zoom, so each doorway contributes about the same area
-        // -- the split between the two colours should follow the split
-        // between the two walls' doorway counts. This is what fails loudly
-        // if the casings all come out of one palette entry again.
+        // drawn at one zoom, so each doorway contributes about the same area:
+        // the share of casing pixels landing on each wall should follow the
+        // share of doorways cut into it. This is what fails loudly if the
+        // casings all come out of one palette entry again -- on the theme
+        // where both walls have doorways, the pixel floor above cannot catch
+        // that on its own.
+        //
+        // A share, not a ratio. This was a ratio, which is unstable by
+        // construction: it divides by a count that can be small, so a modest
+        // wobble in attribution reads as a large error. And attribution IS
+        // wobbly here, because the two casing colours are a shade of each
+        // wall and those can be nearly identical -- the basement's come out
+        // rgb(140,148,156) and rgb(134,139,145), six points apart, so pixels
+        // near the boundary land on either side. A share stays bounded in
+        // 0..1 whatever the counts are, and the fault this test exists for
+        // moves it by 0.26 to 0.66, far outside anything attribution noise
+        // does.
         if (want.west > 0 && want.north > 0) {
-          const wantRatio = want.west / want.north;
-          const gotRatio = counts.west / counts.north;
+          const wantShare = want.west / (want.west + want.north);
+          const gotShare = counts.west / (counts.west + counts.north);
           assert.ok(
-            Math.abs(gotRatio - wantRatio) / wantRatio < 0.35,
-            `${theme}: casing pixels split ${counts.west}:${counts.north} `
-            + `(ratio ${gotRatio.toFixed(2)}) between the west and north walls, `
-            + `but the plan puts ${want.west} and ${want.north} doorways on them `
-            + `(ratio ${wantRatio.toFixed(2)})`,
+            Math.abs(gotShare - wantShare) < 0.18,
+            `${theme}: ${(gotShare * 100).toFixed(0)}% of casing pixels are on the west `
+            + `wall (${counts.west} west, ${counts.north} north), but the plan cuts `
+            + `${want.west} of its ${want.west + want.north} doorways into it, so it `
+            + `should be about ${(wantShare * 100).toFixed(0)}%`,
           );
         }
       });

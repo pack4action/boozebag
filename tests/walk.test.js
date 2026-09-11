@@ -92,15 +92,35 @@ for (const theme of plan.themeIds()) {
 }
 
 test('a diagonal squeeze between two machines is not a way through', () => {
-  // Two machines on opposite corners of a 2x2 leave a gap that looks
-  // passable on a square grid and is not: stepping across it would take the
-  // actor through the point where they touch. The garage's starter bay is
-  // only two tiles deep, so blocking that pair really does cut the room in
-  // half -- and "no path" is the honest answer, not a squeeze.
+  // Machines on opposite corners of a 2x2 leave a gap that looks passable on
+  // a square grid and is not: stepping across it would take the actor
+  // through the point where the two machines touch.
+  //
+  // Built explicitly rather than by leaning on the room's proportions. An
+  // earlier version of this test blocked two tiles in what was then a 6x2
+  // starter bay, which sealed the room only because the bay was two tiles
+  // deep; when rooms grew, the test broke while the rule it was checking
+  // had not changed at all.
   const grid = walk.buildGrid('garage', 1, { plan });
-  walk.setWalkable(grid, 1, 0, false);
-  walk.setWalkable(grid, 2, 1, false);
-  assert.equal(walk.findPath(grid, { gx: 1, gy: 1 }, { gx: 2, gy: 0 }), null);
+  const room = plan.roomPlacements('garage', 1)[0];
+  assert.ok(room.cols >= 4 && room.rows >= 5, 'this fixture needs a room of at least 4x5');
+
+  // Two walls of machines, offset by one, leaving a single diagonal step as
+  // the only join between the left of the room and the right.
+  for (let gy = 0; gy < room.rows; gy++) {
+    if (gy !== 2) walk.setWalkable(grid, 1, gy, false);
+    if (gy !== 3) walk.setWalkable(grid, 2, gy, false);
+  }
+
+  const from = { gx: 0, gy: 0 };
+  const to = { gx: room.cols - 1, gy: 0 };
+  assert.equal(walk.findPath(grid, from, to), null,
+    'the only route is a corner squeeze between two machines, so there is no route');
+
+  // And the corner rule really is what is stopping it: open the tile beside
+  // the pinch and the same walk becomes possible.
+  walk.setWalkable(grid, 2, 2, true);
+  assert.ok(walk.findPath(grid, from, to), 'with the corner opened there is a way through');
 });
 
 test('where a legal way round exists, the path takes it', () => {
@@ -155,17 +175,46 @@ test('the grid is not sized off the plan bounds, which include the next plot', (
 });
 
 test('negative tile coordinates are handled', () => {
-  // The rooftop's fourth room sits at gx0 = -1. A grid indexed straight off
-  // (gx, gy) would write outside its own array.
-  const rooms = plan.roomPlacements('rooftop', 4);
-  const negative = rooms.filter((r) => r.gx0 < 0 || r.gy0 < 0);
-  assert.ok(negative.length > 0, 'expected the rooftop chain to run negative');
-  const grid = walk.buildGrid('rooftop', 4, { plan });
-  negative.forEach((r) => {
-    assert.ok(walk.isWalkable(grid, r.gx0, r.gy0),
-      `tile ${r.gx0},${r.gy0} should be walkable floor`);
+  // A chain that runs west or north puts rooms at negative coordinates, and
+  // a grid indexed straight off (gx, gy) would write outside its own array.
+  // The plan is injected here rather than taken from the real themes: which
+  // way a theme happens to grow is level design and changes with the room
+  // shapes, but the grid's promise to offset by its own origin does not.
+  const westward = {
+    roomPlacements: () => [
+      { gx0: -9, gy0: -4, cols: 4, rows: 3 },
+      { gx0: -3, gy0: -4, cols: 4, rows: 3 },
+    ],
+    corridorsFor: () => [{ gx0: -5, gy0: -4, cols: 2, rows: 3, axis: 'gx' }],
+  };
+  const grid = walk.buildGrid('westward', 2, { plan: westward });
+  assert.equal(grid.gx0, -9, 'the grid origin covers the negative coordinates');
+  assert.equal(grid.gy0, -4);
+  assert.ok(walk.isWalkable(grid, -9, -4), 'the far corner is floor');
+  assert.ok(walk.isWalkable(grid, -1, -2), 'the near room is floor');
+  assert.ok(!walk.isWalkable(grid, -20, -20), 'and nothing outside it is');
+
+  const path = walk.findPath(grid, { gx: -9, gy: -4 }, { gx: 0, gy: -2 });
+  assert.ok(path, 'a path crosses the corridor between two negative rooms');
+  path.forEach((t) => assert.ok(walk.isWalkable(grid, t.gx, t.gy)));
+});
+
+test('the real chains stay connected at whatever size the rooms are', () => {
+  // The room footprints are level design and will be retuned. What must
+  // survive any retune: the corridor still lands inside both rooms, so the
+  // whole floor stays one connected space. plan.test.js checks that in
+  // rectangles; this checks it in walkable tiles, which is what an actor
+  // actually crosses.
+  plan.themeIds().forEach((theme) => {
+    for (let count = 2; count <= 4; count++) {
+      const grid = walk.buildGrid(theme, count, { plan });
+      const rooms = plan.roomPlacements(theme, count);
+      const start = { gx: rooms[0].gx0, gy: rooms[0].gy0 };
+      const reached = walk.reachableFrom(grid, start);
+      assert.equal(reached.size, walk.walkableCount(grid),
+        `${theme} x${count}: ${walk.walkableCount(grid) - reached.size} floor tiles are cut off`);
+    }
   });
-  assert.ok(grid.gx0 <= -1, 'the grid origin should cover the negative coordinates');
 });
 
 test('a tap on a machine or a wall resolves to the nearest floor tile', () => {
