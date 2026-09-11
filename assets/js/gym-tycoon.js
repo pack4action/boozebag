@@ -9857,7 +9857,14 @@
     const up = (p, h) => ({ x: p.x, y: p.y - h });
     // The mesh: a wash with the weave scratched into it, so it reads as
     // something you see through rather than a panel.
-    paintQuad([from, to, up(to, H), up(from, H)], 'rgba(150,165,180,0.07)', null);
+    //
+    // The weave used to be laid on at seven and twelve per cent, which is
+    // enough to see against the dark of the yard and nothing at all against
+    // a lit van parked behind it: the fence went in front of the van, the
+    // posts crossed it, and the mesh between them vanished, so the van
+    // looked as though it were standing outside the fence. It is stronger
+    // now -- still something you see through, but something you can see.
+    paintQuad([from, to, up(to, H), up(from, H)], 'rgba(150,165,180,0.10)', null);
     floorCtx.save();
     floorCtx.beginPath();
     floorCtx.moveTo(from.x, from.y);
@@ -9869,9 +9876,9 @@
     for (let d = -H; d < len + H; d += 13) {
       const a0 = lerpPt(from, to, d / len);
       strokePolyline([{ x: a0.x, y: a0.y }, { x: a0.x + H * 0.55, y: a0.y - H }],
-        'rgba(180,195,210,0.12)', 1);
+        'rgba(196,210,224,0.30)', 1.2);
       strokePolyline([{ x: a0.x, y: a0.y }, { x: a0.x - H * 0.55, y: a0.y - H }],
-        'rgba(180,195,210,0.09)', 1);
+        'rgba(196,210,224,0.22)', 1.2);
     }
     floorCtx.restore();
     for (let i = 0; i <= bays; i++) {
@@ -9890,8 +9897,9 @@
         drawGlow({ x: head.x, y: head.y + 3 }, 62, light.bulb, 0.4);
       }
     }
-    strokePolyline([up(from, H), up(to, H)], '#5a6068', 2.4);
-    strokePolyline([up(from, H * 0.5), up(to, H * 0.5)], 'rgba(120,132,145,0.35)', 1.4);
+    strokePolyline([up(from, H), up(to, H)], '#6a717b', 2.6);
+    strokePolyline([up(from, H * 0.5), up(to, H * 0.5)], 'rgba(150,163,176,0.55)', 1.6);
+    strokePolyline([up(from, H * 0.04), up(to, H * 0.04)], 'rgba(150,163,176,0.45)', 1.6);
   }
 
   // ---- Outside the yard ----
