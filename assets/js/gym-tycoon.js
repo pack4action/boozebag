@@ -10440,10 +10440,17 @@
     // and it is the length that has to point along the strip it is parked
     // in -- the side strip is narrower than the van is long, which is why
     // the one down there is turned.
+    // Parked out on the deck rather than up against the wall. A van is six
+    // and a half tiles across, so one centred five tiles out left barely
+    // under two tiles between its back and the apron -- and a box that tall
+    // standing that close rises right alongside the handrail on the edge
+    // above it, which reads as the van sitting on the rail even though it
+    // is a storey below and never paints over it. Four tiles of clear deck
+    // behind them settles it, and they are still well inside the fence.
     const vans = [
-      { u: a.cols * 0.18, v: a.rows + 5, turn: 0, colour: '#7a4a3a' },
-      { u: a.cols * 0.56, v: a.rows + 6, turn: 0, colour: '#3f5f7a' },
-      { u: a.cols + 5, v: a.rows * 0.42, turn: 1, colour: '#3f4a55' },
+      { u: a.cols * 0.18, v: a.rows + 7.6, turn: 0, colour: '#7a4a3a' },
+      { u: a.cols * 0.56, v: a.rows + 8.6, turn: 0, colour: '#3f5f7a' },
+      { u: a.cols + 7.6, v: a.rows * 0.42, turn: 1, colour: '#3f4a55' },
     ];
     vans.forEach((k) => {
       const long = 14.5;
