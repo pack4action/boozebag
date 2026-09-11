@@ -13567,6 +13567,30 @@
     return roomShapeFor(state.activeTheme, editing.roomIndex);
   }
 
+  // Everything that goes into your hands is put down on the plan, and on a
+  // phone the plan is off the top of the screen the moment you are reading
+  // the shop. Buying the desk and being told to place it, with nothing to
+  // place it on in view, is the first thing a new player does. So the page
+  // comes back to the plan first.
+  function showThePlan() {
+    const wrap = document.querySelector('.tycoon-stage-wrap');
+    if (!wrap || typeof window.scrollTo !== 'function') return;
+    const nav = document.querySelector('.nav');
+    const navH = nav && getComputedStyle(nav).position === 'sticky'
+      ? nav.getBoundingClientRect().height : 0;
+    const box = wrap.getBoundingClientRect();
+    // Already where it can be seen: leave the page where it is rather than
+    // jolting it a few pixels for nothing.
+    if (box.top >= navH - 4 && box.bottom <= window.innerHeight + 4) return;
+    const room = window.innerHeight - navH;
+    const gap = box.height < room ? navH + (room - box.height) / 2 : navH + 8;
+    const smooth = !window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({
+      top: Math.max(0, window.scrollY + box.top - gap),
+      behavior: smooth ? 'smooth' : 'auto',
+    });
+  }
+
   function beginEdit(itemId, roomIndex, spot, fromIndex) {
     const shape = roomShapeFor(state.activeTheme, roomIndex);
     const turn = spot && spot.r ? (spot.r & 3) : 0;
@@ -13592,6 +13616,7 @@
     refreshPlaceHud();
     renderScene();
     renderInventory();
+    showThePlan();
   }
 
   // Take a piece already on the floor back into your hands. Its slot is
