@@ -1513,6 +1513,129 @@
   function promoMultiplier() {
     return promoRunning() ? promoPower() : 1;
   }
+  // ---- Coming back ----
+  // The gym pays while you are away, but nothing has ever asked you to
+  // come back. This does. A slice of the day's takings for turning up, a
+  // bigger slice for every day running, and the Open Day handed back on
+  // the seventh -- and a day missed starts the week again, which is the
+  // whole of the mechanism and the only reason any of it is worth
+  // anything. It runs on the real calendar, not on the gym's clock: a day
+  // in there is an hour out here, and a daily that came round every hour
+  // would be a timer, not a reason to come back tomorrow.
+  const STREAK_WEEK = 7;
+  const STREAK_MINUTES = 5;
+  function dayKey(t) {
+    const d = new Date(t == null ? Date.now() : t);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+      + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function streakState() {
+    const s = state.streak;
+    if (!s || typeof s !== 'object') state.streak = { n: 0, last: '' };
+    if (!Number.isFinite(state.streak.n)) state.streak.n = 0;
+    if (typeof state.streak.last !== 'string') state.streak.last = '';
+    return state.streak;
+  }
+  function streakDue() {
+    return streakState().last !== dayKey();
+  }
+  // Which day of the run collecting now would be. Yesterday carries the
+  // run on; anything older starts it at one again.
+  function streakDayNow() {
+    const s = streakState();
+    if (s.last === dayKey()) return Math.max(1, s.n);
+    if (s.last && s.last === dayKey(Date.now() - 86400000)) return s.n + 1;
+    return 1;
+  }
+  // Where in the week a day sits. The run itself keeps counting up -- day
+  // forty is day forty -- but what it pays goes round the week, so there
+  // is a seventh day to reach again rather than a number that runs away.
+  function streakWeekDay(n) {
+    return ((Math.max(1, n) - 1) % STREAK_WEEK) + 1;
+  }
+  function streakMinutes(n) {
+    return STREAK_MINUTES * streakWeekDay(n);
+  }
+  function streakCash(n) {
+    return Math.max(100, Math.round(gps * 60 * streakMinutes(n)));
+  }
+  function streakXp(n) {
+    return 10 * streakWeekDay(n);
+  }
+  function collectStreak() {
+    if (!streakDue() || !gymOpen()) return;
+    const s = streakState();
+    const day = streakDayNow();
+    s.n = day;
+    s.last = dayKey();
+    const cash = streakCash(day);
+    state.balance += cash;
+    state.lifetime += cash;
+    addXp(streakXp(day));
+    let extra = '';
+    if (streakWeekDay(day) === STREAK_WEEK) {
+      // The seventh day hands the Open Day back whatever the cooldown says.
+      state.promoAt = 0;
+      extra = ' Open Day ready.';
+    }
+    save();
+    refreshHud();
+    refreshStreakUI();
+    refreshPromoUI();
+    sfx.coin();
+    toast('Day ' + day + ' back: $' + formatMoney(cash) + '.' + extra, 'good');
+  }
+
+  const streakCard = document.getElementById('streak-card');
+  const streakDaysEl = document.getElementById('streak-days');
+  const streakTitleEl = document.getElementById('streak-title');
+  const streakNoteEl = document.getElementById('streak-note');
+  const streakBtn = document.getElementById('btn-streak');
+  let streakPips = [];
+  function buildStreakUI() {
+    if (!streakDaysEl) return;
+    streakDaysEl.textContent = '';
+    streakPips = [];
+    for (let i = 0; i < STREAK_WEEK; i++) {
+      const pip = document.createElement('span');
+      pip.className = 'tycoon-streak-pip';
+      pip.title = 'Day ' + (i + 1) + ' of the week';
+      streakDaysEl.appendChild(pip);
+      streakPips.push(pip);
+    }
+  }
+  function refreshStreakUI() {
+    if (!streakCard) return;
+    // Nothing to come back to until the gym is open and earning.
+    const on = gymOpen();
+    if (streakCard.hidden !== !on) streakCard.hidden = !on;
+    if (!on) return;
+    const due = streakDue();
+    const day = due ? streakDayNow() : Math.max(1, streakState().n);
+    const wd = streakWeekDay(day);
+    // Filled for the days already collected this week, outlined for the
+    // one waiting to be.
+    const done = due ? wd - 1 : wd;
+    streakPips.forEach((pip, i) => {
+      pip.classList.toggle('is-done', i < done);
+      pip.classList.toggle('is-next', due && i === wd - 1);
+    });
+    streakCard.classList.toggle('is-due', due);
+    setText(streakTitleEl, due ? 'Day ' + day + ' back' : 'Day ' + day + ' collected');
+    const ahead = day + 1;
+    setText(streakNoteEl, due
+      ? streakMinutes(day) + ' minutes of takings'
+        + (wd === STREAK_WEEK ? ', and the Open Day back' : '')
+      : 'Tomorrow: ' + streakMinutes(ahead) + ' minutes'
+        + (streakWeekDay(ahead) === STREAK_WEEK ? ', and the Open Day back' : ''));
+    setHtml(streakBtn, due
+      ? '<span class="btn-long">Collect $' + formatMoney(streakCash(day)) + '</span>'
+        + '<span class="btn-short">$' + formatMoney(streakCash(day)) + '</span>'
+      : 'Back tomorrow');
+    streakBtn.disabled = !due;
+  }
+  if (streakBtn) streakBtn.addEventListener('click', collectStreak);
+
   function clockOf(seconds) {
     const s = Math.ceil(seconds);
     return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
@@ -2074,6 +2197,7 @@
       rush: { job: null, deadlineAt: 0, nextAt: 0 },
       rushDone: 0,
       promoAt: 0,
+      streak: { n: 0, last: '' },
       trophies: {},
       gymName: '',
       design: defaultDesign(),
@@ -14724,6 +14848,7 @@
   buildThemeRow();
   buildRoomActions();
   buildStaffUI();
+  buildStreakUI();
   buildTrophyUI();
   refreshCounterUI();
   refreshFranchiseUI();
@@ -14822,6 +14947,7 @@
     refreshRushOrderUI();
     refreshJobsDot();
     refreshNextStep();
+    refreshStreakUI();
     refreshLevelCard();
     refreshOverview();
     refreshDesignUI();
