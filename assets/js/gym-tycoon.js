@@ -5831,12 +5831,16 @@
   // A gym that fits the window whole has nothing left to look around, so
   // the view goes back to the middle of it rather than staying wherever
   // zooming out from a corner happened to leave it.
-  function snapIfWhollyVisible() {
-    if (!stageScrollEl || gestureActive) return;
+  function whollyVisible() {
+    if (!stageScrollEl) return false;
     const padTop = parseFloat(getComputedStyle(stageScrollEl).paddingTop) || 0;
     const availW = stageScrollEl.clientWidth;
     const availH = stageScrollEl.clientHeight - padTop;
-    if (BUILT_W * zoomLevel <= availW && BUILT_H * zoomLevel <= availH) centreOnGym(true);
+    return BUILT_W * zoomLevel <= availW && BUILT_H * zoomLevel <= availH;
+  }
+  function snapIfWhollyVisible() {
+    if (!stageScrollEl || gestureActive) return;
+    if (whollyVisible()) centreOnGym(true);
   }
 
   function centreOn(x, y, jump) {
@@ -13397,6 +13401,19 @@
 
     setZoom(nextZoom, live);
 
+    // Once the whole gym fits the window there is nothing left to look
+    // around at, and the view is going back to the middle the moment the
+    // fingers lift. Go there as the pinch runs rather than holding an
+    // anchor that cannot be held: out past the fit the scroll clamps at
+    // zero, so the point under the fingers slid away by a fifth of the
+    // window on the way in and the snap at the end arrived as a lurch.
+    if (whollyVisible()) {
+      centreOnGym(true);
+      return;
+    }
+    // Inside that, hold the anchor. No clamping of our own: the browser
+    // clamps a scroll offset to the range anyway, and asking it for
+    // scrollWidth here would force a layout on every frame of the pinch.
     stageScrollEl.scrollLeft = box.left + pads.left + (worldX + sitePad) * zoomLevel - clientX;
     stageScrollEl.scrollTop = box.top + pads.top + (worldY + sitePad) * zoomLevel - clientY;
     snapIfWhollyVisible();
