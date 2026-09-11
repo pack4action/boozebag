@@ -11413,6 +11413,68 @@
     paintQuad(pts.map(lift).concat(outer.slice().reverse()),
       state.activeTheme === 'basement' ? '#8a6238' : shade(colors.wallL, 46), null);
 
+    // What the wall is built of, laid into the face after the flat fill it
+    // is painted with. One slab of colour reads as a backdrop rather than
+    // as a wall, which is what made the cellar's rooms sit so oddly inside
+    // its own brick-and-timber shell: the shell had a build and the rooms
+    // in front of it did not. Only the solid stretches get it, because a
+    // doorway is a hole and there is nothing there to build.
+    const at = (p0, p1, t, hf) => ({
+      x: p0.x + (p1.x - p0.x) * t,
+      y: p0.y + (p1.y - p0.y) * t - hf * h,
+    });
+    const band = (p0, p1, t0, t1, h0, h1) => [at(p0, p1, t0, h0), at(p0, p1, t1, h0),
+      at(p0, p1, t1, h1), at(p0, p1, t0, h1)];
+    // A cellar wall: brickwork up the bottom of it, a sole plate and studs
+    // standing on that, and the pipes every cellar has running the length
+    // of it on their brackets.
+    const cellarWall = (p0, p1, axis, t0, t1) => {
+      const span = t1 - t0;
+      const run = Math.hypot(p1.x - p0.x, p1.y - p0.y) * span;
+      if (run < 10) return;
+      const wood = axis === 'gx' ? '#7d5731' : '#674628';
+      const edge = 'rgba(0,0,0,0.34)';
+      const COURSES = 7;
+      const TOP = 0.60;
+      for (let c = 1; c <= COURSES; c++) {
+        const hf = (c / (COURSES + 1)) * TOP;
+        paintQuad(band(p0, p1, t0, t1, hf, hf + 0.006), 'rgba(0,0,0,0.14)', null);
+      }
+      const bricks = Math.max(2, Math.round(run / 26));
+      for (let c = 0; c < COURSES; c++) {
+        const hf = (c / (COURSES + 1)) * TOP;
+        for (let k = 1; k < bricks; k++) {
+          const t = t0 + ((k + (c % 2) * 0.5) / bricks) * span;
+          if (t <= t0 || t >= t1) continue;
+          paintQuad(band(p0, p1, t - 0.0022, t + 0.0022, hf, hf + TOP / (COURSES + 1)),
+            'rgba(0,0,0,0.11)', null);
+        }
+      }
+      // The sole plate, and the studs standing off it.
+      paintQuad(band(p0, p1, t0, t1, 0, 0.05), wood, edge, 1);
+      const studs = Math.max(1, Math.round(run / 62));
+      for (let k = 0; k <= studs; k++) {
+        const w = Math.min(0.019, span * 0.085);
+        const t = Math.max(t0 + w, Math.min(t1 - w, t0 + (k / studs) * span));
+        paintQuad(band(p0, p1, t - w, t + w, 0.028, 0.99), wood, edge, 1);
+        // A lit edge down one side, so a stud stands off the wall rather
+        // than reading as a stripe painted on it.
+        paintQuad(band(p0, p1, t - w, t - w * 0.4, 0.028, 0.99), shade(wood, 18), null);
+      }
+      // The pipes, and the brackets holding them off the wall.
+      const braces = Math.max(1, Math.round(run / 95));
+      for (let k = 0; k <= braces; k++) {
+        const w = Math.min(0.009, span * 0.045);
+        const t = Math.max(t0 + w, Math.min(t1 - w, t0 + (k / braces) * span));
+        paintQuad(band(p0, p1, t - w, t + w, 0.695, 0.845), '#3c382f', null);
+      }
+      [[0.80, '#8a5a30'], [0.715, '#5e646c']].forEach(([hf, col]) => {
+        paintQuad(band(p0, p1, t0, t1, hf, hf + 0.028), col, 'rgba(0,0,0,0.4)', 1);
+        paintQuad(band(p0, p1, t0, t1, hf + 0.020, hf + 0.028), shade(col, 22), null);
+      });
+    };
+    const dressFace = state.activeTheme === 'basement' ? cellarWall : null;
+
     // The faces you look at, a segment at a time so a doorway can be left
     // out of one. A hole is a real hole: the strip of wall below the lintel
     // simply is not painted, so the hallway and whoever is walking through it
@@ -11449,6 +11511,7 @@
         const p1 = lerpPt(a, b, t1);
         paintQuad([liftPt(p0, DOOR_HEAD), liftPt(p1, DOOR_HEAD), lift(p1), lift(p0)], fill, null);
       });
+      if (dressFace) solid.forEach(([t0, t1]) => dressFace(a, b, axes[i], t0, t1));
       // The line where this stretch of wall meets the floor, broken by the
       // openings -- a doorway has no wall standing on it.
       solid.forEach(([t0, t1]) => {
