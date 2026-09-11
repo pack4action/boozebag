@@ -2031,22 +2031,36 @@
   const WALL_PAINTS = [
     { id: 'white', name: 'Whitewash', color: '#c9c4bb', cost: 4000 },
     { id: 'charcoal', name: 'Charcoal', color: '#2b2d33', cost: 4000 },
+    { id: 'sand', name: 'Sandstone', color: '#a89578', cost: 6000 },
     { id: 'red', name: 'Gym Red', color: '#7a2a24', cost: 9000 },
     { id: 'blue', name: 'Night Blue', color: '#243a5e', cost: 9000 },
     { id: 'green', name: 'Forest', color: '#26483a', cost: 9000 },
+    { id: 'teal', name: 'Deep Teal', color: '#1d4a52', cost: 14000 },
+    { id: 'rust', name: 'Rust', color: '#8a4a28', cost: 14000 },
     { id: 'purple', name: 'Plum', color: '#46284f', cost: 20000 },
+    { id: 'ink', name: 'Ink', color: '#151923', cost: 20000 },
+    { id: 'rose', name: 'Dusty Rose', color: '#8a4a5a', cost: 35000 },
+    { id: 'bone', name: 'Bone', color: '#ddd6c6', cost: 50000 },
   ];
   const FLOOR_PAINTS = [
     { id: 'rubber', name: 'Rubber', a: '#2a2d33', b: '#23262b', cost: 6000 },
     { id: 'oak', name: 'Oak Boards', a: '#a67a4a', b: '#8f673c', cost: 12000 },
     { id: 'concrete', name: 'Concrete', a: '#7d8085', b: '#6b6e73', cost: 12000 },
+    { id: 'slate', name: 'Slate', a: '#4c525b', b: '#40454d', cost: 18000 },
     { id: 'court', name: 'Blue Court', a: '#2f5c8a', b: '#274d74', cost: 30000 },
     { id: 'track', name: 'Red Track', a: '#a1443a', b: '#883a31', cost: 30000 },
+    { id: 'sand', name: 'Beach Sand', a: '#c4aa79', b: '#b09667', cost: 40000 },
+    // The floor is laid in two alternating tones, so a pair this far apart
+    // comes out as a chequerboard rather than as a shade of one colour.
+    { id: 'chequer', name: 'Chequerboard', a: '#d5d1c8', b: '#2b2d33', cost: 55000 },
     { id: 'turf', name: 'Turf', a: '#3f7a3c', b: '#356732', cost: 60000 },
+    { id: 'ice', name: 'Ice', a: '#9fc2d4', b: '#8aaec2', cost: 90000 },
   ];
   const WALL_ART = [
-    { id: 'posters', name: 'Poster Set', note: 'Three posters on the back wall', cost: 25000 },
+    { id: 'posters', name: 'Poster Set', note: 'Three posters, or banners on a railing', cost: 25000 },
+    { id: 'flags', name: 'Bunting', note: 'A string of pennants round every room', cost: 45000 },
     { id: 'stripe', name: 'Neon Stripe', note: 'A lit line round every room', cost: 80000 },
+    { id: 'champs', name: 'Champions Board', note: 'The names in gold, in every room', cost: 140000 },
     { id: 'mural', name: 'Mural', note: 'A painted wall in each room', cost: 250000 },
   ];
   const FINISHES = [
@@ -2058,6 +2072,12 @@
       palette: { STEEL: '#c8433a', STEEL_LT: '#e26a5f', FRAME: '#8f2c25', FRAME_DK: '#5e1c18', WEIGHT: '#3a2a2a' } },
     { id: 'chrome', name: 'Chrome', note: 'Polished all over', cost: 5000000,
       palette: { STEEL: '#d9e2ec', STEEL_LT: '#f4f7fa', FRAME: '#aeb9c7', FRAME_DK: '#7f8a98', WEIGHT: '#9aa5b3', PAD: '#3a3f4a' } },
+    { id: 'teal', name: 'Sea Green', note: 'Green frames, pale steel', cost: 3000000,
+      palette: { STEEL: '#2f8f86', STEEL_LT: '#5fbcb1', FRAME: '#1f6a65', FRAME_DK: '#134741', WEIGHT: '#28524e' } },
+    { id: 'chrome', name: 'Chrome', note: 'Polished all over', cost: 5000000,
+      palette: { STEEL: '#d9e2ec', STEEL_LT: '#f4f7fa', FRAME: '#aeb9c7', FRAME_DK: '#7f8a98', WEIGHT: '#9aa5b3', PAD: '#3a3f4a' } },
+    { id: 'copper', name: 'Copper', note: 'Warm metal, dark pads', cost: 12000000,
+      palette: { STEEL: '#c07a45', STEEL_LT: '#e0a271', FRAME: '#8d5429', FRAME_DK: '#5d3719', WEIGHT: '#7a4f2c', PAD: '#241d16' } },
     { id: 'gold', name: 'Gold', note: 'The most expensive thing in the shop', cost: 50000000,
       palette: { STEEL: '#e0b64a', STEEL_LT: '#f5dc86', FRAME: '#b8902f', FRAME_DK: '#7d5f1c', WEIGHT: '#a5822c', PAD: '#2b2418', RUBBER: '#231e14' } },
   ];
@@ -7653,9 +7673,121 @@
   }
 
   // Art bought in the design shop, on top of whatever the theme hangs.
+  //
+  // A roof and a pier have railings where the other two have walls, and
+  // every one of these was drawn against a wall that is not there: you
+  // could buy a Mural for the Rooftop, pay a quarter of a million for it,
+  // and get a painted nothing. Each piece has a railed form as well, so a
+  // location is never sold art it has nowhere to hang.
+  function drawRailArt(theme, art, north, east, west) {
+    const r = RAIL[theme];
+    if (!r) return;
+    // A point on one of the two back railings: t along it, h up it.
+    const on = (from, to, t, h) => ({
+      x: from.x + (to.x - from.x) * t,
+      y: from.y + (to.y - from.y) * t - h * r.h,
+    });
+    const runs = [[north, east], [north, west]];
+    const band = (from, to, t0, t1, h0, h1, fill, stroke) => paintQuad(
+      [on(from, to, t0, h0), on(from, to, t1, h0), on(from, to, t1, h1), on(from, to, t0, h1)],
+      fill, stroke || null, stroke ? 1 : 0);
+    if (art === 'posters') {
+      // Banners laced to the railing, in the posters' own inks.
+      const inks = ['#c94f3a', '#3fa0c9', '#e0b93f'];
+      runs.forEach(([from, to], side) => {
+        [0.28, 0.5, 0.72].forEach((t, i) => {
+          const w = 0.07;
+          band(from, to, t - w, t + w, 0.06, 0.88, '#e9e2d2', 'rgba(0,0,0,0.45)');
+          band(from, to, t - w * 0.72, t + w * 0.72, 0.24, 0.7, inks[(i + side) % 3]);
+        });
+      });
+      return;
+    }
+    if (art === 'flags') {
+      drawBunting(runs, on, 0.98);
+      return;
+    }
+    if (art === 'stripe') {
+      const glow = '#ff5fa8';
+      runs.forEach(([from, to]) => {
+        floorCtx.save();
+        floorCtx.shadowColor = glow;
+        floorCtx.shadowBlur = 10;
+        strokePolyline([on(from, to, 0.02, 0.9), on(from, to, 0.98, 0.9)], glow, 2.6);
+        floorCtx.restore();
+      });
+      return;
+    }
+    if (art === 'champs') {
+      runs.forEach(([from, to]) => drawChampsBoard(
+        (t, h) => on(from, to, t, h), 0.3, 0.7, 0.12, 0.9));
+      return;
+    }
+    if (art === 'mural') {
+      // Nothing to paint but the railing itself, so it becomes a hoarding
+      // -- which is what a painted pier or roof deck actually has.
+      runs.forEach(([from, to]) => {
+        band(from, to, 0.05, 0.95, 0.05, 0.93, '#1f2a3a');
+        band(from, to, 0.05, 0.95, 0.05, 0.48, '#e3733f');
+        band(from, to, 0.12, 0.42, 0.48, 0.86, '#f0c05a');
+        band(from, to, 0.52, 0.82, 0.34, 0.74, '#3fa8a0');
+        band(from, to, 0.05, 0.95, 0.03, 0.09, '#10141c');
+      });
+    }
+  }
+
+  // A string of pennants, slung between its ends in a shallow curve. Drawn
+  // the same on a wall and on a railing -- only the height it hangs at and
+  // the points it runs between change.
+  const BUNTING = ['#d8483c', '#e8b13f', '#3f9fd0', '#57ad5a', '#d8483c', '#e8b13f'];
+  function drawBunting(runs, on, top) {
+    runs.forEach(([from, to]) => {
+      const N = 9;
+      const sag = 0.13;
+      const at = (i) => {
+        const t = 0.05 + (i / N) * 0.9;
+        const k = Math.sin((i / N) * Math.PI);
+        return on(from, to, t, top - sag * k);
+      };
+      const line = [];
+      for (let i = 0; i <= N; i++) line.push(at(i));
+      strokePolyline(line, 'rgba(20,18,16,0.75)', 1.6);
+      for (let i = 0; i < N; i++) {
+        const a = at(i);
+        const b = at(i + 1);
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + 15 };
+        floorCtx.beginPath();
+        floorCtx.moveTo(a.x, a.y);
+        floorCtx.lineTo(b.x, b.y);
+        floorCtx.lineTo(mid.x, mid.y);
+        floorCtx.closePath();
+        floorCtx.fillStyle = BUNTING[i % BUNTING.length];
+        floorCtx.fill();
+        floorCtx.strokeStyle = 'rgba(0,0,0,0.35)';
+        floorCtx.lineWidth = 0.8;
+        floorCtx.stroke();
+      }
+    });
+  }
+
+  // A dark board with the names on it in gold. `at(t, h)` puts a point on
+  // whatever it is hanging on, so the wall and the railing share it.
+  function drawChampsBoard(at, t0, t1, h0, h1) {
+    const q = (a, b, c, d, fill, stroke) => paintQuad(
+      [at(a, c), at(b, c), at(b, d), at(a, d)], fill, stroke || null, stroke ? 1 : 0);
+    q(t0, t1, h0, h1, '#2a2018', 'rgba(0,0,0,0.55)');
+    q(t0 + 0.012, t1 - 0.012, h0 + 0.03, h1 - 0.03, '#3a2b1e');
+    const rows = 5;
+    for (let i = 0; i < rows; i++) {
+      const a = h0 + 0.07 + ((h1 - h0 - 0.16) * i) / rows;
+      q(t0 + 0.03, t1 - 0.03, a, a + 0.035, '#c9a24a');
+    }
+  }
+
   function drawBoughtArt(theme, north, east, west, doors) {
     const art = previewFor('art', theme) || designState().art[theme];
     if (!art) return;
+    if (railed(theme)) return drawRailArt(theme, art, north, east, west);
     if (art === 'posters') {
       // Three posters along the back-left wall, stepping round a doorway.
       const t = pickWallSpot(doors.nw, [], [0.5, 0.3, 0.7, 0.18, 0.82], 0.2);
@@ -7679,6 +7811,13 @@
         strokePolyline(pts, glow, 2.6);
         floorCtx.restore();
       });
+    } else if (art === 'flags') {
+      drawBunting([[north, east], [north, west]],
+        (from, to, t, h) => wallPoint(from, to, t, h), 0.86);
+    } else if (art === 'champs') {
+      const t = pickWallSpot(doors.nw, [], [0.5, 0.32, 0.68], 0.26);
+      if (t === null) return;
+      drawChampsBoard((tt, h) => wallPoint(north, west, tt, h), t - 0.22, t + 0.22, 0.3, 0.82);
     } else if (art === 'mural') {
       const t = pickWallSpot(doors.nw, [], [0.5, 0.32, 0.68], 0.3);
       if (t === null) return;
@@ -12290,7 +12429,14 @@
 
     // ---- What is built on it ----
     const buildShell = () => {
-      if (hub || rails) return;
+      // A roof and a pier have no wall to build. They do have a railing,
+      // and the art bought for the location hangs on that -- which is why
+      // this is not simply a return.
+      if (rails) {
+        drawBoughtArt(theme, north, east, west, { ne: [], nw: [] });
+        return;
+      }
+      if (hub) return;
       const holes = wallApertures(roomIndex);
       drawWallRun([east, north, west], ['gx', 'gy'], ROOM.wallH, colors, [
         roomWallEnd(place, eastCorner),
