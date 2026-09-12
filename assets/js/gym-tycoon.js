@@ -1378,7 +1378,6 @@
     state.staffLevel[id] = staffLevel(id) + 1;
     addXp(xpForSpend(cost));
     sfx.thunk();
-    membersKey = '';
     recomputeStats();
     refreshStaffUI();
     refreshHud();
@@ -3317,8 +3316,26 @@
   const CROWD_SHARE = 0.55;
   const MAX_MEMBERS_PER_ROOM = 4;
 
-  let members = [];
-  let membersKey = '';
+  // Each location keeps its own crowd, and keeps it while you are looking
+  // at another one. Walking into the Garage used to build a fresh crowd out
+  // of nothing, so the Basement's regulars were standing in the Garage a
+  // moment later wearing different faces -- and coming back found everybody
+  // somewhere else. They stay where they were.
+  const crowds = {};
+  function crowdOf(theme) {
+    if (!crowds[theme]) crowds[theme] = [];
+    return crowds[theme];
+  }
+  let members = crowdOf(state.activeTheme);
+  function setMembers(list) {
+    members = list;
+    crowds[state.activeTheme] = list;
+  }
+  // The crowd of whichever location is on screen. Called when the location
+  // changes, before anything asks who is in.
+  function useCrowdOf(theme) {
+    members = crowdOf(theme);
+  }
 
   // The crowd is decoration, and it is decoration made entirely of movement,
   // so someone who has asked their system for less of that gets the gym
@@ -3330,7 +3347,6 @@
   }
   if (stillness && stillness.addEventListener) {
     stillness.addEventListener('change', () => {
-      membersKey = '';
       renderScene();
     });
   }
@@ -3418,8 +3434,30 @@
     }
     return kinds[kinds.length - 1] || 'strength';
   }
+  // The way in and out of a room. A room off the hub uses the mouth of its
+  // hallway; the first room is where the street door is, in the middle of
+  // its front edge. Everyone arrives here and everyone leaves from here, so
+  // nobody appears in the middle of the floor or vanishes off it.
+  function roomEntry(roomIndex) {
+    const place = placements[roomIndex];
+    if (!place) return null;
+    if (roomIndex > 0) {
+      const n = activeRooms().length;
+      for (let other = 0; other < n; other++) {
+        if (other === roomIndex) continue;
+        const c = corridorJoining(roomIndex, other);
+        if (!c) continue;
+        const hall = corridorWaypoints(c, placements[roomIndex] === c.nearRoom);
+        if (hall && hall[0]) return { gx: hall[0].gx, gy: hall[0].gy };
+      }
+    }
+    const at = { gx: place.gx0 + place.cols * 0.5, gy: place.gy0 + place.rows - 0.7 };
+    return onFloorOf(place, at.gx, at.gy) ? at
+      : { gx: place.gx0 + place.cols * 0.25, gy: place.gy0 + place.rows - 0.7 };
+  }
   function spawnMember(room, place, staffRoleId) {
-    const at = randomFloorSpot(place);
+    // In through the door, not out of thin air in the middle of the floor.
+    const at = roomEntry(room) || randomFloorSpot(place);
     const look = freshLook(room);
     return {
       // Where a member is, is a point on the world lattice, not a point in
@@ -3440,6 +3478,11 @@
       // and if the room has nothing of the sort, they go home.
       wants: staffRoleId ? null : pickKind(),
       noLuck: 0,
+      // What they came in to get through. Two or three or four goes on
+      // something, and then they have had their session and go home -- so
+      // the crowd is people coming and going rather than the same four
+      // figures pacing a room for ever.
+      toDo: staffRoleId ? Infinity : 3 + Math.floor(Math.random() * 4),
       shirt: staffRoleId ? STAFF_SHIRT : look.shirt,
       skin: look.skin,
       hair: look.hair,
@@ -3542,8 +3585,14 @@
     // moment is not an empty room.
     const inHand = editing && roomIndex !== undefined && editing.roomIndex === roomIndex;
     if (!room.layout.some(Boolean) && !inHand) return 0;
-    return Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM,
-      Math.round(roomDemand(room) * CROWD_SHARE)));
+    // Never more people than there is anything for them to do, plus one
+    // waiting. A room with one treadmill in it and four people standing
+    // about in it reads as a gym with a queue problem; it is really a gym
+    // with one treadmill, and it should look like one.
+    const room4 = roomCapacity(room) + (inHand ? 1 : 0);
+    if (room4 <= 0) return 0;
+    const draw = Math.round(roomDemand(room) * CROWD_SHARE);
+    return Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM, room4 + 1, draw));
   }
   // Who to let go of when a room has more people in it than it should --
   // somebody has wandered in from next door, say. Never the person mid-set
@@ -3569,26 +3618,26 @@
     m.via = null;
     m.state = 'leaving';
     m.leaveFor = why;
-    m.path = place
-      ? [{ gx: place.gx0 + place.cols * 0.5, gy: place.gy0 + place.rows - 0.6 }]
-      : [];
+    const door = roomEntry(m.room);
+    m.path = place && door ? routeInRoom(place, m, door) : [];
   }
+  // When the next person may walk in, per room. Somebody leaving is not a
+  // cue for somebody else to appear in the doorway a frame later.
+  const nextArrival = {};
+  const ARRIVE_GAP_MS = 4000;
   function rebuildMembers() {
     const rooms = activeRooms();
-    // Keyed on how many people each room should have, not on what is in it:
-    // lifting a piece to move it changes the layout and changes nothing
-    // about who is in the room, and keying on the layout had the whole
-    // crowd rebuilt -- people appearing and vanishing -- every time
-    // anything was picked up or put down.
-    const key = wantsStillness() ? 'still' : state.activeTheme + '|' + staffTotal() + '|'
-      + rooms.map((r, i) => crowdWanted(r, i) + '.' + roomCashiers(r)
-        + '.' + roomStaffCount(r, 'trainer')).join(',');
-    if (key === membersKey) return;
-    membersKey = key;
-    if (key === 'still') {
-      members = [];
+    // Run every tick rather than only when something obvious changes: people
+    // let themselves out when they have finished their session, so a room
+    // is short of somebody at moments nothing else can predict. The work is
+    // a few multiplications per room and keeping whoever is already there,
+    // and nobody is ever rebuilt out of existence -- the array is the same
+    // people, in the same places, minus whoever has reached the door.
+    if (wantsStillness()) {
+      if (members.length) setMembers([]);
       return;
     }
+    const now = Date.now();
     const next = [];
     rooms.forEach((room, roomIndex) => {
       const place = placements[roomIndex];
@@ -3614,7 +3663,16 @@
         here.slice().sort((a, b) => crowdKeepRank(a) - crowdKeepRank(b))
           .slice(want).forEach((m) => sendHome(m, 'quiet'));
       }
-      while (here.length < want) here.push(spawnMember(roomIndex, place));
+      // Newcomers arrive one at a time, a few seconds apart, and walk in
+      // through the door. A gym that refills four people the instant the
+      // last four leave is a revolving door, not a gym.
+      if (here.length < want) {
+        const slot = state.activeTheme + ':' + roomIndex;
+        if (!(nextArrival[slot] > now)) {
+          nextArrival[slot] = now + ARRIVE_GAP_MS * (0.6 + Math.random() * 0.8);
+          here.push(spawnMember(roomIndex, place));
+        }
+      }
       here.push(...going);
       // One of them is the room's regular. Whoever already is stays so; a
       // room that has nobody named yet names its first.
@@ -3661,7 +3719,7 @@
         next.push(kept[k] || spawnMember(roomIndex, placements[roomIndex], role.id));
       }
     });
-    members = next;
+    setMembers(next);
   }
 
   // The two ends of a hallway, a little way inside it, in the order they are
@@ -3775,6 +3833,40 @@
     return goal;
   }
 
+  // Somewhere to be while there is nothing free to get on. The water
+  // cooler, the juice bar, the mirror -- and failing those, over by
+  // whoever else is standing about, because people in a gym stand near
+  // other people rather than spreading themselves evenly over the floor.
+  // Walking to a point picked uniformly at random is what made the crowd
+  // look like it was doing nothing: it was.
+  const SOCIABLE = { cooler: 1, juicebar: 1, gearfridge: 1, mirrorwall: 1, proshop: 1, soundsystem: 1 };
+  function idleSpot(m, room, place, dest) {
+    const shape = { cols: place.cols, rows: place.rows };
+    const spots = [];
+    room.layout.forEach((id, i) => { if (id && SOCIABLE[id]) spots.push(i); });
+    if (spots.length && Math.random() < 0.55) {
+      const i = pickOf(spots);
+      const sp = spotOf(room, i, shape);
+      const zone = accessZone(room.layout[i], sp, turnAt(room, i));
+      const at = zone
+        ? { gx: place.gx0 + (zone.u0 + zone.u1) / 2, gy: place.gy0 + (zone.v0 + zone.v1) / 2 }
+        : { gx: place.gx0 + sp.u, gy: place.gy0 + sp.v + 2.2 };
+      const cand = { gx: at.gx + (Math.random() - 0.5) * 3, gy: at.gy + 1.3 };
+      if (onFloorOf(place, cand.gx, cand.gy)) return cand;
+      if (onFloorOf(place, at.gx, at.gy)) return at;
+    }
+    const others = members.filter((o) => o !== m && o.room === dest
+      && o.state !== 'leaving' && !o.staffRole);
+    if (others.length && Math.random() < 0.55) {
+      const o = pickOf(others);
+      const a = Math.random() * Math.PI * 2;
+      const r = 2.4 + Math.random() * 2.4;
+      const cand = { gx: o.gx + Math.cos(a) * r, gy: o.gy + Math.sin(a) * r };
+      if (onFloorOf(place, cand.gx, cand.gy)) return cand;
+    }
+    return randomFloorSpot(place);
+  }
+
   function chooseTarget(m) {
     if (m.staffRole === 'cashier') { chooseCashierTarget(m); return; }
     const rooms = activeRooms();
@@ -3843,7 +3935,14 @@
         : { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v + 1.6 };
       // A step to the side, so two people waiting for the same machine are
       // not standing inside one another.
-      const nth = members.filter((o) => o !== m && o.waitFor === i && o.room === dest).length;
+      // A place in the queue that is theirs, not a count taken at the moment
+      // they joined: two people who joined in the same breath both counted
+      // nobody ahead of them and stood in the same spot.
+      const taken = members.filter((o) => o !== m && o.room === dest && o.waitFor === i)
+        .map((o) => o.queueSlot || 0);
+      let nth = 0;
+      while (taken.indexOf(nth) !== -1) nth++;
+      m.queueSlot = nth;
       m.via = null;
       m.gear = null;
       m.waitFor = i;
@@ -3859,7 +3958,7 @@
       m.via = null;
       m.gear = null;
       m.waitFor = null;
-      goal = randomFloorSpot(place);
+      goal = idleSpot(m, room, place, dest);
     }
 
     // The way in to a piece is through its step-on floor, so the last leg
@@ -3896,7 +3995,19 @@
         m.timer -= dt;
         m.phase += dt * (EXERCISE_RATE[EXERCISE[m.gearId]] || 5.5);
         // The piece they were using can be picked up out from under them.
-        if (m.timer <= 0 || !room.layout[m.gear]) m.state = 'idle';
+        if (m.timer > 0 && room.layout[m.gear]) return;
+        const finished = m.timer <= 0;
+        m.state = 'idle';
+        if (!finished || m.staffRole) return;
+        // That is one of the things they came in to do. A breather by the
+        // machine after it, and when the list is done they go home.
+        m.toDo = (m.toDo || 1) - 1;
+        if (m.toDo <= 0) {
+          sendHome(m, 'done');
+          return;
+        }
+        m.state = 'pausing';
+        m.timer = 1.6 + Math.random() * 3.2;
         return;
       }
       if (m.state === 'pausing') {
@@ -3934,21 +4045,12 @@
       }
       // On the way out. At the door they are gone, and the next person
       // through it is somebody new.
+      // Out through the door and gone. Whoever comes in next comes in
+      // through the same door and walks to whatever they came for --
+      // nobody is swapped for somebody else where they stand, which is
+      // what made people appear to blink out in front of you.
       if (m.state === 'leaving' && !m.path.length) {
-        // The room is quieter than it was: they are gone, and nobody comes
-        // in behind them.
-        if (m.leaveFor === 'quiet') {
-          m.gone = true;
-          return;
-        }
-        const place = placements[m.room];
-        const at = place ? randomFloorSpot(place) : { gx: m.gx, gy: m.gy };
-        // A regular keeps their face and their name; anybody else who walks
-        // out is replaced by somebody who does not look like them.
-        const look = m.regular ? {} : freshLook(m.room);
-        Object.assign(m, look, { gx: at.gx, gy: at.gy, state: 'idle', timer: 0,
-          gear: null, gearId: null, waitFor: null, via: null, path: [], noLuck: 0 });
-        if (!m.regular) m.wants = pickKind();
+        m.gone = true;
         return;
       }
       if (m.state === 'idle') {
@@ -3986,9 +4088,16 @@
           m.timer = QUEUE_PATIENCE * (0.7 + Math.random() * 0.6);
           return;
         }
-        m.state = m.gear === null ? 'idle' : 'using';
-        m.gearId = m.gear === null ? null : room.layout[m.gear];
-        m.timer = 3.5 + Math.random() * 7;
+        if (m.gear === null) {
+          // Somewhere to stand rather than something to use: stay a while,
+          // rather than turning round the moment they arrive.
+          m.state = 'pausing';
+          m.timer = 2.5 + Math.random() * 4.5;
+          return;
+        }
+        m.state = 'using';
+        m.gearId = room.layout[m.gear];
+        m.timer = 5 + Math.random() * 9;
         return;
       }
       m.gx += (dx / dist) * step;
@@ -3998,7 +4107,7 @@
       if (Math.abs(screenward) > 0.0001) m.facing = screenward > 0 ? 1 : -1;
     });
     // Whoever reached the door on their way out this frame.
-    if (members.some((m) => m.gone)) members = members.filter((m) => !m.gone);
+    if (members.some((m) => m.gone)) setMembers(members.filter((m) => !m.gone));
   }
 
   // Whoever is standing inside this rectangle right now, wherever they call
@@ -4329,7 +4438,9 @@
     });
     editing = null;
     armedItemId = null;
-    membersKey = '';
+    // The gym is gone and so is everybody who was in it.
+    Object.keys(crowds).forEach((k) => { delete crowds[k]; });
+    useCrowdOf(state.activeTheme);
     refillJobs();
     recomputeStats();
     refreshHud();
@@ -4824,7 +4935,6 @@
     } else {
       state.staff[id] = staffCount(id) - 1;
     }
-    membersKey = '';
     recomputeStats();
     refreshStaffUI();
     renderScene();
@@ -4856,7 +4966,6 @@
     addXp(xpForSpend(cost));
     if (currentLevel() > before) announceLevel(currentLevel());
     else toast(role.name + ' hired', 'good');
-    membersKey = '';
     recomputeStats();
     refreshLevelUI();
     refreshStaffUI();
@@ -4978,7 +5087,6 @@
     state.promoAt = Date.now();
     // The rate and the crowd both change the moment it starts, so neither
     // waits for whatever would have refreshed them next.
-    membersKey = '';
     recomputeStats();
     refreshPromoUI();
     renderScene();
@@ -14748,22 +14856,35 @@
     glide = { vx: vx * k, vy: vy * k, at: performance.now(), raf: 0 };
     glide.raf = requestAnimationFrame(stepGlide);
   }
-  // The speed a gesture is running at when it ends: measured over the last
-  // few moves rather than the whole drag, so a flick at the end of a slow
-  // drag still throws the plan.
+  // The speed a gesture is running at when it ends. Kept as a short trail of
+  // where the pointer was and when, and read as the distance covered over
+  // the last stretch of it -- not as a running average of one move to the
+  // next. Averaging made the answer depend on how often the browser
+  // happened to report the pointer, so a page busy painting could report a
+  // flick as a hand coming to rest and the plan stopped dead.
+  const SPEED_WINDOW_MS = 70;
+  const SPEED_TRAIL = 10;
   function trackSpeed(st, x, y, now) {
-    const dt = now - (st.speedAt || now);
+    if (!st.trail) st.trail = [];
+    st.trail.push({ x, y, t: now });
+    if (st.trail.length > SPEED_TRAIL) st.trail.shift();
     st.speedAt = now;
-    if (!(dt > 0)) return;
-    const vx = (x - st.speedX) / dt;
-    const vy = (y - st.speedY) / dt;
-    st.speedX = x;
-    st.speedY = y;
-    // A long gap means the finger was held still: that is a stop, and the
-    // speed it was going before means nothing any more.
-    const w = dt > 90 ? 0 : 0.72;
-    st.vx = (st.vx || 0) * (1 - w) + vx * w;
-    st.vy = (st.vy || 0) * (1 - w) + vy * w;
+  }
+  // Over the last stretch of the trail: if the pointer was sitting still at
+  // the end of it, the two ends of that stretch are the same place and the
+  // answer is nothing, which is what it should be.
+  function speedOf(st) {
+    const trail = (st && st.trail) || [];
+    if (trail.length < 2) return { vx: 0, vy: 0 };
+    const last = trail[trail.length - 1];
+    let first = trail[0];
+    for (let i = trail.length - 2; i >= 0; i--) {
+      first = trail[i];
+      if (last.t - trail[i].t >= SPEED_WINDOW_MS) break;
+    }
+    const dt = last.t - first.t;
+    if (!(dt >= 8)) return { vx: 0, vy: 0 };
+    return { vx: (last.x - first.x) / dt, vy: (last.y - first.y) / dt };
   }
 
   // Pan the stage, and pass whatever scroll it cannot absorb on to the page,
@@ -14817,7 +14938,7 @@
       gesturePads = stagePads();
       pinchState = { startDist: mid.dist || 1, startZoom: zoomLevel, lastX: mid.x, lastY: mid.y,
         dist: mid.dist || 1, want: null, raf: 0,
-        speedX: mid.x, speedY: mid.y, speedAt: performance.now(), vx: 0, vy: 0 };
+        speedAt: performance.now(), trail: [{ x: mid.x, y: mid.y, t: performance.now() }] };
       return;
     }
     if (pointers.size > 2) return;
@@ -14842,11 +14963,8 @@
       pageScrolled: 0,
       moved: 0,
       carrying,
-      speedX: e.clientX,
-      speedY: e.clientY,
       speedAt: performance.now(),
-      vx: 0,
-      vy: 0,
+      trail: [{ x: e.clientX, y: e.clientY, t: performance.now() }],
     };
     gestureEl.style.cursor = 'grabbing';
   }
@@ -14964,11 +15082,8 @@
       // piece you are holding halfway across the room.
       moved: 999,
       carrying: false,
-      speedX: at.x,
-      speedY: at.y,
       speedAt: performance.now(),
-      vx: 0,
-      vy: 0,
+      trail: [{ x: at.x, y: at.y, t: performance.now() }],
     };
   }
 
@@ -14994,8 +15109,9 @@
     // The speed the two fingers were travelling at together, kept before
     // the pinch is torn down so a pinch that ends with a sweep coasts the
     // same way a one-finger drag does.
-    const pinchVx = pinchState ? pinchState.vx : 0;
-    const pinchVy = pinchState ? pinchState.vy : 0;
+    const pinchV = pinchState ? speedOf(pinchState) : { vx: 0, vy: 0 };
+    const pinchVx = pinchV.vx;
+    const pinchVy = pinchV.vy;
     // Whatever the last move asked for, done now rather than dropped: the
     // fingers can come off in the same frame as the move that ended the
     // pinch, and a pinch that ended that way used to do nothing at all.
@@ -15019,9 +15135,12 @@
     if (!dragState || e.pointerId !== dragState.pointerId) return;
     const wasDrag = dragState.moved > DRAG_THRESHOLD;
     const wasCarry = dragState.carrying;
-    const vx = dragState.vx;
-    const vy = dragState.vy;
-    const stale = performance.now() - (dragState.speedAt || 0) > 90;
+    const v = speedOf(dragState);
+    const vx = v.vx;
+    const vy = v.vy;
+    // Nothing reported for a quarter of a second means the hand came to
+    // rest before it lifted, whatever the trail says.
+    const stale = performance.now() - (dragState.speedAt || 0) > 250;
     dragState = null;
     restCursor();
     if (wasDrag || wasCarry) {
@@ -15812,6 +15931,8 @@
         state.activeRoomIndex = Math.min(state.activeRoomIndex, activeRooms().length - 1);
         // Undo is about the piece in front of you, and that is somewhere else now.
         forgetMove();
+        // And the people here are the people who were here.
+        useCrowdOf(t.id);
         rebuildPlan();
         renderScene();
         renderInventory();
@@ -16524,6 +16645,8 @@
         state.activeRoomIndex = Math.min(state.activeRoomIndex, activeRooms().length - 1);
         // Undo is about the piece in front of you, and that is somewhere else now.
         forgetMove();
+        // And the people here are the people who were here.
+        useCrowdOf(t.id);
         rebuildPlan();
         renderScene();
         renderInventory();
@@ -16688,7 +16811,6 @@
       refreshRushUI();
       // The hour tints the site as well as the gym.
       queueGroundPaint();
-      membersKey = '';
     }
 
     // An open day ends on its own, so the tick has to notice: the rate goes
@@ -16697,7 +16819,6 @@
     if (promoOn !== promoWasRunning) {
       promoWasRunning = promoOn;
       recomputeStats();
-      membersKey = '';
       renderScene();
     }
     refreshPromoUI();
@@ -16871,6 +16992,15 @@
     if (now - lastFrameAt < wait) return;
     const dt = Math.min(0.25, (now - lastFrameAt) / 1000);
     lastFrameAt = now;
+    // Who should be in, four times a second. People let themselves out when
+    // they have finished their session, so the room is short of somebody at
+    // moments no change to the gym can predict -- asking only when
+    // something was bought or moved left a gym that emptied out and stayed
+    // empty until the next thing you did.
+    if (now - lastCrowdAt > 250) {
+      lastCrowdAt = now;
+      rebuildMembers();
+    }
     if (members.length || rainStrength() > 0) {
       stepMembers(dt);
       const t0 = performance.now();
@@ -16890,6 +17020,7 @@
     }
   }
   let lastBatchPaint = 0;
+  let lastCrowdAt = 0;
   requestAnimationFrame(animateMembers);
 
   window.addEventListener('beforeunload', save);
