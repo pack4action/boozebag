@@ -3397,6 +3397,18 @@
     }
     return look;
   }
+  // Which kind of training somebody came in for, rolled against what the
+  // room's draw is made of.
+  function pickKind() {
+    const mix = demandMix();
+    let r = Math.random();
+    const kinds = Object.keys(mix);
+    for (let i = 0; i < kinds.length; i++) {
+      r -= mix[kinds[i]];
+      if (r <= 0) return kinds[i];
+    }
+    return kinds[kinds.length - 1] || 'strength';
+  }
   function spawnMember(room, place, staffRoleId) {
     const at = randomFloorSpot(place);
     const look = freshLook(room);
@@ -3414,6 +3426,11 @@
       phase: Math.random() * Math.PI * 2,
       facing: 1,
       staffRole: staffRoleId || null,
+      // What they came in to do. A treadmill is no use to somebody who came
+      // to lift, so this is what they look for and what they queue for --
+      // and if the room has nothing of the sort, they go home.
+      wants: staffRoleId ? null : pickKind(),
+      noLuck: 0,
       shirt: staffRoleId ? STAFF_SHIRT : look.shirt,
       skin: look.skin,
       hair: look.hair,
@@ -3498,6 +3515,7 @@
     m.build = look.build || m.build;
     m.broad = look.broad || m.broad;
     m.carry = 'bottle';
+    if (reg.fav && CATEGORY[reg.fav]) m.wants = CATEGORY[reg.fav];
     return m;
   }
 
@@ -3752,7 +3770,14 @@
     if (m.staffRole === 'cashier') { chooseCashierTarget(m); return; }
     const rooms = activeRooms();
     let dest = m.room;
-    if (rooms.length > 1 && Math.random() < MEMBER_ROAM_CHANCE) dest = roomNextDoor(m.room, rooms.length);
+    // Next door, but only if there is a next door to go to: a room that has
+    // not been built yet has nothing in it and nobody in it, so anyone who
+    // wandered in there was trimmed off the floor the moment they arrived
+    // and replaced back where they came from.
+    if (rooms.length > 1 && Math.random() < MEMBER_ROAM_CHANCE) {
+      const to = roomNextDoor(m.room, rooms.length);
+      if (rooms[to] && rooms[to].layout.some(Boolean)) dest = to;
+    }
     const room = rooms[dest];
     const place = placements[dest];
     if (!room || !place) {
@@ -3762,13 +3787,32 @@
 
     const free = [];
     const busy = [];
+    // Only the kind they came for. Staff use whatever is going.
+    const mine = (id) => !m.wants || !DEMAND_MIX[m.wants] || CATEGORY[id] === m.wants;
+    let anyOfMine = false;
     room.layout.forEach((id, i) => {
       // Fittings are scenery: nobody queues to use a pot plant.
       if (!id || isDecor(id)) return;
+      if (!mine(id)) return;
+      anyOfMine = true;
       const taken = members.some((o) => o !== m && o.room === dest && o.gear === i);
       if (taken) busy.push(i);
       else free.push(i);
     });
+    // Nothing of the sort they came for anywhere in this room. They will
+    // not settle for something else: a few turns about the floor and they
+    // are out of the door, which is exactly what the room details mean by
+    // money standing at the door.
+    if (!anyOfMine && !m.staffRole) {
+      m.noLuck = (m.noLuck || 0) + 1;
+      if (m.noLuck > 3) {
+        sendHome(m, 'walkout');
+        roomWalkout(m.room);
+        return;
+      }
+    } else {
+      m.noLuck = 0;
+    }
 
     let goal;
     // The regular goes to their own machine when it is free, most of the
@@ -3894,7 +3938,8 @@
         // out is replaced by somebody who does not look like them.
         const look = m.regular ? {} : freshLook(m.room);
         Object.assign(m, look, { gx: at.gx, gy: at.gy, state: 'idle', timer: 0,
-          gear: null, gearId: null, waitFor: null, via: null, path: [] });
+          gear: null, gearId: null, waitFor: null, via: null, path: [], noLuck: 0 });
+        if (!m.regular) m.wants = pickKind();
         return;
       }
       if (m.state === 'idle') {
