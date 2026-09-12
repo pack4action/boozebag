@@ -1556,6 +1556,12 @@
       k.at = Number.isFinite(parsed) ? parsed : 0;
     }
     delete k.last;
+    // The clock starts the first time the gym is open. With nothing
+    // recorded it read as "last collected at the epoch", so the first
+    // collection was due the moment somebody arrived and a gym that had not
+    // earned a penny was handed twelve hours of takings for turning up. It
+    // is a daily reward; the first day has to pass first.
+    if (!k.at && gymOpen()) k.at = Date.now();
     return k;
   }
   function streakReadyAt() {
