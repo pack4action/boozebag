@@ -4957,7 +4957,7 @@
   // How many a press of Buy buys: one, a batch, or as many as the money
   // covers. Kept in the browser rather than the save -- it is a preference
   // about the shop, not part of the gym.
-  const BUY_MULTS = [1, 5, 25, 'max'];
+  const BUY_MULTS = [1, 5, 10, 'max'];
   let buyMult = 1;
   try {
     const kept = localStorage.getItem('gymTycoonBuyMult');
@@ -13840,6 +13840,27 @@
   let gesturePads = null;
   const strayPointers = new Map();
 
+  // One frame of a pinch: the span between the fingers sets the zoom and
+  // the midpoint moving drags the view, both from the latest reading of
+  // where the fingers are. The span is smoothed a little on the way in --
+  // two fingers on glass wobble by a pixel or two even while they are being
+  // held still, and at the far end of the zoom range that wobble is
+  // visible as the whole plan breathing.
+  const PINCH_SMOOTH = 0.55;
+  function applyPinch() {
+    if (!pinchState) return;
+    pinchState.raf = 0;
+    const mid = pinchState.want;
+    if (!mid || !mid.dist) return;
+    pinchState.dist = pinchState.dist
+      ? pinchState.dist * (1 - PINCH_SMOOTH) + mid.dist * PINCH_SMOOTH
+      : mid.dist;
+    zoomAround(pinchState.startZoom * (pinchState.dist / pinchState.startDist), mid.x, mid.y, true);
+    nudgeView(mid.x - pinchState.lastX, mid.y - pinchState.lastY);
+    pinchState.lastX = mid.x;
+    pinchState.lastY = mid.y;
+  }
+
   function pointerMid() {
     const pts = Array.from(pointers.values());
     return {
@@ -13914,6 +13935,65 @@
     stageScrollEl.scrollTop = clamped;
   }
 
+  // ---- Letting go ----
+  // A drag that is let go of while it is still moving keeps going at the
+  // speed it was let go at and coasts to a stop, the way every map and
+  // every phone list does. Without it the plan stops dead under the finger,
+  // which is the single thing that made looking around a big gym feel like
+  // work: every screenful cost a whole drag.
+  const GLIDE_MIN = 0.06;        // px per ms: slower than this is a stop, not a flick
+  const GLIDE_MAX = 4.5;         // and no faster than this, whatever the hand did
+  const GLIDE_DECAY = 0.9962;    // per millisecond -- about a second to come to rest
+  let glide = null;
+  function stopGlide() {
+    if (!glide) return;
+    cancelAnimationFrame(glide.raf);
+    glide = null;
+  }
+  function stepGlide(now) {
+    if (!glide) return;
+    const dt = Math.min(48, now - glide.at);
+    glide.at = now;
+    const before = [stageScrollEl.scrollLeft, stageScrollEl.scrollTop];
+    nudgeView(glide.vx * dt, glide.vy * dt);
+    const moved = stageScrollEl.scrollLeft !== before[0] || stageScrollEl.scrollTop !== before[1];
+    const k = Math.pow(GLIDE_DECAY, dt);
+    glide.vx *= k;
+    glide.vy *= k;
+    // Stopped either because it has slowed to nothing or because it has run
+    // into the edge of the site and there is nowhere further to go.
+    if (!moved || Math.hypot(glide.vx, glide.vy) < GLIDE_MIN) {
+      stopGlide();
+      return;
+    }
+    glide.raf = requestAnimationFrame(stepGlide);
+  }
+  function startGlide(vx, vy) {
+    stopGlide();
+    const speed = Math.hypot(vx, vy);
+    if (!(speed > GLIDE_MIN) || !stageScrollEl) return;
+    const k = speed > GLIDE_MAX ? GLIDE_MAX / speed : 1;
+    glide = { vx: vx * k, vy: vy * k, at: performance.now(), raf: 0 };
+    glide.raf = requestAnimationFrame(stepGlide);
+  }
+  // The speed a gesture is running at when it ends: measured over the last
+  // few moves rather than the whole drag, so a flick at the end of a slow
+  // drag still throws the plan.
+  function trackSpeed(st, x, y, now) {
+    const dt = now - (st.speedAt || now);
+    st.speedAt = now;
+    if (!(dt > 0)) return;
+    const vx = (x - st.speedX) / dt;
+    const vy = (y - st.speedY) / dt;
+    st.speedX = x;
+    st.speedY = y;
+    // A long gap means the finger was held still: that is a stop, and the
+    // speed it was going before means nothing any more.
+    const w = dt > 90 ? 0 : 0.72;
+    st.vx = (st.vx || 0) * (1 - w) + vx * w;
+    st.vy = (st.vy || 0) * (1 - w) + vy * w;
+  }
+
   // Pan the stage, and pass whatever scroll it cannot absorb on to the page,
   // the way a nested scroller normally chains.
   function panBy(dx, dy) {
@@ -13933,6 +14013,8 @@
 
   function onPointerDown(e) {
     if (!stageScrollEl) return;
+    // A finger on the glass catches the plan wherever it has coasted to.
+    stopGlide();
     // The primary pointer is the first one down of a gesture, so this is
     // where a new gesture begins -- clear anything the last one left behind.
     // A pointerup can go missing (capture lost, the browser cancelling a
@@ -13961,7 +14043,9 @@
       gestureActive = true;
       gestureStageRect = stageScrollEl.getBoundingClientRect();
       gesturePads = stagePads();
-      pinchState = { startDist: mid.dist || 1, startZoom: zoomLevel, lastX: mid.x, lastY: mid.y };
+      pinchState = { startDist: mid.dist || 1, startZoom: zoomLevel, lastX: mid.x, lastY: mid.y,
+        dist: mid.dist || 1, want: null, raf: 0,
+        speedX: mid.x, speedY: mid.y, speedAt: performance.now(), vx: 0, vy: 0 };
       return;
     }
     if (pointers.size > 2) return;
@@ -13986,6 +14070,11 @@
       pageScrolled: 0,
       moved: 0,
       carrying,
+      speedX: e.clientX,
+      speedY: e.clientY,
+      speedAt: performance.now(),
+      vx: 0,
+      vy: 0,
     };
     gestureEl.style.cursor = 'grabbing';
   }
@@ -14008,13 +14097,14 @@
     if (pinchState && pointers.size >= 2) {
       const mid = pointerMid();
       if (!mid.dist) return;
-      // Both at once, the way every map does it: the span between the
-      // fingers sets the zoom, and the midpoint moving drags the view.
-      // Zooming first, so the pan is measured in the new scale.
-      zoomAround(pinchState.startZoom * (mid.dist / pinchState.startDist), mid.x, mid.y, true);
-      nudgeView(mid.x - pinchState.lastX, mid.y - pinchState.lastY);
-      pinchState.lastX = mid.x;
-      pinchState.lastY = mid.y;
+      // The fingers are read as often as the browser reports them, and the
+      // view is moved once a frame off the latest reading. Doing the work
+      // in the move handler meant several zooms and scrolls in the same
+      // frame -- all but the last of them thrown away, and the picture
+      // stepping rather than tracking the hand.
+      pinchState.want = mid;
+      trackSpeed(pinchState, mid.x, mid.y, performance.now());
+      if (!pinchState.raf) pinchState.raf = requestAnimationFrame(applyPinch);
       return;
     }
 
@@ -14022,6 +14112,7 @@
     const dx = e.clientX - dragState.startClientX;
     const dy = e.clientY - dragState.startClientY;
     dragState.moved = Math.max(dragState.moved, Math.abs(dx), Math.abs(dy));
+    trackSpeed(dragState, e.clientX, e.clientY, performance.now());
     if (dragState.carrying) {
       const p = pointFromEvent(e);
       const hit = spotFromPoint(p.x, p.y);
@@ -14101,6 +14192,11 @@
       // piece you are holding halfway across the room.
       moved: 999,
       carrying: false,
+      speedX: at.x,
+      speedY: at.y,
+      speedAt: performance.now(),
+      vx: 0,
+      vy: 0,
     };
   }
 
@@ -14123,20 +14219,46 @@
 
   function onPointerUp(e) {
     const wasPinching = !!pinchState;
+    // The speed the two fingers were travelling at together, kept before
+    // the pinch is torn down so a pinch that ends with a sweep coasts the
+    // same way a one-finger drag does.
+    const pinchVx = pinchState ? pinchState.vx : 0;
+    const pinchVy = pinchState ? pinchState.vy : 0;
+    // Whatever the last move asked for, done now rather than dropped: the
+    // fingers can come off in the same frame as the move that ended the
+    // pinch, and a pinch that ended that way used to do nothing at all.
+    if (pinchState && pinchState.raf) {
+      cancelAnimationFrame(pinchState.raf);
+      pinchState.raf = 0;
+      applyPinch();
+    }
     pointers.delete(e.pointerId);
     strayPointers.delete(e.pointerId);
     if (pointers.size < 2) pinchState = null;
     if (!pinchState) endGesture();
     // One of a pinch's two fingers has come off. The other is still on the
     // glass and has to go on meaning something.
-    if (wasPinching && !pinchState) resumeSinglePointer();
+    if (wasPinching && !pinchState) {
+      resumeSinglePointer();
+      // Both fingers gone: let whatever the pinch was moving coast.
+      if (!pointers.size) startGlide(pinchVx, pinchVy);
+    }
 
     if (!dragState || e.pointerId !== dragState.pointerId) return;
     const wasDrag = dragState.moved > DRAG_THRESHOLD;
     const wasCarry = dragState.carrying;
+    const vx = dragState.vx;
+    const vy = dragState.vy;
+    const stale = performance.now() - (dragState.speedAt || 0) > 90;
     dragState = null;
     restCursor();
-    if (wasDrag || wasCarry) return;
+    if (wasDrag || wasCarry) {
+      // Let go while it was still moving: keep going, and brake. A finger
+      // that came to rest before it lifted is a placement, not a throw, so
+      // nothing is thrown.
+      if (wasDrag && !wasCarry && !stale) startGlide(vx, vy);
+      return;
+    }
 
     const p = pointFromEvent(e);
     onFloorTap(p.x, p.y);
