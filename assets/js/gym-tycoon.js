@@ -3456,11 +3456,57 @@
   // theme, or a room that has gained or lost something. Members already in a
   // room are kept exactly where they are, so buying something in one room
   // does not teleport everybody in the others.
+  // How many people this room should have in it. The crowd on the plan is a
+  // sample of the real one, so it follows the room's draw rather than the
+  // number of pieces standing in it.
+  function crowdWanted(room, roomIndex) {
+    if (!room) return 0;
+    // A piece lifted to be moved is still this room's: an empty room has
+    // nobody in it, but a room whose only machine is in your hand for a
+    // moment is not an empty room.
+    const inHand = editing && roomIndex !== undefined && editing.roomIndex === roomIndex;
+    if (!room.layout.some(Boolean) && !inHand) return 0;
+    return Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM,
+      Math.round(roomDemand(room) * CROWD_SHARE)));
+  }
+  // Who to let go of when a room has more people in it than it should --
+  // somebody has wandered in from next door, say. Never the person mid-set
+  // on a machine: watching somebody vanish off a treadmill is exactly the
+  // thing that makes a crowd look fake.
+  function crowdKeepRank(m) {
+    if (m.state === 'using') return 0;
+    if (m.state === 'waiting') return 1;
+    if (m.state === 'walking') return 2;
+    return 3;
+  }
+  // Send somebody out through the door rather than taking them off the
+  // floor where they stand. 'walkout' is somebody who gave up waiting --
+  // the gym still has as many people in it, so somebody new comes in behind
+  // them. 'quiet' is the room simply being less busy than it was: they go,
+  // and nobody replaces them.
+  function sendHome(m, why) {
+    if (m.state === 'leaving') return;
+    const place = placements[m.room];
+    m.waitFor = null;
+    m.gear = null;
+    m.gearId = null;
+    m.via = null;
+    m.state = 'leaving';
+    m.leaveFor = why;
+    m.path = place
+      ? [{ gx: place.gx0 + place.cols * 0.5, gy: place.gy0 + place.rows - 0.6 }]
+      : [];
+  }
   function rebuildMembers() {
     const rooms = activeRooms();
+    // Keyed on how many people each room should have, not on what is in it:
+    // lifting a piece to move it changes the layout and changes nothing
+    // about who is in the room, and keying on the layout had the whole
+    // crowd rebuilt -- people appearing and vanishing -- every time
+    // anything was picked up or put down.
     const key = wantsStillness() ? 'still' : state.activeTheme + '|' + staffTotal() + '|'
-      + rooms.map((r) => r.layout.filter(Boolean).length + '.' + roomVibe(r) + '.' + roomCashiers(r)
-        + '.' + roomStaffCount(r, 'trainer') + '.' + Math.round(roomDemand(r))).join(',');
+      + rooms.map((r, i) => crowdWanted(r, i) + '.' + roomCashiers(r)
+        + '.' + roomStaffCount(r, 'trainer')).join(',');
     if (key === membersKey) return;
     membersKey = key;
     if (key === 'still') {
@@ -3471,15 +3517,29 @@
     rooms.forEach((room, roomIndex) => {
       const place = placements[roomIndex];
       if (!place) return;
-      const placed = room.layout.filter(Boolean).length;
-      // How many are in is the room's draw, not its kit: that is the whole
-      // point of the draw. A room with one machine and four people wanting
-      // it has three of them standing about waiting, which is the queue you
-      // can see, and the crowd on screen is a sample of the real one.
-      const want = placed === 0 ? 0
-        : Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM, Math.round(roomDemand(room) * CROWD_SHARE)));
-      const here = members.filter((m) => m.room === roomIndex && !m.staffRole).slice(0, want);
+      const want = crowdWanted(room, roomIndex);
+      const mine = members.filter((m) => m.room === roomIndex && !m.staffRole);
+      // Anybody already on their way out can be turned round if the room
+      // wants them back, which is what a crowd does either side of a
+      // rounding: it does not delete a person and make a new one.
+      const going = mine.filter((m) => m.state === 'leaving' && m.leaveFor === 'quiet');
+      const here = mine.filter((m) => going.indexOf(m) === -1);
+      while (here.length < want && going.length) {
+        const back = going.pop();
+        back.state = 'idle';
+        back.leaveFor = null;
+        back.path = [];
+        here.push(back);
+      }
+      // More in here than the room draws: the extra ones walk out, rather
+      // than being taken off the floor where they stand. The person mid-set
+      // on a machine is never the one asked to go.
+      if (here.length > want) {
+        here.slice().sort((a, b) => crowdKeepRank(a) - crowdKeepRank(b))
+          .slice(want).forEach((m) => sendHome(m, 'quiet'));
+      }
       while (here.length < want) here.push(spawnMember(roomIndex, place));
+      here.push(...going);
       // One of them is the room's regular. Whoever already is stays so; a
       // room that has nobody named yet names its first.
       const reg = regularOf(room);
@@ -3765,11 +3825,7 @@
           // Given up. Out through the way they came in, and somebody else
           // comes in behind them -- a gym that turns people away still has
           // people in it, they are just not the same people.
-          m.waitFor = null;
-          m.gear = null;
-          m.via = null;
-          m.state = 'leaving';
-          m.path = [{ gx: place.gx0 + place.cols * 0.5, gy: place.gy0 + place.rows - 0.6 }];
+          sendHome(m, 'walkout');
           roomWalkout(m.room);
         }
         return;
@@ -3777,6 +3833,12 @@
       // On the way out. At the door they are gone, and the next person
       // through it is somebody new.
       if (m.state === 'leaving' && !m.path.length) {
+        // The room is quieter than it was: they are gone, and nobody comes
+        // in behind them.
+        if (m.leaveFor === 'quiet') {
+          m.gone = true;
+          return;
+        }
         const place = placements[m.room];
         const at = place ? randomFloorSpot(place) : { gx: m.gx, gy: m.gy };
         // A regular keeps their face and their name; anybody else who walks
@@ -3832,6 +3894,8 @@
       const screenward = dx - dy;
       if (Math.abs(screenward) > 0.0001) m.facing = screenward > 0 ? 1 : -1;
     });
+    // Whoever reached the door on their way out this frame.
+    if (members.some((m) => m.gone)) members = members.filter((m) => !m.gone);
   }
 
   // Whoever is standing inside this rectangle right now, wherever they call
