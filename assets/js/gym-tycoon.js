@@ -1291,6 +1291,19 @@
   function roomCashiers(room) {
     return (room && room.staff && room.staff.cashier) || 0;
   }
+  // What the staff hired into one room are worth there. Roles hired into a
+  // room rather than into the gym keep their count on the room itself.
+  function roomStaffCount(room, id) {
+    return (room && room.staff && room.staff[id]) || 0;
+  }
+  function roomStaffEffect(room, id) {
+    const role = staffRole(id);
+    if (!role || !role.first) return 0;
+    const n = roomStaffCount(room, id);
+    let total = 0;
+    for (let i = 0; i < n; i++) total += role.first * Math.pow(STAFF_FALLOFF, i);
+    return total;
+  }
   function cashiersEverywhere() {
     return allRoomsEverywhere().reduce((n, room) => n + roomCashiers(room), 0);
   }
@@ -1705,15 +1718,71 @@
     return (1 + roomEffect(room, 'room')) * vibeMultiplier(room) * rushMultiplierFor(room) * promoMultiplier()
       * (1 + staffEffect('manager')) * franchiseMultiplier() * reputationMultiplier() * (1 - wageShare());
   }
+  // ---- Who is in, and what they can get on ----
+  // A machine serves one person at a time. That is the whole of it, and it
+  // is what makes the number of a thing a question rather than an
+  // arithmetic exercise:
+  //
+  //   * More people want to train here than you have machines, and the
+  //     extra ones queue, get bored and walk out. Every machine is earning
+  //     flat out, and you are turning money away at the door.
+  //   * More machines than there are people to use them, and the spare ones
+  //     stand there earning nothing. The money is in the best of them,
+  //     because that is what gets used first.
+  //
+  // The draw is the room's, not the kit's: decor, the hour, an open day,
+  // your level and (later) the trainers. So the way out of a queue is more
+  // machines, and the way to fill a big room is to make it somewhere people
+  // want to be.
+  const DEMAND_BASE = 4;
+  const DEMAND_PER_LEVEL = 0.045;
+  function roomDemand(room) {
+    if (!room) return 0;
+    const busy = Math.max(rushFactor(), roomEffect(room, 'floor'));
+    return DEMAND_BASE
+      * (1 + 0.55 * (vibeMultiplier(room) - 1))
+      * (0.9 + 0.25 * busy)
+      * (promoRunning() ? 1.6 : 1)
+      * (1 + DEMAND_PER_LEVEL * Math.max(0, currentLevel() - 1))
+      * (1 + roomStaffEffect(room, 'trainer'));
+  }
+  // How many people the room can have on something at once: one per machine.
+  // Decor is not a machine and nobody queues for a pot plant.
+  function roomCapacity(room) {
+    return room.layout.reduce((n, id) => n + (id && gpsOf(id) > 0 ? 1 : 0), 0);
+  }
+  // Which machines are actually being used, as a share each. The busiest
+  // machines are the best ones: people take the best thing that is free, so
+  // demand is dealt out to the highest earners first. That is what stops a
+  // cheap piece added to an already over-built room from dragging the
+  // room's average -- and its takings -- down.
+  function serveShares(room, base) {
+    const out = new Array(base.length).fill(0);
+    const order = [];
+    base.forEach((r, i) => { if (r > 0) order.push(i); });
+    order.sort((a, b) => base[b] - base[a]);
+    let left = roomDemand(room);
+    order.forEach((i) => {
+      const take = Math.max(0, Math.min(1, left));
+      out[i] = take;
+      left -= take;
+    });
+    return out;
+  }
   // What each piece in a room makes a second, slot by slot -- this is what
-  // lands in the pile at its foot.
-  function pieceRates(room, shape) {
+  // lands in the pile at its foot. `full` asks what it would make with
+  // somebody on it the whole time, which is what the room details compares
+  // the real figure against.
+  function pieceRates(room, shape, full) {
     const mult = synergyMultipliers(room, shape);
     const rm = roomMultiplier(room);
-    return room.layout.map((itemId, index) => (itemId ? gpsOf(itemId) * mult[index] * rm : 0));
+    const base = room.layout.map((itemId, index) => (itemId ? gpsOf(itemId) * mult[index] * rm : 0));
+    if (full) return base;
+    const share = serveShares(room, base);
+    return base.map((r, i) => r * share[i]);
   }
-  function computeGps(room, shape) {
-    return pieceRates(room, shape).reduce((sum, r) => sum + r, 0);
+  function computeGps(room, shape, full) {
+    return pieceRates(room, shape, full).reduce((sum, r) => sum + r, 0);
   }
 
   // Total across every room in every theme's chain -- gear earns
@@ -3098,7 +3167,25 @@
   // Roughly two members for every three pieces of kit, so a room fills up as
   // it is fitted out, with a ceiling so a big room does not turn into a
   // crowd scene that costs more to draw than it is worth.
-  const MEMBERS_PER_PIECE = 0.45;
+  // How long somebody will stand by a machine waiting for it before they
+  // give up and go home. Long enough to see it happen, short enough that a
+  // room with one machine and a queue is obviously a room with a problem.
+  const QUEUE_PATIENCE = 16;
+  // Who has walked out lately, as a rolling minute. Not saved: it is a
+  // reading of what is happening now, not part of the gym.
+  let walkouts = [];
+  function roomWalkout(roomIndex) {
+    walkouts.push({ room: roomIndex, at: Date.now() });
+    if (walkouts.length > 60) walkouts = walkouts.slice(-40);
+  }
+  function walkoutsLately(roomIndex) {
+    const from = Date.now() - 60000;
+    return walkouts.filter((w) => w.at >= from && (roomIndex === undefined || w.room === roomIndex)).length;
+  }
+  // What share of a room's draw is drawn as figures on the plan. A gym of
+  // four people to a room reads as a gym; twenty would read as a riot and
+  // cost twenty times as much to paint.
+  const CROWD_SHARE = 0.55;
   const MAX_MEMBERS_PER_ROOM = 4;
 
   let members = [];
@@ -3298,7 +3385,8 @@
   function rebuildMembers() {
     const rooms = activeRooms();
     const key = wantsStillness() ? 'still' : state.activeTheme + '|' + staffTotal() + '|'
-      + rooms.map((r) => r.layout.filter(Boolean).length + '.' + roomVibe(r) + '.' + roomCashiers(r)).join(',');
+      + rooms.map((r) => r.layout.filter(Boolean).length + '.' + roomVibe(r) + '.' + roomCashiers(r)
+        + '.' + Math.round(roomDemand(r))).join(',');
     if (key === membersKey) return;
     membersKey = key;
     if (key === 'still') {
@@ -3310,12 +3398,12 @@
       const place = placements[roomIndex];
       if (!place) return;
       const placed = room.layout.filter(Boolean).length;
-      // A room people want to be in has more people in it, so the fittings
-      // show up in the crowd as well as in the takings.
-      const draw = placed * MEMBERS_PER_PIECE * vibeMultiplier(room)
-        * (0.55 + 0.75 * rushFactor()) * (promoRunning() ? 1.4 : 1);
+      // How many are in is the room's draw, not its kit: that is the whole
+      // point of the draw. A room with one machine and four people wanting
+      // it has three of them standing about waiting, which is the queue you
+      // can see, and the crowd on screen is a sample of the real one.
       const want = placed === 0 ? 0
-        : Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM, Math.round(draw)));
+        : Math.max(1, Math.min(MAX_MEMBERS_PER_ROOM, Math.round(roomDemand(room) * CROWD_SHARE)));
       const here = members.filter((m) => m.room === roomIndex && !m.staffRole).slice(0, want);
       while (here.length < want) here.push(spawnMember(roomIndex, place));
       // One of them is the room's regular. Whoever already is stays so; a
@@ -3439,6 +3527,41 @@
     m.state = 'walking';
   }
 
+  // Point somebody at one machine and say where they have to stand to use
+  // it. Shared by the walk over to a free machine and by the release of
+  // somebody who has been waiting for a busy one, so both arrive standing
+  // in the same place.
+  function aimAtGear(m, room, place, i) {
+    const id = room.layout[i];
+    const spot = spotOf(room, i, { cols: place.cols, rows: place.rows });
+    const zone = accessZone(id, spot, turnAt(room, i));
+    m.gear = i;
+    m.waitFor = null;
+    if (zone) {
+      // In through the floor kept clear for getting on, then either stand
+      // there (a cable stack is worked from in front of it) or step onto
+      // the piece (a treadmill is run on, not beside).
+      const inZone = { gx: place.gx0 + (zone.u0 + zone.u1) / 2, gy: place.gy0 + (zone.v0 + zone.v1) / 2 };
+      m.via = inZone;
+      return USED_FROM_ZONE[id] ? inZone : { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v };
+    }
+    m.via = null;
+    // Stand in front of the piece rather than inside it: clear of its own
+    // footprint, and toward the viewer so the gear is not hidden.
+    const clear = (footprintOf(id) / 2 + 0.4) * TILES_PER_METRE;
+    let goal = {
+      gx: place.gx0 + clampTo(spot.u + clear * 0.5, 0.6, Math.max(0.6, place.cols - 0.6)),
+      gy: place.gy0 + clampTo(spot.v + clear * 0.8, 0.6, Math.max(0.6, place.rows - 0.6)),
+    };
+    // A piece against the notch has its front over the edge: stand beside
+    // it instead.
+    if (!onFloorOf(place, goal.gx, goal.gy)) {
+      goal = { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v + clear * 0.4 };
+      if (!onFloorOf(place, goal.gx, goal.gy)) goal = { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v };
+    }
+    return goal;
+  }
+
   function chooseTarget(m) {
     if (m.staffRole === 'cashier') { chooseCashierTarget(m); return; }
     const rooms = activeRooms();
@@ -3452,11 +3575,13 @@
     }
 
     const free = [];
+    const busy = [];
     room.layout.forEach((id, i) => {
       // Fittings are scenery: nobody queues to use a pot plant.
       if (!id || isDecor(id)) return;
       const taken = members.some((o) => o !== m && o.room === dest && o.gear === i);
-      if (!taken) free.push(i);
+      if (taken) busy.push(i);
+      else free.push(i);
     });
 
     let goal;
@@ -3466,36 +3591,35 @@
     const favSlot = reg && reg.fav ? free.find((i) => room.layout[i] === reg.fav) : undefined;
     if (free.length && Math.random() < 0.82) {
       const i = favSlot !== undefined && Math.random() < 0.75 ? favSlot : pickOf(free);
-      const id = room.layout[i];
+      goal = aimAtGear(m, room, place, i);
+    } else if (!free.length && busy.length && !m.staffRole && Math.random() < 0.75) {
+      // Everything is in use. Rather than wander off, wait by one of them --
+      // and give up on it after a while, which is the room telling you it
+      // needs another machine.
+      const i = pickOf(busy);
       const spot = spotOf(room, i, { cols: place.cols, rows: place.rows });
-      const zone = accessZone(id, spot, turnAt(room, i));
-      m.gear = i;
-      if (zone) {
-        // In through the floor kept clear for getting on, then either stand
-        // there (a cable stack is worked from in front of it) or step onto
-        // the piece (a treadmill is run on, not beside).
-        const inZone = { gx: place.gx0 + (zone.u0 + zone.u1) / 2, gy: place.gy0 + (zone.v0 + zone.v1) / 2 };
-        m.via = inZone;
-        goal = USED_FROM_ZONE[id] ? inZone : { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v };
-      } else {
-        m.via = null;
-        // Stand in front of the piece rather than inside it: clear of its
-        // own footprint, and toward the viewer so the gear is not hidden.
-        const clear = (footprintOf(id) / 2 + 0.4) * TILES_PER_METRE;
-        goal = {
-          gx: place.gx0 + clampTo(spot.u + clear * 0.5, 0.6, Math.max(0.6, place.cols - 0.6)),
-          gy: place.gy0 + clampTo(spot.v + clear * 0.8, 0.6, Math.max(0.6, place.rows - 0.6)),
-        };
-        // A piece against the notch has its front over the edge: stand
-        // beside it instead.
-        if (!onFloorOf(place, goal.gx, goal.gy)) {
-          goal = { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v + clear * 0.4 };
-          if (!onFloorOf(place, goal.gx, goal.gy)) goal = { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v };
-        }
+      const zone = accessZone(room.layout[i], spot, turnAt(room, i));
+      const at = zone
+        ? { gx: place.gx0 + (zone.u0 + zone.u1) / 2, gy: place.gy0 + (zone.v0 + zone.v1) / 2 }
+        : { gx: place.gx0 + spot.u, gy: place.gy0 + spot.v + 1.6 };
+      // A step to the side, so two people waiting for the same machine are
+      // not standing inside one another.
+      const nth = members.filter((o) => o !== m && o.waitFor === i && o.room === dest).length;
+      m.via = null;
+      m.gear = null;
+      m.waitFor = i;
+      // A metre clear of the machine and a metre apart from each other, in
+      // front of it where they can be seen -- standing on the person using
+      // it is not a queue, it is a bug.
+      goal = { gx: at.gx + 0.6, gy: at.gy + 2.8 + nth * 2.4 };
+      if (!onFloorOf(place, goal.gx, goal.gy)) {
+        goal = { gx: at.gx + 2.8 + nth * 2.4, gy: at.gy + 0.6 };
+        if (!onFloorOf(place, goal.gx, goal.gy)) goal = at;
       }
     } else {
       m.via = null;
       m.gear = null;
+      m.waitFor = null;
       goal = randomFloorSpot(place);
     }
 
@@ -3541,6 +3665,50 @@
         if (m.timer <= 0) m.state = 'idle';
         return;
       }
+      // Standing by a machine somebody else is on. They get on the moment
+      // it frees up, and give up on it if it does not.
+      if (m.state === 'waiting') {
+        m.timer -= dt;
+        m.phase += dt * 1.1;
+        const i = m.waitFor;
+        const place = placements[m.room];
+        if (i === null || i === undefined || !room.layout[i] || !place) {
+          m.waitFor = null;
+          m.state = 'idle';
+          return;
+        }
+        const taken = members.some((o) => o !== m && o.room === m.room && o.gear === i);
+        if (!taken) {
+          const goal = aimAtGear(m, room, place, i);
+          m.path = m.via && (m.via.gx !== goal.gx || m.via.gy !== goal.gy) ? [m.via, goal] : [goal];
+          m.state = 'walking';
+          return;
+        }
+        if (m.timer <= 0) {
+          // Given up. Out through the way they came in, and somebody else
+          // comes in behind them -- a gym that turns people away still has
+          // people in it, they are just not the same people.
+          m.waitFor = null;
+          m.gear = null;
+          m.via = null;
+          m.state = 'leaving';
+          m.path = [{ gx: place.gx0 + place.cols * 0.5, gy: place.gy0 + place.rows - 0.6 }];
+          roomWalkout(m.room);
+        }
+        return;
+      }
+      // On the way out. At the door they are gone, and the next person
+      // through it is somebody new.
+      if (m.state === 'leaving' && !m.path.length) {
+        const place = placements[m.room];
+        const at = place ? randomFloorSpot(place) : { gx: m.gx, gy: m.gy };
+        // A regular keeps their face and their name; anybody else who walks
+        // out is replaced by somebody who does not look like them.
+        const look = m.regular ? {} : freshLook(m.room);
+        Object.assign(m, look, { gx: at.gx, gy: at.gy, state: 'idle', timer: 0,
+          gear: null, gearId: null, waitFor: null, via: null, path: [] });
+        return;
+      }
       if (m.state === 'idle') {
         chooseTarget(m);
         return;
@@ -3568,6 +3736,12 @@
           m.state = 'pausing';
           m.timer = m.gear === null ? 1.5 + Math.random() * 2 : 0.6;
           m.gear = null;
+          return;
+        }
+        if (m.state === 'leaving') return;
+        if (m.gear === null && m.waitFor !== null && m.waitFor !== undefined) {
+          m.state = 'waiting';
+          m.timer = QUEUE_PATIENCE * (0.7 + Math.random() * 0.6);
           return;
         }
         m.state = m.gear === null ? 'idle' : 'using';
@@ -4850,6 +5024,14 @@
       const before = arrangedGps * (1 + vibePct / 100);
       rows.push(['Busy hour', '+' + rushPct + '%', '+' + formatNum(before * (rushPct / 100)) + '/s']);
     }
+    // And what the machines nobody is on cost you. Written as what it takes
+    // off rather than left for the reader to notice that the rows above do
+    // not add up to the total.
+    const fullGps = computeGps(room, shape, true);
+    if (fullGps > 0 && roomGps < fullGps - 0.5) {
+      rows.push(['Nobody on them', '-' + Math.round((1 - roomGps / fullGps) * 100) + '%',
+        '-' + formatNum(fullGps - roomGps) + '/s']);
+    }
     // How busy the gym is, as a bar: this is what the busy-hour row above
     // comes from, and it used to be a badge in the toolbar with nowhere to
     // explain itself.
@@ -4896,13 +5078,45 @@
         ? '<ul class="tycoon-vibe-list">' + effectLines.map((l) => '<li>' + l + '</li>').join('') + '</ul>'
         : '')
       + '</div>';
+    // Who is in, against what they can get on. This is the room's own
+    // question -- more machines, or a room people want to be in -- and it
+    // is the one thing the breakdown below cannot say in a percentage.
+    const demand = roomDemand(room);
+    const capacity = roomCapacity(room);
+    const served = Math.min(demand, capacity);
+    const waiting = Math.max(0, demand - capacity);
+    const idle = Math.max(0, capacity - demand);
+    const left = walkoutsLately(state.activeRoomIndex);
+    const fill = capacity > 0 ? Math.min(1, demand / capacity) : 0;
+    const crowdNote = capacity === 0
+      ? 'Nothing in here for anybody to use yet.'
+      : waiting >= 0.5
+        ? 'More people want to train here than you have machines for. Every machine is '
+          + 'earning flat out and the rest are queueing — another machine is money you '
+          + 'are turning away.'
+        : idle >= 0.75
+          ? 'You have more machines than there are people to use them, so the spare ones '
+            + 'stand idle. Decor, trainers and the busy hours bring more people in; the '
+            + 'best machines are the ones that get used.'
+          : 'Well matched: about as many people as there are machines for them.';
+    const crowdHtml = '<div class="tycoon-busy">'
+      + '<div class="tycoon-vibe-top">'
+        + '<span class="tycoon-vibe-name">Who is in</span>'
+        + '<span class="tycoon-vibe-num">' + demand.toFixed(1) + ' want to train · '
+          + capacity + ' machine' + (capacity === 1 ? '' : 's') + '</span>'
+      + '</div>'
+      + '<span class="tycoon-vibe-bar is-busy"><span class="tycoon-vibe-fill" style="width:'
+        + Math.round(fill * 100) + '%"></span></span>'
+      + '<p class="tycoon-vibe-note">' + crowdNote
+        + (left ? ' ' + left + ' walked out in the last minute.' : '') + '</p>'
+      + '</div>';
     const reg = regularOf(room);
     const regHtml = reg
       ? '<p class="tycoon-regular"><b>' + reg.name + '</b> is a regular here, and comes in for the '
         + itemById(reg.fav).name + '.</p>'
       : '';
     const cell = (text, cls) => '<span class="' + cls + '"></span>';
-    synergyEl.innerHTML = busyHtml + vibeHtml + regHtml + '<p class="tycoon-bd-head"></p>'
+    synergyEl.innerHTML = crowdHtml + busyHtml + vibeHtml + regHtml + '<p class="tycoon-bd-head"></p>'
       + rows.map(() => '<span class="tycoon-bd-row">' + cell('', 'tycoon-bd-label')
         + cell('', 'tycoon-bd-pct') + cell('', 'tycoon-bd-num') + '</span>').join('')
       + '<span class="tycoon-bd-row is-total">' + cell('', 'tycoon-bd-label')

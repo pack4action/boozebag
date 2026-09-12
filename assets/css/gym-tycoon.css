@@ -3421,6 +3421,8 @@ body.is-photo .tycoon-room-stage {
   pointer-events: none;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.55) 100%);
 }
+/* display:flex above beats the browser's own [hidden] rule, so say it. */
+.tycoon-photo-bar[hidden] { display: none !important; }
 .tycoon-photo-bar > * { pointer-events: auto; }
 .tycoon-photo-cap { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .tycoon-photo-name {
