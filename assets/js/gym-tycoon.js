@@ -1183,7 +1183,7 @@
   // supposed to be the reward. What it does cost is real: every piece of
   // gear, every room past the first, and everyone on the payroll.
   const FRANCHISE_MIN_LIFETIME = 1e7;
-  const FRANCHISE_PER_POINT = 0.15;
+  const FRANCHISE_PER_POINT = 0.05;
   function franchisePoints() {
     return (state.franchise && state.franchise.points) || 0;
   }
