@@ -1230,6 +1230,19 @@
       note: (n) => (n === 1 ? 'one cashier' : n + ' cashiers') + ' walking this room',
     },
     {
+      id: 'trainer',
+      name: 'Personal Trainer',
+      baseCost: 45000,
+      unlockLevel: 4,
+      // Hired into a room, and what they bring is people: classes, plans,
+      // somebody to show you how the thing works. That is the draw of the
+      // room going up, which is only worth anything if there are machines
+      // for them to get on -- which is exactly the trade-off wanted.
+      first: 0.22,
+      perRoom: true,
+      note: (n) => '+' + Math.round(n * 100) + '% more people want to train here',
+    },
+    {
       id: 'cleaner',
       name: 'Cleaner',
       baseCost: 60000,
@@ -1268,6 +1281,9 @@
   // one keeps a small room clear, three keep a full one clear, and a fourth
   // would only follow the third about.
   const CASHIERS_PER_ROOM = 3;
+  // Trainers are hired into a room as well. Three is plenty: the third is
+  // worth about half what the first was.
+  const TRAINERS_PER_ROOM = 3;
   // A Corner Office Pod anywhere in the gym adds one more to every room.
   // Three to a room, one more for a Corner Office Pod, and the levels add
   // their own. The clamp a save is read through uses the most this can be.
@@ -1291,6 +1307,15 @@
   function roomCashiers(room) {
     return (room && room.staff && room.staff.cashier) || 0;
   }
+  // The most of a room-hired role one room may have.
+  function roomStaffCap(id) {
+    if (id === 'cashier') return cashiersPerRoom();
+    if (id === 'trainer') return TRAINERS_PER_ROOM;
+    return 0;
+  }
+  function roomStaffEverywhere(id) {
+    return allRoomsEverywhere().reduce((n, room) => n + roomStaffCount(room, id), 0);
+  }
   // What the staff hired into one room are worth there. Roles hired into a
   // room rather than into the gym keep their count on the room itself.
   function roomStaffCount(room, id) {
@@ -1302,14 +1327,56 @@
     const n = roomStaffCount(room, id);
     let total = 0;
     for (let i = 0; i < n; i++) total += role.first * Math.pow(STAFF_FALLOFF, i);
-    return total;
+    return total * staffLevelMult(id);
   }
   function cashiersEverywhere() {
     return allRoomsEverywhere().reduce((n, room) => n + roomCashiers(room), 0);
   }
   function staffCount(id) {
-    if (id === 'cashier') return cashiersEverywhere();
+    const role = staffRole(id);
+    if (role && role.perRoom) return roomStaffEverywhere(id);
     return (state.staff && state.staff[id]) || 0;
+  }
+
+  // ---- Training ----
+  // Hiring another body costs wages for as long as they are on the payroll.
+  // Training the ones you have costs money once and nothing after, and it
+  // is the only way past the caps. So a payroll is a real choice: more
+  // people, or better people.
+  const STAFF_MAX_LEVEL = 5;
+  const STAFF_LEVEL_STEP = 0.35;
+  function staffLevel(id) {
+    const n = (state.staffLevel && state.staffLevel[id]) || 1;
+    return Math.max(1, Math.min(STAFF_MAX_LEVEL, n));
+  }
+  function staffLevelMult(id) {
+    return 1 + STAFF_LEVEL_STEP * (staffLevel(id) - 1);
+  }
+  function trainCost(id) {
+    const role = staffRole(id);
+    if (!role) return 0;
+    return Math.ceil(role.baseCost * 6 * Math.pow(3.4, staffLevel(id) - 1));
+  }
+  function canTrain(id) {
+    return staffLevel(id) < STAFF_MAX_LEVEL && staffCount(id) > 0;
+  }
+  function trainStaff(id) {
+    if (!canTrain(id)) return;
+    const cost = trainCost(id);
+    if (state.balance < cost) return;
+    state.balance -= cost;
+    if (!state.staffLevel) state.staffLevel = {};
+    state.staffLevel[id] = staffLevel(id) + 1;
+    addXp(xpForSpend(cost));
+    sfx.thunk();
+    membersKey = '';
+    recomputeStats();
+    refreshStaffUI();
+    refreshHud();
+    refreshLevelUI();
+    renderScene();
+    toast(staffRole(id).name + 's trained to level ' + staffLevel(id), 'good');
+    save();
   }
   function staffTotal() {
     return STAFF_ROLES.reduce((sum, r) => sum + staffCount(r.id), 0);
@@ -1321,7 +1388,7 @@
     const count = n === undefined ? staffCount(id) : n;
     let total = 0;
     for (let i = 0; i < count; i++) total += role.first * Math.pow(STAFF_FALLOFF, i);
-    return total;
+    return total * staffLevelMult(id);
   }
   function staffHireCost(id) {
     const role = staffRole(id);
@@ -2071,7 +2138,9 @@
         // slot that has no counter in it any more.
         // Who works this room.
         staff: { cashier: Math.max(0, Math.min(CASHIERS_PER_ROOM_MAX,
-          (r && r.staff && r.staff.cashier) | 0)) },
+          (r && r.staff && r.staff.cashier) | 0)),
+          trainer: Math.max(0, Math.min(TRAINERS_PER_ROOM,
+            (r && r.staff && r.staff.trainer) | 0)) },
         batches: new Array(n).fill(null).map((_, k) => {
           const id = old[k] || null;
           if (!RECIPES_OF[id]) return [];
@@ -2285,6 +2354,8 @@
       gymName: '',
       design: defaultDesign(),
       staff: {},
+      // How far each role has been trained, one level per role.
+      staffLevel: {},
       larder: {},
       franchise: { points: 0, runs: 0 },
       owned: {},
@@ -3297,7 +3368,10 @@
       shirt: staffRoleId ? STAFF_SHIRT : look.shirt,
       skin: look.skin,
       hair: look.hair,
-      speed: MEMBER_WALK * (staffRoleId === 'cashier' ? 1.05 : staffRoleId ? 0.75 : 0.85 + Math.random() * 0.35),
+      // A trained cashier gets round the room faster, which is the whole of
+      // what a cashier is worth.
+      speed: MEMBER_WALK * (staffRoleId === 'cashier' ? 1.05 * staffLevelMult('cashier')
+        : staffRoleId ? 0.75 : 0.85 + Math.random() * 0.35),
       // Which piece they are on, once they get there, so the figure knows
       // whether it is running, curling or sitting in a sauna.
       gearId: null,
@@ -3386,7 +3460,7 @@
     const rooms = activeRooms();
     const key = wantsStillness() ? 'still' : state.activeTheme + '|' + staffTotal() + '|'
       + rooms.map((r) => r.layout.filter(Boolean).length + '.' + roomVibe(r) + '.' + roomCashiers(r)
-        + '.' + Math.round(roomDemand(r))).join(',');
+        + '.' + roomStaffCount(r, 'trainer') + '.' + Math.round(roomDemand(r))).join(',');
     if (key === membersKey) return;
     membersKey = key;
     if (key === 'still') {
@@ -3427,13 +3501,16 @@
       next.push(...here);
     });
 
-    // Cashiers stand in the room they were hired into, one figure per hire.
+    // Staff hired into a room stand in the room they were hired into, one
+    // figure per hire.
     rooms.forEach((room, roomIndex) => {
       if (!placements[roomIndex]) return;
-      const kept = members.filter((m) => m.staffRole === 'cashier' && m.room === roomIndex);
-      for (let k = 0; k < roomCashiers(room); k++) {
-        next.push(kept[k] || spawnMember(roomIndex, placements[roomIndex], 'cashier'));
-      }
+      STAFF_ROLES.filter((r) => r.perRoom).forEach((role) => {
+        const kept = members.filter((m) => m.staffRole === role.id && m.room === roomIndex);
+        for (let k = 0; k < roomStaffCount(room, role.id); k++) {
+          next.push(kept[k] || spawnMember(roomIndex, placements[roomIndex], role.id));
+        }
+      });
     });
     // The other roles are spread across the rooms that are open, one room
     // at a time, so two of them are in two rooms rather than both in the
@@ -4274,12 +4351,15 @@
         + '</span>'
         + '<span class="tycoon-hire-actions">'
           + '<button class="tycoon-hire-let-go" type="button" hidden>Let go</button>'
+          + '<button class="tycoon-hire-train" type="button" hidden></button>'
           + '<button class="tycoon-hire-btn" type="button">Hire</button>'
         + '</span>';
       const btn = row.querySelector('.tycoon-hire-btn');
       const letGo = row.querySelector('.tycoon-hire-let-go');
+      const train = row.querySelector('.tycoon-hire-train');
       btn.addEventListener('click', () => hireStaff(role.id));
       letGo.addEventListener('click', () => letStaffGo(role.id));
+      train.addEventListener('click', () => trainStaff(role.id));
       staffListEl.appendChild(row);
       hireEls[role.id] = {
         root: row,
@@ -4287,6 +4367,7 @@
         note: row.querySelector('.tycoon-hire-note'),
         btn,
         letGo,
+        train,
       };
     });
   }
@@ -4497,14 +4578,27 @@
       const els = hireEls[role.id];
       if (!els) return;
       const unlocked = unlockedFor(role);
-      const here = role.perRoom ? roomCashiers(activeRoom()) : 0;
+      const here = role.perRoom ? roomStaffCount(activeRoom(), role.id) : 0;
       const have = role.perRoom ? here : staffCount(role.id);
       const cost = staffHireCost(role.id);
       els.root.classList.toggle('is-locked', !unlocked);
       setText(els.count, role.perRoom
-        ? ' ' + roomLabel(state.activeRoomIndex) + ' \u00b7 ' + here + ' of ' + cashiersPerRoom()
+        ? ' ' + roomLabel(state.activeRoomIndex) + ' \u00b7 ' + here + ' of ' + roomStaffCap(role.id)
         : have ? ' x' + have : '');
       els.letGo.hidden = !have;
+      // Training: one price, no wages after it, and the only way past the
+      // caps on how many you can have.
+      const trainable = unlocked && canTrain(role.id);
+      els.train.hidden = !trainable;
+      if (trainable) {
+        const tc = trainCost(role.id);
+        setHtml(els.train, 'Train<span class="btn-long"> to</span> L' + (staffLevel(role.id) + 1)
+          + '<span class="btn-long"> for</span> $' + formatNum(tc));
+        els.train.disabled = state.balance < tc;
+      }
+      const lv = staffLevel(role.id);
+      const lvNote = lv > 1 ? 'Level ' + lv + ', +' + Math.round((staffLevelMult(role.id) - 1) * 100)
+        + '% each \u00b7 ' : '';
       if (!unlocked) {
         setText(els.note, 'From level ' + role.unlockLevel);
         setText(els.btn, 'Locked');
@@ -4512,9 +4606,17 @@
         return;
       }
       if (role.perRoom) {
-        const full = here >= cashiersPerRoom();
-        setText(els.note, full ? 'Fully staffed'
-          : 'Walks to the bubbles and empties them \u00b7 ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings each');
+        const cap = roomStaffCap(role.id);
+        const full = here >= cap;
+        // With none hired here, the line says what one would bring rather
+        // than reporting plus nothing.
+        const worth = here ? roomStaffEffect(activeRoom(), role.id)
+          : role.first * staffLevelMult(role.id);
+        const what = role.id === 'cashier'
+          ? 'Walks to the bubbles and empties them'
+          : role.note(worth);
+        setText(els.note, lvNote + (full ? 'Fully staffed here'
+          : what + ' \u00b7 ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings each'));
         setText(els.btn, full ? 'Room full' : 'Hire here for $' + formatNum(cost));
         els.btn.disabled = full || state.balance < cost;
         return;
@@ -4522,14 +4624,14 @@
       const cap = staffCap(role.id);
       if (cap > 0) setText(els.count, ' ' + have + ' of ' + cap);
       if (staffFull(role.id)) {
-        setText(els.note, role.note(have) + ' \u00b7 that is the most you can have');
+        setText(els.note, lvNote + role.note(have) + ' \u00b7 that is the most you can have');
         setText(els.btn, 'Full');
         els.btn.disabled = true;
         return;
       }
       // What they are worth now, and what one more would add on top.
       const next = staffEffect(role.id, have + 1) - staffEffect(role.id, have);
-      setText(els.note, (have ? role.note(have) + ' \u00b7 ' : '')
+      setText(els.note, lvNote + (have ? role.note(have) + ' \u00b7 ' : '')
         + 'next +' + (role.id === 'cleaner'
           ? next.toFixed(1) + ' vibe' : Math.round(next * 100) + '%')
         + ' for ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings');
@@ -4547,10 +4649,11 @@
   // see in the numbers and then undo, not one you are stuck with.
   function letStaffGo(id) {
     if (staffCount(id) <= 0) return;
-    if (id === 'cashier') {
+    const role = staffRole(id);
+    if (role && role.perRoom) {
       const room = activeRoom();
-      if (!room || roomCashiers(room) <= 0) return;
-      room.staff.cashier = roomCashiers(room) - 1;
+      if (!room || roomStaffCount(room, id) <= 0) return;
+      room.staff[id] = roomStaffCount(room, id) - 1;
     } else {
       state.staff[id] = staffCount(id) - 1;
     }
@@ -4568,17 +4671,17 @@
     if (staffFull(id)) return;
     const cost = staffHireCost(id);
     if (state.balance < cost) return;
-    if (id === 'cashier') {
+    if (role.perRoom) {
       const room = activeRoom();
-      if (!room || roomCashiers(room) >= cashiersPerRoom()) return;
+      if (!room || roomStaffCount(room, id) >= roomStaffCap(id)) return;
     }
     const before = currentLevel();
     state.balance -= cost;
     sfx.thunk();
-    if (id === 'cashier') {
+    if (role.perRoom) {
       const room = activeRoom();
       if (!room.staff) room.staff = {};
-      room.staff.cashier = roomCashiers(room) + 1;
+      room.staff[id] = roomStaffCount(room, id) + 1;
     } else {
       if (!state.staff) state.staff = {};
       state.staff[id] = staffCount(id) + 1;

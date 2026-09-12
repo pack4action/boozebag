@@ -834,7 +834,15 @@
   padding: 8px 10px;
 }
 .tycoon-hire.is-locked { opacity: 0.5; }
-.tycoon-hire-who { min-width: 0; }
+.tycoon-hire-who { min-width: 0; flex: 1 1 auto; }
+/* Three controls on a row leaves the line about the job one word wide on
+   a phone, so on a narrow screen the buttons drop to their own line under
+   it rather than squeezing the words out. */
+@media (max-width: 560px) {
+  .tycoon-hire { flex-wrap: wrap; }
+  .tycoon-hire-who { flex: 1 1 100%; }
+  .tycoon-hire-actions { margin-left: auto; }
+}
 .tycoon-hire-name { display: block; font-size: 12px; font-weight: 700; }
 .tycoon-hire-note {
   display: block;
@@ -868,6 +876,23 @@
 }
 
 .tycoon-hire-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+/* Training: one price, no wages after it. Reads as an upgrade rather than
+   as another hire, so it is marked out from both other buttons. */
+.tycoon-hire-train {
+  border: 1px solid rgba(255, 209, 102, 0.45);
+  border-radius: 8px;
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+  cursor: pointer;
+  color: #ffd166;
+  background: rgba(255, 209, 102, 0.10);
+  white-space: nowrap;
+}
+.tycoon-hire-train:hover:not(:disabled) { background: rgba(255, 209, 102, 0.2); }
+.tycoon-hire-train:disabled { opacity: 0.45; cursor: default; }
+.tycoon-hire-train[hidden] { display: none !important; }
 .tycoon-hire-let-go {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
