@@ -17,6 +17,10 @@
   let undoTimer = null;
   const undoBtn = document.getElementById('btn-undo');
 
+  // How many device pixels one unit of the drawing is, which is what says
+  // whether a detail is worth drawing at all.
+  let backScale = 1;
+
   const SAVE_KEY = 'gymTycoonSave';
   const COST_GROWTH = 1.15;
   const TICK_MS = 100;
@@ -1964,22 +1968,45 @@
     return f >= 0.97 ? 4 : f >= 0.62 ? 3 : f >= 0.28 ? 2 : 1;
   }
   let pileLevelsKey = '';
+  // Scoring a room -- its synergies, its demand, how the queues split
+  // between its machines -- is the same sum for every room in every
+  // location, and the money tick wanted it ten times a second. None of it
+  // moves unless the player does something, so it is worked out a couple of
+  // times a second instead and the answer kept, caps and all. Each room
+  // picks its own moment to refresh, so they do not all land on one tick.
+  const earnRateCache = new WeakMap();
+  function earnRatesFor(room, shape, now) {
+    let held = earnRateCache.get(room);
+    if (held && now < held.until) return held;
+    const rates = pieceRates(room, shape);
+    const capS = pileCapSecondsFor(room);
+    held = {
+      until: now + 340 + Math.random() * 160,
+      rates,
+      caps: rates.map((r) => (r > 0 ? niceCap(r * capS) : 0)),
+    };
+    earnRateCache.set(room, held);
+    return held;
+  }
   function earnTick(dt) {
     let direct = 0;
     let key = '';
+    const now = Date.now();
     THEMES.forEach((t) => {
       const rooms = state.themeRooms[t.id] || [];
       if (!chainHasDesk(rooms)) return;
       rooms.forEach((room, i) => {
-        const rates = pieceRates(room, roomShapeFor(t.id, i));
+        const held = earnRatesFor(room, roomShapeFor(t.id, i), now);
+        const rates = held.rates;
         const cash = roomCash(room);
-        const capS = pileCapSecondsFor(room);
         rates.forEach((r, k) => {
-          if (r <= 0) return;
+          // A piece sold in the last half-second is still in the kept
+          // figures; an empty slot never earns.
+          if (r <= 0 || !room.layout[k]) return;
           // Membership fees are paid at the desk, straight into the till.
           // The desk earns nothing, and nothing else pays in by itself.
           if (room.layout[k] === 'frontdesk') return;
-          const cap = niceCap(r * capS);
+          const cap = held.caps[k];
           cash[k] = Math.min(cap, cash[k] + r * dt);
           key += pileLevel(cash[k], cap);
         });
@@ -6607,6 +6634,7 @@
       floorCanvas.height = targetH;
     }
     floorCtx.setTransform(scale, 0, 0, scale, 0, 0);
+    backScale = scale;
   }
 
   // A location's colours as painted: the theme's own, with whatever wall
@@ -13207,6 +13235,9 @@
     stillOverCtx.setTransform(scale, 0, 0, scale, 0, 0);
   }
 
+  // How far past the window the still layer is copied. Wide enough that a
+  // flick cannot show the edge of it before the next frame arrives.
+  const COPY_MARGIN = 260;
   function paintScene() {
     ratesChanged();
     crowdBoxes = [];
@@ -13288,10 +13319,23 @@
     // Anything the window cannot see is not drawn. The floor being worked
     // on is always drawn, so a piece in hand never blinks out.
     const seen = visibleCanvasBox();
+    // Only the part of the plan the window can see, with a wide margin so a
+    // pan cannot outrun it. The plan is a couple of million pixels and the
+    // window shows a fifth of them; copying the rest of the still layer
+    // over, every frame, was the largest fixed cost a frame had.
+    const view = seen ? {
+      x0: Math.max(0, Math.floor(seen.x0 - COPY_MARGIN)),
+      y0: Math.max(0, Math.floor(seen.y0 - COPY_MARGIN)),
+      x1: Math.min(W, Math.ceil(seen.x1 + COPY_MARGIN)),
+      y1: Math.min(H, Math.ceil(seen.y1 + COPY_MARGIN)),
+    } : { x0: 0, y0: 0, x1: W, y1: H };
+    const viewW = Math.max(1, view.x1 - view.x0);
+    const viewH = Math.max(1, view.y1 - view.y0);
     const stamp = (src, mode) => {
       floorCtx.save();
       if (mode) floorCtx.globalCompositeOperation = mode;
-      floorCtx.drawImage(src, 0, 0, W, H);
+      floorCtx.drawImage(src, view.x0, view.y0, viewW, viewH,
+        view.x0, view.y0, viewW, viewH);
       floorCtx.restore();
     };
     // 'copy' puts the still layer down and clears whatever was there in the
@@ -13369,7 +13413,7 @@
       floorCtx.save();
       floorCtx.globalCompositeOperation = 'source-atop';
       floorCtx.fillStyle = 'rgba(' + sky.r + ',' + sky.g + ',' + sky.b + ',' + sky.a.toFixed(3) + ')';
-      floorCtx.fillRect(0, 0, W, H);
+      floorCtx.fillRect(view.x0, view.y0, viewW, viewH);
       floorCtx.restore();
     }
   }
@@ -13763,6 +13807,19 @@
     });
   }
   const TAG_H = 18;
+  // How wide a tag's text is. Asking the canvas costs about as much as
+  // drawing the text does, and the same handful of labels come round again
+  // and again -- a bubble says "$1.2K" for as long as it takes to fill.
+  const tagWidths = new Map();
+  function tagTextWidth(label) {
+    let w = tagWidths.get(label);
+    if (w === undefined) {
+      w = floorCtx.measureText(label).width;
+      if (tagWidths.size > 600) tagWidths.clear();
+      tagWidths.set(label, w);
+    }
+    return w;
+  }
   function layOutPileTags() {
     // Nearest the front first, so a tag that has to move gets out of the way
     // of the one in front of it rather than the other way round.
@@ -13774,7 +13831,7 @@
       const label = t.use === undefined ? '$' + formatMoney(t.pile.amount)
         : Math.round(t.use * 100) + '%';
       // Room for the coin as well as the figure.
-      const w = Math.max(40, floorCtx.measureText(label).width + 26);
+      const w = Math.max(40, tagTextWidth(label) + 26);
       const r = { x: t.x - w / 2, y: t.y - TAG_H, w, h: TAG_H };
       // Up and out of the way of any tag already placed, so two pieces
       // standing close together do not stack their tags on one another.
@@ -13975,6 +14032,16 @@
   function roundRectPath(ctx, x, y, w, h, r) {
     const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
     ctx.beginPath();
+    // A corner smaller than a pixel is not a corner. Four arcs cost several
+    // times what a rectangle costs to lay down, and pulled back on a phone
+    // the whole crowd is drawn out of rounded boxes a couple of pixels
+    // wide: it was a tenth of the frame spent rounding corners nobody could
+    // see. Measured over a full gym on a slowed-down processor, this alone
+    // took a frame from 15.2ms to 13.1ms.
+    if (rr * backScale < 1.25) {
+      ctx.rect(x, y, w, h);
+      return;
+    }
     ctx.moveTo(x + rr, y);
     ctx.arcTo(x + w, y, x + w, y + h, rr);
     ctx.arcTo(x + w, y + h, x, y + h, rr);
@@ -14073,15 +14140,14 @@
   // Two things stop a busy room reading as one figure copied six times:
   // nobody is quite the same build or dressed the same way, and what
   // somebody is doing is decided by the piece they are standing at.
-  function drawMember(c, m) {
-    const ctx = floorCtx;
+  function paintMember(ctx, c, m, tall, face) {
     const H = 1.72 * (m.build || 1) * PX_PER_METRE_TALL;
     const broad = m.broad || 1;
     const p = poseOf(m);
     // Sinking the hips shortens the legs and brings everything above them
     // down with it. The feet stay planted where they were.
     const drop = p.crouch * 0.135;
-    const f = m.facing;
+    const f = face || m.facing;
     const y = c.y - p.bob * H;
     const X = (v) => c.x + v * H * f;
     const Y = (v) => y - v * H;
@@ -14091,7 +14157,13 @@
     // stroke costs about what a fill does. Pulled back far enough that a
     // person is under fifty pixels tall the outline is a hairline nobody
     // can see, so it is left off and the crowd costs half as much.
-    const fine = H * (floorCanvas.width / BASE_W) > 50;
+    const fine = tall > 50;
+    // And pulled back further still -- a figure a couple of finger-widths
+    // tall on a phone -- the fiddly bits are a pixel each and cost as much
+    // to draw as the person they are on. The silhouette is what reads at
+    // that size, so that is all that is drawn: no lit edge down the shirt,
+    // no badge, belt or collar, no bottle, no panel on the bag.
+    const trim = tall > 34;
     const outline = () => {
       if (!fine) return;
       ctx.strokeStyle = line;
@@ -14184,11 +14256,11 @@
     // Back limbs first, darkened, so the figure has some depth to it.
     limb(-shoulderX + lean * 2, shoulderY, -handX - armT + lean * 2, handY, armW, shade(m.skin, -38));
     bar(-stance - legT, hip, 0.045 + backFoot, 0.078 * broad, legBack);
-    bar(-stance - legT, 0.062 + backFoot, 0.006 + backFoot, 0.098, '#b9c2cc');
+    if (trim) bar(-stance - legT, 0.062 + backFoot, 0.006 + backFoot, 0.098, '#b9c2cc');
 
     // Front leg and its shoe.
     bar(stance + legT, hip, 0.045 + frontFoot, 0.078 * broad, legFront);
-    bar(stance + legT, 0.062 + frontFoot, 0.006 + frontFoot, 0.098, '#e9edf2');
+    if (trim) bar(stance + legT, 0.062 + frontFoot, 0.006 + frontFoot, 0.098, '#e9edf2');
 
     bar(lean * 0.35, 0.545 - drop, (m.shortsLen || 0.415) - drop, 0.200 * broad, shorts);
 
@@ -14206,14 +14278,16 @@
     ctx.fill();
     outline();
     // A lit edge down the side the room's lights come from.
-    ctx.beginPath();
-    roundedQuadPath(ctx,
-      { x: X(0.045 + lean), y: Y(0.83 - drop) },
-      { x: X(0.105 * broad + lean), y: Y(0.83 - drop) },
-      { x: X(0.082 * broad + lean * 0.35), y: Y(0.53 - drop) },
-      { x: X(0.03 + lean * 0.35), y: Y(0.53 - drop) }, H * 0.02);
-    ctx.fillStyle = shade(m.shirt, 30);
-    ctx.fill();
+    if (trim) {
+      ctx.beginPath();
+      roundedQuadPath(ctx,
+        { x: X(0.045 + lean), y: Y(0.83 - drop) },
+        { x: X(0.105 * broad + lean), y: Y(0.83 - drop) },
+        { x: X(0.082 * broad + lean * 0.35), y: Y(0.53 - drop) },
+        { x: X(0.03 + lean * 0.35), y: Y(0.53 - drop) }, H * 0.02);
+      ctx.fillStyle = shade(m.shirt, 30);
+      ctx.fill();
+    }
 
     // A gym bag hangs off the back shoulder, so it sits over the shirt and
     // under the arm carrying it.
@@ -14225,10 +14299,12 @@
       ctx.fill();
       outline();
       // A lighter panel along the top, or it is a coloured brick.
-      roundRectPath(ctx, X(-0.222), Y(0.628 - drop), 0.109 * H * f, 0.030 * H,
-        H * 0.012);
-      ctx.fillStyle = shade(m.bagColor, 26);
-      ctx.fill();
+      if (trim) {
+        roundRectPath(ctx, X(-0.222), Y(0.628 - drop), 0.109 * H * f, 0.030 * H,
+          H * 0.012);
+        ctx.fillStyle = shade(m.bagColor, 26);
+        ctx.fill();
+      }
     }
 
     limb(shoulderX, shoulderY, handX + armT, handY, armW, m.skin);
@@ -14241,7 +14317,7 @@
     // The uniform's details: a dark collar at the neck of the polo, a black
     // belt where the shirt meets the trousers, and a name badge on the
     // chest. A cashier's pouch hangs at the far hip.
-    if (m.staffRole) {
+    if (m.staffRole && trim) {
       bar(lean, 0.850 - drop, 0.822 - drop, 0.17 * broad, STAFF_CAP);
       bar(lean * 0.35, 0.535 - drop, 0.512 - drop, 0.19 * broad, STAFF_CAP);
       bar(-0.048 + lean * 0.6, 0.735 - drop, 0.705 - drop, 0.050, '#f4f6f8');
@@ -14252,7 +14328,7 @@
     }
 
     if (p.hold && p.hold !== 'barback') heldWeight();
-    if (m.carry === 'bottle' && m.state !== 'using') {
+    if (m.carry === 'bottle' && trim && m.state !== 'using') {
       bar(handX + armT, handY + 0.035, handY - 0.032, 0.036, '#6fc9e8');
       bar(handX + armT, handY + 0.058, handY + 0.033, 0.022, '#2f6f88');
     }
@@ -14286,7 +14362,126 @@
     } else if (m.hairStyle === 'band') {
       bar(0.008 + lean, 0.948 - drop, 0.918 - drop, 0.152, m.capColor);
     }
-    if (m.staffRole) drawStaffMark(c, m);
+    if (m.staffRole) drawStaffMark(ctx, c, m);
+  }
+
+  // Drawing one person is two dozen filled and stroked paths, and a busy
+  // gym repaints a dozen people every frame -- more than half the work in
+  // a frame went on it. But nobody's look changes, and a pose comes round
+  // again every time through the cycle, so each figure is drawn once into
+  // a small canvas of its own and from then on stamped: the same picture
+  // for one copy instead of two dozen paths.
+  const PHASE_STEPS = 12;
+  const spriteCache = new Map();
+  let spritePx = 0;
+  let spriteScale = 0;
+  let spriteClock = 0;
+  // A sprite is only right at the size it was drawn, so a change of scale
+  // throws the lot away. A pinch changes it every frame, and re-cutting
+  // thirty figures a frame is worse than never having cached them -- so
+  // while the scale is still moving the crowd is drawn straight, and the
+  // cache only starts filling once the zoom has settled.
+  let spriteReady = 0;
+  const SPRITE_SETTLE_MS = 260;
+  // How many pixels of cached figures to hold -- about twenty-four megabytes.
+  const SPRITE_BUDGET = 6e6;
+  // A figure bigger than this is drawn straight: at that size there are
+  // few of them on screen, the sprite would be large, and the smoothing
+  // from stamping it on a whole pixel would start to show.
+  const SPRITE_MAX_TALL = 150;
+
+  // Everything about a figure that never changes while they are in the gym.
+  function memberLook(m) {
+    if (!m.lookKey) {
+      m.lookKey = [m.build, m.broad, m.skin, m.legs, m.shirt, m.hair, m.capColor,
+        m.hairStyle, m.shortsLen, m.bagColor, m.staffRole || ''].join(',');
+    }
+    return m.lookKey;
+  }
+
+  function evictSprites() {
+    const old = Array.from(spriteCache.entries()).sort((a, b) => a[1].t - b[1].t);
+    for (let i = 0; i < old.length && spritePx > SPRITE_BUDGET * 0.7; i += 1) {
+      spritePx -= old[i][1].px;
+      spriteCache.delete(old[i][0]);
+    }
+  }
+
+  function memberSprite(m, H, tall) {
+    const using = m.state === 'using';
+    const step = Math.round((m.phase || 0) / (Math.PI * 2) * PHASE_STEPS);
+    const key = memberLook(m) + '|' + (using ? 'u' + (m.gearId || '') : 'w')
+      + '|' + (m.carry || '') + '|' + (((step % PHASE_STEPS) + PHASE_STEPS) % PHASE_STEPS);
+    let e = spriteCache.get(key);
+    if (e) {
+      e.t = spriteClock;
+      return e;
+    }
+    // How much room the pose actually needs, in body heights out from the
+    // feet. Sized to the pose rather than to the widest one there is: a
+    // walker's sprite is a third of the area of a rower's, and that is the
+    // difference between the cache holding the whole gym and thrashing.
+    const p = poseOf(m);
+    const lean = Math.abs(p.lean);
+    let top = Math.max(1.07 + p.bob, p.handY - p.crouch * 0.135 + (p.hold ? 0.12 : 0.08));
+    if (m.staffRole) top = Math.max(top, 1.19);
+    let half = Math.max(0.26 + lean, Math.abs(p.handX) + lean + 0.15);
+    if (p.hold && p.hold !== 'dumbbells') {
+      half = Math.max(half, lean + Math.max(Math.abs(p.handX) + 0.06, 0.13) + 0.15);
+    }
+    if (m.carry === 'bag' && m.state !== 'using') half = Math.max(half, 0.40);
+    const ox = Math.ceil(half * H * backScale) + 4;
+    const oy = Math.ceil(top * H * backScale) + 4;
+    const w = ox * 2;
+    const h = oy + Math.ceil(0.06 * H * backScale) + 5;
+    const cv = document.createElement('canvas');
+    cv.width = w;
+    cv.height = h;
+    const g = cv.getContext('2d');
+    // The figure is painted around the origin, so the sprite's own offset
+    // is all that puts it in the right place on the plan.
+    g.setTransform(backScale, 0, 0, backScale, ox, oy);
+    // Always drawn facing one way. Every x in the figure goes through the
+    // same multiply by the facing, so the other way round is the very same
+    // picture flipped -- and the cache holds half as many.
+    paintMember(g, { x: 0, y: 0 }, m, tall, 1);
+    e = { cv: cv, ox: ox, oy: oy, px: w * h, t: spriteClock };
+    spritePx += e.px;
+    spriteCache.set(key, e);
+    if (spritePx > SPRITE_BUDGET) evictSprites();
+    return e;
+  }
+
+  function drawMember(c, m) {
+    const H = 1.72 * (m.build || 1) * PX_PER_METRE_TALL;
+    const tall = H * backScale;
+    const now = Date.now();
+    if (spriteScale !== backScale) {
+      spriteCache.clear();
+      spritePx = 0;
+      spriteScale = backScale;
+      spriteReady = now + SPRITE_SETTLE_MS;
+    }
+    const t = floorCtx.getTransform();
+    const plain = !t.b && !t.c && Math.abs(t.a - backScale) < 1e-6
+      && Math.abs(t.d - backScale) < 1e-6;
+    if (tall <= SPRITE_MAX_TALL && plain && now >= spriteReady) {
+      spriteClock += 1;
+      const s = memberSprite(m, H, tall);
+      const dx = Math.round(c.x * t.a + t.e);
+      const dy = Math.round(c.y * t.d + t.f) - s.oy;
+      floorCtx.save();
+      if (m.facing < 0) {
+        floorCtx.setTransform(-1, 0, 0, 1, dx, dy);
+        floorCtx.drawImage(s.cv, -s.ox, 0);
+      } else {
+        floorCtx.setTransform(1, 0, 0, 1, dx - s.ox, dy);
+        floorCtx.drawImage(s.cv, 0, 0);
+      }
+      floorCtx.restore();
+    } else {
+      paintMember(floorCtx, c, m, tall, m.facing);
+    }
     if (m.regular && !photoMode) drawNameTag(c, m, H);
   }
 
@@ -14331,23 +14526,23 @@
   // A small gold diamond over every member of staff. It is the one thing
   // that still tells them apart when the plan is zoomed out to a room the
   // size of a stamp, where a shirt colour is two pixels.
-  function drawStaffMark(c, m) {
+  function drawStaffMark(ctx, c, m) {
     const H = 1.72 * (m.build || 1) * PX_PER_METRE_TALL;
     const bob = Math.sin((m.phase || 0) * 0.35) * 1.2;
     const x = c.x;
     const y = c.y - H * 1.10 + bob;
     const r = Math.max(2.6, H * 0.038);
-    floorCtx.beginPath();
-    floorCtx.moveTo(x, y - r * 1.3);
-    floorCtx.lineTo(x + r, y);
-    floorCtx.lineTo(x, y + r * 1.3);
-    floorCtx.lineTo(x - r, y);
-    floorCtx.closePath();
-    floorCtx.fillStyle = STAFF_MARK;
-    floorCtx.fill();
-    floorCtx.strokeStyle = 'rgba(0,0,0,0.55)';
-    floorCtx.lineWidth = 1;
-    floorCtx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 1.3);
+    ctx.lineTo(x + r, y);
+    ctx.lineTo(x, y + r * 1.3);
+    ctx.lineTo(x - r, y);
+    ctx.closePath();
+    ctx.fillStyle = STAFF_MARK;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
   }
 
   let propShadowSprite = null;
