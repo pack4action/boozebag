@@ -13242,6 +13242,10 @@
     // No money bubbles in a photograph, and none over a piece being placed.
     if (!editing && !photoMode) layOutPileTags();
 
+    // Weather, over everything and under nothing: the two locations that
+    // are outdoors should look like it.
+    drawWeather();
+
     // The hour of the day, over the gym only: 'source-atop' keeps it off
     // the empty parts of this canvas, which are a window onto the ground
     // layer behind and have already been tinted there.
@@ -13253,6 +13257,81 @@
       floorCtx.fillRect(0, 0, W, H);
       floorCtx.restore();
     }
+  }
+
+  // ---- Weather ----
+  // Two of the four locations are outdoors, and until now they were outdoors
+  // in permanently perfect weather. It rains on the roof and on the pier
+  // now, off and on, the same weather for everybody because it is worked
+  // out from the clock rather than rolled: a spell lasts a quarter of an
+  // hour of real time, which is six hours of gym time, and about one spell
+  // in four is wet.
+  const OUTDOOR_THEMES = { rooftop: true, boardwalk: true };
+  const WEATHER_SPELL_MS = 15 * 60 * 1000;
+  function weatherNow() {
+    if (!OUTDOOR_THEMES[state.activeTheme]) return 'clear';
+    const spell = Math.floor(Date.now() / WEATHER_SPELL_MS);
+    const roll = noise(spell, state.activeTheme === 'rooftop' ? 91 : 92);
+    return roll < 0.26 ? 'rain' : 'clear';
+  }
+  // How hard it is coming down, easing in and out over the first and last
+  // half minute of a spell so it does not start and stop like a tap.
+  function rainStrength() {
+    if (weatherNow() !== 'rain') return 0;
+    const into = Date.now() % WEATHER_SPELL_MS;
+    const edge = 30000;
+    const ease = Math.min(1, Math.min(into, WEATHER_SPELL_MS - into) / edge);
+    return Math.max(0.1, ease);
+  }
+  const RAIN_DROPS = 220;
+  function drawWeather() {
+    const wet = rainStrength();
+    if (!wet) return;
+    const box = visibleCanvasBox();
+    const x0 = box ? box.x0 : 0;
+    const y0 = box ? box.y0 : 0;
+    const x1 = box ? box.x1 : BASE_W;
+    const y1 = box ? box.y1 : BASE_H;
+    const w = Math.max(1, x1 - x0);
+    const h = Math.max(1, y1 - y0);
+    const ctx = floorCtx;
+    ctx.save();
+    // The light goes flat and cold in the rain.
+    ctx.fillStyle = 'rgba(96,124,156,' + (0.09 * wet).toFixed(3) + ')';
+    ctx.fillRect(x0, y0, w, h);
+    ctx.strokeStyle = 'rgba(208,230,255,' + (0.52 * wet).toFixed(3) + ')';
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = 'round';
+    const t = Date.now() / 1000;
+    const span = h + 160;
+    ctx.beginPath();
+    for (let i = 0; i < RAIN_DROPS; i++) {
+      const a = noise(i, 3);
+      const b = noise(i, 5);
+      const speed = 620 + b * 520;
+      const y = y0 - 80 + ((b * span + t * speed) % span);
+      const x = x0 + ((a * w + (y - y0) * -0.16) % w + w) % w;
+      const len = 13 + b * 15;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - len * 0.16, y + len);
+    }
+    ctx.stroke();
+    // And where it lands: a scatter of little rings that come and go, so
+    // the rain is falling on something rather than past it.
+    ctx.strokeStyle = 'rgba(216,236,255,' + (0.34 * wet).toFixed(3) + ')';
+    for (let i = 0; i < 26; i++) {
+      const a = noise(i, 11);
+      const b = noise(i, 13);
+      // Each ring lives about a third of a second, in its own slot of time.
+      const phase = ((t * 3 + b * 4) % 1);
+      if (phase > 0.55) continue;
+      const x = x0 + a * w;
+      const y = y0 + b * h;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 1.5 + phase * 7, (1.5 + phase * 7) * 0.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // ---- Hover ----
@@ -16792,7 +16871,7 @@
     if (now - lastFrameAt < wait) return;
     const dt = Math.min(0.25, (now - lastFrameAt) / 1000);
     lastFrameAt = now;
-    if (members.length) {
+    if (members.length || rainStrength() > 0) {
       stepMembers(dt);
       const t0 = performance.now();
       paintScene();
