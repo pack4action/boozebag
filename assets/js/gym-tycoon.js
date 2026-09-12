@@ -13434,9 +13434,6 @@
     stillOverCtx.setTransform(scale, 0, 0, scale, 0, 0);
   }
 
-  // How far past the window the still layer is copied. Wide enough that a
-  // flick cannot show the edge of it before the next frame arrives.
-  const COPY_MARGIN = 260;
   function paintScene() {
     ratesChanged();
     crowdBoxes = [];
@@ -13518,31 +13515,16 @@
     // Anything the window cannot see is not drawn. The floor being worked
     // on is always drawn, so a piece in hand never blinks out.
     const seen = visibleCanvasBox();
-    // Only the part of the plan the window can see, with a wide margin so a
-    // pan cannot outrun it. The plan is a couple of million pixels and the
-    // window shows a fifth of them; copying the rest of the still layer
-    // over, every frame, was the largest fixed cost a frame had.
-    const view = seen ? {
-      x0: Math.max(0, Math.floor(seen.x0 - COPY_MARGIN)),
-      y0: Math.max(0, Math.floor(seen.y0 - COPY_MARGIN)),
-      x1: Math.min(W, Math.ceil(seen.x1 + COPY_MARGIN)),
-      y1: Math.min(H, Math.ceil(seen.y1 + COPY_MARGIN)),
-    } : { x0: 0, y0: 0, x1: W, y1: H };
-    const viewW = Math.max(1, view.x1 - view.x0);
-    const viewH = Math.max(1, view.y1 - view.y0);
+    // The whole still layer, every frame. Copying only the part the window
+    // can see is worth about half a millisecond in a nine-millisecond frame
+    // and costs the promise that everything on the plan is painted: it left
+    // the canvas bare past the edge of the copy, which a fast flick can
+    // reach and which the seam check is right to object to. Half a
+    // millisecond is not worth a class of bug where things are not drawn.
     const stamp = (src, mode) => {
-      // The still layer is held at the backing resolution, so the piece of
-      // it to copy is measured in its own pixels -- the destination is in
-      // plan units, and the two are only the same number when the canvas
-      // happens to be backed one to one. Zoomed out they are not, and
-      // asking for plan units on both sides copied the wrong piece of the
-      // layer into the wrong place: the whole gym drawn small in a corner
-      // of the floor it stands on.
-      const k = src.width > 0 ? src.width / W : 1;
       floorCtx.save();
       if (mode) floorCtx.globalCompositeOperation = mode;
-      floorCtx.drawImage(src, view.x0 * k, view.y0 * k, viewW * k, viewH * k,
-        view.x0, view.y0, viewW, viewH);
+      floorCtx.drawImage(src, 0, 0, W, H);
       floorCtx.restore();
     };
     // 'copy' puts the still layer down and clears whatever was there in the
@@ -13620,7 +13602,7 @@
       floorCtx.save();
       floorCtx.globalCompositeOperation = 'source-atop';
       floorCtx.fillStyle = 'rgba(' + sky.r + ',' + sky.g + ',' + sky.b + ',' + sky.a.toFixed(3) + ')';
-      floorCtx.fillRect(view.x0, view.y0, viewW, viewH);
+      floorCtx.fillRect(0, 0, W, H);
       floorCtx.restore();
     }
   }
