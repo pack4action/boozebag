@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=11" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=6" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=107" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=108" />
 </head>
 <body class="game-body">
 
@@ -130,6 +130,10 @@
             <span class="tycoon-clock-time" id="tycoon-clock-time">--:--</span>
           </div>
           <!-- Sound is off until you switch it on, and stays how you left it. -->
+          <!-- How much each machine is actually used, on the plan itself. -->
+          <button class="tycoon-use-btn" id="btn-use" type="button" aria-pressed="false" aria-label="Show how much each machine is used" title="Show how much each machine is used">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="9" width="3" height="5" rx="1" fill="currentColor"/><rect x="6.5" y="5.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="11" y="2.5" width="3" height="11.5" rx="1" fill="currentColor"/></svg>
+          </button>
           <!-- The gym with nothing in front of it, for a screenshot. -->
           <button class="tycoon-photo-btn" id="btn-photo" type="button" aria-label="Photo mode" title="Photo mode: the gym with nothing in front of it">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5.2h2.6l1-1.6h4.8l1 1.6H14v7.2H2Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
@@ -368,6 +372,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=213"></script>
+<script src="assets/js/gym-tycoon.js?v=214"></script>
 </body>
 </html>

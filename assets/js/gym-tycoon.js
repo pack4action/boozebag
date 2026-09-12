@@ -7,6 +7,9 @@
   // constants because the painting and the stats both read it, and both of
   // them run while the rest of the file is still being read.
   let photoMode = false;
+  // Whether the plan is showing how much each machine is actually used
+  // rather than what is in its bubble. Up here for the same reason.
+  let useOverlay = false;
 
   const SAVE_KEY = 'gymTycoonSave';
   const COST_GROWTH = 1.15;
@@ -13422,10 +13425,21 @@
     })).filter((e) => onScreen(isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v)));
     // The money over each piece and the bar under a counter both move on
     // their own, so they are worked out every frame whatever else is not.
+    // How much of each machine is being used, worked out once for the room
+    // rather than once per piece.
+    const shares = useOverlay ? serveShares(room, pieceRates(room, shape, true)) : null;
     items.forEach(({ index, itemId, spot }) => {
       const c = isoPoint(place.gx0 + spot.u, place.gy0 + spot.v);
       if (!onScreen(c)) return;
       if (makesStock(itemId)) drawBatchBar(room, index, c);
+      if (shares) {
+        // Every machine gets a tag, because the ones with nothing on them
+        // are the whole point of looking.
+        if (gpsOf(itemId) > 0) {
+          queuePileTag(roomIndex, index, itemId, turnAt(room, index), c, null, shares[index] || 0);
+        }
+        return;
+      }
       const pile = pileOf(room, shape, index);
       if (pile.level > 0) queuePileTag(roomIndex, index, itemId, turnAt(room, index), c, pile);
     });
@@ -13509,7 +13523,7 @@
   // is where they ended up, which is also what a tap is tested against.
   let pileTags = [];
   let pileTagRects = [];
-  function queuePileTag(roomIndex, index, itemId, turn, base, pile) {
+  function queuePileTag(roomIndex, index, itemId, turn, base, pile, use) {
     // A coin bubble over the machine, the way an idle game asks to be
     // tapped: above the piece's own artwork so it is never mistaken for
     // part of it, but no higher than a hand's reach above the floor it
@@ -13520,7 +13534,7 @@
     const e = propCache.get(itemId + ':' + turn);
     const top = e ? base.y - e.oy - 8 : base.y - 40;
     pileTags.push({
-      roomIndex, index, pile,
+      roomIndex, index, pile, use,
       x: base.x,
       y: Math.max(top, base.y - 78),
       depth: base.y,
@@ -13535,7 +13549,8 @@
     pileTagRects = [];
     floorCtx.font = 'bold 10px system-ui, sans-serif';
     pileTags.forEach((t) => {
-      const label = '$' + formatMoney(t.pile.amount);
+      const label = t.use === undefined ? '$' + formatMoney(t.pile.amount)
+        : Math.round(t.use * 100) + '%';
       // Room for the coin as well as the figure.
       const w = Math.max(40, floorCtx.measureText(label).width + 26);
       const r = { x: t.x - w / 2, y: t.y - TAG_H, w, h: TAG_H };
@@ -13548,9 +13563,62 @@
         r.y = hit.y - r.h - 3;
       }
       placed.push(r);
-      pileTagRects.push({ rect: r, roomIndex: t.roomIndex, index: t.index });
-      drawPileTag(r, label, t);
+      // A usage tag says something; it is not a thing to tap.
+      if (t.use === undefined) pileTagRects.push({ rect: r, roomIndex: t.roomIndex, index: t.index });
+      if (t.use === undefined) drawPileTag(r, label, t);
+      else drawUseTag(r, label, t);
     });
+  }
+  // How much of the time a machine has somebody on it, over the machine.
+  // Green is flat out, amber is half the day, grey is a machine nobody has
+  // come for -- the money in a room is in the green ones, and the grey ones
+  // are floor you could have given to something else.
+  function drawUseTag(r, label, t) {
+    const ctx = floorCtx;
+    // Flat and opaque, whatever the painting before it left set: a tag that
+    // half shows the machine through it is not a reading of anything.
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    const u = t.use;
+    const tone = u >= 0.95 ? '#3f9e74' : u >= 0.45 ? '#b8862a' : u > 0.05 ? '#8a4a2a' : '#3d4148';
+    const ink = u >= 0.05 ? '#ffffff' : '#aab0ba';
+    if (r.y + r.h < t.y - 4) {
+      ctx.beginPath();
+      ctx.moveTo(t.x, r.y + r.h);
+      ctx.lineTo(t.x, t.y);
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(t.x - 4, r.y + r.h - 0.5);
+    ctx.lineTo(t.x + 4, r.y + r.h - 0.5);
+    ctx.lineTo(t.x, r.y + r.h + 4.5);
+    ctx.closePath();
+    ctx.fillStyle = tone;
+    ctx.fill();
+    roundRectPath(ctx, r.x, r.y, r.w, r.h, r.h / 2);
+    ctx.fillStyle = tone;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // How full it is, as a bar inside the pill: the figure is the number,
+    // this is the shape you can read without reading.
+    const pad = 3;
+    const bw = (r.w - pad * 2) * Math.max(0.04, Math.min(1, u));
+    roundRectPath(ctx, r.x + pad, r.y + r.h - 5, bw, 2.6, 1.3);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fill();
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.fillStyle = ink;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, r.x + r.w / 2, r.y + r.h / 2 - 1);
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+    ctx.restore();
   }
   function drawPileTag(r, label, t) {
     const ctx = floorCtx;
@@ -14283,6 +14351,7 @@
     // Nothing is being carried into a photograph: a piece in hand goes back
     // where it came from first.
     if (on && editing) cancelEdit();
+    if (on && useOverlay && useBtn) useBtn.click();
     photoMode = on;
     document.body.classList.toggle('is-photo', on);
     if (photoBar) photoBar.hidden = !on;
@@ -14290,6 +14359,18 @@
     // The window has changed size, so the fit, the ground and the plan all
     // have to be worked out again for it.
     stageResized();
+  }
+  // How much each machine is used, on the plan. A look rather than a mode:
+  // the money bubbles come off while it is on, because two tags over one
+  // machine is how a plan becomes unreadable.
+  const useBtn = document.getElementById('btn-use');
+  if (useBtn) {
+    useBtn.addEventListener('click', () => {
+      useOverlay = !useOverlay;
+      useBtn.setAttribute('aria-pressed', useOverlay ? 'true' : 'false');
+      if (useOverlay) toast('Green is flat out, grey is nobody on it', '', 2200);
+      renderScene();
+    });
   }
   const photoBtn = document.getElementById('btn-photo');
   if (photoBtn) photoBtn.addEventListener('click', () => setPhotoMode(true));

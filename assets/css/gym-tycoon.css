@@ -3411,6 +3411,27 @@
 .tycoon-photo-btn:hover { color: var(--text, #e9e9ee); border-color: rgba(255, 255, 255, 0.2); }
 .tycoon-photo-btn svg { width: 15px; height: 15px; }
 
+/* Same pill as the camera beside it; lit when it is on. */
+.tycoon-use-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 27px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background-color: rgba(12, 11, 16, 0.82);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  color: var(--muted, #8b8b93);
+  cursor: pointer;
+}
+.tycoon-use-btn:hover { color: var(--text, #e9e9ee); border-color: rgba(255, 255, 255, 0.2); }
+.tycoon-use-btn svg { width: 15px; height: 15px; }
+.tycoon-use-btn[aria-pressed="true"] { color: #ffd166; border-color: rgba(255, 209, 102, 0.55); }
+
 body.is-photo { overflow: hidden; }
 body.is-photo .site-header,
 body.is-photo .tycoon-toolbar,
