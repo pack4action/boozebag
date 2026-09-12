@@ -793,8 +793,40 @@
   // How much floor a piece takes up along its longest side, in metres, and
   // how big to draw it. They are the same number for a machine; they part
   // company for anything whose art is taller than the floor it stands on.
-  // Both tables live with the rest of the drawing tables further down; these
-  // are the readers everything else goes through.
+  // The footprints are up here rather than with the other drawing tables
+  // because a save is settled onto the floor while the file is still being
+  // read, and a table declared further down does not exist yet at that
+  // point: a save with two pieces in one room threw on load.
+  // How much floor each piece actually takes up, along its longest side, in
+  // metres. Everything used to be drawn at one size, which is why a pair of
+  // dumbbells came out as big as a squat rack; sized off this, a dumbbell is
+  // knee-high clutter and a treadmill is a machine you walk around.
+  const ITEM_FOOTPRINT = {
+    dumbbell: 0.7,       // a pair on the floor
+    dumbbellrack: 1.7,
+    mat: 1.8,            // rolled out flat
+    bench: 1.8,
+    rack: 1.6,
+    cable: 1.7,
+    treadmill: 2.0,
+    rower: 2.1,
+    boxingring: 2.8,
+    climbingwall: 2.4,
+    stairclimber: 1.3,
+    cryo: 1.2,
+    sauna: 2.2,
+    gearfridge: 1.4,
+    soundsystem: 1.6,
+    desk: 2.0,
+    frontdesk: 1.8,
+    cubicle: 2.0,
+    officepod: 1.7,
+    palm: 0.8,
+    cooler: 0.6,
+    mirrorwall: 1.7,
+    neon: 1.6,
+  };
+  const DEFAULT_FOOTPRINT = 1.4;
   function footprintOf(id) {
     return ITEM_FOOTPRINT[id] || DEFAULT_FOOTPRINT;
   }
@@ -6186,36 +6218,6 @@
     }
   }
 
-  // How much floor each piece actually takes up, along its longest side, in
-  // metres. Everything used to be drawn at one size, which is why a pair of
-  // dumbbells came out as big as a squat rack; sized off this, a dumbbell is
-  // knee-high clutter and a treadmill is a machine you walk around.
-  const ITEM_FOOTPRINT = {
-    dumbbell: 0.7,       // a pair on the floor
-    dumbbellrack: 1.7,
-    mat: 1.8,            // rolled out flat
-    bench: 1.8,
-    rack: 1.6,
-    cable: 1.7,
-    treadmill: 2.0,
-    rower: 2.1,
-    boxingring: 2.8,
-    climbingwall: 2.4,
-    stairclimber: 1.3,
-    cryo: 1.2,
-    sauna: 2.2,
-    gearfridge: 1.4,
-    soundsystem: 1.6,
-    desk: 2.0,
-    frontdesk: 1.8,
-    cubicle: 2.0,
-    officepod: 1.7,
-    palm: 0.8,
-    cooler: 0.6,
-    mirrorwall: 1.7,
-    neon: 1.6,
-  };
-  const DEFAULT_FOOTPRINT = 1.4;
   // How much of a shadow a piece casts, as a share of the usual one. Flat
   // things cast none; things on a slim base cast a little.
   const SHADOW_SCALE = {
@@ -11195,25 +11197,31 @@
         floorCtx.fill();
       }
     },
-    // Veining, drifting across the whole space rather than tile by tile.
+    // Veining: a few long, slow waves down the length of the space. Drift
+    // taken step by step read as a scribble across the whole plan, so each
+    // vein is a wave with a little noise on it rather than a random walk.
     marble: (rect) => {
-      const veins = Math.max(5, Math.round((rect.cols + rect.rows) / 8));
+      const veins = Math.max(2, Math.round((rect.cols + rect.rows) / 24));
       for (let k = 0; k < veins; k++) {
         const seed = floorNoise(rect.gx0 + k * 7.3, rect.gy0 + k * 3.1);
-        const steps = 7;
+        const steps = 14;
+        const amp = rect.rows * 0.055;
+        const phase = seed * Math.PI * 2;
+        const waves = 1.1 + seed * 1.2;
         const pts = [];
         const pale = [];
         for (let i = 0; i <= steps; i++) {
           const t = i / steps;
-          const drift = (floorNoise(seed * 100 + i, k) - 0.5) * rect.rows * 0.22;
+          const mid = rect.gy0 + rect.rows * (0.16 + seed * 0.68);
+          const gy = mid + Math.sin(phase + t * Math.PI * waves) * amp
+            + (floorNoise(seed * 90 + i, k) - 0.5) * 0.8;
           const gx = rect.gx0 + t * rect.cols;
-          const gy = rect.gy0 + rect.rows * (0.08 + seed * 0.84) + drift;
-          const clamped = Math.max(rect.gy0 + 0.4, Math.min(rect.gy0 + rect.rows - 0.4, gy));
+          const clamped = Math.max(rect.gy0 + 0.5, Math.min(rect.gy0 + rect.rows - 0.5, gy));
           pts.push(isoPoint(gx, clamped));
-          pale.push(isoPoint(gx, clamped + 0.35));
+          pale.push(isoPoint(gx, clamped + 0.4));
         }
-        strokePolyline(pts, 'rgba(72,68,60,0.46)', 1.8);
-        strokePolyline(pale, 'rgba(255,255,255,0.40)', 1.1);
+        strokePolyline(pts, 'rgba(78,74,66,0.34)', 1.5);
+        strokePolyline(pale, 'rgba(255,255,255,0.30)', 1);
       }
     },
   };
@@ -12765,10 +12773,27 @@
     // to come back over the top or somebody would walk through a machine.
     const standing = people.slice();
     if (people.length) {
+      // How far from its own centre a piece can still cover somebody. It
+      // used to be three and a half tiles for everything, which is fine for
+      // a cooler and nowhere near enough for a boxing ring or a climbing
+      // wall: a person on the far side of one of those was painted straight
+      // over it. Sized off what the piece is actually drawn at now, and
+      // wider up the screen than across it, because depth is what turns
+      // into height here -- somebody well behind a tall piece still stands
+      // in the part of the screen it covers.
+      const reachOf = (e) => {
+        if (e.fixture) {
+          return { u: (e.fixture.u1 - e.fixture.u0) / 2 + 2.6,
+            v: (e.fixture.v1 - e.fixture.v0) / 2 + 4.5 };
+        }
+        const half = drawSizeOf(e.itemId) * TILES_PER_METRE * 0.6;
+        return { u: half + 2.6, v: half + 4.5 };
+      };
       items.concat(loose).forEach((e) => {
         const d = depthOf(e);
+        const r = reachOf(e);
         const covers = people.some((p) => depthOf(p) < d
-          && Math.abs(p.spot.u - e.spot.u) < 3.6 && Math.abs(p.spot.v - e.spot.v) < 3.6);
+          && Math.abs(p.spot.u - e.spot.u) < r.u && Math.abs(p.spot.v - e.spot.v) < r.v);
         if (covers) standing.push(e);
       });
       standing.sort((a, b) => depthOf(a) - depthOf(b)).forEach(paintOne);
