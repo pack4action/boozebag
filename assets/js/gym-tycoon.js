@@ -2048,9 +2048,22 @@
     { id: 'ink', name: 'Ink', color: '#151923', cost: 20000 },
     { id: 'rose', name: 'Dusty Rose', color: '#8a4a5a', cost: 35000 },
     { id: 'bone', name: 'Bone', color: '#ddd6c6', cost: 50000 },
+    // Paints that are more than a colour: each one carries a `dress`, which
+    // is a build laid into the face of the wall after the colour goes on.
+    { id: 'subway', name: 'Subway Tile', color: '#cdd3d0', cost: 60000, dress: 'tile',
+      chip: 'repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 5px,#9aa19d 5px 6px),repeating-linear-gradient(90deg,#cdd3d0 0 8px,#9aa19d 8px 9px)' },
+    { id: 'slats', name: 'Timber Slats', color: '#6d4c2e', cost: 70000, dress: 'slat',
+      chip: 'repeating-linear-gradient(90deg,#7d5834 0 4px,#4e341d 4px 6px)' },
+    { id: 'carbon', name: 'Carbon Weave', color: '#1f2228', cost: 85000, dress: 'weave',
+      chip: 'repeating-linear-gradient(45deg,#2c3037 0 3px,#15171b 3px 6px)' },
+    { id: 'mirror', name: 'Mirror Panels', color: '#8fa3ad', cost: 95000, dress: 'mirror',
+      chip: 'repeating-linear-gradient(90deg,#8fa3ad 0 9px,#4c5c66 9px 10px)' },
+    { id: 'stripe', name: 'Racing Stripe', color: '#2b2f38', cost: 100000, dress: 'stripe', accent: '#d8453a',
+      chip: 'linear-gradient(180deg,#2b2f38 38%,#d8453a 38% 62%,#2b2f38 62%)' },
     // The neon set: a wall, a floor and a finish meant to be worn together,
     // and each of them the dearest thing in its own list.
-    { id: 'neon', name: 'Neon', color: '#2a1150', cost: 120000 },
+    { id: 'neon', name: 'Neon', color: '#2a1150', cost: 120000, dress: 'neon',
+      chip: 'linear-gradient(180deg,#2a1150 30%,#ff2fa0 30% 36%,#2a1150 36% 66%,#2de1e8 66% 72%,#2a1150 72%)' },
   ];
   const FLOOR_PAINTS = [
     { id: 'rubber', name: 'Rubber', a: '#2a2d33', b: '#23262b', cost: 6000 },
@@ -2064,8 +2077,19 @@
     // comes out as a chequerboard rather than as a shade of one colour.
     { id: 'chequer', name: 'Chequerboard', a: '#d5d1c8', b: '#2b2d33', cost: 55000 },
     { id: 'turf', name: 'Turf', a: '#3f7a3c', b: '#356732', cost: 60000 },
+    // Floors with a `pattern` get it ruled over the paving after the plates
+    // are laid, so the marking follows the room rather than the tile.
+    { id: 'lanes', name: 'Sprint Lanes', a: '#9c4034', b: '#8c382d', cost: 70000, pattern: 'lanes',
+      chip: 'repeating-linear-gradient(90deg,#9c4034 0 7px,#efe9dd 7px 9px)' },
+    { id: 'plate', name: 'Steel Plate', a: '#5a6068', b: '#4f555c', cost: 80000, pattern: 'plate',
+      chip: 'repeating-linear-gradient(45deg,#6b727b 0 4px,#464c53 4px 8px)' },
     { id: 'ice', name: 'Ice', a: '#9fc2d4', b: '#8aaec2', cost: 90000 },
-    { id: 'neon', name: 'Neon', a: '#241046', b: '#1b0c36', cost: 150000 },
+    { id: 'terrazzo', name: 'Terrazzo', a: '#ded9cd', b: '#d3cec1', cost: 100000, pattern: 'terrazzo',
+      chip: 'radial-gradient(circle at 20% 30%,#8a8478 0 2px,rgba(0,0,0,0) 2px),radial-gradient(circle at 70% 60%,#b06a4a 0 2px,rgba(0,0,0,0) 2px),radial-gradient(circle at 45% 85%,#4d6b6a 0 2px,rgba(0,0,0,0) 2px),linear-gradient(#ded9cd,#ded9cd)' },
+    { id: 'marble', name: 'Marble', a: '#e8e4db', b: '#cdc7ba', cost: 120000, pattern: 'marble',
+      chip: 'linear-gradient(120deg,#e4e0d7 0 40%,#b9b3a6 42% 46%,#e4e0d7 48% 78%,#c6c0b3 80% 84%,#e4e0d7 86%)' },
+    { id: 'neon', name: 'Neon', a: '#241046', b: '#1b0c36', cost: 150000, pattern: 'neon',
+      chip: 'repeating-linear-gradient(90deg,rgba(0,0,0,0) 0 7px,#2de1e8 7px 8px),repeating-linear-gradient(0deg,#241046 0 7px,#ff2fa0 7px 8px)' },
   ];
   // Wall art is gone from the shop. What anyone paid for it comes back to
   // them once, on the next load, so the money is not simply pocketed --
@@ -2082,11 +2106,15 @@
       palette: { STEEL: '#2f8f86', STEEL_LT: '#5fbcb1', FRAME: '#1f6a65', FRAME_DK: '#134741', WEIGHT: '#28524e' } },
     { id: 'chrome', name: 'Chrome', note: 'Polished all over', cost: 5000000,
       palette: { STEEL: '#d9e2ec', STEEL_LT: '#f4f7fa', FRAME: '#aeb9c7', FRAME_DK: '#7f8a98', WEIGHT: '#9aa5b3', PAD: '#3a3f4a' } },
+    { id: 'carbon', name: 'Carbon', note: 'Woven black, pale trim', cost: 8000000,
+      palette: { STEEL: '#2b2f36', STEEL_LT: '#4d545e', FRAME: '#1a1d22', FRAME_DK: '#101216', WEIGHT: '#23262c', PAD: '#15171b', RUBBER: '#101216' } },
     { id: 'copper', name: 'Copper', note: 'Warm metal, dark pads', cost: 12000000,
       palette: { STEEL: '#c07a45', STEEL_LT: '#e0a271', FRAME: '#8d5429', FRAME_DK: '#5d3719', WEIGHT: '#7a4f2c', PAD: '#241d16' } },
     { id: 'neon', name: 'Neon', note: 'Magenta frames, cyan steel', cost: 25000000,
       palette: { STEEL: '#2de1e8', STEEL_LT: '#8cf6fa', FRAME: '#ff2fa0', FRAME_DK: '#a3145f',
         WEIGHT: '#3a1150', PAD: '#1a0a2e', RUBBER: '#140822' } },
+    { id: 'magma', name: 'Magma', note: 'Hot metal, ember frames', cost: 30000000,
+      palette: { STEEL: '#e0642a', STEEL_LT: '#ffa05a', FRAME: '#7e2413', FRAME_DK: '#4a140a', WEIGHT: '#3a1a12', PAD: '#211110', RUBBER: '#1a0d0a' } },
     { id: 'gold', name: 'Gold', note: 'The most expensive thing in the shop', cost: 50000000,
       palette: { STEEL: '#e0b64a', STEEL_LT: '#f5dc86', FRAME: '#b8902f', FRAME_DK: '#7d5f1c', WEIGHT: '#a5822c', PAD: '#2b2418', RUBBER: '#231e14' } },
   ];
@@ -5800,11 +5828,18 @@
 
   // A location's colours as painted: the theme's own, with whatever wall
   // and floor paint has been put on over them.
+  function wallPaintFor(theme) {
+    const d = designState();
+    return WALL_PAINTS.find((w) => w.id === (previewFor('wall', theme) || d.walls[theme])) || null;
+  }
+  function floorPaintFor(theme) {
+    const d = designState();
+    return FLOOR_PAINTS.find((f) => f.id === (previewFor('floor', theme) || d.floors[theme])) || null;
+  }
   function colorsFor(theme) {
     const base = THEME_COLORS[theme] || THEME_COLORS.garage;
-    const d = designState();
-    const wall = WALL_PAINTS.find((w) => w.id === (previewFor('wall', theme) || d.walls[theme]));
-    const floor = FLOOR_PAINTS.find((f) => f.id === (previewFor('floor', theme) || d.floors[theme]));
+    const wall = wallPaintFor(theme);
+    const floor = floorPaintFor(theme);
     if (!wall && !floor) return base;
     const out = Object.assign({}, base);
     if (wall) { out.wallL = wall.color; out.wallR = shade(wall.color, -22); }
@@ -7387,6 +7422,39 @@
       floorCtx.lineWidth = lineWidth || 1.2;
       floorCtx.stroke();
     }
+  }
+
+  // A lit line and a lit panel: the same fill twice, once wide and blurred
+  // for the halo and once thin and pale for the tube itself. Only the still
+  // layer uses these, so the blur is paid for once per repaint rather than
+  // once per frame.
+  function glowLine(a, b, color, width, blur, core) {
+    floorCtx.save();
+    floorCtx.lineCap = 'round';
+    if (blur) { floorCtx.shadowColor = color; floorCtx.shadowBlur = blur; }
+    floorCtx.strokeStyle = color;
+    floorCtx.lineWidth = width;
+    floorCtx.beginPath();
+    floorCtx.moveTo(a.x, a.y);
+    floorCtx.lineTo(b.x, b.y);
+    floorCtx.stroke();
+    floorCtx.restore();
+    if (!core) return;
+    floorCtx.save();
+    floorCtx.lineCap = 'round';
+    floorCtx.strokeStyle = core;
+    floorCtx.lineWidth = Math.max(0.6, width * 0.36);
+    floorCtx.beginPath();
+    floorCtx.moveTo(a.x, a.y);
+    floorCtx.lineTo(b.x, b.y);
+    floorCtx.stroke();
+    floorCtx.restore();
+  }
+  function glowQuad(pts, color, blur) {
+    floorCtx.save();
+    if (blur) { floorCtx.shadowColor = color; floorCtx.shadowBlur = blur; }
+    paintQuad(pts, color, null);
+    floorCtx.restore();
   }
 
   // ---- Per-room fit-out ----
@@ -11006,6 +11074,7 @@
     const style = styleOf(state.activeTheme);
     if (style.planks) {
       drawPlanks(rect, colors, dim);
+      dressPaving(rect, dim);
       return;
     }
     const P = style.plate || PLATE;
@@ -11043,7 +11112,111 @@
         floorCtx.stroke();
       }
     }
+    dressPaving(rect, dim);
   }
+
+  // The marking a floor paint carries, ruled over the paving once it is
+  // laid. It follows the space, not the tile, so a line runs the length of
+  // a room rather than restarting at every plate.
+  function dressPaving(rect, dim) {
+    const paint = floorPaintFor(state.activeTheme);
+    const dress = paint && FLOOR_DRESS[paint.pattern];
+    if (!dress) return;
+    floorCtx.save();
+    floorCtx.globalAlpha = dim ? 0.72 : 1;
+    dress(rect, paint);
+    floorCtx.restore();
+  }
+  // Deterministic jitter, so a marble floor has the same veins every repaint.
+  function floorNoise(a, b) {
+    const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+    return n - Math.floor(n);
+  }
+  const FLOOR_DRESS = {
+    // Tubes sunk into the floor along both axes, cyan with a magenta line
+    // every fourth one, each with the halo a real tube throws on the ground.
+    neon: (rect) => {
+      const S = 3;
+      const line = (a, b, hot) => glowLine(a, b, hot ? '#ff2fa0' : '#2de1e8',
+        hot ? 2.6 : 1.8, hot ? 11 : 7, 'rgba(255,255,255,0.78)');
+      for (let ry = 0; ry <= rect.rows; ry += S) {
+        const gy = rect.gy0 + ry;
+        line(isoPoint(rect.gx0, gy), isoPoint(rect.gx0 + rect.cols, gy), (ry / S) % 4 === 0);
+      }
+      for (let rx = 0; rx <= rect.cols; rx += S) {
+        const gx = rect.gx0 + rx;
+        line(isoPoint(gx, rect.gy0), isoPoint(gx, rect.gy0 + rect.rows), (rx / S) % 4 === 2);
+      }
+    },
+    // Running lanes, as they are painted on a track: a pair of lines every
+    // four tiles, which is a bit over a metre apart.
+    lanes: (rect) => {
+      for (let ry = 4; ry < rect.rows; ry += 4) {
+        const gy = rect.gy0 + ry;
+        const wide = (ry / 4) % 3 === 0;
+        strokePolyline([isoPoint(rect.gx0, gy), isoPoint(rect.gx0 + rect.cols, gy)],
+          wide ? 'rgba(244,239,229,0.62)' : 'rgba(244,239,229,0.34)', wide ? 2.2 : 1.2);
+        strokePolyline([isoPoint(rect.gx0, gy + 0.16), isoPoint(rect.gx0 + rect.cols, gy + 0.16)],
+          'rgba(0,0,0,0.20)', 1);
+      }
+    },
+    // Chequer plate: the raised bars stamped into steel decking, staggered
+    // course by course, each with a lit top and a shadow under it.
+    plate: (rect) => {
+      for (let ry = 0; ry < rect.rows; ry += 2) {
+        for (let rx = (ry / 2) % 2 ? 1 : 0; rx < rect.cols - 1; rx += 2) {
+          const gx = rect.gx0 + rx;
+          const gy = rect.gy0 + ry;
+          const a = isoPoint(gx + 0.25, gy + 1.55);
+          const b = isoPoint(gx + 1.55, gy + 0.25);
+          const c = isoPoint(gx + 1.55, gy + 1.55);
+          const d = isoPoint(gx + 0.25, gy + 0.25);
+          [[a, b], [d, c]].forEach(([m, n]) => {
+            strokePolyline([{ x: m.x, y: m.y + 1.4 }, { x: n.x, y: n.y + 1.4 }], 'rgba(0,0,0,0.45)', 2);
+            strokePolyline([m, n], 'rgba(226,234,244,0.42)', 1.7);
+          });
+        }
+      }
+    },
+    // Terrazzo: chips of stone thrown through the screed, the same ones
+    // every repaint because the scatter is worked out, not rolled.
+    terrazzo: (rect) => {
+      const chips = ['rgba(104,98,86,0.78)', 'rgba(176,96,62,0.72)',
+        'rgba(62,98,97,0.72)', 'rgba(255,255,255,0.80)'];
+      const n = Math.round(rect.cols * rect.rows * 0.95);
+      for (let i = 0; i < n; i++) {
+        const gx = rect.gx0 + floorNoise(i * 1.7, 4.3) * rect.cols;
+        const gy = rect.gy0 + floorNoise(i * 2.9, 9.1) * rect.rows;
+        const q = isoPoint(gx, gy);
+        const r = 0.9 + floorNoise(i, 2) * 1.9;
+        floorCtx.fillStyle = chips[i % chips.length];
+        floorCtx.beginPath();
+        floorCtx.ellipse(q.x, q.y, r, r * 0.55, 0, 0, Math.PI * 2);
+        floorCtx.fill();
+      }
+    },
+    // Veining, drifting across the whole space rather than tile by tile.
+    marble: (rect) => {
+      const veins = Math.max(5, Math.round((rect.cols + rect.rows) / 8));
+      for (let k = 0; k < veins; k++) {
+        const seed = floorNoise(rect.gx0 + k * 7.3, rect.gy0 + k * 3.1);
+        const steps = 7;
+        const pts = [];
+        const pale = [];
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const drift = (floorNoise(seed * 100 + i, k) - 0.5) * rect.rows * 0.22;
+          const gx = rect.gx0 + t * rect.cols;
+          const gy = rect.gy0 + rect.rows * (0.08 + seed * 0.84) + drift;
+          const clamped = Math.max(rect.gy0 + 0.4, Math.min(rect.gy0 + rect.rows - 0.4, gy));
+          pts.push(isoPoint(gx, clamped));
+          pale.push(isoPoint(gx, clamped + 0.35));
+        }
+        strokePolyline(pts, 'rgba(72,68,60,0.46)', 1.8);
+        strokePolyline(pale, 'rgba(255,255,255,0.40)', 1.1);
+      }
+    },
+  };
 
   // The lip under a floor plate's two front edges. Without it every space
   // runs into the next as one flat sheet; with it each room and hallway
@@ -11352,7 +11525,133 @@
         paintQuad(band(p0, p1, t0, t1, hf + 0.020, hf + 0.028), shade(col, 22), null);
       });
     };
-    const dressFace = state.activeTheme === 'basement' ? cellarWall : null;
+    // Walls you paid for, which are a build and not just a colour. Each one
+    // takes the same stretch a cellar wall would and lays its own thing into
+    // it, so a doorway stays a hole in every one of them.
+    const paint = wallPaintFor(state.activeTheme);
+    const dressed = {
+      // Tubes run along the wall, one magenta and one cyan, with uprights
+      // between them and the halo each throws onto the paint around it.
+      neon: (p0, p1, axis, t0, t1) => {
+        const span = t1 - t0;
+        const run = Math.hypot(p1.x - p0.x, p1.y - p0.y) * span;
+        if (run < 10) return;
+        paintQuad(band(p0, p1, t0, t1, 0, 1), axis === 'gx' ? 'rgba(12,4,26,0.34)' : 'rgba(12,4,26,0.22)', null);
+        const uprights = Math.max(1, Math.round(run / 110));
+        for (let k = 0; k <= uprights; k++) {
+          const w = Math.min(0.004, span * 0.02);
+          const t = Math.max(t0 + w, Math.min(t1 - w, t0 + (k / uprights) * span));
+          glowQuad(band(p0, p1, t - w, t + w, 0.10, 0.92), 'rgba(150,60,255,0.55)', 8);
+        }
+        [[0.30, '#ff2fa0'], [0.68, '#2de1e8']].forEach(([hf, col]) => {
+          glowQuad(band(p0, p1, t0, t1, hf, hf + 0.022), col, 14);
+          paintQuad(band(p0, p1, t0, t1, hf + 0.007, hf + 0.015), 'rgba(255,255,255,0.85)', null);
+        });
+      },
+      // Subway tile: courses of it all the way up, joints offset course by
+      // course, and grout pale rather than dark so it reads as tiling.
+      tile: (p0, p1, axis, t0, t1) => {
+        const span = t1 - t0;
+        const run = Math.hypot(p1.x - p0.x, p1.y - p0.y) * span;
+        if (run < 10) return;
+        const grout = axis === 'gx' ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.26)';
+        const shadow = 'rgba(0,0,0,0.16)';
+        const COURSES = 11;
+        const tiles = Math.max(2, Math.round(run / 22));
+        for (let c = 0; c <= COURSES; c++) {
+          const hf = c / COURSES;
+          paintQuad(band(p0, p1, t0, t1, hf, hf + 0.006), shadow, null);
+          paintQuad(band(p0, p1, t0, t1, hf + 0.004, hf + 0.009), grout, null);
+        }
+        for (let c = 0; c < COURSES; c++) {
+          const lo = c / COURSES;
+          for (let k = 1; k < tiles; k++) {
+            const t = t0 + ((k + (c % 2) * 0.5) / tiles) * span;
+            if (t <= t0 || t >= t1) continue;
+            paintQuad(band(p0, p1, t - 0.0018, t + 0.0018, lo + 0.008, lo + 1 / COURSES), shadow, null);
+            paintQuad(band(p0, p1, t + 0.0012, t + 0.0026, lo + 0.008, lo + 1 / COURSES), grout, null);
+          }
+        }
+      },
+      // Boards run up the wall on end, a lit edge down one side of each and
+      // the shadow of the gap down the other.
+      slat: (p0, p1, axis, t0, t1) => {
+        const span = t1 - t0;
+        const run = Math.hypot(p1.x - p0.x, p1.y - p0.y) * span;
+        if (run < 10) return;
+        const wood = axis === 'gx' ? '#6a4a2c' : '#7a5533';
+        const slats = Math.max(2, Math.round(run / 17));
+        for (let k = 0; k < slats; k++) {
+          const a = t0 + (k / slats) * span;
+          const b = t0 + ((k + 0.82) / slats) * span;
+          paintQuad(band(p0, p1, a, b, 0, 1), wood, null);
+          paintQuad(band(p0, p1, a, a + (b - a) * 0.22, 0, 1), shade(wood, 20), null);
+          paintQuad(band(p0, p1, b, b + (b - a) * 0.22, 0, 1), 'rgba(0,0,0,0.42)', null);
+        }
+        paintQuad(band(p0, p1, t0, t1, 0, 0.035), shade(wood, -28), null);
+        paintQuad(band(p0, p1, t0, t1, 0.965, 1), shade(wood, -18), null);
+      },
+      // Carbon: the twill of a woven sheet, as blocks of it laid in a
+      // chequer fine enough to read as cloth and not as tiling.
+      weave: (p0, p1, axis, t0, t1) => {
+        const span = t1 - t0;
+        const run = Math.hypot(p1.x - p0.x, p1.y - p0.y) * span;
+        if (run < 10) return;
+        const ROWS = 22;
+        const cells = Math.max(3, Math.round(run / 9));
+        const lit = axis === 'gx' ? 'rgba(190,205,225,0.13)' : 'rgba(190,205,225,0.17)';
+        for (let r = 0; r < ROWS; r++) {
+          for (let k = (r % 2); k < cells; k += 2) {
+            const a = t0 + (k / cells) * span;
+            const b = t0 + ((k + 1) / cells) * span;
+            paintQuad(band(p0, p1, a, b, r / ROWS, (r + 1) / ROWS), lit, null);
+          }
+        }
+        paintQuad(band(p0, p1, t0, t1, 0, 0.03), 'rgba(0,0,0,0.35)', null);
+      },
+      // The mirrored wall every gym has: panels the height of the room with
+      // a rail under them, a sheen across each and the darker reflection of
+      // the floor in the bottom of it.
+      mirror: (p0, p1, axis, t0, t1) => {
+        const span = t1 - t0;
+        const run = Math.hypot(p1.x - p0.x, p1.y - p0.y) * span;
+        if (run < 10) return;
+        const glass = axis === 'gx' ? '#7d919c' : '#93a7b2';
+        const panels = Math.max(1, Math.round(run / 46));
+        for (let k = 0; k < panels; k++) {
+          const a = t0 + (k / panels) * span;
+          const b = t0 + ((k + 1) / panels) * span;
+          paintQuad(band(p0, p1, a, b, 0.10, 0.97), glass, null);
+          // The floor, darkly, in the bottom third of the glass.
+          paintQuad(band(p0, p1, a, b, 0.10, 0.38), shade(glass, -24), null);
+          // One diagonal sheen, stepped so it crosses the panel.
+          const steps = 5;
+          for (let i = 0; i < steps; i++) {
+            const lo = 0.14 + (i / steps) * 0.78;
+            const ta = a + ((i + 0.15) / steps) * (b - a);
+            const tb = a + ((i + 1.05) / steps) * (b - a);
+            paintQuad(band(p0, p1, ta, tb, lo, lo + 0.78 / steps), 'rgba(255,255,255,0.13)', null);
+          }
+          paintQuad(band(p0, p1, b - (b - a) * 0.035, b, 0.10, 0.97), 'rgba(20,26,30,0.75)', null);
+        }
+        paintQuad(band(p0, p1, t0, t1, 0.955, 0.985), shade(glass, -46), null);
+        paintQuad(band(p0, p1, t0, t1, 0.075, 0.115), shade(glass, -46), null);
+        paintQuad(band(p0, p1, t0, t1, 0, 0.075), shade(glass, -58), null);
+      },
+      // One broad stripe around the room at chest height, ruled top and
+      // bottom, the way a livery is painted on.
+      stripe: (p0, p1, axis, t0, t1) => {
+        const accent = (paint && paint.accent) || '#d8453a';
+        const col = axis === 'gx' ? shade(accent, -12) : accent;
+        paintQuad(band(p0, p1, t0, t1, 0.40, 0.58), col, null);
+        paintQuad(band(p0, p1, t0, t1, 0.40, 0.425), shade(col, 18), null);
+        paintQuad(band(p0, p1, t0, t1, 0.375, 0.392), 'rgba(255,255,255,0.55)', null);
+        paintQuad(band(p0, p1, t0, t1, 0.596, 0.613), 'rgba(255,255,255,0.55)', null);
+        paintQuad(band(p0, p1, t0, t1, 0, 0.045), 'rgba(0,0,0,0.30)', null);
+      },
+    };
+    const dressFace = (paint && dressed[paint.dress])
+      || (state.activeTheme === 'basement' ? cellarWall : null);
 
     // The faces you look at, a segment at a time so a doorway can be left
     // out of one. A hole is a real hole: the strip of wall below the lintel
@@ -14206,10 +14505,8 @@
   function refreshStorageSummary() {
     const sum = document.getElementById('storage-sum');
     if (!sum) return;
-    const { pieces, rate } = storageTally();
-    setText(sum, pieces === 0 ? 'Empty'
-      : (pieces === 1 ? '1 piece' : pieces + ' pieces')
-        + (rate > 0 ? ' \u00b7 +' + formatNum(rate) + '/s unplaced' : ' waiting'));
+    const { pieces } = storageTally();
+    setText(sum, pieces === 0 ? 'Empty' : pieces === 1 ? '1 piece' : pieces + ' pieces');
   }
 
   function renderInventory() {
@@ -14851,12 +15148,12 @@
     const wallRow = '<div class="tycoon-swatch' + (!d.walls[theme] ? ' is-on' : '') + '" role="button" tabindex="0" data-kind="wall" data-id="">'
       + '<span class="tycoon-swatch-chip" style="background:' + base.wallL + '"></span>'
       + '<span class="tycoon-swatch-name">As built</span><span class="tycoon-swatch-price">' + (!d.walls[theme] ? 'On' : 'Free') + '</span></div>'
-      + WALL_PAINTS.map((w) => swatch('wall', w, d.walls[theme] === w.id, !!d.ownedWalls[w.id], w.color)).join('');
+      + WALL_PAINTS.map((w) => swatch('wall', w, d.walls[theme] === w.id, !!d.ownedWalls[w.id], w.chip || w.color)).join('');
     const floorRow = '<div class="tycoon-swatch' + (!d.floors[theme] ? ' is-on' : '') + '" role="button" tabindex="0" data-kind="floor" data-id="">'
       + '<span class="tycoon-swatch-chip" style="background:linear-gradient(135deg,' + base.floorA + ' 50%,' + base.floorB + ' 50%)"></span>'
       + '<span class="tycoon-swatch-name">As built</span><span class="tycoon-swatch-price">' + (!d.floors[theme] ? 'On' : 'Free') + '</span></div>'
       + FLOOR_PAINTS.map((f) => swatch('floor', f, d.floors[theme] === f.id, !!d.ownedFloors[f.id],
-        'linear-gradient(135deg,' + f.a + ' 50%,' + f.b + ' 50%)')).join('');
+        f.chip || ('linear-gradient(135deg,' + f.a + ' 50%,' + f.b + ' 50%)'))).join('');
     const finishRow = FINISHES.map((f) => {
       const chosen = d.finish === f.id;
       const owned = !!d.ownedFinishes[f.id];
@@ -14870,12 +15167,11 @@
         + (pvHere ? buyBtn('finish', f)
           : '<span class="tycoon-swatch-price">' + (chosen ? 'On' : owned ? 'Owned' : f.cost ? '$' + formatNum(f.cost) : 'Free') + '</span>') + '</div>';
     }).join('');
-    designEl.innerHTML = '<p class="tycoon-panel-note">Paint and art go on the location you are in. A finish goes on every machine. Click one to see it on the plan, then press its Buy button to keep it. Buy a colour once, use it anywhere.</p>'
+    designEl.innerHTML = '<p class="tycoon-panel-note">Paint goes on the location you are in. A finish goes on every machine. Click one to see it on the plan, then press its Buy button to keep it. Buy a colour once, use it anywhere.</p>'
       + '<h3 class="tycoon-panel-title">Walls <span class="tycoon-panel-sub">' + designThemeName() + '</span></h3>'
       + '<div class="tycoon-swatches">' + wallRow + '</div>'
       + '<h3 class="tycoon-panel-title">Floor <span class="tycoon-panel-sub">' + designThemeName() + '</span></h3>'
       + '<div class="tycoon-swatches">' + floorRow + '</div>'
-      + '<h3 class="tycoon-panel-title">Wall art <span class="tycoon-panel-sub">' + designThemeName() + '</span></h3>'
       + '<h3 class="tycoon-panel-title">Gear finish <span class="tycoon-panel-sub">whole gym</span></h3>'
       + '<div class="tycoon-swatches is-list">' + finishRow + '</div>';
   }
