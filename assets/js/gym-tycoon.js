@@ -2,6 +2,12 @@
   const hudTotal = document.getElementById('hud-total');
   if (!hudTotal) return;
 
+  // Whether the plan is being looked at rather than played with: no money
+  // bubbles, no name tags, no outline under the pointer. Up here with the
+  // constants because the painting and the stats both read it, and both of
+  // them run while the rest of the file is still being read.
+  let photoMode = false;
+
   const SAVE_KEY = 'gymTycoonSave';
   const COST_GROWTH = 1.15;
   const TICK_MS = 100;
@@ -3844,11 +3850,19 @@
       ? held + ' point' + (held === 1 ? '' : 's') + ', +'
         + Math.round((franchiseMultiplier() - 1) * 100) + '% on everything, forever'
       : 'nothing banked yet');
+    // What a point actually is, said on the card. It used to say how many
+    // you would get and never what one was worth, which is a number with no
+    // unit on it.
+    const per = Math.round(FRANCHISE_PER_POINT * 100);
+    const would = Math.round(((1 + (held + offer) * FRANCHISE_PER_POINT) - 1) * 100);
     setText(franchiseNoteEl, offer
       ? 'Cash this gym in for ' + offer + ' more point' + (offer === 1 ? '' : 's') + '. '
-        + 'You keep your level and everything it unlocked, and your points. '
+        + 'A point is +' + per + '% on everything you earn, for good \u2014 that would put you on +'
+        + formatNum(would) + '%. '
+        + 'You keep your level and everything it unlocked, and the points you have. '
         + 'You lose the gear, every room past the first, and the staff.'
-      : 'Keep earning. The next point is worth more the bigger the gym gets.');
+      : 'Keep earning. A point is +' + per + '% on everything you earn, for good, and the next one '
+        + 'takes a bigger gym than the last did.');
     franchiseBtn.disabled = offer === 0;
     franchiseBtn.classList.toggle('is-confirming', franchiseArmed);
     setText(franchiseBtn, !offer ? 'Nothing to cash in yet'
@@ -4771,6 +4785,8 @@
     // and a longer string in it would resize the whole row of stats and
     // shove the page about.
     if (hudFloor) setText(hudFloor, '$' + formatMoney(floorCash()));
+    // The caption on a photograph says the same figures as the stats do.
+    if (photoMode) refreshPhotoCaption();
   }
 
   function recomputeStats() {
@@ -12277,6 +12293,9 @@
     // with the gear and the crowd.
     if (scenePass !== 'live') return;
     plotSignHit = null;
+    // The marked-out plot and its price board are an offer, not part of the
+    // gym: nothing to photograph.
+    if (photoMode) return;
     const cost = ROOM_UNLOCK_COSTS[index];
     const affordable = state.balance >= cost;
     const lit = signHovered && affordable;
@@ -12662,7 +12681,8 @@
     // is in your hands, so a tap meant for the floor cannot collect
     // something by accident.
     pileTagRects = [];
-    if (!editing) layOutPileTags();
+    // No money bubbles in a photograph, and none over a piece being placed.
+    if (!editing && !photoMode) layOutPileTags();
 
     // The hour of the day, over the gym only: 'source-atop' keeps it off
     // the empty parts of this canvas, which are a window onto the ground
@@ -12807,7 +12827,7 @@
       const item = itemById(e.itemId);
       if (!item) return;
       const c = isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v);
-      if (hoverCell && hoverCell.roomIndex === roomIndex && hoverCell.index === e.index) {
+      if (!photoMode && hoverCell && hoverCell.roomIndex === roomIndex && hoverCell.index === e.index) {
         floorCtx.save();
         floorCtx.beginPath();
         floorCtx.ellipse(c.x, c.y + 2, PROP_TILE * 0.36, PROP_TILE * 0.18, 0, 0, Math.PI * 2);
@@ -13450,7 +13470,7 @@
       bar(0.008 + lean, 0.948 - drop, 0.918 - drop, 0.152, m.capColor);
     }
     if (m.staffRole) drawStaffMark(c, m);
-    if (m.regular) drawNameTag(c, m, H);
+    if (m.regular && !photoMode) drawNameTag(c, m, H);
   }
 
   // A regular's name on a small dark tag over their head, so the one person
@@ -13714,6 +13734,43 @@
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   }
 
+
+  // ---- Photo mode ----
+  // Everything that is a control rather than the gym gets out of the way,
+  // the plan window takes the whole screen, and one caption says whose gym
+  // it is. Panning and pinching still work, because framing the shot is
+  // the whole point of it.
+  const photoBar = document.getElementById('photo-bar');
+  const photoNameEl = document.getElementById('photo-name');
+  const photoSubEl = document.getElementById('photo-sub');
+  function refreshPhotoCaption() {
+    if (!photoMode || !photoNameEl) return;
+    const named = (state.gymName || '').trim();
+    setText(photoNameEl, named || 'Gym Tycoon');
+    const theme = THEMES.find((t) => t.id === state.activeTheme);
+    setText(photoSubEl, [theme ? theme.name : '', 'Level ' + currentLevel(),
+      '$' + formatNum(gps) + '/s'].filter(Boolean).join(' \u00b7 '));
+  }
+  function setPhotoMode(on) {
+    if (photoMode === on) return;
+    // Nothing is being carried into a photograph: a piece in hand goes back
+    // where it came from first.
+    if (on && editing) cancelEdit();
+    photoMode = on;
+    document.body.classList.toggle('is-photo', on);
+    if (photoBar) photoBar.hidden = !on;
+    refreshPhotoCaption();
+    // The window has changed size, so the fit, the ground and the plan all
+    // have to be worked out again for it.
+    stageResized();
+  }
+  const photoBtn = document.getElementById('btn-photo');
+  if (photoBtn) photoBtn.addEventListener('click', () => setPhotoMode(true));
+  const photoExitBtn = document.getElementById('btn-photo-exit');
+  if (photoExitBtn) photoExitBtn.addEventListener('click', () => setPhotoMode(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && photoMode) setPhotoMode(false);
+  });
 
   // ---- How tall the plan window is ----
   // The stylesheet picks a height off the viewport, which is a guess about

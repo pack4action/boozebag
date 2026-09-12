@@ -3360,3 +3360,102 @@
   border-color: #ffd166;
   outline: none;
 }
+
+/* ---- Photo mode ----
+   The gym with nothing in front of it. The plan window goes full screen,
+   everything that is a control rather than the gym gets out of the way,
+   and one caption says whose gym it is -- so a screenshot of it is worth
+   sending to somebody. Panning and pinching still work: framing the shot
+   is the whole point. */
+.tycoon-photo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 27px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background-color: rgba(12, 11, 16, 0.82);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  color: var(--muted, #8b8b93);
+  cursor: pointer;
+}
+.tycoon-photo-btn:hover { color: var(--text, #e9e9ee); border-color: rgba(255, 255, 255, 0.2); }
+.tycoon-photo-btn svg { width: 15px; height: 15px; }
+
+body.is-photo { overflow: hidden; }
+body.is-photo .site-header,
+body.is-photo .tycoon-toolbar,
+body.is-photo .tycoon-corners,
+body.is-photo .tycoon-stage-size,
+body.is-photo .tycoon-place-hud,
+body.is-photo .tycoon-shut { display: none !important; }
+body.is-photo .tycoon-stage-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  margin: 0;
+  background: var(--bg, #0b0a0f);
+}
+body.is-photo .tycoon-room-stage {
+  /* Beats the height the grip writes straight onto the element. */
+  height: 100% !important;
+  max-height: none !important;
+  border-radius: 0;
+  border: 0;
+}
+.tycoon-photo-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 210;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.55) 100%);
+}
+.tycoon-photo-bar > * { pointer-events: auto; }
+.tycoon-photo-cap { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tycoon-photo-name {
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tycoon-photo-sub {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #ffd166;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+.tycoon-photo-exit {
+  flex: none;
+  padding: 9px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(12, 11, 16, 0.72);
+  backdrop-filter: blur(6px);
+  color: var(--text, #e9e9ee);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.tycoon-photo-exit:hover { border-color: rgba(255, 209, 102, 0.6); color: #ffd166; }
+@media (max-width: 560px) {
+  .tycoon-photo-bar { padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .tycoon-photo-name { font-size: 16px; }
+}

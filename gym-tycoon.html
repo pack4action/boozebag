@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=11" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=6" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=102" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=103" />
 </head>
 <body class="game-body">
 
@@ -130,6 +130,10 @@
             <span class="tycoon-clock-time" id="tycoon-clock-time">--:--</span>
           </div>
           <!-- Sound is off until you switch it on, and stays how you left it. -->
+          <!-- The gym with nothing in front of it, for a screenshot. -->
+          <button class="tycoon-photo-btn" id="btn-photo" type="button" aria-label="Photo mode" title="Photo mode: the gym with nothing in front of it">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5.2h2.6l1-1.6h4.8l1 1.6H14v7.2H2Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
           <button class="tycoon-sound" id="btn-sound" type="button" aria-pressed="true" aria-label="Sound on" title="Sound on">
             <svg class="tycoon-sound-icon is-off" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 6h2.6L8.5 3v10L5.1 10H2.5Z" fill="currentColor"/><path d="M10.6 6.2l3 3.6M13.6 6.2l-3 3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             <svg class="tycoon-sound-icon is-on" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 6h2.6L8.5 3v10L5.1 10H2.5Z" fill="currentColor"/><path d="M10.4 5.6a3.4 3.4 0 0 1 0 4.8M12.3 3.7a6 6 0 0 1 0 8.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -148,6 +152,16 @@
         <span class="tycoon-shut-title">This location is closed</span>
         <p class="tycoon-shut-note" id="shut-note"></p>
         <button class="tycoon-shut-btn" id="btn-shut-go" type="button">Open the Shop</button>
+      </div>
+
+      <!-- Shown only in photo mode: the way out, and the caption that makes
+           a screenshot say whose gym it is. -->
+      <div class="tycoon-photo-bar" id="photo-bar" hidden>
+        <div class="tycoon-photo-cap">
+          <span class="tycoon-photo-name" id="photo-name"></span>
+          <span class="tycoon-photo-sub" id="photo-sub"></span>
+        </div>
+        <button class="tycoon-photo-exit" id="btn-photo-exit" type="button" aria-label="Leave photo mode">Done</button>
       </div>
 
       <div class="tycoon-place-hud" id="place-hud" hidden>
@@ -354,6 +368,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=205"></script>
+<script src="assets/js/gym-tycoon.js?v=206"></script>
 </body>
 </html>
