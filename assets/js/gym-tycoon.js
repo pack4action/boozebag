@@ -1387,7 +1387,7 @@
     refreshHud();
     refreshLevelUI();
     renderScene();
-    toast(staffRole(id).name + 's trained to level ' + staffLevel(id), 'good');
+    toast(staffRole(id).name + 's upgraded to level ' + staffLevel(id), 'good');
     save();
   }
   function staffTotal() {
@@ -5089,7 +5089,11 @@
       els.train.hidden = !trainable;
       if (trainable) {
         const tc = trainCost(role.id);
-        setHtml(els.train, 'Train<span class="btn-long"> to</span> L' + (staffLevel(role.id) + 1)
+        // "Train" read as a thing you were being asked to do rather than a
+        // thing you were buying, next to a Hire button that is plainly the
+        // second. It is the same button the gear has, so it says the same
+        // word the gear says.
+        setHtml(els.train, 'Upgrade<span class="btn-long"> to</span> L' + (staffLevel(role.id) + 1)
           + '<span class="btn-long"> for</span> $' + formatNum(tc));
         els.train.disabled = state.balance < tc;
       }
@@ -13517,9 +13521,17 @@
     const viewW = Math.max(1, view.x1 - view.x0);
     const viewH = Math.max(1, view.y1 - view.y0);
     const stamp = (src, mode) => {
+      // The still layer is held at the backing resolution, so the piece of
+      // it to copy is measured in its own pixels -- the destination is in
+      // plan units, and the two are only the same number when the canvas
+      // happens to be backed one to one. Zoomed out they are not, and
+      // asking for plan units on both sides copied the wrong piece of the
+      // layer into the wrong place: the whole gym drawn small in a corner
+      // of the floor it stands on.
+      const k = src.width > 0 ? src.width / W : 1;
       floorCtx.save();
       if (mode) floorCtx.globalCompositeOperation = mode;
-      floorCtx.drawImage(src, view.x0, view.y0, viewW, viewH,
+      floorCtx.drawImage(src, view.x0 * k, view.y0 * k, viewW * k, viewH * k,
         view.x0, view.y0, viewW, viewH);
       floorCtx.restore();
     };
