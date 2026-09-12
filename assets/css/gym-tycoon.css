@@ -2819,24 +2819,6 @@
   .shop-upgrade-btn { font-size: 10.5px; padding: 6px 6px; }
 }
 
-/* TESTING ONLY. Delete this rule with the button it styles. */
-.tycoon-cheat-btn {
-  display: block;
-  width: 100%;
-  margin: 0 0 12px;
-  font-family: inherit;
-  font-weight: 800;
-  font-size: 12px;
-  letter-spacing: 0.3px;
-  color: #ffd166;
-  background: rgba(255, 183, 3, 0.10);
-  border: 1px dashed rgba(255, 183, 3, 0.55);
-  border-radius: 10px;
-  padding: 9px 12px;
-  cursor: pointer;
-}
-.tycoon-cheat-btn:hover { background: rgba(255, 183, 3, 0.18); color: var(--text); }
-
 /* ---- Room goals ----
    The two things a whole room can do, in the same box as the vibe and the
    busy meter. A met goal reads in green; an unmet one says what is missing. */
@@ -3410,6 +3392,32 @@
 }
 .tycoon-photo-btn:hover { color: var(--text, #e9e9ee); border-color: rgba(255, 255, 255, 0.2); }
 .tycoon-photo-btn svg { width: 15px; height: 15px; }
+
+/* Shows up for a few seconds after a piece is put down, and goes away
+   again. Wider than the icon buttons beside it because it has a word on
+   it: this one has to be recognised in a hurry. */
+.tycoon-undo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  height: 27px;
+  padding: 0 10px 0 8px;
+  border: 1px solid rgba(255, 209, 102, 0.5);
+  border-radius: 999px;
+  background-color: rgba(12, 11, 16, 0.86);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  color: #ffd166;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+}
+.tycoon-undo-btn:hover { background-color: rgba(255, 209, 102, 0.16); }
+.tycoon-undo-btn svg { width: 14px; height: 14px; }
+.tycoon-undo-btn[hidden] { display: none !important; }
 
 /* Same pill as the camera beside it; lit when it is on. */
 .tycoon-use-btn {

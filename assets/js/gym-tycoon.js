@@ -10,6 +10,12 @@
   // Whether the plan is showing how much each machine is actually used
   // rather than what is in its bubble. Up here for the same reason.
   let useOverlay = false;
+  // The last piece put down or put away, and the button that puts it back.
+  // Up here with the others because the theme row clears it, and that runs
+  // while the rest of the file is still being read.
+  let lastMove = null;
+  let undoTimer = null;
+  const undoBtn = document.getElementById('btn-undo');
 
   const SAVE_KEY = 'gymTycoonSave';
   const COST_GROWTH = 1.15;
@@ -8442,6 +8448,28 @@
     const j = jettyRect();
     return !!j && inRect(j, gx, gy);
   }
+  // Whether a floor stands behind a point on the site, near enough to cut
+  // the top off something of this height standing there. The site is
+  // painted before any floor slab is, so anything that fails this test ends
+  // up as half a thing poking out from under the floorboards. Depth is
+  // taken from the height: a tile of depth is half a tile of height on
+  // screen. Sampled a couple of tiles either side as well, because a floor
+  // corner is exactly where a single line of samples misses.
+  function floorAbove(gx, gy, tall) {
+    // The lip under a floor slab reaches further down the screen than the
+    // floor tiles do, so what has to be cleared is the height of the thing
+    // plus the depth of that lip.
+    const depth = Math.max(4, Math.ceil(((tall || 44) + slabDepth()) / (ROOM.tileH / 2)));
+    for (let d = 1; d <= depth; d++) {
+      const h = Math.round(d / 2);
+      for (let k = -3; k <= 3; k++) {
+        if (siteIsFloor(Math.round(gx - d), Math.round(gy + k))) return true;
+        if (siteIsFloor(Math.round(gx + k), Math.round(gy - d))) return true;
+        if (siteIsFloor(Math.round(gx - h + k), Math.round(gy - h))) return true;
+      }
+    }
+    return false;
+  }
   // The lattice point a distance t along an edge.
   function edgePoint(rect, side, t) {
     if (side === 'n') return { gx: rect.gx0 + t, gy: rect.gy0 };
@@ -10092,25 +10120,32 @@
     // these are here to show the way round the outside.
     const lampGy = ch.L.gy0 - 0.8;
     const lampGx = ch.R.gx0 - 0.8;
-    const behind = (gx, gy) => siteIsFloor(Math.round(gx), Math.round(gy));
-    // A floor anywhere behind a kerb lamp, not just at the single point
-    // five tiles back: at a floor's corner that one sample fell past the
-    // corner and the lamp was kept, standing hard against the floor's edge
-    // with the slab cutting it in half. Three depths and three widths.
-    const floorNear = (gx, gy, alongX) => [3, 5, 7, 9].some((d) => [-2.5, 0, 2.5]
-      .some((k) => (alongX ? behind(gx + k, gy - d) : behind(gx - d, gy + k))));
+    // A kerb lamp stands well clear of the gym itself, or not at all. These
+    // are here to show the way round the outside, and one standing hard
+    // against the corner of a floor is a lamp post in somebody's front
+    // room: the floors have their own lights, and the lamp reads as
+    // scenery that wandered in.
+    const LAMP_CLEAR = 16;
+    const floorNear = (gx, gy) => {
+      for (let dy = -LAMP_CLEAR; dy <= LAMP_CLEAR; dy += 2) {
+        for (let dx = -LAMP_CLEAR; dx <= LAMP_CLEAR; dx += 2) {
+          if (siteIsFloor(Math.round(gx + dx), Math.round(gy + dy))) return true;
+        }
+      }
+      return false;
+    };
     const postsL = Math.max(2, Math.round(a.cols / 12));
     for (let i = 0; i <= postsL; i++) {
       const gx = a.gx0 + 1 + (a.cols - 2) * (i / postsL);
       if (Math.abs(gx - (ch.bridgeL.gx0 + ch.bridgeL.cols * 0.5)) < 3) continue;
-      if (floorNear(gx, lampGy, true)) continue;
+      if (floorNear(gx, lampGy)) continue;
       drawKerbLamp(isoPoint(gx, lampGy), light);
     }
     const postsR = Math.max(2, Math.round(a.rows / 12));
     for (let i = 0; i < postsR; i++) {
       const gy = a.gy0 + 1 + (a.rows - 2) * (i / postsR);
       if (Math.abs(gy - (ch.bridgeR.gy0 + ch.bridgeR.rows * 0.5)) < 3) continue;
-      if (floorNear(lampGx, gy, false)) continue;
+      if (floorNear(lampGx, gy)) continue;
       drawKerbLamp(isoPoint(lampGx, gy), light);
     }
 
@@ -11000,14 +11035,7 @@
     const standing = (u, v, tall) => {
       const gx = a.gx0 + u;
       const gy = a.gy0 + v;
-      const depth = Math.max(2, Math.ceil((tall || 44) / (ROOM.tileH / 2)));
-      for (let d = 1; d <= depth; d++) {
-        const h = Math.round(d / 2);
-        if (siteIsFloor(Math.round(gx - d), Math.round(gy))
-          || siteIsFloor(Math.round(gx), Math.round(gy - d))
-          || siteIsFloor(Math.round(gx - h), Math.round(gy - h))) return null;
-      }
-      return isoPoint(gx, gy);
+      return floorAbove(gx, gy, tall) ? null : isoPoint(gx, gy);
     };
     const onApron = (u, v, tall, draw) => {
       const p = standing(u, v, tall);
@@ -15256,6 +15284,20 @@
     room.layout[slot] = itemId;
     room.spots[slot] = { u: editing.spot.u, v: editing.spot.v, r: turn };
     const at = { u: editing.spot.u, v: editing.spot.v };
+    // Enough to put it back: where it landed, and where it came from if it
+    // came from a floor rather than out of Storage.
+    recordMove({
+      kind: 'place',
+      theme: state.activeTheme,
+      itemId,
+      roomIndex,
+      slot,
+      from: fromTray ? null : {
+        roomIndex: editing.fromRoomIndex,
+        index: editing.fromIndex,
+        spot: editing.originSpot,
+      },
+    });
     sfx.place();
     endEdit();
 
@@ -15301,8 +15343,101 @@
   // is already stored.
   function storeEdit() {
     if (!editing || editing.fromIndex === null) return;
+    recordMove({
+      kind: 'store',
+      theme: state.activeTheme,
+      itemId: editing.itemId,
+      from: {
+        roomIndex: editing.fromRoomIndex,
+        index: editing.fromIndex,
+        spot: editing.originSpot,
+      },
+    });
     endEdit();
   }
+
+  // ---- Putting it back ----
+  // One step back, for the piece you have just stood somewhere. Placement
+  // is the fiddliest thing in the game on a phone and the commonest mistake
+  // is a piece an inch from where it was meant to go -- at which point the
+  // piece is down, the money has moved on, and putting it right is another
+  // lift and another drag. This is the shorter way.
+  //
+  // Kept in the browser rather than the save: it is about the last thing
+  // you did, not about the gym, and a move from before a reload is not one
+  // anybody remembers making.
+  const UNDO_SECONDS = 20;
+  function refreshUndoBtn() {
+    if (!undoBtn) return;
+    const show = !!lastMove && lastMove.theme === state.activeTheme;
+    if (undoBtn.hidden !== !show) undoBtn.hidden = !show;
+  }
+  function forgetMove() {
+    lastMove = null;
+    clearTimeout(undoTimer);
+    refreshUndoBtn();
+  }
+  function recordMove(m) {
+    lastMove = m;
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(forgetMove, UNDO_SECONDS * 1000);
+    refreshUndoBtn();
+  }
+  function undoMove() {
+    if (!lastMove) return;
+    const m = lastMove;
+    if (m.theme !== state.activeTheme) return;
+    const rooms = state.themeRooms[m.theme] || [];
+    const backRoom = m.from ? rooms[m.from.roomIndex] : null;
+    const putBack = () => {
+      if (!backRoom || backRoom.layout[m.from.index]) return false;
+      if (!backRoom.spots) backRoom.spots = new Array(backRoom.layout.length).fill(null);
+      backRoom.layout[m.from.index] = m.itemId;
+      backRoom.spots[m.from.index] = m.from.spot;
+      return true;
+    };
+    const name = (itemById(m.itemId) || {}).name || 'It';
+    if (m.kind === 'place') {
+      const room = rooms[m.roomIndex];
+      if (!room || room.layout[m.slot] !== m.itemId) {
+        toast('Too late to put that back', null);
+        forgetMove();
+        return;
+      }
+      // The money at its foot and anything its counter had going are dealt
+      // with exactly as they are when a piece is lifted by hand.
+      collectPile(m.roomIndex, m.slot);
+      emptyCounter(m.theme, m.roomIndex, m.slot);
+      room.layout[m.slot] = null;
+      if (room.spots) room.spots[m.slot] = null;
+      const back = m.from ? putBack() : false;
+      toast(name + (back ? ' put back where it was' : ' back in Storage'), 'good');
+    } else {
+      if (availableCount(m.itemId) <= 0 || !putBack()) {
+        toast('Too late to put that back', null);
+        forgetMove();
+        return;
+      }
+      toast(name + ' put back where it was', 'good');
+    }
+    sfx.lift();
+    forgetMove();
+    recomputeStats();
+    renderScene();
+    renderInventory();
+    refreshShopUI();
+    refreshRoomActions();
+    save();
+  }
+  if (undoBtn) undoBtn.addEventListener('click', undoMove);
+  document.addEventListener('keydown', (e) => {
+    if (!(e.key === 'z' || e.key === 'Z') || !(e.ctrlKey || e.metaKey)) return;
+    if (!lastMove) return;
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault();
+    undoMove();
+  });
 
   // Lattice coordinates of a point, as floats, plus which room it lands in.
   function spotFromPoint(px, py) {
@@ -15596,6 +15731,8 @@
         sfx.door();
         state.activeTheme = t.id;
         state.activeRoomIndex = Math.min(state.activeRoomIndex, activeRooms().length - 1);
+        // Undo is about the piece in front of you, and that is somewhere else now.
+        forgetMove();
         rebuildPlan();
         renderScene();
         renderInventory();
@@ -15818,26 +15955,6 @@
     document.getElementById('btn-place-confirm').addEventListener('click', confirmEdit);
     document.getElementById('btn-place-cancel').addEventListener('click', cancelEdit);
     if (placeStoreBtn) placeStoreBtn.addEventListener('click', storeEdit);
-  }
-
-  // ---- Reset ----
-  // TESTING ONLY. Delete this block, and the button marked the same way in
-  // gym-tycoon.html, when you are done poking at the numbers. It pays into
-  // the balance and nothing else: no experience, so it cannot quietly walk
-  // the level up and unlock things you have not earned.
-  const cheatBtn = document.getElementById('btn-cheat');
-  if (cheatBtn) {
-    cheatBtn.addEventListener('click', () => {
-      state.balance += 1e12;
-      state.lifetime += 1e12;
-      refreshHud();
-      refreshShopUI();
-      refreshStaffUI();
-      refreshRoomActions();
-      renderScene();
-      save();
-      toast('+$1.00T', 'good');
-    });
   }
 
   // ---- Save code ----
@@ -16326,6 +16443,8 @@
         sfx.door();
         state.activeTheme = t.id;
         state.activeRoomIndex = Math.min(state.activeRoomIndex, activeRooms().length - 1);
+        // Undo is about the piece in front of you, and that is somewhere else now.
+        forgetMove();
         rebuildPlan();
         renderScene();
         renderInventory();

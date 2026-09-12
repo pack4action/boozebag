@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=11" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=6" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=108" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=110" />
 </head>
 <body class="game-body">
 
@@ -130,6 +130,11 @@
             <span class="tycoon-clock-time" id="tycoon-clock-time">--:--</span>
           </div>
           <!-- Sound is off until you switch it on, and stays how you left it. -->
+          <!-- One step back, for a piece just put down in the wrong place. -->
+          <button class="tycoon-undo-btn" id="btn-undo" type="button" hidden aria-label="Put the last piece back">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.4 7.2h6.1a3.4 3.4 0 1 1 0 6.8H6.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M5.9 4.2 3 7.2l2.9 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Undo</span>
+          </button>
           <!-- How much each machine is actually used, on the plan itself. -->
           <button class="tycoon-use-btn" id="btn-use" type="button" aria-pressed="false" aria-label="Show how much each machine is used" title="Show how much each machine is used">
             <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="9" width="3" height="5" rx="1" fill="currentColor"/><rect x="6.5" y="5.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="11" y="2.5" width="3" height="11.5" rx="1" fill="currentColor"/></svg>
@@ -284,10 +289,6 @@
         <p class="tycoon-lvl-next"></p>
       </div>
 
-      <!-- TESTING ONLY. Delete this button, and the handler marked the same
-           way in gym-tycoon.js, when you are done poking at the numbers. -->
-      <button class="tycoon-cheat-btn" id="btn-cheat" type="button">Add $1 trillion (testing)</button>
-
       <div class="tycoon-namer">
         <h3 class="tycoon-panel-title">Name your gym <span class="tycoon-panel-sub">it is yours, so call it something</span></h3>
         <input class="tycoon-gym-name" id="gym-name" type="text" maxlength="28"
@@ -372,6 +373,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=214"></script>
+<script src="assets/js/gym-tycoon.js?v=216"></script>
 </body>
 </html>
