@@ -3540,3 +3540,98 @@ body.is-photo .tycoon-room-stage {
 .tycoon-kind-num { font-variant-numeric: tabular-nums; }
 .tycoon-kind.is-short .tycoon-kind-num { color: #ff9f6b; }
 .tycoon-kind.is-spare .tycoon-kind-num { color: #7f8794; }
+
+/* ---- A slot waiting to be filled ---- */
+/* Three ways of doing the same work, side by side. Ranged left like the
+   jobs above them, and marked out as a choice rather than a task by the
+   dashed edge: nothing here is being worked towards yet. */
+.tycoon-offer {
+  border: 1px dashed rgba(232, 196, 106, 0.4);
+  border-radius: 11px;
+  background: rgba(232, 196, 106, 0.05);
+  padding: 9px 10px;
+  text-align: left;
+}
+.tycoon-offer-head {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #e8c46a;
+  margin-bottom: 7px;
+}
+.tycoon-offer-picks { display: flex; flex-direction: column; gap: 6px; }
+.tycoon-offer-pick {
+  display: grid;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 7px 9px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tycoon-offer-pick:hover { border-color: rgba(232, 196, 106, 0.55); }
+.tycoon-offer-pick:focus-visible {
+  outline: 2px solid rgba(232, 196, 106, 0.8);
+  outline-offset: 1px;
+}
+.tycoon-offer-shape {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-offer-pick.is-quick .tycoon-offer-shape { color: #7ee0b0; }
+.tycoon-offer-pick.is-heavy .tycoon-offer-shape { color: #e89a6a; }
+.tycoon-offer-text { font-size: 12px; line-height: 1.35; }
+.tycoon-offer-reward { font-size: 10px; color: #e8c46a; }
+
+/* ---- What you charge ---- */
+/* Five rates, each with what the whole gym would take at it. The one you
+   are on is lit; the others are there to be compared against it. */
+.tycoon-price { margin: 14px 0 4px; }
+.tycoon-price-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+.tycoon-price-btn {
+  display: grid;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 7px 8px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tycoon-price-btn:hover { border-color: rgba(255, 255, 255, 0.24); }
+.tycoon-price-btn:focus-visible {
+  outline: 2px solid rgba(126, 224, 176, 0.8);
+  outline-offset: 1px;
+}
+.tycoon-price-btn.is-on {
+  border-color: rgba(126, 224, 176, 0.6);
+  background: rgba(126, 224, 176, 0.09);
+}
+.tycoon-price-name { font-size: 12px; font-weight: 700; }
+.tycoon-price-mult {
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-price-rate { font-size: 11px; font-weight: 700; color: #e8c46a; }
+.tycoon-price-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted, #8b8b93);
+}

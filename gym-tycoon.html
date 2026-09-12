@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=11" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=6" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=110" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=111" />
 </head>
 <body class="game-body">
 
@@ -263,7 +263,7 @@
     </section>
 
     <section class="tycoon-panel tycoon-jobs" data-panel="jobs" hidden>
-      <p class="tycoon-panel-note">Three jobs at a time. Do one, get paid, another takes its place.</p>
+      <p class="tycoon-panel-note">Three jobs at a time. Finish one and the board offers three ways to fill the slot: a quick one, a fair one, or a long haul. You take one and the rest go.</p>
       <div class="tycoon-rush-order" id="rush-order" hidden></div>
       <div class="tycoon-jobs-list" id="jobs-list"></div>
     </section>
@@ -287,6 +287,12 @@
         </div>
         <span class="tycoon-lvl-bar"><span class="tycoon-lvl-fill"></span></span>
         <p class="tycoon-lvl-next"></p>
+      </div>
+
+      <div class="tycoon-price" id="price-card">
+        <h3 class="tycoon-panel-title">Membership <span class="tycoon-panel-sub">what you charge, and what it costs you</span></h3>
+        <div class="tycoon-price-row" id="price-row"></div>
+        <p class="tycoon-price-note" id="price-note"></p>
       </div>
 
       <div class="tycoon-namer">
@@ -373,6 +379,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=225"></script>
+<script src="assets/js/gym-tycoon.js?v=227"></script>
 </body>
 </html>

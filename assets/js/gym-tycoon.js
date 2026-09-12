@@ -1786,6 +1786,55 @@
     return 1 + Math.min(VIBE_MAX_POINTS, points) * VIBE_PER_POINT;
   }
 
+  // ---- What you charge ----
+  // The one number in the game you set rather than buy. Put the membership
+  // up and everyone who stays is worth more and fewer of them stay; bring
+  // it down and the floor fills with people each worth less.
+  //
+  // Which way round it pays is not a fixed answer, which is the point of
+  // it. A room whose machines are all busy and still turning people away
+  // can put its price up almost for nothing -- the members it loses were
+  // queueing anyway. A room of machines standing idle cannot: it is short
+  // of people, and charging them more makes it shorter.
+  //
+  // Somewhere nice can ask for more. A room's vibe is what makes a high
+  // price stick, so the fittings are worth buying twice over -- once for
+  // what they add to the takings, and once for what they let you charge.
+  const PRICE_TIERS = [
+    { id: 'budget', name: 'Pay as you go', mult: 0.65, note: 'cheap, and packed out' },
+    { id: 'standard', name: 'Standard', mult: 1, note: 'what everybody charges' },
+    { id: 'premium', name: 'Premium', mult: 1.45, note: 'dearer, and quieter' },
+    { id: 'boutique', name: 'Boutique', mult: 2.05, note: 'few members, each worth several' },
+    { id: 'elite', name: 'Members only', mult: 3, note: 'a handful of people, paying a fortune' },
+  ];
+  const PRICE_DEFAULT = 1;
+  // How hard a doubled price bites. Above 1 the crowd falls away faster
+  // than the price rises, so a gym with room to spare is better off cheap.
+  const PRICE_ELASTICITY = 1.3;
+  // And how much of that a room full of good fittings takes off.
+  const PRICE_VIBE_RELIEF = 0.45;
+  function priceIndex() {
+    const i = Math.round(Number(state.price));
+    if (!(i >= 0)) return PRICE_DEFAULT;
+    return Math.min(PRICE_TIERS.length - 1, i);
+  }
+  function priceTier() {
+    return PRICE_TIERS[priceIndex()];
+  }
+  function priceMultiplier() {
+    return priceTier().mult;
+  }
+  // What the price does to a room's draw. A room people like putting up
+  // with more of it -- in both directions: somewhere with a queue out the
+  // door has less to gain from a discount too.
+  function priceDemandFactor(room) {
+    const mult = priceMultiplier();
+    if (mult === 1) return 1;
+    const points = room ? Math.min(VIBE_MAX_POINTS, roomVibe(room) + staffEffect('cleaner')) : 0;
+    const bite = PRICE_ELASTICITY * (1 - PRICE_VIBE_RELIEF * (points / VIBE_MAX_POINTS));
+    return Math.pow(mult, -bite);
+  }
+
   // Gains/sec now comes entirely from what's placed in the room, not from
   // raw ownership -- gear sitting unplaced in inventory earns nothing.
   // Synergy is computed per-room: adjacency only matters within the same
@@ -1795,7 +1844,8 @@
   // is the rate the money actually arrives at.
   function roomMultiplier(room) {
     return (1 + roomEffect(room, 'room')) * vibeMultiplier(room) * rushMultiplierFor(room) * promoMultiplier()
-      * (1 + staffEffect('manager')) * franchiseMultiplier() * reputationMultiplier() * (1 - wageShare());
+      * (1 + staffEffect('manager')) * franchiseMultiplier() * reputationMultiplier() * (1 - wageShare())
+      * priceMultiplier();
   }
   // ---- Who is in, and what they can get on ----
   // A machine serves one person at a time. That is the whole of it, and it
@@ -1819,6 +1869,7 @@
     if (!room) return 0;
     const busy = Math.max(rushFactor(), roomEffect(room, 'floor'));
     return DEMAND_BASE
+      * priceDemandFactor(room)
       * (1 + 0.55 * (vibeMultiplier(room) - 1))
       * (0.9 + 0.25 * busy)
       * (promoRunning() ? 1.6 : 1)
@@ -1878,13 +1929,19 @@
     const out = new Array(base.length).fill(0);
     const mix = demandMix();
     const total = roomDemand(room);
+    // A Juice Bar sells to whoever is in the building. It is never idle the
+    // way a machine is, but it cannot sell to people who are not there, so
+    // what the membership price does to the footfall it does to the bar --
+    // otherwise putting the price up would be free money on that half of
+    // the room, and there would be nothing to decide.
+    const walkIn = Math.min(1.4, priceDemandFactor(room));
     const byKind = {};
     base.forEach((r, i) => {
       if (!(r > 0)) return;
       const kind = CATEGORY[room.layout[i]];
       // Anything that earns without anybody having to get on it -- a Juice
       // Bar's takings, say -- is not queued for and is never idle.
-      if (!DEMAND_MIX[kind]) { out[i] = 1; return; }
+      if (!DEMAND_MIX[kind]) { out[i] = walkIn; return; }
       (byKind[kind] = byKind[kind] || []).push(i);
     });
     Object.keys(byKind).forEach((kind) => {
@@ -2429,6 +2486,8 @@
       xp: 0,
       tiers: {},
       jobs: [],
+      offers: [],
+      price: PRICE_DEFAULT,
       jobsDone: 0,
       rush: { job: null, deadlineAt: 0, nextAt: 0 },
       rushDone: 0,
@@ -2655,6 +2714,15 @@
       if (n > 0) stock[p] = Math.min(LARDER_CAP_MAX, n);
     });
     s.larder = stock;
+
+    // A save from before the membership price existed charges the standard
+    // rate, and a hand-edited one cannot charge something that is not on
+    // the list. Contracts waiting to be chosen are read back the same way.
+    const price = Math.round(Number(s.price));
+    s.price = price >= 0 && price < PRICE_TIERS.length ? price : PRICE_DEFAULT;
+    s.offers = (Array.isArray(s.offers) ? s.offers : [])
+      .filter((o) => Array.isArray(o) && o.length && o.every((j) => j && JOB_KINDS[j.kind]));
+
     // What the time away is worth is settled after the state is in place,
     // by creditTimeAway() below: the sums need the whole gym, and the whole
     // gym is not assembled until this function has returned.
@@ -2934,7 +3002,7 @@
       pick(ctx) {
         const item = pickOf(ctx.pool);
         const now = ctx.tally.byItem[item.id] || 0;
-        return { item: item.id, target: now + 1 + Math.floor(Math.random() * 2) };
+        return { item: item.id, base: now, target: now + 1 + Math.floor(Math.random() * 2) };
       },
       text: (j) => 'Get ' + j.target + ' x ' + itemById(j.item).name + ' onto the floor',
       done: (j, tally) => tally.byItem[j.item] || 0,
@@ -2943,7 +3011,7 @@
       pick(ctx) {
         const item = pickOf(ctx.pool);
         const now = state.owned[item.id] || 0;
-        return { item: item.id, target: now + 2 + Math.floor(Math.random() * 3) };
+        return { item: item.id, base: now, target: now + 2 + Math.floor(Math.random() * 3) };
       },
       text: (j) => 'Own ' + j.target + ' x ' + itemById(j.item).name,
       done: (j) => state.owned[j.item] || 0,
@@ -2952,7 +3020,7 @@
       pick(ctx) {
         const cat = pickOf(ctx.cats);
         const now = ctx.tally.byCat[cat] || 0;
-        return { cat, target: now + 2 + Math.floor(Math.random() * 3) };
+        return { cat, base: now, target: now + 2 + Math.floor(Math.random() * 3) };
       },
       text: (j) => 'Have ' + j.target + ' ' + CATEGORY_META[j.cat].name.toLowerCase()
         + ' pieces placed at once',
@@ -2961,12 +3029,15 @@
     gps: {
       pick() {
         const now = Math.max(1, gps);
-        return { target: Math.ceil(now * (1.5 + Math.random() * 0.8)) };
+        return { base: now, target: Math.ceil(now * (1.5 + Math.random() * 0.8)) };
       },
       text: (j) => 'Reach ' + formatNum(j.target) + ' gains/sec',
       done: () => gps,
     },
     fillRoom: {
+      // There is one way to fill a room, so this one is never asked for
+      // large or small -- only as it is.
+      fixed: true,
       pick: () => ({ target: 1 }),
       text: () => 'Fill every slot in one room',
       done: (j, tally) => tally.fullRoom,
@@ -2975,8 +3046,9 @@
       pick(ctx) {
         const now = ctx.tally.bestVibe;
         const step = Math.round(VIBE_PER_POINT * 100) * 2;
-        return { target: Math.min(Math.round(VIBE_MAX_POINTS * VIBE_PER_POINT * 100),
-          Math.max(step, Math.ceil((now + step) / step) * step)) };
+        const cap = Math.round(VIBE_MAX_POINTS * VIBE_PER_POINT * 100);
+        return { base: now, step, cap,
+          target: Math.min(cap, Math.max(step, Math.ceil((now + step) / step) * step)) };
       },
       text: (j) => 'Fit out one room to a +' + j.target + '% vibe',
       done: (j, tally) => tally.bestVibe,
@@ -2987,7 +3059,8 @@
         // Never more than the larder can hold, or the order could not be
         // filled however long you left it running.
         const most = Math.min(larderCap(), PRODUCTS[p].seconds > 300 ? 4 : 8);
-        return { product: p, target: Math.max(2, 2 + Math.floor(Math.random() * (most - 1))) };
+        return { product: p, base: 0, cap: most,
+          target: Math.max(2, 2 + Math.floor(Math.random() * (most - 1))) };
       },
       text: (j) => 'Deliver ' + j.target + ' x ' + PRODUCTS[j.product].name,
       done: (j) => larderCount(j.product),
@@ -2999,7 +3072,7 @@
     synergy: {
       pick(ctx) {
         const now = Math.round((ctx.tally.bestSynergy - 1) * 100);
-        return { target: Math.max(24, Math.round((now + 12) / 12) * 12) };
+        return { base: now, step: 12, target: Math.max(24, Math.round((now + 12) / 12) * 12) };
       },
       text: (j) => 'Get one piece earning a +' + j.target + '% synergy bonus',
       done: (j, tally) => Math.round((tally.bestSynergy - 1) * 100),
@@ -3022,7 +3095,22 @@
     return kinds;
   }
 
-  function makeJob(mult, avoidKinds) {
+  // The same piece of work asked for at three sizes. A contract's shape
+  // stretches what it asks for out from where the gym already stands --
+  // half again for a quick one, more than twice for a long haul -- and
+  // pays to match. This is what makes the board a decision: the quick one
+  // is money this evening, the long one is money once you have built
+  // something, and taking either throws the other away.
+  const JOB_SHAPES = [
+    { id: 'quick', name: 'Quick', reach: 0.5, pay: 0.55, note: 'small, and soon' },
+    { id: 'steady', name: 'Steady', reach: 1, pay: 1.15, note: 'a fair afternoon' },
+    { id: 'heavy', name: 'Long haul', reach: 2.4, pay: 2.9, note: 'a while, for a lot' },
+  ];
+  function jobShape(id) {
+    return JOB_SHAPES.find((sh) => sh.id === id) || JOB_SHAPES[1];
+  }
+
+  function makeJob(mult, avoidKinds, shapeId) {
     const tally = floorTally();
     const level = currentLevel();
     const affordable = ITEMS.filter((i) => unlockedFor(i) && !i.starter);
@@ -3039,26 +3127,90 @@
       cats: [...new Set(pool.map((i) => CATEGORY[i.id]))],
       products: productsMakeable(),
     };
-    let choices = jobKindsAvailable(tally).filter((k) => avoidKinds.indexOf(k) === -1);
-    if (!choices.length) choices = jobKindsAvailable(tally);
+    const shape = jobShape(shapeId);
+    const open = jobKindsAvailable(tally)
+      // A job with only one size to it is only ever asked for as it is.
+      .filter((k) => !(JOB_KINDS[k].fixed && shape.reach !== 1));
+    let choices = open.filter((k) => avoidKinds.indexOf(k) === -1);
+    if (!choices.length) choices = open.length ? open : jobKindsAvailable(tally);
     const kind = pickOf(choices);
-    const job = Object.assign({ kind }, JOB_KINDS[kind].pick(ctx));
+    const raw = JOB_KINDS[kind].pick(ctx);
+    const job = { kind, target: raw.target, shape: shape.id };
+    ['item', 'cat', 'product'].forEach((k) => { if (raw[k] !== undefined) job[k] = raw[k]; });
+    // Stretched from what the gym already has, never from nothing: a quick
+    // contract asks for a little more than you have, not for a little.
+    if (!JOB_KINDS[kind].fixed && shape.reach !== 1) {
+      const base = raw.base || 0;
+      let t = base + Math.max(1, (raw.target - base) * shape.reach);
+      if (raw.step) t = Math.max(base + raw.step, Math.ceil(t / raw.step) * raw.step);
+      t = Math.ceil(t);
+      if (raw.cap) t = Math.min(raw.cap, t);
+      job.target = Math.max(Math.ceil(base) + 1, t);
+    }
     // Stated when the job is written, not when it is handed in, so the board
     // can say what a job is worth before you decide to go and do it.
-    const pay = mult * (JOB_KINDS[kind].pay || 1) * (1 + gymEffect('jobs'));
+    const pay = mult * (JOB_KINDS[kind].pay || 1) * shape.pay * (1 + gymEffect('jobs'));
     job.cash = Math.max(150, Math.round(gps * 45 * pay));
     job.xp = Math.round(16 * pay * (1 + level * 0.12));
     return job;
   }
 
-  function refillJobs() {
+  const JOB_SLOT_WEIGHTS = [1, 1.7, 2.6, 3.6, 4.8];
+  function tidyBoard() {
     if (!Array.isArray(state.jobs)) state.jobs = [];
+    if (!Array.isArray(state.offers)) state.offers = [];
     state.jobs = state.jobs.filter((j) => j && JOB_KINDS[j.kind]);
-    const weights = [1, 1.7, 2.6, 3.6, 4.8];
-    while (state.jobs.length < jobsOnBoard()) {
-      state.jobs.push(makeJob(weights[state.jobs.length] || 1,
-        state.jobs.map((j) => j.kind)));
+    state.offers = state.offers.filter((o) => Array.isArray(o) && o.length
+      && o.every((j) => j && JOB_KINDS[j.kind]));
+  }
+  // Three ways of doing the same slot's work, all different enough to be
+  // worth reading: one of each size, and no two asking for the same thing.
+  function makeOffer(mult) {
+    const avoid = state.jobs.map((j) => j.kind);
+    const picks = [];
+    JOB_SHAPES.forEach((shape) => {
+      picks.push(makeJob(mult, avoid.concat(picks.map((j) => j.kind)), shape.id));
+    });
+    return picks;
+  }
+  // A slot that has fallen empty is filled with a choice, not with a job.
+  function offerJobs() {
+    tidyBoard();
+    let guard = 0;
+    while (state.jobs.length + state.offers.length < jobsOnBoard() && guard++ < 8) {
+      state.offers.push(makeOffer(
+        JOB_SLOT_WEIGHTS[state.jobs.length + state.offers.length] || 1));
     }
+    while (state.jobs.length + state.offers.length > jobsOnBoard() && state.offers.length) {
+      state.offers.pop();
+    }
+  }
+  // A board with nothing on it at all -- a new gym, or one just franchised
+  // -- is set out ready rather than as three decisions to make before
+  // anything has been built.
+  function refillJobs() {
+    tidyBoard();
+    if (!state.jobs.length && !state.offers.length) {
+      while (state.jobs.length < jobsOnBoard()) {
+        state.jobs.push(makeJob(JOB_SLOT_WEIGHTS[state.jobs.length] || 1,
+          state.jobs.map((j) => j.kind), 'steady'));
+      }
+      return;
+    }
+    offerJobs();
+  }
+  function takeOffer(index, choice) {
+    const offer = state.offers[index];
+    const job = offer && offer[choice];
+    if (!job) return;
+    state.jobs.push(job);
+    state.offers.splice(index, 1);
+    jobsSignature = '';
+    sfx.place();
+    toast('Contract taken: ' + JOB_KINDS[job.kind].text(job), 'good');
+    refreshJobsUI();
+    refreshJobsDot();
+    save();
   }
 
   function jobProgress(job, tally) {
@@ -4249,6 +4401,36 @@
         last: null,
       };
     });
+    // Then whatever the board is waiting on you to choose. These carry no
+    // progress of their own -- nothing is being worked towards until one of
+    // them is taken -- so they are built once and left alone.
+    (state.offers || []).forEach((offer, index) => {
+      const card = document.createElement('div');
+      card.className = 'tycoon-offer';
+      const head = document.createElement('span');
+      head.className = 'tycoon-offer-head';
+      head.textContent = 'A slot has come free. Take one of these.';
+      card.appendChild(head);
+      const picks = document.createElement('div');
+      picks.className = 'tycoon-offer-picks';
+      offer.forEach((job, choice) => {
+        const shape = jobShape(job.shape);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'tycoon-offer-pick is-' + shape.id;
+        btn.innerHTML = '<span class="tycoon-offer-shape"></span>'
+          + '<span class="tycoon-offer-text"></span>'
+          + '<span class="tycoon-offer-reward"></span>';
+        setText(btn.querySelector('.tycoon-offer-shape'), shape.name + ' · ' + shape.note);
+        setText(btn.querySelector('.tycoon-offer-text'), JOB_KINDS[job.kind].text(job));
+        setText(btn.querySelector('.tycoon-offer-reward'),
+          '$' + formatNum(job.cash) + ' + ' + job.xp + ' XP');
+        btn.addEventListener('click', () => takeOffer(index, choice));
+        picks.appendChild(btn);
+      });
+      card.appendChild(picks);
+      jobsListEl.appendChild(card);
+    });
   }
 
   const jobsDotEl = document.getElementById('tab-dot-jobs');
@@ -4256,13 +4438,16 @@
     if (!jobsDotEl) return;
     // A hidden row cannot be claimed, so it must not light the dot.
     const ready = !!document.querySelector('#jobs-list .tycoon-job.is-ready:not([hidden])')
-      || !!document.querySelector('#rush-order .tycoon-job.is-ready:not([hidden])');
+      || !!document.querySelector('#rush-order .tycoon-job.is-ready:not([hidden])')
+      || !!(state.offers && state.offers.length);
     if (jobsDotEl.hidden === ready) jobsDotEl.hidden = !ready;
   }
 
   function refreshJobsUI() {
     if (!jobsListEl) return;
-    const signature = state.jobs.map((j) => j.kind + ':' + j.target + ':' + (j.item || j.cat || '')).join('|');
+    const one = (j) => j.kind + ':' + j.target + ':' + (j.item || j.cat || j.product || '');
+    const signature = state.jobs.map(one).join('|')
+      + '#' + (state.offers || []).map((o) => o.map(one).join('/')).join('|');
     if (signature !== jobsSignature) {
       jobsSignature = signature;
       buildJobsUI();
@@ -4302,7 +4487,7 @@
     sfx.cash();
     state.jobs.splice(index, 1);
     state.jobsDone = (state.jobsDone || 0) + 1;
-    refillJobs();
+    offerJobs();
     // Rebuild the board whatever the new job looks like: a replacement
     // that happened to read the same as the one just claimed kept the old
     // row, ready state and all.
@@ -16868,6 +17053,85 @@
       };
     });
   }
+  // ---- What you charge ----
+  // Five named rates rather than a slider: a slider asks for a number
+  // nobody has an opinion about, and these have names you can have an
+  // opinion about. Each one says what the whole gym would take at it, so
+  // the lever is a decision made on figures rather than by feel -- and the
+  // answer moves as the gym is built, which is what keeps it a decision.
+  const priceRowEl = document.getElementById('price-row');
+  const priceNoteEl = document.getElementById('price-note');
+  let priceBtnEls = [];
+  let priceProj = [];
+  let priceProjAt = 0;
+  function buildPriceUI() {
+    if (!priceRowEl || priceBtnEls.length) return;
+    priceBtnEls = PRICE_TIERS.map((tier, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tycoon-price-btn';
+      btn.innerHTML = '<span class="tycoon-price-name"></span>'
+        + '<span class="tycoon-price-mult"></span>'
+        + '<span class="tycoon-price-rate"></span>';
+      setText(btn.querySelector('.tycoon-price-name'), tier.name);
+      setText(btn.querySelector('.tycoon-price-mult'), tier.mult === 1 ? 'the going rate'
+        : '\u00d7' + tier.mult.toFixed(2) + ' a head');
+      btn.addEventListener('click', () => setPrice(i));
+      priceRowEl.appendChild(btn);
+      return { root: btn, rate: btn.querySelector('.tycoon-price-rate'), last: null };
+    });
+  }
+  // What the gym would take at each rate. Worked out by asking the same sum
+  // that feeds the HUD what it would say at that price, so the figure on
+  // the button is the figure you will get.
+  function projectedRates() {
+    const was = state.price;
+    const out = PRICE_TIERS.map((tier, i) => {
+      state.price = i;
+      return computeTotalGps(state.themeRooms);
+    });
+    state.price = was;
+    return out;
+  }
+  function setPrice(i) {
+    if (priceIndex() === i) return;
+    state.price = i;
+    priceProjAt = 0;
+    recomputeStats();
+    refreshHud();
+    refreshPriceUI();
+    refreshOverview();
+    save();
+    toast('Membership is now ' + PRICE_TIERS[i].name, 'good');
+  }
+  function refreshPriceUI() {
+    // Nobody is looking at it from any other tab, and what it costs to work
+    // out is five sums over the whole gym.
+    if (!priceRowEl || activePanel !== 'gym') return;
+    buildPriceUI();
+    // Five whole-gym sums is not something to do sixty times a second, and
+    // the answer only moves when the gym does.
+    const now = Date.now();
+    if (now - priceProjAt > 1500) {
+      priceProjAt = now;
+      priceProj = projectedRates();
+    }
+    const at = priceIndex();
+    priceBtnEls.forEach((els, i) => {
+      const rate = priceProj[i] || 0;
+      const stamp = (i === at ? '*' : '') + Math.round(rate);
+      if (els.last === stamp) return;
+      els.last = stamp;
+      setText(els.rate, formatNum(rate) + '/s');
+      els.root.classList.toggle('is-on', i === at);
+    });
+    const tier = priceTier();
+    const swing = Math.round((priceDemandFactor(activeRoom()) - 1) * 100);
+    setText(priceNoteEl, tier.name + ': ' + tier.note
+      + (swing === 0 ? '.' : '. Here that is ' + (swing > 0 ? 'about ' + swing + '% more people'
+        : 'about ' + Math.abs(swing) + '% fewer people') + ' through the door.'));
+  }
+
   function refreshOverview() {
     if (!overviewEl) return;
     let places = 0;
@@ -17041,6 +17305,7 @@
     refreshStreakUI();
     refreshLevelCard();
     refreshOverview();
+    refreshPriceUI();
     refreshDesignUI();
     checkTrophies();
 
