@@ -396,17 +396,24 @@
   // corner, which the gear then has to keep out of. A planter sits on an
   // edge with its front half over the floor, so its box is that half.
   const ROOM_FIXTURES = {
+    // A stair housing is a box two and a bit metres tall, and every one of
+    // these used to be written flush against a roof edge -- u1 equal to the
+    // room's own width, v0 at nought. Its side face then hangs over the
+    // parapet and down the front of the building, which reads as a hut
+    // floating off the roof. They are all held a tile and a half inside
+    // now, and the air units are pulled clear of them: an AC written a
+    // half-tile from the housing came out leaning on it.
     rooftop: [
-      [{ kind: 'stairs', u0: 33, v0: 0, u1: 38, v1: 4 }, { kind: 'ac', u0: 28, v0: 0, u1: 30.5, v1: 2 },
+      [{ kind: 'stairs', u0: 31.5, v0: 1.5, u1: 36.5, v1: 5.5 }, { kind: 'ac', u0: 25, v0: 1.5, u1: 27.5, v1: 3.5 },
         { kind: 'planter', u0: 15, v0: 0, u1: 16.2, v1: 0.6 }, { kind: 'planter', u0: 21, v0: 0, u1: 22.2, v1: 0.6 },
         { kind: 'planter', u0: 0, v0: 18, u1: 0.6, v1: 19.2 }],
-      [{ kind: 'stairs', u0: 0, v0: 0, u1: 4, v1: 3 }, { kind: 'ac', u0: 15, v0: 0, u1: 17.5, v1: 2 },
+      [{ kind: 'stairs', u0: 1.5, v0: 1.5, u1: 6.5, v1: 5.5 }, { kind: 'ac', u0: 12.5, v0: 1.5, u1: 15, v1: 3.5 },
         { kind: 'planter', u0: 9, v0: 0, u1: 10.2, v1: 0.6 }, { kind: 'planter', u0: 0, v0: 11, u1: 0.6, v1: 12.2 },
         { kind: 'planter', u0: 0, v0: 19, u1: 0.6, v1: 20.2 }],
-      [{ kind: 'stairs', u0: 0, v0: 0, u1: 4, v1: 3 }, { kind: 'ac', u0: 0, v0: 12, u1: 2.5, v1: 14 },
+      [{ kind: 'stairs', u0: 1.5, v0: 1.5, u1: 6.5, v1: 5.5 }, { kind: 'ac', u0: 1.5, v0: 11, u1: 4, v1: 13 },
         { kind: 'planter', u0: 10, v0: 0, u1: 11.2, v1: 0.6 }, { kind: 'planter', u0: 17, v0: 0, u1: 18.2, v1: 0.6 },
         { kind: 'planter', u0: 0, v0: 7, u1: 0.6, v1: 8.2 }],
-      [{ kind: 'stairs', u0: 17, v0: 0, u1: 21, v1: 3 }, { kind: 'ac', u0: 17, v0: 3.6, u1: 19.5, v1: 5.6 },
+      [{ kind: 'stairs', u0: 14.5, v0: 1.5, u1: 19.5, v1: 5.5 }, { kind: 'ac', u0: 15, v0: 7.5, u1: 17.5, v1: 9.5 },
         { kind: 'planter', u0: 0, v0: 6, u1: 0.6, v1: 7.2 }, { kind: 'planter', u0: 0, v0: 13, u1: 0.6, v1: 14.2 }],
     ],
     boardwalk: [
@@ -2041,6 +2048,9 @@
     { id: 'ink', name: 'Ink', color: '#151923', cost: 20000 },
     { id: 'rose', name: 'Dusty Rose', color: '#8a4a5a', cost: 35000 },
     { id: 'bone', name: 'Bone', color: '#ddd6c6', cost: 50000 },
+    // The neon set: a wall, a floor and a finish meant to be worn together,
+    // and each of them the dearest thing in its own list.
+    { id: 'neon', name: 'Neon', color: '#2a1150', cost: 120000 },
   ];
   const FLOOR_PAINTS = [
     { id: 'rubber', name: 'Rubber', a: '#2a2d33', b: '#23262b', cost: 6000 },
@@ -2055,14 +2065,12 @@
     { id: 'chequer', name: 'Chequerboard', a: '#d5d1c8', b: '#2b2d33', cost: 55000 },
     { id: 'turf', name: 'Turf', a: '#3f7a3c', b: '#356732', cost: 60000 },
     { id: 'ice', name: 'Ice', a: '#9fc2d4', b: '#8aaec2', cost: 90000 },
+    { id: 'neon', name: 'Neon', a: '#241046', b: '#1b0c36', cost: 150000 },
   ];
-  const WALL_ART = [
-    { id: 'posters', name: 'Poster Set', note: 'Three posters, or banners on a railing', cost: 25000 },
-    { id: 'flags', name: 'Bunting', note: 'A string of pennants round every room', cost: 45000 },
-    { id: 'stripe', name: 'Neon Stripe', note: 'A lit line round every room', cost: 80000 },
-    { id: 'champs', name: 'Champions Board', note: 'The names in gold, in every room', cost: 140000 },
-    { id: 'mural', name: 'Mural', note: 'A painted wall in each room', cost: 250000 },
-  ];
+  // Wall art is gone from the shop. What anyone paid for it comes back to
+  // them once, on the next load, so the money is not simply pocketed --
+  // which is all this list is still here for.
+  const RETIRED_ART_COST = { posters: 25000, flags: 45000, stripe: 80000, champs: 140000, mural: 250000 };
   const FINISHES = [
     { id: 'standard', name: 'Standard', note: 'Powder-coated steel', cost: 0,
       palette: {} },
@@ -2070,27 +2078,31 @@
       palette: { STEEL: '#3a3d45', STEEL_LT: '#5a5e68', FRAME: '#26282e', FRAME_DK: '#17181c', WEIGHT: '#2e3138', PAD: '#1f2126' } },
     { id: 'red', name: 'Racing Red', note: 'Red frames, black pads', cost: 1000000,
       palette: { STEEL: '#c8433a', STEEL_LT: '#e26a5f', FRAME: '#8f2c25', FRAME_DK: '#5e1c18', WEIGHT: '#3a2a2a' } },
-    { id: 'chrome', name: 'Chrome', note: 'Polished all over', cost: 5000000,
-      palette: { STEEL: '#d9e2ec', STEEL_LT: '#f4f7fa', FRAME: '#aeb9c7', FRAME_DK: '#7f8a98', WEIGHT: '#9aa5b3', PAD: '#3a3f4a' } },
     { id: 'teal', name: 'Sea Green', note: 'Green frames, pale steel', cost: 3000000,
       palette: { STEEL: '#2f8f86', STEEL_LT: '#5fbcb1', FRAME: '#1f6a65', FRAME_DK: '#134741', WEIGHT: '#28524e' } },
     { id: 'chrome', name: 'Chrome', note: 'Polished all over', cost: 5000000,
       palette: { STEEL: '#d9e2ec', STEEL_LT: '#f4f7fa', FRAME: '#aeb9c7', FRAME_DK: '#7f8a98', WEIGHT: '#9aa5b3', PAD: '#3a3f4a' } },
     { id: 'copper', name: 'Copper', note: 'Warm metal, dark pads', cost: 12000000,
       palette: { STEEL: '#c07a45', STEEL_LT: '#e0a271', FRAME: '#8d5429', FRAME_DK: '#5d3719', WEIGHT: '#7a4f2c', PAD: '#241d16' } },
+    { id: 'neon', name: 'Neon', note: 'Magenta frames, cyan steel', cost: 25000000,
+      palette: { STEEL: '#2de1e8', STEEL_LT: '#8cf6fa', FRAME: '#ff2fa0', FRAME_DK: '#a3145f',
+        WEIGHT: '#3a1150', PAD: '#1a0a2e', RUBBER: '#140822' } },
     { id: 'gold', name: 'Gold', note: 'The most expensive thing in the shop', cost: 50000000,
       palette: { STEEL: '#e0b64a', STEEL_LT: '#f5dc86', FRAME: '#b8902f', FRAME_DK: '#7d5f1c', WEIGHT: '#a5822c', PAD: '#2b2418', RUBBER: '#231e14' } },
   ];
   function defaultDesign() {
     return {
       ownedWalls: {}, ownedFloors: {}, ownedFinishes: { standard: true },
-      walls: {}, floors: {}, art: {}, finish: 'standard',
+      walls: {}, floors: {}, finish: 'standard',
     };
   }
   // Something from the design shop tried on before it is paid for: shown
   // on the plan for the location you are in, saved nowhere, and gone the
   // moment you buy it, cancel it, or look at another location.
   let designPreview = null;
+  // What came back from retired wall art, so it can be said out loud once
+  // the toast machinery is up rather than silently added to the balance.
+  let refundedArt = 0;
   function previewFor(kind, theme) {
     if (!designPreview || designPreview.kind !== kind) return null;
     if (kind !== 'finish' && designPreview.theme !== theme) return null;
@@ -2099,7 +2111,20 @@
   function designState() {
     if (!state.design) state.design = defaultDesign();
     const d = state.design;
-    ['ownedWalls', 'ownedFloors', 'ownedFinishes', 'walls', 'floors', 'art'].forEach((k) => {
+    // Wall art was bought with money and then taken out of the game, so
+    // whatever was paid for it comes back once and the record goes.
+    if (d.art && typeof d.art === 'object') {
+      let back = 0;
+      Object.keys(d.art).forEach((theme) => {
+        back += RETIRED_ART_COST[d.art[theme]] || 0;
+      });
+      delete d.art;
+      if (back > 0) {
+        state.balance += back;
+        refundedArt = back;
+      }
+    }
+    ['ownedWalls', 'ownedFloors', 'ownedFinishes', 'walls', 'floors'].forEach((k) => {
       if (!d[k] || typeof d[k] !== 'object') d[k] = {};
     });
     if (!d.finish) d.finish = 'standard';
@@ -7672,166 +7697,7 @@
     });
   }
 
-  // Art bought in the design shop, on top of whatever the theme hangs.
-  //
-  // A roof and a pier have railings where the other two have walls, and
-  // every one of these was drawn against a wall that is not there: you
-  // could buy a Mural for the Rooftop, pay a quarter of a million for it,
-  // and get a painted nothing. Each piece has a railed form as well, so a
-  // location is never sold art it has nowhere to hang.
-  function drawRailArt(theme, art, north, east, west) {
-    const r = RAIL[theme];
-    if (!r) return;
-    // A point on one of the two back railings: t along it, h up it.
-    const on = (from, to, t, h) => ({
-      x: from.x + (to.x - from.x) * t,
-      y: from.y + (to.y - from.y) * t - h * r.h,
-    });
-    const runs = [[north, east], [north, west]];
-    const band = (from, to, t0, t1, h0, h1, fill, stroke) => paintQuad(
-      [on(from, to, t0, h0), on(from, to, t1, h0), on(from, to, t1, h1), on(from, to, t0, h1)],
-      fill, stroke || null, stroke ? 1 : 0);
-    if (art === 'posters') {
-      // Banners laced to the railing, in the posters' own inks.
-      const inks = ['#c94f3a', '#3fa0c9', '#e0b93f'];
-      runs.forEach(([from, to], side) => {
-        [0.28, 0.5, 0.72].forEach((t, i) => {
-          const w = 0.07;
-          band(from, to, t - w, t + w, 0.06, 0.88, '#e9e2d2', 'rgba(0,0,0,0.45)');
-          band(from, to, t - w * 0.72, t + w * 0.72, 0.24, 0.7, inks[(i + side) % 3]);
-        });
-      });
-      return;
-    }
-    if (art === 'flags') {
-      drawBunting(runs, on, 0.98);
-      return;
-    }
-    if (art === 'stripe') {
-      const glow = '#ff5fa8';
-      runs.forEach(([from, to]) => {
-        floorCtx.save();
-        floorCtx.shadowColor = glow;
-        floorCtx.shadowBlur = 10;
-        strokePolyline([on(from, to, 0.02, 0.9), on(from, to, 0.98, 0.9)], glow, 2.6);
-        floorCtx.restore();
-      });
-      return;
-    }
-    if (art === 'champs') {
-      runs.forEach(([from, to]) => drawChampsBoard(
-        (t, h) => on(from, to, t, h), 0.3, 0.7, 0.12, 0.9));
-      return;
-    }
-    if (art === 'mural') {
-      // Nothing to paint but the railing itself, so it becomes a hoarding
-      // -- which is what a painted pier or roof deck actually has.
-      runs.forEach(([from, to]) => {
-        band(from, to, 0.05, 0.95, 0.05, 0.93, '#1f2a3a');
-        band(from, to, 0.05, 0.95, 0.05, 0.48, '#e3733f');
-        band(from, to, 0.12, 0.42, 0.48, 0.86, '#f0c05a');
-        band(from, to, 0.52, 0.82, 0.34, 0.74, '#3fa8a0');
-        band(from, to, 0.05, 0.95, 0.03, 0.09, '#10141c');
-      });
-    }
-  }
-
-  // A string of pennants, slung between its ends in a shallow curve. Drawn
-  // the same on a wall and on a railing -- only the height it hangs at and
-  // the points it runs between change.
-  const BUNTING = ['#d8483c', '#e8b13f', '#3f9fd0', '#57ad5a', '#d8483c', '#e8b13f'];
-  function drawBunting(runs, on, top) {
-    runs.forEach(([from, to]) => {
-      const N = 9;
-      const sag = 0.13;
-      const at = (i) => {
-        const t = 0.05 + (i / N) * 0.9;
-        const k = Math.sin((i / N) * Math.PI);
-        return on(from, to, t, top - sag * k);
-      };
-      const line = [];
-      for (let i = 0; i <= N; i++) line.push(at(i));
-      strokePolyline(line, 'rgba(20,18,16,0.75)', 1.6);
-      for (let i = 0; i < N; i++) {
-        const a = at(i);
-        const b = at(i + 1);
-        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + 15 };
-        floorCtx.beginPath();
-        floorCtx.moveTo(a.x, a.y);
-        floorCtx.lineTo(b.x, b.y);
-        floorCtx.lineTo(mid.x, mid.y);
-        floorCtx.closePath();
-        floorCtx.fillStyle = BUNTING[i % BUNTING.length];
-        floorCtx.fill();
-        floorCtx.strokeStyle = 'rgba(0,0,0,0.35)';
-        floorCtx.lineWidth = 0.8;
-        floorCtx.stroke();
-      }
-    });
-  }
-
-  // A dark board with the names on it in gold. `at(t, h)` puts a point on
-  // whatever it is hanging on, so the wall and the railing share it.
-  function drawChampsBoard(at, t0, t1, h0, h1) {
-    const q = (a, b, c, d, fill, stroke) => paintQuad(
-      [at(a, c), at(b, c), at(b, d), at(a, d)], fill, stroke || null, stroke ? 1 : 0);
-    q(t0, t1, h0, h1, '#2a2018', 'rgba(0,0,0,0.55)');
-    q(t0 + 0.012, t1 - 0.012, h0 + 0.03, h1 - 0.03, '#3a2b1e');
-    const rows = 5;
-    for (let i = 0; i < rows; i++) {
-      const a = h0 + 0.07 + ((h1 - h0 - 0.16) * i) / rows;
-      q(t0 + 0.03, t1 - 0.03, a, a + 0.035, '#c9a24a');
-    }
-  }
-
-  function drawBoughtArt(theme, north, east, west, doors) {
-    const art = previewFor('art', theme) || designState().art[theme];
-    if (!art) return;
-    if (railed(theme)) return drawRailArt(theme, art, north, east, west);
-    if (art === 'posters') {
-      // Three posters along the back-left wall, stepping round a doorway.
-      const t = pickWallSpot(doors.nw, [], [0.5, 0.3, 0.7, 0.18, 0.82], 0.2);
-      if (t === null) return;
-      const inks = ['#c94f3a', '#3fa0c9', '#e0b93f'];
-      [-1, 0, 1].forEach((k, i) => {
-        const at = wallFrame(north, west, t + k * 0.13, 0.66);
-        paintQuad([at(-13, 20), at(13, 20), at(13, -18), at(-13, -18)], '#e9e2d2', 'rgba(0,0,0,0.5)', 1);
-        paintQuad([at(-10, 17), at(10, 17), at(10, 0), at(-10, 0)], inks[i], null);
-        strokePolyline([at(-9, -6), at(6, -6)], '#2a2622', 2.2);
-        strokePolyline([at(-9, -12), at(2, -12)], '#2a2622', 2.2);
-      });
-    } else if (art === 'stripe') {
-      const glow = '#ff5fa8';
-      [{ from: north, to: east }, { from: north, to: west }].forEach(({ from, to }) => {
-        const pts = [];
-        for (let i = 0; i <= 8; i++) pts.push(wallPoint(from, to, i / 8, 0.72));
-        floorCtx.save();
-        floorCtx.shadowColor = glow;
-        floorCtx.shadowBlur = 10;
-        strokePolyline(pts, glow, 2.6);
-        floorCtx.restore();
-      });
-    } else if (art === 'flags') {
-      drawBunting([[north, east], [north, west]],
-        (from, to, t, h) => wallPoint(from, to, t, h), 0.86);
-    } else if (art === 'champs') {
-      const t = pickWallSpot(doors.nw, [], [0.5, 0.32, 0.68], 0.26);
-      if (t === null) return;
-      drawChampsBoard((tt, h) => wallPoint(north, west, tt, h), t - 0.22, t + 0.22, 0.3, 0.82);
-    } else if (art === 'mural') {
-      const t = pickWallSpot(doors.nw, [], [0.5, 0.32, 0.68], 0.3);
-      if (t === null) return;
-      const quad = (t0, t1, h0, h1, fill) => paintQuad(wallQuad(north, west, t0, t1, h0, h1), fill, null);
-      quad(t - 0.28, t + 0.28, 0.12, 0.86, '#1f2a3a');
-      quad(t - 0.28, t + 0.28, 0.12, 0.40, '#e3733f');
-      quad(t - 0.24, t - 0.02, 0.40, 0.74, '#f0c05a');
-      quad(t + 0.02, t + 0.24, 0.30, 0.62, '#3fa8a0');
-      quad(t - 0.28, t + 0.28, 0.10, 0.14, '#10141c');
-    }
-  }
-
   function drawWallDecor(theme, north, east, west, doors) {
-    drawBoughtArt(theme, north, east, west, doors);
     if (theme === 'garage') return drawGarageWalls(north, east, west, doors);
     if (theme === 'basement') return drawBasementWalls(north, east, west, doors);
     return { ne: [], nw: [] };
@@ -12171,8 +12037,18 @@
   function stillSignature() {
     const d = designState();
     const theme = state.activeTheme;
+    // Keyed on what is actually being drawn, which is not the same as what
+    // has been bought: colorsFor() takes the preview over the purchase, so
+    // a signature that only knew the purchase left the cached layers in
+    // place and nothing happened when you tried a colour on. Buying it
+    // changed the signature and the plan caught up -- which is why it
+    // looked as though a purchase needed a reload to show. The finish was
+    // missing outright, so a new one on every machine did neither.
     const parts = [theme, floorCanvas.width, floorCanvas.height,
-      d.walls[theme], d.floors[theme], Math.round(lampBoost() * 20),
+      previewFor('wall', theme) || d.walls[theme] || '',
+      previewFor('floor', theme) || d.floors[theme] || '',
+      previewFor('finish', theme) || d.finish || '',
+      Math.round(lampBoost() * 20),
       state.gymName || '', decorSignature()];
     placements.forEach((p) => parts.push(p.gx0, p.gy0, p.cols, p.rows, p.cut ? 1 : 0));
     corridors.forEach((c) => parts.push(c.gx0, c.gy0, c.cols, c.rows, c.axis));
@@ -12453,22 +12329,7 @@
 
     // ---- What is built on it ----
     const buildShell = () => {
-      // A roof and a pier have no wall to build. They do have a railing,
-      // and the art bought for the location hangs on that -- which is why
-      // this is not simply a return.
-      if (rails) {
-        drawBoughtArt(theme, north, east, west, { ne: [], nw: [] });
-        return;
-      }
-      // The hub's walls are built with the plan's own shell rather than
-      // here, so there is no run to draw -- but its art still has to hang
-      // on them. Without this the room every gym starts in was the one
-      // room that showed no art at all, which reads as art that does not
-      // work rather than art in the wrong place.
-      if (hub) {
-        drawBoughtArt(theme, north, east, west, wallDoorSpans(roomIndex));
-        return;
-      }
+      if (hub || rails) return;
       const holes = wallApertures(roomIndex);
       drawWallRun([east, north, west], ['gx', 'gy'], ROOM.wallH, colors, [
         roomWallEnd(place, eastCorner),
@@ -14894,11 +14755,11 @@
   function buyDesign(kind, id) {
     const d = designState();
     const theme = state.activeTheme;
-    const list = kind === 'wall' ? WALL_PAINTS : kind === 'floor' ? FLOOR_PAINTS : kind === 'art' ? WALL_ART : FINISHES;
+    const list = kind === 'wall' ? WALL_PAINTS : kind === 'floor' ? FLOOR_PAINTS : FINISHES;
     const item = list.find((x) => x.id === id);
     if (!item) return;
     const ownedMap = kind === 'wall' ? d.ownedWalls : kind === 'floor' ? d.ownedFloors : kind === 'finish' ? d.ownedFinishes : null;
-    const owned = ownedMap ? !!ownedMap[id] : d.art[theme] === id;
+    const owned = ownedMap ? !!ownedMap[id] : false;
     if (!owned) {
       if (state.balance < item.cost) { toast(item.name + ' costs $' + formatNum(item.cost), null); return; }
       const before = currentLevel();
@@ -14910,12 +14771,11 @@
     }
     if (kind === 'wall') d.walls[theme] = id;
     else if (kind === 'floor') d.floors[theme] = id;
-    else if (kind === 'art') d.art[theme] = id;
     else d.finish = id;
     designPreview = null;
     if (kind === 'finish') propCache.clear();
     toast(kind === 'finish' ? item.name + ' on every machine'
-      : item.name + (kind === 'art' ? ' in the ' : ' for the ') + designThemeName(), 'good');
+      : item.name + ' for the ' + designThemeName(), 'good');
     refreshHud();
     refreshLevelUI();
     designSig = '';
@@ -14941,7 +14801,6 @@
     const d = designState();
     if (kind === 'wall') delete d.walls[state.activeTheme];
     else if (kind === 'floor') delete d.floors[state.activeTheme];
-    else if (kind === 'art') delete d.art[state.activeTheme];
     designSig = '';
     refreshDesignUI();
     renderScene();
@@ -14959,7 +14818,7 @@
       renderScene();
     }
     const pv = designPreview ? designPreview.kind + ':' + designPreview.id : '';
-    const sig = [theme, d.walls[theme] || '', d.floors[theme] || '', d.art[theme] || '', d.finish, pv,
+    const sig = [theme, d.walls[theme] || '', d.floors[theme] || '', d.finish, pv,
       Object.keys(d.ownedWalls).join(','), Object.keys(d.ownedFloors).join(','), Object.keys(d.ownedFinishes).join(','),
       Math.floor(bal / 1000)].join('|');
     if (sig === designSig) return;
@@ -14993,20 +14852,6 @@
       + '<span class="tycoon-swatch-name">As built</span><span class="tycoon-swatch-price">' + (!d.floors[theme] ? 'On' : 'Free') + '</span></div>'
       + FLOOR_PAINTS.map((f) => swatch('floor', f, d.floors[theme] === f.id, !!d.ownedFloors[f.id],
         'linear-gradient(135deg,' + f.a + ' 50%,' + f.b + ' 50%)')).join('');
-    const artRow = '<div class="tycoon-swatch is-wide' + (!d.art[theme] ? ' is-on' : '') + '" role="button" tabindex="0" data-kind="art" data-id="">'
-      + '<span class="tycoon-swatch-chip is-none"></span>'
-      + '<span class="tycoon-swatch-name">Bare walls</span><span class="tycoon-swatch-price">' + (!d.art[theme] ? 'On' : 'Free') + '</span></div>'
-      + WALL_ART.map((a) => {
-        const chosen = d.art[theme] === a.id;
-        const can = chosen || bal >= a.cost;
-        const pvHere = isPv('art', a.id);
-        return '<div class="tycoon-swatch is-wide' + (chosen ? ' is-on' : '') + (pvHere ? ' is-preview' : '') + (can ? '' : ' is-poor') + '"'
-          + ' role="button" tabindex="0" data-kind="art" data-id="' + a.id + '">'
-          + '<span class="tycoon-swatch-chip is-' + a.id + '"></span>'
-          + '<span class="tycoon-swatch-name">' + a.name + '<small>' + a.note + '</small></span>'
-          + (pvHere ? buyBtn('art', a)
-            : '<span class="tycoon-swatch-price">' + (chosen ? 'On' : '$' + formatNum(a.cost)) + '</span>') + '</div>';
-      }).join('');
     const finishRow = FINISHES.map((f) => {
       const chosen = d.finish === f.id;
       const owned = !!d.ownedFinishes[f.id];
@@ -15026,7 +14871,6 @@
       + '<h3 class="tycoon-panel-title">Floor <span class="tycoon-panel-sub">' + designThemeName() + '</span></h3>'
       + '<div class="tycoon-swatches">' + floorRow + '</div>'
       + '<h3 class="tycoon-panel-title">Wall art <span class="tycoon-panel-sub">' + designThemeName() + '</span></h3>'
-      + '<div class="tycoon-swatches is-list">' + artRow + '</div>'
       + '<h3 class="tycoon-panel-title">Gear finish <span class="tycoon-panel-sub">whole gym</span></h3>'
       + '<div class="tycoon-swatches is-list">' + finishRow + '</div>';
   }
@@ -15036,10 +14880,10 @@
     if (kind === 'wall') return !!d.ownedWalls[id];
     if (kind === 'floor') return !!d.ownedFloors[id];
     if (kind === 'finish') return !!d.ownedFinishes[id];
-    return d.art[state.activeTheme] === id;
+    return false;
   }
   function designItem(kind, id) {
-    const list = kind === 'wall' ? WALL_PAINTS : kind === 'floor' ? FLOOR_PAINTS : kind === 'art' ? WALL_ART : FINISHES;
+    const list = kind === 'wall' ? WALL_PAINTS : kind === 'floor' ? FLOOR_PAINTS : FINISHES;
     return list.find((x) => x.id === id);
   }
   if (designEl) {
@@ -15377,6 +15221,13 @@
       toast('Away ' + awayWords(awayFor) + '. $' + formatNum(awayCash)
         + ' waiting in the bubbles', 'good', 4200);
     }, 700);
+  }
+  // Wall art has been taken out of the shop; say so, once, to whoever had
+  // paid for some, rather than quietly adding the money back.
+  if (refundedArt > 0) {
+    setTimeout(() => {
+      toast('Wall art has gone. $' + formatNum(refundedArt) + ' refunded', 'good', 4200);
+    }, awayCash >= 1 ? 5200 : 900);
   }
 
   // The plot sign for the next room lights up once you can afford it, so the
