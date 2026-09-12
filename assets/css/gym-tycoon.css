@@ -1991,7 +1991,41 @@
   padding: 0;
   margin: 0 0 12px;
 }
+.tycoon-filters { gap: 8px; flex-wrap: wrap; align-items: center; }
 .tycoon-filter-menu { position: relative; display: inline-block; }
+/* How many a press of Buy buys. Sits beside the filter as one small
+   segmented control rather than a second button on every row. */
+.tycoon-buymult {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 2px 2px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.tycoon-buymult-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--muted, #8b8b93);
+  margin-right: 3px;
+}
+.tycoon-buymult-btn {
+  min-width: 30px;
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted, #8b8b93);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.tycoon-buymult-btn:hover { color: var(--text, #e9e9ee); }
+.tycoon-buymult-btn.is-on { background: rgba(255, 209, 102, 0.16); color: #ffd166; }
+.shop-buy-x { font-variant-numeric: tabular-nums; }
 .tycoon-filter-btn {
   display: inline-flex;
   align-items: center;

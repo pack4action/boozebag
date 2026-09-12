@@ -1145,12 +1145,14 @@
   }
   function upgradeItem(id) {
     if (!canUpgrade(id)) return;
-    const cost = upgradeCost(id);
-    if (state.balance < cost) return;
+    const step = upgradeMarksFor(id);
+    const marks = step.marks;
+    const cost = step.cost;
+    if (!marks || state.balance < cost) return;
     const before = currentLevel();
     state.balance -= cost;
     if (!state.tiers) state.tiers = {};
-    state.tiers[id] = tierOf(id) + 1;
+    state.tiers[id] = tierOf(id) + marks;
     addXp(xpForSpend(cost));
     sfx.thunk();
     if (currentLevel() > before) announceLevel(currentLevel());
@@ -4908,6 +4910,65 @@
   function costFor(item) {
     return Math.ceil(item.baseCost * Math.pow(COST_GROWTH, state.owned[item.id] || 0));
   }
+  // The price of the nth one after the ones you already have, and of a
+  // whole batch of them: every unit costs more than the last, so a batch is
+  // a sum and not a multiplication.
+  function costForNth(item, n) {
+    return Math.ceil(item.baseCost * Math.pow(COST_GROWTH, (state.owned[item.id] || 0) + n));
+  }
+  function batchCost(item, count) {
+    let sum = 0;
+    for (let n = 0; n < count; n++) sum += costForNth(item, n);
+    return sum;
+  }
+  // How many of a thing the money in hand covers, up to a limit -- the
+  // limit is there so a cheap item and a huge balance do not try to buy
+  // tens of thousands of them.
+  const BUY_MAX_BATCH = 100;
+  function affordableUnits(item, cap) {
+    let spent = 0;
+    let n = 0;
+    while (n < cap) {
+      const next = spent + costForNth(item, n);
+      if (next > state.balance) break;
+      spent = next;
+      n++;
+    }
+    return n;
+  }
+  // How many marks up a piece can go at once for the money in hand.
+  function upgradeCostAt(id, tier) {
+    const item = itemById(id);
+    return Math.ceil(item.baseCost * 40 * Math.pow(3.2, tier - 1));
+  }
+  function upgradeBatch(id, marks) {
+    const from = tierOf(id);
+    let spent = 0;
+    let k = 0;
+    while (k < marks && from + k < MAX_TIER) {
+      const next = spent + upgradeCostAt(id, from + k);
+      if (next > state.balance) break;
+      spent = next;
+      k++;
+    }
+    return { marks: k, cost: spent };
+  }
+
+  // How many a press of Buy buys: one, a batch, or as many as the money
+  // covers. Kept in the browser rather than the save -- it is a preference
+  // about the shop, not part of the gym.
+  const BUY_MULTS = [1, 5, 25, 'max'];
+  let buyMult = 1;
+  try {
+    const kept = localStorage.getItem('gymTycoonBuyMult');
+    if (kept === 'max') buyMult = 'max';
+    else if (kept && BUY_MULTS.indexOf(Number(kept)) !== -1) buyMult = Number(kept);
+  } catch (e) { buyMult = 1; }
+  function buyCountFor(item) {
+    if (item.starter) return 1;
+    if (buyMult === 'max') return Math.max(1, affordableUnits(item, BUY_MAX_BATCH));
+    return buyMult;
+  }
 
   const SELL_REFUND_RATE = 0.6;
   // Refunds 60% of what the most recently bought unit actually cost --
@@ -5073,6 +5134,32 @@
       sync();
     });
     sync();
+    buildBuyMult();
+  }
+
+  // How many a press of Buy buys, as one control for the whole shop rather
+  // than a second button on every row. It drives the upgrade buttons too:
+  // on Max, Upgrade takes a piece as far up the marks as the money goes.
+  function buildBuyMult() {
+    if (!shopFilterEl) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'tycoon-buymult';
+    wrap.innerHTML = '<span class="tycoon-buymult-label">Buy</span>'
+      + BUY_MULTS.map((m) => '<button class="tycoon-buymult-btn" type="button" data-mult="' + m + '">'
+        + (m === 'max' ? 'Max' : '\u00d7' + m) + '</button>').join('');
+    shopFilterEl.appendChild(wrap);
+    const mark = () => wrap.querySelectorAll('.tycoon-buymult-btn').forEach((b) => {
+      b.classList.toggle('is-on', String(buyMult) === b.dataset.mult);
+    });
+    wrap.addEventListener('click', (e) => {
+      const b = e.target.closest('.tycoon-buymult-btn');
+      if (!b) return;
+      buyMult = b.dataset.mult === 'max' ? 'max' : Number(b.dataset.mult);
+      try { localStorage.setItem('gymTycoonBuyMult', String(buyMult)); } catch (err) { /* private window */ }
+      mark();
+      refreshShopUI();
+    });
+    mark();
   }
 
   // The shop reads as two shops: the machines that earn, and the decor
@@ -5266,19 +5353,32 @@
 
   // The upgrade control on one shop row: what the next mark costs and what
   // it buys, which is takings for a machine and holding room for the desk.
+  // How many marks one press of Upgrade buys, which follows the shop's own
+  // Buy setting: one, a few, or as far as the money goes.
+  function upgradeMarksFor(itemId) {
+    const room = MAX_TIER - tierOf(itemId);
+    if (room <= 0) return { marks: 0, cost: 0, want: 0 };
+    const want = buyMult === 'max' ? room : Math.min(buyMult, room);
+    const got = upgradeBatch(itemId, want);
+    return { marks: got.marks, cost: got.cost, want };
+  }
   function refreshUpgradeBtn(btn, itemId) {
     const upgradable = canUpgrade(itemId);
     btn.hidden = !upgradable;
     if (!upgradable) return;
     const tier = tierOf(itemId);
-    const upCost = upgradeCost(itemId);
+    const step = upgradeMarksFor(itemId);
+    // What it would take to move at all, when the money is not there for
+    // the batch asked for: the button still says the price of one mark.
+    const marks = Math.max(1, step.marks);
+    const cost = step.marks ? step.cost : upgradeCost(itemId);
     const gain = upgradeIsCap(itemId)
-      ? 'bubbles ' + capWords(PILE_CAP_SECONDS[tier + 1] || pileCapSeconds())
-      : 'x' + TIER_STEP.toFixed(1);
-    setHtml(btn, '<span class="btn-long">Upgrade to </span>' + TIER_NAMES[tier + 1]
-      + '<span class="btn-long"> for</span> $' + formatNum(upCost)
+      ? 'bubbles ' + capWords(PILE_CAP_SECONDS[tier + marks] || pileCapSeconds())
+      : 'x' + Math.pow(TIER_STEP, marks).toFixed(1);
+    setHtml(btn, '<span class="btn-long">Upgrade to </span>' + TIER_NAMES[tier + marks]
+      + '<span class="btn-long"> for</span> $' + formatNum(cost)
       + '<span class="btn-long"> (' + gain + ')</span>');
-    btn.disabled = state.balance < upCost;
+    btn.disabled = state.balance < cost;
   }
 
   function refreshShopUI() {
@@ -5341,9 +5441,14 @@
         return;
       }
       els.root.onclick = null;
+      // On Max the button says how many that press would actually buy, so
+      // it is never a surprise; on a fixed batch it says the batch.
+      const count = buyCountFor(item);
+      const batch = item.starter ? 0 : batchCost(item, count);
+      const many = count > 1 ? '<span class="shop-buy-x">\u00d7' + count + '</span> ' : '';
       setHtml(els.buyBtn, item.starter ? 'Take it, free'
-        : 'Buy<span class="btn-long"> for</span> $' + formatNum(cost));
-      const affordable = item.starter || state.balance >= cost;
+        : 'Buy ' + many + '<span class="btn-long">for </span>$' + formatNum(batch));
+      const affordable = item.starter || state.balance >= batch;
       els.buyBtn.disabled = !affordable;
       els.root.classList.toggle('is-affordable', affordable);
 
@@ -5355,11 +5460,12 @@
     const item = ITEMS.find((i) => i.id === id);
     if (!unlockedFor(item)) return;
     if (item.starter ? !deskWanted() : !gymOpen()) return;
-    const cost = item.starter ? 0 : costFor(item);
+    const count = item.starter ? 1 : buyCountFor(item);
+    const cost = item.starter ? 0 : batchCost(item, count);
     if (state.balance < cost) return;
     const before = currentLevel();
     state.balance -= cost;
-    state.owned[id] = (state.owned[id] || 0) + 1;
+    state.owned[id] = (state.owned[id] || 0) + count;
     addXp(xpForSpend(cost));
     if (!item.starter) sfx.thunk();
     const after = currentLevel();
@@ -5390,10 +5496,17 @@
     // the cursor.
     const idx = state.activeRoomIndex;
     const holdIt = !editing && !locationFull(state.activeTheme, id);
+    // One goes into your hands; anything else bought with it waits in
+    // Storage, and the toast says how many are in there rather than
+    // leaving you to count.
+    const spare = count - (holdIt ? 1 : 0);
     if (holdIt) {
       const shape = roomShapeFor(state.activeTheme, idx);
       beginEdit(id, idx, { u: shape.cols / 2, v: shape.rows / 2 }, null);
       scrollToRoom(idx);
+      if (spare > 0) toast(count + ' \u00d7 ' + item.name + ', ' + spare + ' in Storage', 'good');
+    } else if (spare > 1) {
+      toast(spare + ' \u00d7 ' + item.name + ' in Storage' + (editing ? '. Your hands are full' : ''), 'good');
     } else {
       toast(item.name + (editing ? ' is in Storage. Your hands are full' : ' is in Storage'), 'good');
     }
