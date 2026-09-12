@@ -3666,9 +3666,16 @@
       // Newcomers arrive one at a time, a few seconds apart, and walk in
       // through the door. A gym that refills four people the instant the
       // last four leave is a revolving door, not a gym.
+      //
+      // A room with nobody in it at all is the exception: opening the page,
+      // or walking into a location for the first time, should find the
+      // place open rather than watch it fill up over the next half minute.
       if (here.length < want) {
         const slot = state.activeTheme + ':' + roomIndex;
-        if (!(nextArrival[slot] > now)) {
+        if (!here.length) {
+          while (here.length < want) here.push(spawnMember(roomIndex, place));
+          nextArrival[slot] = now + ARRIVE_GAP_MS;
+        } else if (!(nextArrival[slot] > now)) {
           nextArrival[slot] = now + ARRIVE_GAP_MS * (0.6 + Math.random() * 0.8);
           here.push(spawnMember(roomIndex, place));
         }
