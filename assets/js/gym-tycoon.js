@@ -9471,9 +9471,27 @@
     // stair, where a tall thing can stand without a floor in front of it
     // hiding its top, and its pipe goes up to join the run along the wall.
     const boilerAt = { gx: stair.gxB + 8.2, gy: a.gy0 + 3.2 };
+    // Somewhere with nothing over it and nothing behind it. A fixed spot
+    // kept finding a wall: it sat hard against the west stone with the
+    // boiler's pipe run passing through the heap, and moving it by hand
+    // only found the stone on the other side. These are tried in order
+    // along the front of the pit and the first clear one wins, with the
+    // whole line held a few tiles inside the pit's own south edge so a
+    // mound three tiles across cannot spill over it.
+    const pitFront = Math.min(planBounds.gy1 + 2, a.gy0 + a.rows - 5);
+    const heapSpots = [
+      { gx: a.gx0 + 13, gy: pitFront },
+      { gx: a.gx0 + 19, gy: pitFront },
+      { gx: a.gx0 + 8, gy: pitFront },
+      { gx: a.gx0 + 25, gy: pitFront },
+      { gx: a.gx0 + 13, gy: pitFront - 4 },
+    ];
+    const heapClear = (spot) => ![-3, -1.5, 0, 1.5, 3].some((d) =>
+      siteIsFloor(Math.round(spot.gx + d), Math.round(spot.gy))
+      || siteIsFloor(Math.round(spot.gx), Math.round(spot.gy + d)));
     const heapAt = west
       ? { gx: west.gx0 + west.cols * 0.3, gy: west.gy0 + west.rows + 5 }
-      : { gx: planBounds.gx0 - 5, gy: planBounds.gy1 - 6 };
+      : (heapSpots.find(heapClear) || heapSpots[0]);
     const storeAt = west
       ? { gx: west.gx0 + west.cols * 0.5, gy: west.gy0 + west.rows + 11 }
       : { gx: a.gx0 + 2.5, gy: (hub ? hub.gy0 + hub.rows : planBounds.gy1) - 2 };
@@ -9504,18 +9522,24 @@
     const lampGy = ch.L.gy0 - 0.8;
     const lampGx = ch.R.gx0 - 0.8;
     const behind = (gx, gy) => siteIsFloor(Math.round(gx), Math.round(gy));
+    // A floor anywhere behind a kerb lamp, not just at the single point
+    // five tiles back: at a floor's corner that one sample fell past the
+    // corner and the lamp was kept, standing hard against the floor's edge
+    // with the slab cutting it in half. Three depths and three widths.
+    const floorNear = (gx, gy, alongX) => [3, 5, 7, 9].some((d) => [-2.5, 0, 2.5]
+      .some((k) => (alongX ? behind(gx + k, gy - d) : behind(gx - d, gy + k))));
     const postsL = Math.max(2, Math.round(a.cols / 12));
     for (let i = 0; i <= postsL; i++) {
       const gx = a.gx0 + 1 + (a.cols - 2) * (i / postsL);
       if (Math.abs(gx - (ch.bridgeL.gx0 + ch.bridgeL.cols * 0.5)) < 3) continue;
-      if (behind(gx, lampGy - 5)) continue;
+      if (floorNear(gx, lampGy, true)) continue;
       drawKerbLamp(isoPoint(gx, lampGy), light);
     }
     const postsR = Math.max(2, Math.round(a.rows / 12));
     for (let i = 0; i < postsR; i++) {
       const gy = a.gy0 + 1 + (a.rows - 2) * (i / postsR);
       if (Math.abs(gy - (ch.bridgeR.gy0 + ch.bridgeR.rows * 0.5)) < 3) continue;
-      if (behind(lampGx - 5, gy)) continue;
+      if (floorNear(lampGx, gy, false)) continue;
       drawKerbLamp(isoPoint(lampGx, gy), light);
     }
 
@@ -12436,7 +12460,15 @@
         drawBoughtArt(theme, north, east, west, { ne: [], nw: [] });
         return;
       }
-      if (hub) return;
+      // The hub's walls are built with the plan's own shell rather than
+      // here, so there is no run to draw -- but its art still has to hang
+      // on them. Without this the room every gym starts in was the one
+      // room that showed no art at all, which reads as art that does not
+      // work rather than art in the wrong place.
+      if (hub) {
+        drawBoughtArt(theme, north, east, west, wallDoorSpans(roomIndex));
+        return;
+      }
       const holes = wallApertures(roomIndex);
       drawWallRun([east, north, west], ['gx', 'gy'], ROOM.wallH, colors, [
         roomWallEnd(place, eastCorner),
