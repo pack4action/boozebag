@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=11" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=6" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=100" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=101" />
 </head>
 <body class="game-body">
 
@@ -85,6 +85,26 @@
   </div>
 
   <div class="tycoon-designer">
+    <!-- Above the plan, not under it: the daily is a thing to collect and
+         the room breakdown is a thing to read, and both were below a
+         window tall enough to push them off a phone screen entirely. -->
+    <div class="tycoon-above">
+    <!-- The one thing that is worth coming back for: twelve hours of the
+         gym's takings, ready every twelve hours, and the Open Day handed
+         back on the seventh collection in a row. -->
+    <div class="tycoon-streak" id="streak-card" hidden>
+      <span class="tycoon-streak-days" id="streak-days" aria-hidden="true"></span>
+      <span class="tycoon-streak-body">
+        <b class="tycoon-streak-title" id="streak-title"></b>
+        <span class="tycoon-streak-note" id="streak-note"></span>
+      </span>
+      <button class="tycoon-streak-btn" id="btn-streak" type="button"></button>
+    </div>
+    <details class="tycoon-room-details" id="room-details" hidden>
+      <summary><span class="tycoon-rd-label">Room details</span><span class="tycoon-rd-sum" id="room-details-sum"></span></summary>
+      <div class="tycoon-synergy" id="tycoon-synergy"></div>
+    </details>
+    </div>
     <div class="tycoon-stage-wrap">
       <!-- The locations sit on the plan itself, sticking under the money
            stats. They used to be a row above it, which the stats covered
@@ -188,21 +208,6 @@
       <span class="tycoon-next-text"></span>
       <button class="tycoon-next-go" type="button" hidden></button>
     </div>
-    <details class="tycoon-room-details" id="room-details" hidden>
-      <summary><span class="tycoon-rd-label">Room details</span><span class="tycoon-rd-sum" id="room-details-sum"></span></summary>
-      <div class="tycoon-synergy" id="tycoon-synergy"></div>
-    </details>
-    <!-- The one thing that is worth coming back for: twelve hours of the
-         gym's takings, ready every twelve hours, and the Open Day handed
-         back on the seventh collection in a row. -->
-    <div class="tycoon-streak" id="streak-card" hidden>
-      <span class="tycoon-streak-days" id="streak-days" aria-hidden="true"></span>
-      <span class="tycoon-streak-body">
-        <b class="tycoon-streak-title" id="streak-title"></b>
-        <span class="tycoon-streak-note" id="streak-note"></span>
-      </span>
-      <button class="tycoon-streak-btn" id="btn-streak" type="button"></button>
-    </div>
     <!-- Storage comes last of everything under the plan, so that on a phone
          -- where the two columns stack -- what is in your hands sits
          directly above the Shop it came out of, with nothing in between.
@@ -265,8 +270,11 @@
            way in gym-tycoon.js, when you are done poking at the numbers. -->
       <button class="tycoon-cheat-btn" id="btn-cheat" type="button">Add $1 trillion (testing)</button>
 
-      <input class="tycoon-gym-name" id="gym-name" type="text" maxlength="28"
-        placeholder="Name your gym" aria-label="Gym name" autocomplete="off" spellcheck="false" />
+      <div class="tycoon-namer">
+        <h3 class="tycoon-panel-title">Name your gym <span class="tycoon-panel-sub">it is yours, so call it something</span></h3>
+        <input class="tycoon-gym-name" id="gym-name" type="text" maxlength="28"
+          placeholder="Name your gym" aria-label="Gym name" autocomplete="off" spellcheck="false" />
+      </div>
       <h3 class="tycoon-panel-title">Your locations <span class="tycoon-panel-sub">click one to go there</span></h3>
       <div class="tycoon-overview" id="overview"></div>
 

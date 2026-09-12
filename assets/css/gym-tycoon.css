@@ -3285,3 +3285,44 @@
 .tycoon-stage-grip:hover,
 .tycoon-stage-grip:focus-visible,
 .tycoon-stage-grip.is-dragging { color: #ffd166; background: rgba(255, 209, 102, 0.09); }
+
+
+/* ---- Above the plan ----
+   The daily and the room breakdown sit over the plan window rather than
+   under it. Below a window tall enough to fill a phone they were off the
+   screen, which for a thing you are meant to collect is the same as not
+   being there. */
+.tycoon-above {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 auto 10px;
+  width: 100%;
+  max-width: 560px;
+}
+.tycoon-above > * { margin-bottom: 0; }
+@media (min-width: 1080px) { .tycoon-above { max-width: none; } }
+
+/* ---- Naming the gym ----
+   It was a bare input between a level card and a list of locations, with
+   nothing but its own placeholder to say what it was for. It gets a
+   heading like everything else in the panel, and a box that looks like
+   something you are meant to type in. */
+.tycoon-namer {
+  border: 1px solid var(--panel-border, #2a2732);
+  border-radius: 14px;
+  background: rgba(255, 209, 102, 0.05);
+  padding: 12px 14px;
+  margin: 0 0 12px;
+}
+.tycoon-namer .tycoon-panel-title { margin: 0 0 8px; }
+.tycoon-namer .tycoon-gym-name {
+  width: 100%;
+  margin: 0;
+  border: 1px solid rgba(255, 209, 102, 0.4);
+  background: rgba(0, 0, 0, 0.3);
+}
+.tycoon-namer .tycoon-gym-name:focus {
+  border-color: #ffd166;
+  outline: none;
+}

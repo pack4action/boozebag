@@ -2899,6 +2899,9 @@
     { id: 'pier', name: 'Out On The Pier', hint: 'Open the Boardwalk and put gear on it',
       cash: 50000000, got: (c) => c.themesUsed >= 4 },
 
+    { id: 'named', name: 'Under New Management', hint: 'Give your gym a name',
+      cash: 150, got: (c) => c.named },
+
     { id: 'week', name: 'Seven In A Row', hint: 'Collect seven times running without letting the run lapse',
       cash: 400000, got: (c) => c.streak >= 7 },
     { id: 'month', name: 'Never Misses', hint: 'Keep a run of thirty going',
@@ -2981,6 +2984,7 @@
       jobsDone: state.jobsDone || 0,
       rushDone: state.rushDone || 0,
       runs: (state.franchise && state.franchise.runs) || 0,
+      named: !!(state.gymName || '').trim(),
       streak: run,
     };
   }
@@ -3997,6 +4001,7 @@
     gymNameEl.value = state.gymName || '';
     gymNameEl.addEventListener('input', () => {
       state.gymName = gymNameEl.value.slice(0, 28);
+      checkTrophies();
       clearTimeout(nameSaveTimer);
       nameSaveTimer = setTimeout(save, 400);
     });
