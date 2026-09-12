@@ -1818,21 +1818,70 @@
   function roomCapacity(room) {
     return room.layout.reduce((n, id) => n + (id && gpsOf(id) > 0 ? 1 : 0), 0);
   }
-  // Which machines are actually being used, as a share each. The busiest
-  // machines are the best ones: people take the best thing that is free, so
-  // demand is dealt out to the highest earners first. That is what stops a
-  // cheap piece added to an already over-built room from dragging the
-  // room's average -- and its takings -- down.
+  // What people came in to do. A room's draw is not one queue: some of them
+  // came to lift, some to run, some for the sauna, and a treadmill is no
+  // use at all to somebody who came to lift. Eight treadmills therefore
+  // serve the runners and leave everybody else standing about -- which is
+  // what makes the whole catalogue worth buying rather than eight of
+  // whatever earns most.
+  const DEMAND_MIX = { strength: 0.40, cardio: 0.38, recovery: 0.22 };
+  // Over the kinds there is something to buy of, so a kind nobody can own
+  // yet is not quietly holding a fifth of the room's draw.
+  function demandMix() {
+    const open = {};
+    let total = 0;
+    Object.keys(DEMAND_MIX).forEach((kind) => {
+      const any = ITEMS.some((it) => CATEGORY[it.id] === kind && it.gps > 0 && unlockedFor(it));
+      if (!any) return;
+      open[kind] = DEMAND_MIX[kind];
+      total += DEMAND_MIX[kind];
+    });
+    if (!total) return Object.assign({}, DEMAND_MIX);
+    Object.keys(open).forEach((kind) => { open[kind] /= total; });
+    return open;
+  }
+  // How much of the room's draw wants each kind of machine, and how many
+  // machines of that kind it has to offer them.
+  function demandByKind(room) {
+    const total = roomDemand(room);
+    const mix = demandMix();
+    const out = {};
+    Object.keys(DEMAND_MIX).forEach((kind) => {
+      out[kind] = { want: total * (mix[kind] || 0), machines: 0 };
+    });
+    room.layout.forEach((id) => {
+      if (!id || !(gpsOf(id) > 0)) return;
+      const kind = CATEGORY[id];
+      if (out[kind]) out[kind].machines++;
+    });
+    return out;
+  }
+  // Which machines are actually being used, as a share each. Within a kind
+  // the busiest machines are the best ones: people take the best thing of
+  // the sort they came for that is free, so that kind's share of the draw
+  // is dealt out to its highest earners first. That is what stops a cheap
+  // piece added to an already over-built room from dragging the room's
+  // average -- and its takings -- down.
   function serveShares(room, base) {
     const out = new Array(base.length).fill(0);
-    const order = [];
-    base.forEach((r, i) => { if (r > 0) order.push(i); });
-    order.sort((a, b) => base[b] - base[a]);
-    let left = roomDemand(room);
-    order.forEach((i) => {
-      const take = Math.max(0, Math.min(1, left));
-      out[i] = take;
-      left -= take;
+    const mix = demandMix();
+    const total = roomDemand(room);
+    const byKind = {};
+    base.forEach((r, i) => {
+      if (!(r > 0)) return;
+      const kind = CATEGORY[room.layout[i]];
+      // Anything that earns without anybody having to get on it -- a Juice
+      // Bar's takings, say -- is not queued for and is never idle.
+      if (!DEMAND_MIX[kind]) { out[i] = 1; return; }
+      (byKind[kind] = byKind[kind] || []).push(i);
+    });
+    Object.keys(byKind).forEach((kind) => {
+      let left = total * (mix[kind] || 0);
+      byKind[kind].sort((a, b) => base[b] - base[a]).forEach((i) => {
+        const take = Math.max(0, Math.min(1, left));
+        out[i] = take;
+        left -= take;
+      });
     });
     return out;
   }
@@ -5250,30 +5299,53 @@
     // is the one thing the breakdown below cannot say in a percentage.
     const demand = roomDemand(room);
     const capacity = roomCapacity(room);
-    const served = Math.min(demand, capacity);
-    const waiting = Math.max(0, demand - capacity);
-    const idle = Math.max(0, capacity - demand);
+    const kinds = demandByKind(room);
     const left = walkoutsLately(state.activeRoomIndex);
     const fill = capacity > 0 ? Math.min(1, demand / capacity) : 0;
+    // Which kind of kit is worst off, and which is most over-provided: that
+    // pair is the whole of the advice, and more use than any sentence about
+    // the room as a whole.
+    let short = null;
+    let spare = null;
+    Object.keys(kinds).forEach((kind) => {
+      const k = kinds[kind];
+      const gap = k.want - k.machines;
+      if (gap > 0.5 && (!short || gap > short.gap)) short = { kind, gap };
+      if (gap < -0.75 && (!spare || gap < spare.gap)) spare = { kind, gap };
+    });
+    const kindName = (k) => CATEGORY_META[k].name.toLowerCase();
     const crowdNote = capacity === 0
       ? 'Nothing in here for anybody to use yet.'
-      : waiting >= 0.5
-        ? 'More people want to train here than you have machines for. Every machine is '
-          + 'earning flat out and the rest are queueing — another machine is money you '
-          + 'are turning away.'
-        : idle >= 0.75
-          ? 'You have more machines than there are people to use them, so the spare ones '
-            + 'stand idle. Decor, trainers and the busy hours bring more people in; the '
-            + 'best machines are the ones that get used.'
-          : 'Well matched: about as many people as there are machines for them.';
+      : short
+        ? 'Not enough ' + kindName(short.kind) + ' kit: ' + short.gap.toFixed(1)
+          + ' of the people who came for it cannot get on anything, and they will not '
+          + 'settle for something else. That is money standing at the door.'
+        : spare
+          ? 'More ' + kindName(spare.kind) + ' kit than there are people for it, so the '
+            + 'spare ones stand idle. Decor, trainers and the busy hours bring more people '
+            + 'in; the best machines are the ones that get used.'
+          : 'Well matched: about as many of each kind as there are people who came for it.';
+    const kindRow = (kind) => {
+      const k = kinds[kind];
+      if (!k || (k.want < 0.05 && !k.machines)) return '';
+      const mood = k.want - k.machines > 0.5 ? ' is-short'
+        : k.machines - k.want > 0.75 ? ' is-spare' : '';
+      return '<span class="tycoon-kind' + mood + '">'
+        + '<span class="tycoon-kind-dot" style="background:' + CATEGORY_META[kind].color + '"></span>'
+        + '<span class="tycoon-kind-name">' + CATEGORY_META[kind].name + '</span>'
+        + '<span class="tycoon-kind-num">' + k.want.toFixed(1) + ' want \u00b7 '
+        + k.machines + '</span></span>';
+    };
     const crowdHtml = '<div class="tycoon-busy">'
       + '<div class="tycoon-vibe-top">'
         + '<span class="tycoon-vibe-name">Who is in</span>'
-        + '<span class="tycoon-vibe-num">' + demand.toFixed(1) + ' want to train · '
+        + '<span class="tycoon-vibe-num">' + demand.toFixed(1) + ' want to train \u00b7 '
           + capacity + ' machine' + (capacity === 1 ? '' : 's') + '</span>'
       + '</div>'
       + '<span class="tycoon-vibe-bar is-busy"><span class="tycoon-vibe-fill" style="width:'
         + Math.round(fill * 100) + '%"></span></span>'
+      + '<div class="tycoon-kinds">'
+        + Object.keys(DEMAND_MIX).map(kindRow).join('') + '</div>'
       + '<p class="tycoon-vibe-note">' + crowdNote
         + (left ? ' ' + left + ' walked out in the last minute.' : '') + '</p>'
       + '</div>';
@@ -10170,13 +10242,12 @@
       const p = lerpPt(from, to, t);
       paintQuad([{ x: p.x - 1.7, y: p.y }, { x: p.x + 1.7, y: p.y },
         { x: p.x + 1.7, y: p.y - H }, { x: p.x - 1.7, y: p.y - H }], YARD.steel, null);
-      if (i % 4 === 1 && i < posts) {
-        const lamp = up(p, H + 6);
-        drawGlow(lamp, 40, light.bulb, 0.55);
-        floorCtx.fillStyle = light.bulb;
-        floorCtx.fillRect(lamp.x - 3, lamp.y - 2, 6, 4);
-        drawFloorPool(p, light, 1.4);
-      }
+      // No lamps on the rail posts. They stood a head above the rail, and
+      // the rail runs along the apron in front of the gym: a floor slab
+      // painted after the site cut the top off every one of them, so what
+      // was left read as a light coming out from under the floorboards.
+      // The yard is lit by the bulkhead lamps on its walls and by the
+      // street beyond the fence.
     }
     strokePolyline([up(from, H), up(to, H)], shade(YARD.steel, 30), 2.8);
     strokePolyline([up(from, H * 0.52), up(to, H * 0.52)], YARD.steel, 2);
@@ -10194,6 +10265,22 @@
       { x: p.x + 11, y: p.y - H * h - 3 }, { x: p.x - 11, y: p.y - H * h - 3 }], shade(colour, -26), null));
     strokePolyline([{ x: p.x - 8, y: p.y - 6 }, { x: p.x - 8, y: p.y - H + 4 }], 'rgba(255,255,255,0.10)', 3);
     drawIsoDisc(floorCtx, { x: p.x, y: p.y - H }, 11, 5.5, shade(colour, 18));
+  }
+  // A trolley jack left out by the steps. It was a plain red box with a
+  // three-pixel line leaning off it, which at this size read as a red slab
+  // and nothing else -- it needs its castors, its lifting pad and a handle
+  // with a grip on the end before anyone can tell what it is.
+  function drawJack(jack) {
+    [[-1.25, 0.46], [-1.25, -0.46], [1.15, 0.46], [1.15, -0.46]]
+      .forEach(([u, v]) => drawIsoDisc(floorCtx, isoScreenPoint(jack, u, v, 3), 3.4, 2.2, '#15161a'));
+    drawIsoBox(floorCtx, jack, 0, 0, 1.55, 0.5, 8, '#8e3328', 3);
+    drawIsoBox(floorCtx, jack, -0.45, 0, 0.95, 0.34, 7, '#a33528', 11);
+    drawIsoBox(floorCtx, jack, 0.95, 0, 0.34, 0.3, 4, '#4a4f57', 11);
+    drawIsoDisc(floorCtx, isoScreenPoint(jack, 0.95, 0, 15), 5, 3, '#6d737c');
+    const hFrom = isoScreenPoint(jack, -1.5, 0, 13);
+    const hTo = isoScreenPoint(jack, -3.6, 0, 38);
+    strokePolyline([hFrom, hTo], '#2b2e33', 3.4);
+    strokePolyline([hTo, { x: hTo.x - 8, y: hTo.y + 3 }], '#1d1f23', 5);
   }
   function drawTyreStack(p, n) {
     for (let i = 0; i < n; i++) {
@@ -10855,18 +10942,41 @@
     // ---- What is standing about. Against the wall behind, along the
     // edge in front, and more of it on the deck below.
     const on = (u, v) => isoPoint(a.gx0 + u, a.gy0 + v);
-    drawWorkbench(on(a.cols * 0.36, 1.5), 'gx');
-    drawCompressor(on(a.cols * 0.52, 1.6));
-    drawTyreStack(on(a.cols - 1.8, 2.6), 4);
-    drawTyreStack(on(a.cols - 1.8, 4.2), 3);
-    drawGasBottles(on(a.cols - 1.9, 6.4));
-    drawDrum(on(1.7, a.rows * 0.42), '#4a5a3a');
-    drawDrum(on(1.7, a.rows * 0.42 + 1.5), '#7a4a20');
-    drawDrum(on(2.9, a.rows * 0.42 + 0.7), '#3a4a5a');
-    drawPallet(on(1.9, a.rows * 0.62), 2);
-    drawCone(on(a.cols * 0.62, a.rows - 1.4));
-    drawCone(on(a.cols * 0.68, a.rows - 1.9));
-    drawPallet(on(a.cols - 2.2, a.rows - 3.4), 1);
+    // The yard is painted before any floor slab is, so a thing standing on
+    // the apron a few tiles in front of a room has its top cut off by that
+    // room's floor -- and what is left of it reads as half a compressor
+    // poking out from under the floorboards. Anything tall enough for that
+    // to happen stands somewhere else. How far back to look depends on how
+    // tall the thing is: one tile of depth is half a tile of height on
+    // screen.
+    const standing = (u, v, tall) => {
+      const gx = a.gx0 + u;
+      const gy = a.gy0 + v;
+      const depth = Math.max(2, Math.ceil((tall || 44) / (ROOM.tileH / 2)));
+      for (let d = 1; d <= depth; d++) {
+        const h = Math.round(d / 2);
+        if (siteIsFloor(Math.round(gx - d), Math.round(gy))
+          || siteIsFloor(Math.round(gx), Math.round(gy - d))
+          || siteIsFloor(Math.round(gx - h), Math.round(gy - h))) return null;
+      }
+      return isoPoint(gx, gy);
+    };
+    const onApron = (u, v, tall, draw) => {
+      const p = standing(u, v, tall);
+      if (p) draw(p);
+    };
+    onApron(a.cols * 0.36, 1.5, 40, (p) => drawWorkbench(p, 'gx'));
+    onApron(a.cols * 0.52, 1.6, 46, (p) => drawCompressor(p));
+    onApron(a.cols - 1.8, 2.6, 48, (p) => drawTyreStack(p, 4));
+    onApron(a.cols - 1.8, 4.2, 38, (p) => drawTyreStack(p, 3));
+    onApron(a.cols - 1.9, 6.4, 52, (p) => drawGasBottles(p));
+    onApron(1.7, a.rows * 0.42, 46, (p) => drawDrum(p, '#4a5a3a'));
+    onApron(1.7, a.rows * 0.42 + 1.5, 46, (p) => drawDrum(p, '#7a4a20'));
+    onApron(2.9, a.rows * 0.42 + 0.7, 46, (p) => drawDrum(p, '#3a4a5a'));
+    onApron(1.9, a.rows * 0.62, 22, (p) => drawPallet(p, 2));
+    onApron(a.cols * 0.62, a.rows - 1.4, 26, (p) => drawCone(p));
+    onApron(a.cols * 0.68, a.rows - 1.9, 26, (p) => drawCone(p));
+    onApron(a.cols - 2.2, a.rows - 3.4, 18, (p) => drawPallet(p, 1));
     // Bollards along the head of the steps, and a jack left out beside them.
     for (let i = 0; i < 4; i++) {
       const p = on(a.cols * (0.44 + i * 0.035), a.rows - 1.1);
@@ -10879,17 +10989,8 @@
     // three-pixel line leaning off it, which at this size read as a red
     // slab and nothing else -- it needs its castors, its lifting pad and a
     // handle with a grip on the end before anyone can tell what it is.
-    const jack = on(a.cols * 0.22, a.rows - 3.6);
-    [[-1.25, 0.46], [-1.25, -0.46], [1.15, 0.46], [1.15, -0.46]]
-      .forEach(([u, v]) => drawIsoDisc(floorCtx, isoScreenPoint(jack, u, v, 3), 3.4, 2.2, '#15161a'));
-    drawIsoBox(floorCtx, jack, 0, 0, 1.55, 0.5, 8, '#8e3328', 3);
-    drawIsoBox(floorCtx, jack, -0.45, 0, 0.95, 0.34, 7, '#a33528', 11);
-    drawIsoBox(floorCtx, jack, 0.95, 0, 0.34, 0.3, 4, '#4a4f57', 11);
-    drawIsoDisc(floorCtx, isoScreenPoint(jack, 0.95, 0, 15), 5, 3, '#6d737c');
-    const hFrom = isoScreenPoint(jack, -1.5, 0, 13);
-    const hTo = isoScreenPoint(jack, -3.6, 0, 38);
-    strokePolyline([hFrom, hTo], '#2b2e33', 3.4);
-    strokePolyline([hTo, { x: hTo.x - 8, y: hTo.y + 3 }], '#1d1f23', 5);
+    const jack = standing(a.cols * 0.22, a.rows - 3.6, 40);
+    if (jack) drawJack(jack);
 
     frontRails();
 

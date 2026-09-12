@@ -3486,3 +3486,28 @@ body.is-photo .tycoon-room-stage {
   .tycoon-photo-bar { padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
   .tycoon-photo-name { font-size: 16px; }
 }
+
+/* ---- What people came in for ----
+   The room's draw, split by the kind of kit they came to use, under the
+   Who-is-in bar. Three short rows rather than a sentence: the one that is
+   short of machines is the one to read. */
+.tycoon-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 7px 0 2px;
+}
+.tycoon-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-kind-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.tycoon-kind-name { color: var(--text, #e9e9ee); }
+.tycoon-kind-num { font-variant-numeric: tabular-nums; }
+.tycoon-kind.is-short .tycoon-kind-num { color: #ff9f6b; }
+.tycoon-kind.is-spare .tycoon-kind-num { color: #7f8794; }
