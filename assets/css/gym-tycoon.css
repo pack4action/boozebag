@@ -3635,3 +3635,59 @@ body.is-photo .tycoon-room-stage {
   line-height: 1.45;
   color: var(--muted, #8b8b93);
 }
+
+/* The question mark on the Membership card, and what it folds open. */
+.tycoon-price-help {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  margin-left: 5px;
+  vertical-align: 1px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: transparent;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--muted, #8b8b93);
+  cursor: pointer;
+}
+.tycoon-price-help:hover { color: #e8e8ee; border-color: rgba(255, 255, 255, 0.45); }
+.tycoon-price-help.is-on {
+  color: #06231a;
+  border-color: transparent;
+  background: #7ee0b0;
+}
+.tycoon-price-help:focus-visible {
+  outline: 2px solid rgba(126, 224, 176, 0.8);
+  outline-offset: 1px;
+}
+.tycoon-price-info {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 9px 11px;
+  text-align: left;
+}
+.tycoon-price-rule {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #c9c9d2;
+}
+.tycoon-price-tips {
+  margin: 8px 0;
+  padding-left: 15px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted, #8b8b93);
+}
+.tycoon-price-tips li { margin-bottom: 4px; }
+.tycoon-price-tips b { color: #e8e8ee; }
+.tycoon-price-info > .tycoon-price-rule:last-child {
+  margin-top: 8px;
+  color: var(--muted, #8b8b93);
+}

@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=11" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=6" />
-<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=111" />
+<link rel="stylesheet" href="assets/css/gym-tycoon.css?v=112" />
 </head>
 <body class="game-body">
 
@@ -290,9 +290,24 @@
       </div>
 
       <div class="tycoon-price" id="price-card">
-        <h3 class="tycoon-panel-title">Membership <span class="tycoon-panel-sub">what you charge, and what it costs you</span></h3>
+        <h3 class="tycoon-panel-title">Membership
+          <button class="tycoon-price-help" id="price-help" type="button"
+            aria-expanded="false" aria-controls="price-info"
+            aria-label="Which rate is best for what">?</button>
+          <span class="tycoon-panel-sub">what you charge, and what it costs you</span></h3>
         <div class="tycoon-price-row" id="price-row"></div>
         <p class="tycoon-price-note" id="price-note"></p>
+        <div class="tycoon-price-info" id="price-info" hidden>
+          <p class="tycoon-price-rule">The rate to be on is the dearest one your machines are still all busy at. Charge past that and you are turning away people you had room for.</p>
+          <ul class="tycoon-price-tips">
+            <li><b>Pay as you go</b> &mdash; more machines than people. Several of the same piece, or a big room early on: nobody is queueing, so fill the place instead.</li>
+            <li><b>Standard</b> &mdash; when you are not sure. It is never far wrong.</li>
+            <li><b>Premium</b> &mdash; most machines busy and one or two people waiting.</li>
+            <li><b>Boutique</b> &mdash; a queue on nearly everything you own.</li>
+            <li><b>Members only</b> &mdash; a long queue, and you would rather have the money than the crowd.</li>
+          </ul>
+          <p class="tycoon-price-rule">Two things worth knowing. A room with good fittings loses fewer members to a high price, so it pays to decorate before you charge. And the figure under each rate is what the whole gym would take at it &mdash; if one of them beats the rate you are on, switch.</p>
+        </div>
       </div>
 
       <div class="tycoon-namer">
@@ -379,6 +394,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=1"></script>
-<script src="assets/js/gym-tycoon.js?v=227"></script>
+<script src="assets/js/gym-tycoon.js?v=228"></script>
 </body>
 </html>

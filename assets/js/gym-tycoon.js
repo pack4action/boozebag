@@ -17064,6 +17064,22 @@
   let priceBtnEls = [];
   let priceProj = [];
   let priceProjAt = 0;
+  // The rule behind the five buttons, folded away until it is asked for.
+  // It is the sort of thing a player wants once, on the day they first
+  // notice the lever, and never again -- so it is a question mark rather
+  // than a paragraph sitting over the buttons for ever.
+  (() => {
+    const help = document.getElementById('price-help');
+    const info = document.getElementById('price-info');
+    if (!help || !info) return;
+    help.addEventListener('click', () => {
+      const open = info.hidden;
+      info.hidden = !open;
+      help.setAttribute('aria-expanded', open ? 'true' : 'false');
+      help.classList.toggle('is-on', open);
+    });
+  })();
+
   function buildPriceUI() {
     if (!priceRowEl || priceBtnEls.length) return;
     priceBtnEls = PRICE_TIERS.map((tier, i) => {
