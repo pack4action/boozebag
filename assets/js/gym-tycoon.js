@@ -2717,11 +2717,16 @@
 
     // A save from before the membership price existed charges the standard
     // rate, and a hand-edited one cannot charge something that is not on
-    // the list. Contracts waiting to be chosen are read back the same way.
+    // the list.
     const price = Math.round(Number(s.price));
     s.price = price >= 0 && price < PRICE_TIERS.length ? price : PRICE_DEFAULT;
+    // Contracts waiting to be chosen are checked for their shape only.
+    // Whether the work in one is a kind the game still has is settled by
+    // the board itself, once it is assembled: the table of kinds is written
+    // further down the file than this runs, and reaching for it from here
+    // stopped the game loading at all for anybody with a choice waiting.
     s.offers = (Array.isArray(s.offers) ? s.offers : [])
-      .filter((o) => Array.isArray(o) && o.length && o.every((j) => j && JOB_KINDS[j.kind]));
+      .filter((o) => Array.isArray(o) && o.length && o.every((j) => j && typeof j === 'object'));
 
     // What the time away is worth is settled after the state is in place,
     // by creditTimeAway() below: the sums need the whole gym, and the whole
@@ -4405,6 +4410,10 @@
     // progress of their own -- nothing is being worked towards until one of
     // them is taken -- so they are built once and left alone.
     (state.offers || []).forEach((offer, index) => {
+      // Nothing here is worth taking the whole page down for: a choice
+      // carrying work the game no longer knows how to word is simply not
+      // drawn, and the board carries on.
+      if (!Array.isArray(offer) || !offer.every((j) => j && JOB_KINDS[j.kind])) return;
       const card = document.createElement('div');
       card.className = 'tycoon-offer';
       const head = document.createElement('span');
@@ -4445,7 +4454,8 @@
 
   function refreshJobsUI() {
     if (!jobsListEl) return;
-    const one = (j) => j.kind + ':' + j.target + ':' + (j.item || j.cat || j.product || '');
+    const one = (j) => (j && j.kind) + ':' + (j && j.target) + ':'
+      + ((j && (j.item || j.cat || j.product)) || '');
     const signature = state.jobs.map(one).join('|')
       + '#' + (state.offers || []).map((o) => o.map(one).join('/')).join('|');
     if (signature !== jobsSignature) {
