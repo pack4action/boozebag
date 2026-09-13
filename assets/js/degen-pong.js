@@ -32,9 +32,8 @@
     return best;
   }
 
-  // ---- Wallet-gated local leaderboard ----
-  // TODO: once a shared backend exists, mirror these writes there too.
-  const leaderboard = window.BoozebagLeaderboard.makeLeaderboard('degenPongLeaderboard');
+  // ---- Wallet-gated leaderboard ----
+  const leaderboard = window.BoozebagLeaderboard.makeLeaderboard('degen-pong', 'degenPongLeaderboard');
   const leaderboardList = document.getElementById('leaderboard-list');
   const leaderboardEmpty = document.getElementById('leaderboard-empty');
   function renderLeaderboard() {

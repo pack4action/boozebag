@@ -225,6 +225,16 @@
   font-size: 13.5px;
 }
 .leaderboard-list li:last-child { border-bottom: none; }
+/* Your own row, so you can find yourself on a board of twenty-five. */
+.leaderboard-list li.is-you {
+  background: rgba(255, 183, 3, 0.08);
+  border-radius: 8px;
+  padding-left: 6px;
+  padding-right: 6px;
+  margin: 0 -6px;
+}
+.leaderboard-list li.is-you .lb-addr { color: var(--amber); }
+.leaderboard-list li.is-you::before { color: var(--amber); }
 .leaderboard-list li::before {
   content: counter(rank);
   font-family: 'Anton', sans-serif;

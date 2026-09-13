@@ -4314,8 +4314,10 @@
       && m.gy >= rect.gy0 && m.gy < rect.gy0 + rect.rows);
   }
 
-  // ---- Wallet-gated local leaderboard ----
-  const leaderboard = window.BoozebagLeaderboard.makeLeaderboard('gymTycoonLeaderboard');
+  // ---- Wallet-gated leaderboard ----
+  // The old storage key is kept so a board somebody has been building on
+  // this browser is still theirs when the shared one is not reachable.
+  const leaderboard = window.BoozebagLeaderboard.makeLeaderboard('gym-tycoon', 'gymTycoonLeaderboard');
   const leaderboardList = document.getElementById('leaderboard-list');
   const leaderboardEmpty = document.getElementById('leaderboard-empty');
   function renderLeaderboard() {
@@ -4326,7 +4328,11 @@
   let connectedWallet = null;
   function updateLeaderboardEntry() {
     if (!connectedWallet) return;
-    leaderboard.upsert(connectedWallet, Math.floor(state.lifetime), Math.round(gps * 10) / 10);
+    // What the gym is called goes up with it, so a board is a row of gyms
+    // rather than a row of wallet addresses. Somebody who has not named
+    // theirs still shows as the short form of their address.
+    leaderboard.upsert(connectedWallet, Math.floor(state.lifetime),
+      Math.round(gps * 10) / 10, (state.gymName || '').trim() || null);
     renderLeaderboard();
   }
 

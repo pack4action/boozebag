@@ -44,7 +44,7 @@
     return best;
   }
 
-  const leaderboard = window.BoozebagLeaderboard.makeLeaderboard('gainsStackerLeaderboard');
+  const leaderboard = window.BoozebagLeaderboard.makeLeaderboard('gains-stacker', 'gainsStackerLeaderboard');
   const leaderboardList = document.getElementById('leaderboard-list');
   const leaderboardEmpty = document.getElementById('leaderboard-empty');
   function renderLeaderboard() {
