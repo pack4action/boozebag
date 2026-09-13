@@ -1275,7 +1275,7 @@
       // door: the peak bonus itself is bigger.
       first: 0.3,
       max: 3,
-      note: (n) => 'busy-hour bonus +' + Math.round(staffEffect('receptionist', n) * 100) + '%',
+      note: (n) => 'busy hour bonus +' + Math.round(staffEffect('receptionist', n) * 100) + '%',
     },
     {
       id: 'manager',
@@ -1647,7 +1647,7 @@
       const pip = document.createElement('span');
       pip.className = 'tycoon-streak-pip';
       pip.title = 'Day ' + (i + 1) + ' of ' + STREAK_RUN
-        + (i === STREAK_RUN - 1 ? ' - Open Day comes back' : '');
+        + (i === STREAK_RUN - 1 ? ', Open Day comes back' : '');
       streakDaysEl.appendChild(pip);
       streakPips.push(pip);
     }
@@ -2421,7 +2421,7 @@
   // which is all this list is still here for.
   const RETIRED_ART_COST = { posters: 25000, flags: 45000, stripe: 80000, champs: 140000, mural: 250000 };
   const FINISHES = [
-    { id: 'standard', name: 'Standard', note: 'Powder-coated steel', cost: 0,
+    { id: 'standard', name: 'Standard', note: 'Powder coated steel', cost: 0,
       palette: {} },
     { id: 'black', name: 'Matte Black', note: 'Every machine in black', cost: 250000,
       palette: { STEEL: '#3a3d45', STEEL_LT: '#5a5e68', FRAME: '#26282e', FRAME_DK: '#17181c', WEIGHT: '#2e3138', PAD: '#1f2126' } },

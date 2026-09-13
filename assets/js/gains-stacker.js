@@ -174,7 +174,7 @@
     const height = stack.length - 1;
     best = submitScore(score);
     overlayTitle.textContent = 'TOWER TOPPLED';
-    overlayScore.textContent = 'Final bag: $' + score + ' — height ' + height;
+    overlayScore.textContent = 'Final bag: $' + score + ', height ' + height;
     overlayBest.textContent = 'Best bag: $' + best;
     hudBest.textContent = best;
     if (connectedWallet) {

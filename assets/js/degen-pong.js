@@ -224,7 +224,7 @@
     gameOver = true;
     best = submitScore(score);
     overlayTitle.textContent = 'OUT OF CANS';
-    overlayScore.textContent = 'Final bag: $' + score + ' — rack ' + rack;
+    overlayScore.textContent = 'Final bag: $' + score + ', rack ' + rack;
     overlayBest.textContent = 'Best bag: $' + best;
     hudBest.textContent = best;
     if (connectedWallet) {
