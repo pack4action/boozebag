@@ -2076,11 +2076,16 @@
 .tycoon-filter-drop {
   position: absolute;
   top: calc(100% + 7px);
-  left: 50%;
-  transform: translateX(-50%);
+  /* Hung off the left edge of the button rather than centred on it. The
+     button sits near the left of the panel, and a three hundred pixel menu
+     centred on it ran off the side of a phone: a third of the tick boxes
+     were past the edge of the screen, which is a filter that does not
+     work. */
+  left: 0;
+  right: auto;
   z-index: 25;
   width: max-content;
-  max-width: min(300px, 84vw);
+  max-width: min(300px, calc(100vw - 28px));
   padding: 9px;
   border: 1px solid var(--panel-border, #2a2732);
   border-radius: 14px;
