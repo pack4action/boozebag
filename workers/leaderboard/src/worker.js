@@ -14,6 +14,9 @@ const GAMES = {
   'gym-tycoon': { ceiling: 1e18, metaCeiling: 1e15 },
   'degen-pong': { ceiling: 1e7, metaCeiling: 1e5 },
   'gains-stacker': { ceiling: 1e7, metaCeiling: 1e5 },
+  // A perfect run is 26 miles at 100, 26 drinks at 120 and the 2600 for
+  // finishing, so about 8300. The ceiling is well clear of that.
+  'beer-mile': { ceiling: 1e6, metaCeiling: 100 },
 };
 
 // One post per wallet in this many seconds, and one per address of origin

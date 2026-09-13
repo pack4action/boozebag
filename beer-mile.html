@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
-<title>Gains Stacker: A $BOOZEBAG Minigame</title>
-<meta name="description" content="Stack the gains as high as you can without toppling. Land it perfect or watch it shrink: play Gains Stacker, the $BOOZEBAG minigame." />
+<title>Beer Mile: A $BOOZEBAG Minigame</title>
+<meta name="description" content="26 drinks in 26 miles. Jump what is in the road, empty a beer at every mile marker, and try to stay upright: play Beer Mile, the $BOOZEBAG minigame." />
 <link rel="icon" type="image/png" href="assets/img/favicon.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=16" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=7" />
-<link rel="stylesheet" href="assets/css/gains-stacker.css?v=1" />
+<link rel="stylesheet" href="assets/css/beer-mile.css?v=1" />
 </head>
 <body class="game-body">
 
@@ -63,47 +63,47 @@
 
 <main class="game-page">
   <div class="game-head">
-    <h1 class="game-title">GAINS <span class="hl">STACKER</span></h1>
-    <p class="game-sub">Click or tap to drop the next block. Land it dead center and it snaps into place PERFECT for bonus points and a combo. Off center trims the overhang for good, so the stack only gets narrower from there. Every 15 blocks you survive earns a +35% size boost. Miss the stack entirely and the whole thing goes over.</p>
+    <h1 class="game-title">BEER <span class="hl">MILE</span></h1>
+    <p class="game-sub">26 drinks in 26 miles. One button does everything: on the road it is a jump, at the table it is a swallow. Every mile there is a beer waiting and a clock on it, and everything you get down makes the next mile harder to run straight. Hit anything and the run is over.</p>
   </div>
 
   <div class="game-switcher">
     <a href="gym-tycoon.html" class="game-switch-tab is-main">Gym Tycoon</a>
     <a href="degen-pong.html" class="game-switch-tab">Degen Pong</a>
-    <a href="gains-stacker.html" class="game-switch-tab is-active">Gains Stacker</a>
-<a href="beer-mile.html" class="game-switch-tab">Beer Mile</a>
+    <a href="gains-stacker.html" class="game-switch-tab">Gains Stacker</a>
+    <a href="beer-mile.html" class="game-switch-tab is-active">Beer Mile</a>
   </div>
 
   <div class="game-rail game-rail-left">
 
     <div class="game-hud">
       <div class="hud-stat"><span class="hud-label">Score</span><span class="hud-value" id="hud-score">0</span></div>
-      <div class="hud-stat"><span class="hud-label">Height</span><span class="hud-value" id="hud-height">0</span></div>
-      <div class="hud-stat"><span class="hud-label">Combo</span><span class="hud-value" id="hud-combo">0</span></div>
+      <div class="hud-stat"><span class="hud-label">Mile</span><span class="hud-value" id="hud-mile">0</span></div>
+      <div class="hud-stat"><span class="hud-label">Drinks</span><span class="hud-value" id="hud-drinks">0</span></div>
       <div class="hud-stat"><span class="hud-label">Best</span><span class="hud-value" id="hud-best">0</span></div>
     </div>
   </div>
 
   <div class="game-stage">
-    <canvas id="stacker-canvas" width="500" height="700" aria-label="Gains Stacker game board"></canvas>
+    <canvas id="mile-canvas" width="720" height="420" aria-label="Beer Mile game board"></canvas>
     <div class="game-toast" id="game-toast"></div>
     <div class="game-overlay" id="game-overlay" hidden>
       <div class="overlay-card">
-        <h2 id="overlay-title">TOWER TOPPLED</h2>
-        <p id="overlay-score">Final bag: $0, height 0</p>
+        <h2 id="overlay-title">RUN OVER</h2>
+        <p id="overlay-score">Final bag: $0, 0 miles, 0 drinks</p>
         <p id="overlay-best">Best bag: $0</p>
-        <button class="btn btn-primary btn-lg" id="btn-replay" type="button">Rebuild</button>
+        <button class="btn btn-primary btn-lg" id="btn-replay" type="button">Line up again</button>
       </div>
     </div>
   </div>
 
   <div class="game-rail game-rail-right">
-    <p class="game-hint">Works with mouse, touch, or spacebar. Get close enough to center and it snaps flush for a PERFECT with a growing combo bonus. Land off to the side and the overhang breaks off and falls for good, narrowing the stack permanently. Survive to every 15th block and the stack gets a +35% size boost. Miss it completely and it's game over.</p>
+    <p class="game-hint">Click, tap or hit space. In the road that is a jump, and you only get the one, so time it. At a mile marker the run stops and a beer goes on the clock: tap as fast as you can to empty it before the timer does. Empty it and it counts. Let the clock beat you and it does not, and you are still no more sober for trying. The bar in the corner is how full he is, and the fuller he gets the more the whole road leans and the less his legs do what he asks.</p>
 
     <div class="leaderboard">
       <h3 class="leaderboard-title">Leaderboard <span class="leaderboard-sub">everybody playing</span></h3>
       <ol class="leaderboard-list" id="leaderboard-list"></ol>
-      <p class="leaderboard-empty" id="leaderboard-empty">Nobody's on the board yet. Connect a wallet and build a stack.</p>
+      <p class="leaderboard-empty" id="leaderboard-empty">Nobody's on the board yet. Connect a wallet and get a mile in.</p>
     </div>
 
     <p class="game-footnote">Wallet sign in is live, and scores go to one board everybody plays against. $BOOZEBAG giveaways for the top of it are coming.</p>
@@ -113,6 +113,6 @@
 <script src="assets/js/main.js?v=2"></script>
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=2"></script>
-<script src="assets/js/gains-stacker.js?v=10"></script>
+<script src="assets/js/beer-mile.js?v=6"></script>
 </body>
 </html>

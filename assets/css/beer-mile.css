@@ -1,0 +1,8 @@
+#mile-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #1b1430;
+  cursor: pointer;
+  touch-action: manipulation;
+}
