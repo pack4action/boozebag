@@ -14182,14 +14182,39 @@
 
   // The tag under a point, if any -- tested last-drawn first, so the one on
   // top is the one you get.
+  //
+  // A bubble is eighteen units tall, which on a phone at the zoom the plan
+  // sits at is about eight pixels. Nothing with a thumb hits that. So a
+  // miss falls back to the nearest bubble within reach rather than to a
+  // bigger box round each one: two bubbles close together still go to the
+  // one you were nearer to, where overlapping boxes would just hand you
+  // whichever was drawn last.
+  const TAP_REACH_PX = 20;
   function pileTagAtPoint(px, py) {
     for (let i = pileTagRects.length - 1; i >= 0; i--) {
       const r = pileTagRects[i].rect;
-      if (px >= r.x - 3 && px <= r.x + r.w + 3 && py >= r.y - 3 && py <= r.y + r.h + 3) {
+      if (px >= r.x - 4 && px <= r.x + r.w + 4 && py >= r.y - 4 && py <= r.y + r.h + 4) {
         return { roomIndex: pileTagRects[i].roomIndex, index: pileTagRects[i].index };
       }
     }
-    return null;
+    // Reach is a finger, so it is measured on the screen and converted to
+    // the plan, and kept inside sensible ends whatever the zoom is doing.
+    const reach = Math.max(16, Math.min(30, TAP_REACH_PX / Math.max(0.2, zoomLevel)));
+    let best = null;
+    let bestAway = reach;
+    for (let i = pileTagRects.length - 1; i >= 0; i--) {
+      const r = pileTagRects[i].rect;
+      // Distance to the tag itself rather than to its middle, or a wide
+      // one would be harder to hit at its ends than a narrow one.
+      const nx = Math.max(r.x, Math.min(px, r.x + r.w));
+      const ny = Math.max(r.y, Math.min(py, r.y + r.h));
+      const away = Math.hypot(px - nx, py - ny);
+      if (away < bestAway) {
+        bestAway = away;
+        best = pileTagRects[i];
+      }
+    }
+    return best ? { roomIndex: best.roomIndex, index: best.index } : null;
   }
 
   // The piece in your hands: a marked footprint on the floor so you can see
