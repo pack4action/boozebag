@@ -13360,23 +13360,33 @@
   // second, and asking the browser to re-lay-out the page that often -- which
   // is what reading the stage's size does -- would cost far more than the
   // drawing itself.
-  // Which floor stands in front of which. Sorting on the back corner alone
-  // is wrong as soon as the floors are different sizes: a walkway that
-  // leaves the back of a big floor has a further-along back corner than the
-  // floor does, so it was painted last and its railings went over the gear
-  // standing on the floor in front of it. One box is behind another when it
-  // ends before the other begins along either axis; that is a partial
-  // order, so it is walked properly and the back corner only settles ties.
-  function sortByDepth(pieces) {
-    const n = pieces.length;
-    if (n < 2) return pieces;
-    const behind = (a, b) => (a.rect.gx0 + a.rect.cols <= b.rect.gx0) || (a.rect.gy0 + a.rect.rows <= b.rect.gy0);
-    const after = pieces.map(() => []);
-    const need = pieces.map(() => 0);
+  // What order to paint a pile of boxes in, so that whatever is in front
+  // goes down last. Ranking them by one number -- the middle of each, or
+  // its back corner -- is wrong the moment they are different sizes: a
+  // treadmill is two metres long, so its middle can sit further back than a
+  // mirror's while its front end reaches well past it, and the mirror was
+  // painted over the end of the treadmill. Likewise a walkway leaving the
+  // back of a big floor has a further-along back corner than the floor
+  // does, so it went down last and its railings crossed the gear standing
+  // in front of it.
+  //
+  // One box is behind another when it ends before the other begins along
+  // either axis. That is a partial order and not a ranking, so it is walked
+  // properly: nothing goes down until everything it stands behind has. The
+  // one number is kept, but only to settle which of the boxes that are free
+  // to go next goes first -- which is all it was ever able to answer.
+  const PAINT_SLACK = 0.02;
+  function paintOrder(list, boxOf, depthOf) {
+    const n = list.length;
+    if (n < 2) return list;
+    const box = list.map(boxOf);
+    const behind = (a, b) => a.u1 <= b.u0 + PAINT_SLACK || a.v1 <= b.v0 + PAINT_SLACK;
+    const after = list.map(() => []);
+    const need = list.map(() => 0);
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
         if (i === j) continue;
-        if (behind(pieces[i], pieces[j]) && !behind(pieces[j], pieces[i])) {
+        if (behind(box[i], box[j]) && !behind(box[j], box[i])) {
           after[i].push(j);
           need[j] += 1;
         }
@@ -13385,18 +13395,41 @@
     const ready = [];
     for (let i = 0; i < n; i++) if (!need[i]) ready.push(i);
     const out = [];
-    while (ready.length) {
+    const done = list.map(() => false);
+    let left = n;
+    while (left > 0) {
+      if (!ready.length) {
+        // Boxes sitting corner to corner can each end before the other
+        // begins, one on each axis, and three of them can chain into a
+        // ring. Nothing in a ring can go first and be right, so take the
+        // one furthest back and carry on: the rest of the order is still
+        // worth keeping, and the alternative was tipping every piece left
+        // out in whatever order it happened to be in.
+        let pick = -1;
+        for (let i = 0; i < n; i++) {
+          if (done[i]) continue;
+          if (pick < 0 || depthOf(list[i]) < depthOf(list[pick])) pick = i;
+        }
+        need[pick] = 0;
+        ready.push(pick);
+      }
       // Whatever is free to go next, furthest back first.
-      ready.sort((a, b) => pieces[a].depth - pieces[b].depth);
+      ready.sort((a, b) => depthOf(list[a]) - depthOf(list[b]));
       const i = ready.shift();
-      out.push(pieces[i]);
-      after[i].forEach((j) => { if (--need[j] === 0) ready.push(j); });
-    }
-    // A cycle should not happen with rectangles, but never drop a floor.
-    if (out.length < n) {
-      pieces.forEach((p) => { if (out.indexOf(p) < 0) out.push(p); });
+      if (done[i]) continue;
+      done[i] = true;
+      left -= 1;
+      out.push(list[i]);
+      after[i].forEach((j) => { if (!done[j] && --need[j] === 0) ready.push(j); });
     }
     return out;
+  }
+  // Which floor stands in front of which.
+  function sortByDepth(pieces) {
+    return paintOrder(pieces,
+      (p) => ({ u0: p.rect.gx0, u1: p.rect.gx0 + p.rect.cols,
+        v0: p.rect.gy0, v1: p.rect.gy0 + p.rect.rows }),
+      (p) => p.depth);
   }
 
   // The part of the drawing space the window is actually showing, in the
@@ -13890,6 +13923,20 @@
     const loose = (place.fixtures || []).filter((f) => !fixtureAtBack(f))
       .map((f) => ({ fixture: f, spot: { u: (f.u0 + f.u1) / 2, v: (f.v0 + f.v1) / 2 } }));
     const depthOf = (e) => e.spot.u + e.spot.v;
+    // The floor each one really takes up, which is what settles who is in
+    // front of whom. A person is treated as half a metre of standing room.
+    const STANDING_HALF = 0.25 * TILES_PER_METRE;
+    const boxOf = (e) => {
+      if (e.fixture) {
+        return { u0: e.fixture.u0, u1: e.fixture.u1, v0: e.fixture.v0, v1: e.fixture.v1 };
+      }
+      if (e.member) {
+        return { u0: e.spot.u - STANDING_HALF, u1: e.spot.u + STANDING_HALF,
+          v0: e.spot.v - STANDING_HALF, v1: e.spot.v + STANDING_HALF };
+      }
+      return boxRect(e.spot, halfBoxOf(e.itemId, turnAt(room, e.index)));
+    };
+    const inFrontLast = (list) => paintOrder(list, boxOf, depthOf);
     const paintOne = (e) => {
       if (e.member) {
         const at = isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v);
@@ -13949,7 +13996,7 @@
       (place.fixtures || []).forEach((f) => {
         if (fixtureAtBack(f)) drawFixture(place, f, theme, colors, light);
       });
-      items.concat(loose).sort((a, b) => depthOf(a) - depthOf(b)).forEach(paintOne);
+      inFrontLast(items.concat(loose)).forEach(paintOne);
       // And the railings along the front of this floor, over what stands on
       // it -- here, with the floor they belong to, so a floor in front of
       // this one still covers them. Kept in a layer of their own as well,
@@ -14019,7 +14066,7 @@
           && Math.abs(p.spot.u - e.spot.u) < r.u && Math.abs(p.spot.v - e.spot.v) < r.v);
         if (covers) standing.push(e);
       });
-      standing.sort((a, b) => depthOf(a) - depthOf(b)).forEach(paintOne);
+      inFrontLast(standing).forEach(paintOne);
     }
 
     if (editing && editing.roomIndex === roomIndex) {
