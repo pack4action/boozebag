@@ -249,20 +249,23 @@ img { max-width: 100%; display: block; }
    word until there is room for both, and the links fold into the menu button
    until they fit beside everything else. Before this the bar simply ran off
    the right of the screen between about 780 and 950 pixels. */
-@media (max-width: 1240px) {
+/* The bar carries one more link than it used to, so it runs out of room
+   about a hundred pixels sooner: the wallet loses its label first, then the
+   links close up, then the whole lot folds into the menu button. */
+@media (max-width: 1340px) {
   .wallet-label { display: none; }
   .wallet-chevron { display: none; }
   .nav-wallet .wallet-toggle { padding: 11px; }
   .wallet-disconnect { display: none; }
 }
-@media (max-width: 1200px) {
+@media (max-width: 1300px) {
   .nav-links { gap: 20px; }
 }
 
 @media (min-width: 760px) {
   .nav-cta { display: inline-flex; }
 }
-@media (max-width: 1040px) {
+@media (max-width: 1140px) {
   .nav-toggle { display: flex; }
   .nav-links {
     position: absolute;
@@ -547,28 +550,6 @@ img { max-width: 100%; display: block; }
   border-bottom: 1px dashed var(--amber);
 }
 .quick-links a:hover { color: var(--text); border-color: var(--text); }
-
-/* Ticker */
-.ticker {
-  background: var(--amber);
-  color: #1a1200;
-  overflow: hidden;
-  border-top: 3px solid #000;
-  border-bottom: 3px solid #000;
-  padding: 10px 0;
-}
-.ticker-track {
-  display: inline-flex;
-  white-space: nowrap;
-  font-family: 'Anton', sans-serif;
-  font-size: 15px;
-  letter-spacing: 0.5px;
-  animation: scroll-left 26s linear infinite;
-}
-@keyframes scroll-left {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
 
 /* Sections */
 .section {
