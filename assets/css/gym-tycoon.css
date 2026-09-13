@@ -354,6 +354,38 @@
 }
 .shop-item-icon { display: inline-flex; align-items: center; }
 .shop-item-name { font-weight: 800; font-size: 14px; color: var(--text); }
+.shop-item-title { display: inline-flex; align-items: center; min-width: 0; }
+/* The little i on every shop row. The row says one short thing and this
+   opens the rest of it, rather than every row carrying three lines of
+   explanation nobody asked for yet. */
+.shop-item-help {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  vertical-align: 1px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: transparent;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--muted, #8b8b93);
+  cursor: pointer;
+}
+.shop-item-help:hover { color: #e8e8ee; border-color: rgba(255, 255, 255, 0.45); }
+.shop-item-help.is-on { color: #06231a; border-color: transparent; background: #7ee0b0; }
+.shop-item-help:focus-visible { outline: 2px solid rgba(126, 224, 176, 0.8); outline-offset: 1px; }
+.shop-item-more {
+  margin: 2px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 7px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #c9c9d2;
+}
 .shop-item-owned { font-size: 11px; color: var(--muted); margin-left: auto; }
 .shop-item-cat { font-size: 10.5px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase; }
 .shop-item-gps { font-size: 12px; color: var(--muted); }
@@ -2793,7 +2825,8 @@
     grid-template-columns: auto minmax(0, 1fr) minmax(92px, 124px);
     grid-template-areas:
       "icon name act"
-      "count line up";
+      "count line up"
+      "more more more";
     align-items: center;
     column-gap: 8px;
     row-gap: 2px;
@@ -2806,9 +2839,11 @@
      stay on one line. */
   .shop-item-head { display: contents; }
   .shop-item-icon { grid-area: icon; }
-  .shop-item-name { grid-area: name; font-size: 12.5px; }
+  .shop-item-title { grid-area: name; }
+  .shop-item-name { font-size: 12.5px; min-width: 0; }
   .shop-item-owned { grid-area: count; margin-left: 0; font-size: 10.5px; }
   .shop-item-gps { grid-area: line; font-size: 11px; line-height: 1.35; }
+  .shop-item-more { grid-area: more; }
   .shop-item-buy { grid-area: act; align-self: center; }
   .shop-upgrade-btn { grid-area: up; width: 100%; margin-top: 0; }
   .shop-buy-btn {

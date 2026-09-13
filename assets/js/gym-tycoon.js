@@ -6106,37 +6106,63 @@
       // The desk is the one thing whose mark buys holding room rather than
       // takings, and that is the whole reason to improve it, so it is what
       // the row says instead of a rate.
-      return 'Opens the location. Its money bubbles hold ' + capWords(pileCapSeconds())
-        + ' of what a machine makes before they stop filling'
+      return 'Opens the location \u00b7 bubbles hold ' + capWords(pileCapSeconds())
         + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '');
     }
     // Decor earns nothing. What it does instead is the reason to buy it,
     // so that is what its row says.
     if (item.effect) {
-      // Decor gets the same sentence at every width. It used to be cut down
-      // to "room +15% \u00b7 makes stock" on a phone, which saved a line and
-      // told you nothing: a phone is where most of this is read, and a row
-      // that has to be decoded is a row nobody buys from.
-      //
-      // A gym-wide effect counts once however many you own, and the row has
-      // to say so: with a cap per location printed beside it, four Neon
-      // Signs otherwise look like four Open Days. The cap that follows is
-      // about where the thing may stand, not about what it is worth, which
-      // is why the two do not contradict each other.
-      const wide = !!item.effect.gym;
-      return effectLine(item)
-        + (wide ? ', counted once for the whole gym however many you own' : '')
-        + (makesStock(itemId) ? '. It also makes ' + RECIPES_OF[itemId]
-          .map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ')
-          + ' on its own, a batch at a time. They wait in your larder until a '
-          + 'delivery contract on the Jobs tab asks for them' : '')
-        + (maxPerLocation(itemId)
-          ? '. You can have ' + maxPerLocation(itemId) + ' in a location' : '');
+      return effectLine(item, true)
+        + (makesStock(itemId) ? ' \u00b7 makes stock' : '')
+        + (maxPerLocation(itemId) ? ' \u00b7 ' + maxPerLocation(itemId) + ' per location' : '');
     }
     return '+' + formatNum(gpsOf(itemId)) + '/s once placed'
       + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '')
       + (maxPerLocation(itemId)
         ? ' \u00b7 ' + maxPerLocation(itemId) + ' per location' : '');
+  }
+
+  // The longer answer, folded away behind the little i on every shop row.
+  // The row itself says one short thing; a shop where every row is three
+  // lines of explanation is a shop nobody scrolls to the bottom of, and a
+  // row of shorthand with no way to ask what it means is one nobody buys
+  // from. This is the way to ask.
+  function itemHelp(itemId) {
+    const item = itemById(itemId);
+    if (!item) return '';
+    const bits = [];
+    if (item.starter) {
+      bits.push('Every location needs one of these before it takes a penny. '
+        + 'It is free, it goes straight into your hands, and it earns nothing itself.');
+      bits.push('What its marks buy is holding room. Its money bubbles hold '
+        + capWords(pileCapSeconds()) + ' of what a machine makes before they stop filling, '
+        + 'which is the whole of what a night away is worth.');
+    } else if (item.effect) {
+      bits.push(effectLine(item) + '.');
+      if (item.effect.gym) {
+        bits.push('That is counted once for the whole gym, however many of them you own.');
+      }
+      if (makesStock(itemId)) {
+        bits.push('It also makes ' + RECIPES_OF[itemId]
+          .map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ')
+          + ' on its own, a batch at a time. They wait in your larder until a delivery '
+          + 'contract on the Jobs tab asks for them, and those pay about double.');
+      }
+      bits.push('It earns nothing standing there, and it takes floor a machine could have had.');
+    } else {
+      const kind = CATEGORY_META[CATEGORY[itemId]].name.toLowerCase();
+      bits.push('Earns $' + formatNum(gpsOf(itemId))
+        + ' a second once it is standing on a floor, and nothing at all while it is in storage.');
+      bits.push('It is ' + kind + ' gear. Stood within two metres of other ' + kind
+        + ' gear it earns ' + Math.round(SAME_CATEGORY_BONUS * 100)
+        + '% more for every neighbour, so it pays to group what matches.');
+      bits.push('Somebody has to be able to step onto it, so the floor on its step-on side '
+        + 'has to stay clear. Nothing else will stand there.');
+    }
+    if (maxPerLocation(itemId)) {
+      bits.push('You can have ' + maxPerLocation(itemId) + ' of them in one location.');
+    }
+    return bits.join(' ');
   }
 
   // Which categories the shop is hiding. Empty is everything shown, which
@@ -6303,7 +6329,15 @@
       el.innerHTML =
         '<div class="shop-item-head">' +
           '<span class="shop-item-icon" style="color:' + cat.color + '">' + iconMarkup(item.id, 26) + '</span>' +
-          '<span class="shop-item-name">' + item.name + '</span>' +
+          // The button sits beside the name, not inside it: the name is
+          // rewritten whenever a piece gains a mark, which took the button
+          // with it, and on a phone a loose button drifts into whichever
+          // cell of the row happens to be free.
+          '<span class="shop-item-title">' +
+            '<span class="shop-item-name">' + item.name + '</span>' +
+            '<button class="shop-item-help" type="button" aria-expanded="false"' +
+            ' aria-label="What this does">i</button>' +
+          '</span>' +
           '<span class="shop-item-owned">x0</span>' +
         '</div>' +
         '<span class="shop-item-cat" style="color:' + cat.color + '">' + cat.name + '</span>' +
@@ -6311,14 +6345,28 @@
         '<div class="shop-item-buy">' +
           '<button class="shop-buy-btn" type="button">Buy</button>' +
         '</div>' +
-        '<button class="shop-upgrade-btn" type="button" hidden></button>';
+        '<button class="shop-upgrade-btn" type="button" hidden></button>' +
+        '<p class="shop-item-more" hidden></p>';
       const buyBtn = el.querySelector('.shop-buy-btn');
       const upBtn = el.querySelector('.shop-upgrade-btn');
       buyBtn.addEventListener('click', () => buyItem(item.id));
       upBtn.addEventListener('click', () => upgradeItem(item.id));
+      // The row says one short thing; the little i opens the rest. Folded
+      // away rather than printed, because a shop where every row is three
+      // lines of explanation is a shop nobody scrolls to the bottom of.
+      const help = el.querySelector('.shop-item-help');
+      const more = el.querySelector('.shop-item-more');
+      help.addEventListener('click', () => {
+        const open = more.hidden;
+        if (open) setText(more, itemHelp(item.id));
+        more.hidden = !open;
+        help.setAttribute('aria-expanded', open ? 'true' : 'false');
+        help.classList.toggle('is-on', open);
+      });
       shopGrid.appendChild(el);
       shopEls[item.id] = {
         root: el,
+        moreEl: more,
         ownedEl: el.querySelector('.shop-item-owned'),
         gpsEl: el.querySelector('.shop-item-gps'),
         tierEl: el.querySelector('.shop-item-name'),
@@ -6513,6 +6561,9 @@
           + TIER_NAMES[tier] + '</span>'
         : ''));
       setHtml(els.gpsEl, earnsLine(item.id));
+      // An open explanation follows the piece: a mark bought while it is
+      // open changes what the piece earns, and the words have to agree.
+      if (!els.moreEl.hidden) setText(els.moreEl, itemHelp(item.id));
       refreshUpgradeBtn(els.upBtn, item.id);
       // Shut until the Customer Desk is down, apart from the desk itself --
       // which is only for sale while some location still has none.
@@ -6644,6 +6695,14 @@
   // floor has a wall in front of it to repair (see paintScene), so the
   // usual case costs nothing.
   let liveBoxes = null;
+  // The crowd, and the gear that has to come back over the top of them, for
+  // the whole location. Each floor's turn fills these rather than painting;
+  // the lot is painted in one order once every floor has had its turn. Done
+  // room by room instead, a treadmill put back over somebody in one room
+  // landed on top of a mirror standing in the room in front of it, because
+  // that mirror was already down and nothing brought it back.
+  let liveQueue = [];
+  let livePool = [];
   function markLive(at, w, h) {
     if (liveBoxes) liveBoxes.push({ x: at.x - w / 2, y: at.y - h, w, h: h + 24 });
   }
@@ -13799,18 +13858,60 @@
     // mask whether anyone was near a wall or not. This pays only where
     // somebody actually is, which is a person or two.
     const cuts = frontWallCuts(order, key);
+    liveQueue = [];
+    livePool = [];
+    // Which floor each room is in the painting order, so what a figure
+    // strays onto can be put right against the floor it belongs to.
+    const bucket = order.map((p, i) => (cuts[i].length ? [] : null));
+    const bucketOf = {};
+    order.forEach((p, i) => { if (p.roomIndex !== undefined) bucketOf[p.roomIndex] = i; });
     order.forEach((p, i) => {
       if (seen && !p.always && !boxesMeet(floorScreenBox(p.rect), seen)) return;
-      const cut = cuts[i];
-      liveBoxes = cut.length ? [] : null;
+      liveBoxes = bucket[i];
       p.draw();
-      if (!cut.length || !liveBoxes.length) return;
-      const hit = cut.filter((band) => liveBoxes.some((b) => boxBehindWall(b, band)));
+    });
+
+    // Now the crowd, and the gear that has to come back over the top of
+    // them, for the whole location in one order. A piece joins them when it
+    // stands in front of something already in and covers it on the screen,
+    // round after round, because putting one piece back can bury a second
+    // that stands in front of it and that one a third.
+    {
+      const behind = (a, c) => a.box.u1 <= c.box.u0 + PAINT_SLACK
+        || a.box.v1 <= c.box.v0 + PAINT_SLACK;
+      const meets = (a, c) => a.rect.x < c.rect.x + c.rect.w && a.rect.x + a.rect.w > c.rect.x
+        && a.rect.y < c.rect.y + c.rect.h && a.rect.y + a.rect.h > c.rect.y;
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (let k = livePool.length - 1; k >= 0; k--) {
+          const mine = livePool[k];
+          if (!liveQueue.some((b) => behind(b, mine) && meets(b, mine))) continue;
+          livePool.splice(k, 1);
+          liveQueue.push(mine);
+          grew = true;
+        }
+      }
+      paintOrder(liveQueue, (q) => q.box, (q) => q.depth).forEach((q) => {
+        const at = bucketOf[q.roomIndex];
+        liveBoxes = at === undefined ? null : bucket[at];
+        q.paint();
+      });
+    }
+    liveBoxes = null;
+
+    // And the walls of every floor painted after this one, back over
+    // whoever strayed behind them, straight off the still layer.
+    order.forEach((p, i) => {
+      const cut = cuts[i];
+      const mine = bucket[i];
+      if (!cut.length || !mine || !mine.length) return;
+      const hit = cut.filter((band) => mine.some((b) => boxBehindWall(b, band)));
       if (!hit.length) return;
       // Only the wall behind the people who strayed onto it, not the whole
       // wall: the repair is the size of a person, wherever they happen to
       // be standing.
-      const near = liveBoxes.filter((b) => hit.some((band) => boxBehindWall(b, band)));
+      const near = mine.filter((b) => hit.some((band) => boxBehindWall(b, band)));
       floorCtx.save();
       floorCtx.beginPath();
       hit.forEach(({ poly }) => {
@@ -13825,7 +13926,6 @@
       floorCtx.drawImage(stillUnder, 0, 0, W, H);
       floorCtx.restore();
     });
-    liveBoxes = null;
     // The railings are already down with their own floors. This puts them
     // back over anybody standing at one, and only there -- stamped whole
     // over the plan it was a far floor's railing crossing a nearer one.
@@ -14169,34 +14269,53 @@
       const pile = pileOf(room, shape, index);
       if (pile.level > 0) queuePileTag(roomIndex, index, itemId, turnAt(room, index), c, pile);
     });
-    // The people, and anything standing in front of one of them, which has
-    // to come back over the top or somebody would walk through a machine.
-    const standing = people.slice();
-    if (people.length) {
-      // How far from its own centre a piece can still cover somebody. It
-      // used to be three and a half tiles for everything, which is fine for
-      // a cooler and nowhere near enough for a boxing ring or a climbing
-      // wall: a person on the far side of one of those was painted straight
-      // over it. Sized off what the piece is actually drawn at now, and
-      // wider up the screen than across it, because depth is what turns
-      // into height here -- somebody well behind a tall piece still stands
-      // in the part of the screen it covers.
-      const reachOf = (e) => {
+    // The people, and anything that might have to come back over the top of
+    // one of them. Queued, not painted: see liveQueue.
+    {
+      // The rectangle a thing actually covers on the screen, which is what
+      // decides whether putting it back would bury something else. This
+      // used to be guessed as a box on the floor around each piece, sized
+      // off how big the piece is drawn. That is fine for a water cooler and
+      // nowhere near right for a mirror, which is a third of a metre on the
+      // floor and two metres tall: the guess missed most of what it covers.
+      const screenBoxOf = (e) => {
+        const c = isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v);
+        if (e.member) return { x: c.x - 46, y: c.y - 150, w: 92, h: 182 };
         if (e.fixture) {
-          return { u: (e.fixture.u1 - e.fixture.u0) / 2 + 2.6,
-            v: (e.fixture.v1 - e.fixture.v0) / 2 + 4.5 };
+          const f = e.fixture;
+          const pts = [[f.u0, f.v0], [f.u1, f.v0], [f.u1, f.v1], [f.u0, f.v1]]
+            .map(([u, v]) => isoPoint(place.gx0 + u, place.gy0 + v));
+          let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
+          pts.forEach((q) => {
+            if (q.x < x0) x0 = q.x;
+            if (q.x > x1) x1 = q.x;
+            if (q.y < y0) y0 = q.y;
+            if (q.y > y1) y1 = q.y;
+          });
+          return { x: x0, y: y0 - ROOM.wallH, w: x1 - x0, h: (y1 - y0) + ROOM.wallH };
         }
-        const half = drawSizeOf(e.itemId) * TILES_PER_METRE * 0.6;
-        return { u: half + 2.6, v: half + 4.5 };
+        const b = propBitmap(e.itemId, turnAt(room, e.index));
+        return { x: c.x - b.ox, y: c.y - b.oy, w: b.w, h: b.h };
       };
-      items.concat(loose).forEach((e) => {
-        const d = depthOf(e);
-        const r = reachOf(e);
-        const covers = people.some((p) => depthOf(p) < d
-          && Math.abs(p.spot.u - e.spot.u) < r.u && Math.abs(p.spot.v - e.spot.v) < r.v);
-        if (covers) standing.push(e);
-      });
-      inFrontLast(standing).forEach(paintOne);
+      // The floor a thing takes up on the whole plan, the rectangle it
+      // covers on the screen, and how to paint it. The first decides what
+      // stands in front of what, the second whether they are anywhere near
+      // each other, and the order comes from the first: which of them is
+      // further along the screen is a ranking, and a ranking disagrees with
+      // that order exactly where it matters.
+      const entryOf = (e) => {
+        const b = boxOf(e);
+        return {
+          box: { u0: b.u0 + place.gx0, u1: b.u1 + place.gx0,
+            v0: b.v0 + place.gy0, v1: b.v1 + place.gy0 },
+          rect: screenBoxOf(e),
+          depth: (place.gx0 + e.spot.u) + (place.gy0 + e.spot.v),
+          roomIndex,
+          paint: () => paintOne(e),
+        };
+      };
+      people.forEach((p) => liveQueue.push(entryOf(p)));
+      items.concat(loose).forEach((e) => livePool.push(entryOf(e)));
     }
 
     if (editing && editing.roomIndex === roomIndex) {
