@@ -757,18 +757,6 @@ img { max-width: 100%; display: block; }
   text-align: center;
   box-shadow: var(--shadow-hard);
 }
-.game-featured-tag {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: #1a1200;
-  background: var(--amber);
-  padding: 4px 12px;
-  border-radius: 999px;
-  margin-bottom: 12px;
-}
 .game-featured h3 { font-size: 24px; margin: 0 0 10px; }
 .game-featured p { color: var(--muted); font-size: 14.5px; line-height: 1.6; max-width: 460px; margin: 0 auto 18px; }
 
@@ -784,9 +772,11 @@ img { max-width: 100%; display: block; }
 
 .game-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  /* Wide enough that the three of them sit in one row: at 820 the gaps ate
+     the third column and it dropped to a line of its own. */
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 22px;
-  max-width: 820px;
+  max-width: 900px;
   margin: 0 auto;
 }
 .game-card {
