@@ -25,26 +25,44 @@
   const COST_GROWTH = 1.15;
   const TICK_MS = 100;
 
+  // Every price and every earning in the game is a tenth of what it once
+  // was. The two cancel out, so a gym takes exactly as long to build as it
+  // always did and levels arrive at the same moment; what changes is that
+  // you spend the game reading hundreds and thousands instead of millions,
+  // and a dollar is worth picking up.
+  //
+  // It is written down as a number because two things have to read money on
+  // the old scale to stay where they were: the XP a purchase is worth, and
+  // a save from before the change.
+  const MONEY_SCALE = 0.1;
+  // Prices stay whole once they are worth more than a few dollars, and go
+  // to the penny below that. Rounding the cheapest gear up to a whole
+  // dollar would have quietly made the first ten minutes dearer than they
+  // used to be, which is the one thing this change must not do.
+  function roundMoney(n) {
+    return n >= 10 ? Math.ceil(n) : Math.ceil(n * 100) / 100;
+  }
+
   const ITEMS = [
     // The first thing on any floor. Every location needs one before it takes
     // a cent or sells you anything. It is free, it goes straight from the
     // Shop into your hands, and it earns nothing: it opens the doors.
-    { id: 'frontdesk', name: 'Customer Desk', baseCost: 2500, gps: 0, starter: true },
+    { id: 'frontdesk', name: 'Customer Desk', baseCost: 250, gps: 0, starter: true },
 
     // Gym equipment. The only things in the game that earn money.
-    { id: 'dumbbell', name: 'Dumbbell Set', baseCost: 25, gps: 0.1 },
-    { id: 'dumbbellrack', name: 'Dumbbell Rack', baseCost: 60, gps: 0.22 },
-    { id: 'mat', name: 'Yoga Mat', baseCost: 100, gps: 0.5 },
-    { id: 'bench', name: 'Bench Press', baseCost: 320, gps: 2 },
-    { id: 'rack', name: 'Squat Rack', baseCost: 1200, gps: 8 },
-    { id: 'cable', name: 'Cable Machine', baseCost: 4500, gps: 30 },
-    { id: 'treadmill', name: 'Treadmill', baseCost: 15000, gps: 100 },
-    { id: 'rower', name: 'Rowing Machine', baseCost: 50000, gps: 350, unlockLevel: 3 },
-    { id: 'sauna', name: 'Sauna', baseCost: 220000, gps: 1500, unlockLevel: 4 },
-    { id: 'boxingring', name: 'Boxing Ring', baseCost: 900000, gps: 6000, unlockLevel: 4 },
-    { id: 'climbingwall', name: 'Climbing Wall', baseCost: 3600000, gps: 25000, unlockLevel: 6 },
-    { id: 'stairclimber', name: 'Stair Climber', baseCost: 14000000, gps: 100000, unlockLevel: 7 },
-    { id: 'cryo', name: 'Cryo Chamber', baseCost: 56000000, gps: 400000, unlockLevel: 8 },
+    { id: 'dumbbell', name: 'Dumbbell Set', baseCost: 2.5, gps: 0.01 },
+    { id: 'dumbbellrack', name: 'Dumbbell Rack', baseCost: 6, gps: 0.022 },
+    { id: 'mat', name: 'Yoga Mat', baseCost: 10, gps: 0.05 },
+    { id: 'bench', name: 'Bench Press', baseCost: 32, gps: 0.2 },
+    { id: 'rack', name: 'Squat Rack', baseCost: 120, gps: 0.8 },
+    { id: 'cable', name: 'Cable Machine', baseCost: 450, gps: 3 },
+    { id: 'treadmill', name: 'Treadmill', baseCost: 1500, gps: 10 },
+    { id: 'rower', name: 'Rowing Machine', baseCost: 5000, gps: 35, unlockLevel: 3 },
+    { id: 'sauna', name: 'Sauna', baseCost: 22000, gps: 150, unlockLevel: 4 },
+    { id: 'boxingring', name: 'Boxing Ring', baseCost: 90000, gps: 600, unlockLevel: 4 },
+    { id: 'climbingwall', name: 'Climbing Wall', baseCost: 360000, gps: 2500, unlockLevel: 6 },
+    { id: 'stairclimber', name: 'Stair Climber', baseCost: 1400000, gps: 10000, unlockLevel: 7 },
+    { id: 'cryo', name: 'Cryo Chamber', baseCost: 5600000, gps: 40000, unlockLevel: 8 },
 
 
     // Decor. None of it earns a cent, and every piece takes floor a machine
@@ -52,32 +70,32 @@
     // some work on the room they stand in, some on the whole gym. A room
     // effect stacks, up to a cap; a gym effect counts once, however many
     // you own.
-    { id: 'palm', name: 'Potted Palm', baseCost: 1400, unlockLevel: 2,
+    { id: 'palm', name: 'Potted Palm', baseCost: 140, unlockLevel: 2,
       effect: { kind: 'vibe', amount: 2, max: 8 } },
-    { id: 'cooler', name: 'Water Cooler', baseCost: 11000, unlockLevel: 3,
+    { id: 'cooler', name: 'Water Cooler', baseCost: 1100, unlockLevel: 3,
       effect: { kind: 'cap', amount: 0.25, max: 1 } },
-    { id: 'mirrorwall', name: 'Mirror Wall', baseCost: 130000, unlockLevel: 4,
+    { id: 'mirrorwall', name: 'Mirror Wall', baseCost: 13000, unlockLevel: 4,
       effect: { kind: 'rush', amount: 0.5, max: 0.9 } },
-    { id: 'gearfridge', name: 'Gear Fridge', baseCost: 900000, unlockLevel: 5,
+    { id: 'gearfridge', name: 'Gear Fridge', baseCost: 90000, unlockLevel: 5,
       effect: { kind: 'stock', amount: 0.3, max: 0.6 } },
-    { id: 'neon', name: 'Neon Sign', baseCost: 1700000, unlockLevel: 6,
+    { id: 'neon', name: 'Neon Sign', baseCost: 170000, unlockLevel: 6,
       effect: { kind: 'promo', amount: 0.5, gym: true } },
-    { id: 'soundsystem', name: 'Hype Sound System', baseCost: 3600000, unlockLevel: 7,
+    { id: 'soundsystem', name: 'Hype Sound System', baseCost: 360000, unlockLevel: 7,
       effect: { kind: 'floor', amount: 0.45, max: 0.6 } },
-    { id: 'desk', name: "Manager's Desk", baseCost: 14000000, unlockLevel: 8,
+    { id: 'desk', name: "Manager's Desk", baseCost: 1400000, unlockLevel: 8,
       effect: { kind: 'wages', amount: 0.25, gym: true } },
-    { id: 'cubicle', name: 'Sales Cubicle', baseCost: 56000000, unlockLevel: 9,
+    { id: 'cubicle', name: 'Sales Cubicle', baseCost: 5600000, unlockLevel: 9,
       effect: { kind: 'jobs', amount: 0.25, gym: true } },
-    { id: 'officepod', name: 'Corner Office Pod', baseCost: 220000000, unlockLevel: 10,
+    { id: 'officepod', name: 'Corner Office Pod', baseCost: 22000000, unlockLevel: 10,
       effect: { kind: 'cashiers', amount: 1, gym: true } },
 
     // The counters close the list. They are decoration as well -- they earn
     // nothing standing there -- but they also make stock for the delivery
     // orders on the Jobs tab, so they read as the last and biggest thing a
     // room can have rather than the first.
-    { id: 'juicebar', name: 'Juice Bar', baseCost: 36000, unlockLevel: 3,
+    { id: 'juicebar', name: 'Juice Bar', baseCost: 3600, unlockLevel: 3,
       effect: { kind: 'room', amount: 0.15, max: 0.25 } },
-    { id: 'proshop', name: 'Pro Shop', baseCost: 2200000, unlockLevel: 7,
+    { id: 'proshop', name: 'Pro Shop', baseCost: 220000, unlockLevel: 7,
       effect: { kind: 'xp', amount: 0.25, gym: true } },
   ];
   // Gains per second is the headline number on every piece of gear, and a
@@ -699,7 +717,7 @@
     state.xp = (state.xp || 0) + n * (1 + gymEffect('xp'));
   }
   function xpForSpend(cost) {
-    return Math.max(1, Math.round(Math.pow(Math.max(1, cost), 0.34)));
+    return Math.max(1, Math.round(Math.pow(Math.max(1, cost / MONEY_SCALE), 0.34)));
   }
 
   // Experience needed to have reached a level. Deliberately steep: the first
@@ -1143,7 +1161,7 @@
   }
   function upgradeCost(id) {
     const item = itemById(id);
-    return Math.ceil(item.baseCost * 40 * Math.pow(3.2, tierOf(id) - 1));
+    return roundMoney(item.baseCost * 40 * Math.pow(3.2, tierOf(id) - 1));
   }
   // The Customer Desk earns nothing, so it used to be the one thing in the
   // shop that could not be improved -- and the bubble cap, which is read
@@ -1195,7 +1213,7 @@
   // would read as being punished for finishing, and starting over is
   // supposed to be the reward. What it does cost is real: every piece of
   // gear, every room past the first, and everyone on the payroll.
-  const FRANCHISE_MIN_LIFETIME = 1e7;
+  const FRANCHISE_MIN_LIFETIME = 1e6;
   const FRANCHISE_PER_POINT = 0.05;
   function franchisePoints() {
     return (state.franchise && state.franchise.points) || 0;
@@ -1233,7 +1251,7 @@
     {
       id: 'cashier',
       name: 'Cashier',
-      baseCost: 6000,
+      baseCost: 600,
       unlockLevel: 2,
       // Walks the room from bubble to bubble and empties each one they
       // reach. `first` is unused for this role: what a cashier is worth is
@@ -1245,7 +1263,7 @@
     {
       id: 'trainer',
       name: 'Personal Trainer',
-      baseCost: 45000,
+      baseCost: 4500,
       unlockLevel: 4,
       // Hired into a room, and what they bring is people: classes, plans,
       // somebody to show you how the thing works. That is the draw of the
@@ -1258,7 +1276,7 @@
     {
       id: 'cleaner',
       name: 'Cleaner',
-      baseCost: 60000,
+      baseCost: 6000,
       unlockLevel: 3,
       // Keeps every room nicer than it would otherwise be: vibe points on
       // top of the fittings, and so subject to the same ceiling.
@@ -1269,7 +1287,7 @@
     {
       id: 'receptionist',
       name: 'Receptionist',
-      baseCost: 120000,
+      baseCost: 12000,
       unlockLevel: 5,
       // Works the front desk, so more of the rush actually gets through the
       // door: the peak bonus itself is bigger.
@@ -1280,7 +1298,7 @@
     {
       id: 'manager',
       name: 'Floor Manager',
-      baseCost: 250000,
+      baseCost: 25000,
       unlockLevel: 7,
       first: 0.18,
       max: 3,
@@ -1368,7 +1386,7 @@
   function trainCost(id) {
     const role = staffRole(id);
     if (!role) return 0;
-    return Math.ceil(role.baseCost * 6 * Math.pow(3.4, staffLevel(id) - 1));
+    return roundMoney(role.baseCost * 6 * Math.pow(3.4, staffLevel(id) - 1));
   }
   function canTrain(id) {
     return staffLevel(id) < STAFF_MAX_LEVEL && staffCount(id) > 0;
@@ -1404,7 +1422,7 @@
   }
   function staffHireCost(id) {
     const role = staffRole(id);
-    return Math.ceil(role.baseCost * Math.pow(1.6, staffCount(id)));
+    return roundMoney(role.baseCost * Math.pow(1.6, staffCount(id)));
   }
   // The whole wage bill as a share of what the gym takes. Capped, so however
   // badly a gym is overstaffed it still earns something -- a tycoon game that
@@ -1590,7 +1608,7 @@
     return ((Math.max(1, n) - 1) % STREAK_RUN) + 1;
   }
   function streakCash() {
-    return Math.max(100, Math.round(gps * (STREAK_CYCLE_MS / 1000) * STREAK_SHARE));
+    return Math.max(10, roundMoney(gps * (STREAK_CYCLE_MS / 1000) * STREAK_SHARE));
   }
   function streakXp(n) {
     const level = currentLevel();
@@ -2019,9 +2037,9 @@
     return pileCapSeconds() * (1 + roomEffect(room, 'cap'));
   }
   // What a machine fills to, rounded to a figure worth reading. Two minutes
-  // of a treadmill's takings is $15,600-and-change, which is a number
-  // nobody wants to look at: the nearest of 10, 20, 50, 100 and so on up is
-  // both close enough and something you can hold in your head.
+  // of a treadmill's takings is $1,560-and-change, which is a number nobody
+  // wants to look at: the nearest of 1, 2, 5, 10 and so on up is both close
+  // enough and something you can hold in your head.
   function niceCap(raw) {
     if (!(raw > 0)) return 0;
     const mag = Math.pow(10, Math.floor(Math.log10(raw)));
@@ -2032,7 +2050,7 @@
       const gap = Math.abs(Math.log(k * mag) - Math.log(raw));
       if (gap < bestGap) { bestGap = gap; best = k * mag; }
     });
-    return Math.max(10, best);
+    return Math.max(1, best);
   }
   function roomCash(room) {
     if (!room.cash || room.cash.length !== room.layout.length) {
@@ -2224,6 +2242,7 @@
   // Nobody wants to watch $1,124.43 tick over, and $127.68K is no better.
   function formatMoney(n) {
     if (!(n > 0)) return '0';
+    if (n < 10) return (Math.floor(n * 100) / 100).toString();
     if (n < 1000) return String(Math.floor(n));
     const units = ['K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp'];
     let v = n;
@@ -2238,6 +2257,7 @@
   }
 
   function formatNum(n) {
+    if (n < 10) return (Math.floor(n * 100) / 100).toString();
     if (n < 1000) return (Math.floor(n * 10) / 10).toString();
     const units = ['K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp'];
     let v = n;
@@ -2255,7 +2275,7 @@
   // connected rooms (see the multi-lane canvas further down), so buying
   // an extra room only expands whichever theme you're currently in, and
   // gear never appears to "move" between themes.
-  const ROOM_UNLOCK_COSTS = [0, 10000, 500000, 25000000];
+  const ROOM_UNLOCK_COSTS = [0, 1000, 50000, 2500000];
   const MAX_ROOMS_PER_THEME = ROOM_UNLOCK_COSTS.length;
 
   function emptyGymRoom(themeId, index) {
@@ -2506,6 +2526,9 @@
     return {
       balance: 0,
       lifetime: 0,
+      // Which money the gym is counted in. A new gym is already on the
+      // scale everything else uses, so it is never brought down.
+      moneyScale: MONEY_SCALE,
       xp: 0,
       tiers: {},
       jobs: [],
@@ -2543,6 +2566,19 @@
 
     const s = Object.assign(defaultState(), saved);
     s.owned = saved.owned || {};
+
+    // Everything costs a tenth of what it did and earns a tenth as much, so
+    // a save from before that is carrying ten times too much money for the
+    // prices it is about to meet. Bring down what it holds, so a gym comes
+    // back exactly as far along as it was left. The stamp is written at the
+    // end of this function, once the floors and the contracts have been
+    // brought down too, so a load that gives up halfway never leaves a save
+    // half converted.
+    const rescaleMoney = saved.moneyScale !== MONEY_SCALE;
+    if (rescaleMoney) {
+      s.balance = (Number(s.balance) || 0) * MONEY_SCALE;
+      s.lifetime = (Number(s.lifetime) || 0) * MONEY_SCALE;
+    }
     // Object.assign above copies these over verbatim from an old-shape
     // save -- drop them so the persisted state doesn't carry dead fields
     // around forever alongside the new `themeRooms` map.
@@ -2600,7 +2636,7 @@
     if (typeof saved.xp !== 'number' || !isFinite(saved.xp)) {
       const fromOwned = ITEMS.reduce(
         (sum, item) => sum + (s.owned[item.id] || 0) * xpForSpend(item.baseCost), 0);
-      const fromLifetime = Math.round(16.5 * Math.pow(Math.max(0, s.lifetime), 0.306));
+      const fromLifetime = Math.round(16.5 * Math.pow(Math.max(0, s.lifetime) / MONEY_SCALE, 0.306));
       s.xp = Math.max(fromOwned, fromLifetime);
     }
 
@@ -2618,7 +2654,7 @@
         if (had <= cap) return;
         s.staff[role.id] = cap;
         for (let k = cap; k < had; k++) {
-          s.balance = (s.balance || 0) + Math.ceil(role.baseCost * Math.pow(1.6, k));
+          s.balance = (s.balance || 0) + roundMoney(role.baseCost * Math.pow(1.6, k));
         }
       });
     }
@@ -2628,7 +2664,7 @@
     // more per metre of floor than a sauna, and a floor of them was the
     // best money in the game. Anyone who owned one gets what they paid.
     if (s.owned.trainer) {
-      s.balance = (s.balance || 0) + s.owned.trainer * 40000;
+      s.balance = (s.balance || 0) + s.owned.trainer * 4000;
       delete s.owned.trainer;
       THEMES.forEach((t) => {
         (s.themeRooms[t.id] || []).forEach((room) => {
@@ -2750,6 +2786,24 @@
     // stopped the game loading at all for anybody with a choice waiting.
     s.offers = (Array.isArray(s.offers) ? s.offers : [])
       .filter((o) => Array.isArray(o) && o.length && o.every((j) => j && typeof j === 'object'));
+
+    // The rest of the old money: what is sitting in the bubbles on every
+    // floor, and what the contracts in hand are promising to pay.
+    if (rescaleMoney) {
+      THEMES.forEach((t) => (s.themeRooms[t.id] || []).forEach((room) => {
+        if (Array.isArray(room.cash)) {
+          room.cash = room.cash.map((c) => (Number(c) || 0) * MONEY_SCALE);
+        }
+      }));
+      const bringDown = (j) => {
+        if (j && typeof j.cash === 'number' && isFinite(j.cash)) j.cash *= MONEY_SCALE;
+      };
+      (Array.isArray(s.jobs) ? s.jobs : []).forEach(bringDown);
+      (Array.isArray(s.offers) ? s.offers : []).forEach(
+        (o) => (Array.isArray(o) ? o : []).forEach(bringDown));
+      if (s.rush && s.rush.job) bringDown(s.rush.job);
+      s.moneyScale = MONEY_SCALE;
+    }
 
     // What the time away is worth is settled after the state is in place,
     // by creditTimeAway() below: the sums need the whole gym, and the whole
@@ -3178,7 +3232,7 @@
     // Stated when the job is written, not when it is handed in, so the board
     // can say what a job is worth before you decide to go and do it.
     const pay = mult * (JOB_KINDS[kind].pay || 1) * shape.pay * (1 + gymEffect('jobs'));
-    job.cash = Math.max(150, Math.round(gps * 45 * pay));
+    job.cash = Math.max(15, roundMoney(gps * 45 * pay));
     job.xp = Math.round(16 * pay * (1 + level * 0.12));
     return job;
   }
@@ -3341,70 +3395,70 @@
   // They are permanent. Franchising clears the gym; it does not clear these.
   const TROPHIES = [
     { id: 'open', name: 'Open For Business', hint: 'Put the Customer Desk down',
-      cash: 50, got: (c) => c.open },
+      cash: 5, got: (c) => c.open },
     { id: 'ten', name: 'Kitted Out', hint: 'Have ten pieces placed at once',
-      cash: 400, got: (c) => c.placed >= 10 },
+      cash: 40, got: (c) => c.placed >= 10 },
     { id: 'fullroom', name: 'Not An Inch Spare', hint: 'Fill every slot in one room',
-      cash: 1500, got: (c) => c.fullRoom >= 1 },
+      cash: 150, got: (c) => c.fullRoom >= 1 },
     { id: 'synergy', name: 'Good Layout', hint: 'Get one piece to a +40% arrangement bonus',
-      cash: 2000, got: (c) => c.bestSynergy >= 1.4 },
+      cash: 200, got: (c) => c.bestSynergy >= 1.4 },
     { id: 'vibe', name: 'Somewhere Nice', hint: 'Take a room to the top of the vibe scale',
-      cash: 250000, got: (c) => c.bestVibe >= VIBE_MAX_POINTS },
+      cash: 25000, got: (c) => c.bestVibe >= VIBE_MAX_POINTS },
     { id: 'fifty', name: 'Proper Gym', hint: 'Have fifty pieces placed at once',
-      cash: 500000, got: (c) => c.placed >= 50 },
+      cash: 50000, got: (c) => c.placed >= 50 },
     { id: 'hundred', name: 'Chain Material', hint: 'Have a hundred pieces placed at once',
-      cash: 30000000, got: (c) => c.placed >= 100 },
+      cash: 3000000, got: (c) => c.placed >= 100 },
 
     { id: 'lvl5', name: 'Getting Somewhere', hint: 'Reach level 5',
-      cash: 3000, got: (c) => c.level >= 5 },
+      cash: 300, got: (c) => c.level >= 5 },
     { id: 'lvl10', name: 'Established', hint: 'Reach level 10',
-      cash: 1500000, got: (c) => c.level >= 10 },
+      cash: 150000, got: (c) => c.level >= 10 },
     { id: 'lvl20', name: 'Household Name', hint: 'Reach level 20',
-      cash: 2000000000, got: (c) => c.level >= 20 },
+      cash: 200000000, got: (c) => c.level >= 20 },
     { id: 'lvl30', name: 'Industry Fixture', hint: 'Reach level 30',
-      cash: 500000000000, got: (c) => c.level >= 30 },
+      cash: 50000000000, got: (c) => c.level >= 30 },
 
     { id: 'rooms', name: 'Knocked Through', hint: 'Open all four rooms in one location',
-      cash: 6000000, got: (c) => c.mostRooms >= MAX_ROOMS_PER_THEME },
+      cash: 600000, got: (c) => c.mostRooms >= MAX_ROOMS_PER_THEME },
     { id: 'themes', name: 'Three Addresses', hint: 'Have gear placed in three locations at once',
-      cash: 900000, got: (c) => c.themesUsed >= 3 },
+      cash: 90000, got: (c) => c.themesUsed >= 3 },
     { id: 'pier', name: 'Out On The Pier', hint: 'Open the Boardwalk and put gear on it',
-      cash: 50000000, got: (c) => c.themesUsed >= 4 },
+      cash: 5000000, got: (c) => c.themesUsed >= 4 },
 
     { id: 'named', name: 'Under New Management', hint: 'Give your gym a name',
-      cash: 150, got: (c) => c.named },
+      cash: 15, got: (c) => c.named },
 
     { id: 'week', name: 'Seven In A Row', hint: 'Collect seven times running without letting the run lapse',
-      cash: 400000, got: (c) => c.streak >= 7 },
+      cash: 40000, got: (c) => c.streak >= 7 },
     { id: 'month', name: 'Never Misses', hint: 'Keep a run of thirty going',
-      cash: 40000000, got: (c) => c.streak >= 30 },
+      cash: 4000000, got: (c) => c.streak >= 30 },
 
     { id: 'staff1', name: 'On The Payroll', hint: 'Hire your first member of staff',
-      cash: 2000, got: (c) => c.staff >= 1 },
+      cash: 200, got: (c) => c.staff >= 1 },
     { id: 'staffall', name: 'Full Team', hint: 'Employ every kind of staff at once',
-      cash: 500000, got: (c) => c.roles >= STAFF_ROLES.length },
+      cash: 50000, got: (c) => c.roles >= STAFF_ROLES.length },
 
     { id: 'upgrade', name: 'Marked Up', hint: 'Upgrade a piece of gear to Mk II',
-      cash: 1500, got: (c) => c.topTier >= 2 },
-    { id: 'mkiv', name: 'Top Of The Range', hint: 'Take a piece costing $10K or more all the way to Mk IV',
-      cash: 3000000, got: (c) => c.topTierBig >= MAX_TIER },
+      cash: 150, got: (c) => c.topTier >= 2 },
+    { id: 'mkiv', name: 'Top Of The Range', hint: 'Take a piece costing $1K or more all the way to Mk IV',
+      cash: 300000, got: (c) => c.topTierBig >= MAX_TIER },
 
     { id: 'jobs10', name: 'Reliable', hint: 'Finish ten jobs',
-      cash: 25000, got: (c) => c.jobsDone >= 10 },
+      cash: 2500, got: (c) => c.jobsDone >= 10 },
     { id: 'jobs50', name: 'Never Says No', hint: 'Finish fifty jobs',
-      cash: 5000000, got: (c) => c.jobsDone >= 50 },
+      cash: 500000, got: (c) => c.jobsDone >= 50 },
     { id: 'rush5', name: 'Under Pressure', hint: 'Finish five rush orders before they run out',
-      cash: 150000, got: (c) => c.rushDone >= 5 },
+      cash: 15000, got: (c) => c.rushDone >= 5 },
 
     { id: 'fran1', name: 'Second Location', hint: 'Franchise the gym out once',
-      cash: 300000, got: (c) => c.runs >= 1 },
+      cash: 30000, got: (c) => c.runs >= 1 },
     { id: 'fran5', name: 'Franchise Group', hint: 'Franchise out five times',
-      cash: 10000000000, got: (c) => c.runs >= 5 },
+      cash: 1000000000, got: (c) => c.runs >= 5 },
 
-    { id: 'rich', name: 'First Million', hint: 'Earn a million in total',
-      cash: 50000, got: (c) => c.lifetime >= 1e6 },
-    { id: 'richer', name: 'First Billion', hint: 'Earn a billion in total',
-      cash: 40000000, got: (c) => c.lifetime >= 1e9 },
+    { id: 'rich', name: 'Six Figures', hint: 'Take a hundred grand in total',
+      cash: 5000, got: (c) => c.lifetime >= 1e5 },
+    { id: 'richer', name: 'Nine Figures', hint: 'Take a hundred million in total',
+      cash: 4000000, got: (c) => c.lifetime >= 1e8 },
   ];
 
   function hasTrophy(id) {
@@ -3435,7 +3489,7 @@
     Object.keys(state.tiers || {}).forEach((id) => {
       const item = itemById(id);
       if (state.tiers[id] > topTier) topTier = state.tiers[id];
-      if (item && item.baseCost >= 10000 && state.tiers[id] > topTierBig) topTierBig = state.tiers[id];
+      if (item && item.baseCost >= 1000 && state.tiers[id] > topTierBig) topTierBig = state.tiers[id];
     });
     return {
       placed: tally.placed,
@@ -5809,13 +5863,13 @@
 
   // ---- Shop ----
   function costFor(item) {
-    return Math.ceil(item.baseCost * Math.pow(COST_GROWTH, state.owned[item.id] || 0));
+    return roundMoney(item.baseCost * Math.pow(COST_GROWTH, state.owned[item.id] || 0));
   }
   // The price of the nth one after the ones you already have, and of a
   // whole batch of them: every unit costs more than the last, so a batch is
   // a sum and not a multiplication.
   function costForNth(item, n) {
-    return Math.ceil(item.baseCost * Math.pow(COST_GROWTH, (state.owned[item.id] || 0) + n));
+    return roundMoney(item.baseCost * Math.pow(COST_GROWTH, (state.owned[item.id] || 0) + n));
   }
   function batchCost(item, count) {
     let sum = 0;
@@ -5840,7 +5894,7 @@
   // How many marks up a piece can go at once for the money in hand.
   function upgradeCostAt(id, tier) {
     const item = itemById(id);
-    return Math.ceil(item.baseCost * 40 * Math.pow(3.2, tier - 1));
+    return roundMoney(item.baseCost * 40 * Math.pow(3.2, tier - 1));
   }
   function upgradeBatch(id, marks) {
     const from = tierOf(id);
