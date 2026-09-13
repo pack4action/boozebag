@@ -1952,11 +1952,28 @@
     });
     Object.keys(byKind).forEach((kind) => {
       let left = total * (mix[kind] || 0);
-      byKind[kind].sort((a, b) => base[b] - base[a]).forEach((i) => {
-        const take = Math.max(0, Math.min(1, left));
-        out[i] = take;
+      const order = byKind[kind].sort((a, b) => base[b] - base[a]);
+      let i = 0;
+      while (i < order.length) {
+        // Machines that earn the same are the same machine to anybody
+        // choosing one, so a run of them shares what is left rather than
+        // the first in the list taking all of it. Two identical mats with
+        // three quarters of a mat's worth of people are each half busy,
+        // which is what the room looks like: one of them flat out and the
+        // other stone dead is not, and the floor showed two people on two
+        // mats with only one of them making anything.
+        //
+        // Machines that are genuinely better still go first. Only a tie is
+        // split, and splitting a tie cannot change what the room earns.
+        const rate = base[order[i]];
+        let j = i;
+        while (j < order.length && Math.abs(base[order[j]] - rate) <= rate * 1e-9) j += 1;
+        const n = j - i;
+        const take = Math.max(0, Math.min(n, left));
+        for (let k = i; k < j; k += 1) out[order[k]] = take / n;
         left -= take;
-      });
+        i = j;
+      }
     });
     return out;
   }
@@ -4113,12 +4130,20 @@
     }
 
     let goal;
+    // A machine nobody is coming for earns nothing, and somebody standing
+    // on one earning nothing is the room telling you something that is not
+    // true. So the ones that are actually being served fill up first, and
+    // a dead piece only gets stood on once everything live is taken --
+    // which is the moment it would start earning anyway.
+    const rates = ratesNow(room, { cols: place.cols, rows: place.rows });
+    const live = free.filter((i) => rates[i] > 0);
+    const pickFrom = live.length ? live : free;
     // The regular goes to their own machine when it is free, most of the
     // time; everyone else takes whatever is free.
     const reg = m.regular && dest === m.room ? room.regular : null;
-    const favSlot = reg && reg.fav ? free.find((i) => room.layout[i] === reg.fav) : undefined;
-    if (free.length && Math.random() < 0.82) {
-      const i = favSlot !== undefined && Math.random() < 0.75 ? favSlot : pickOf(free);
+    const favSlot = reg && reg.fav ? pickFrom.find((i) => room.layout[i] === reg.fav) : undefined;
+    if (pickFrom.length && Math.random() < 0.82) {
+      const i = favSlot !== undefined && Math.random() < 0.75 ? favSlot : pickOf(pickFrom);
       goal = aimAtGear(m, room, place, i);
     } else if (!free.length && busy.length && !m.staffRole && Math.random() < 0.75) {
       // Everything is in use. Rather than wander off, wait by one of them --
