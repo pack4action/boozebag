@@ -6112,6 +6112,9 @@
       }
       const el = document.createElement('div');
       el.className = 'shop-item';
+      // The row carries its own category, so what the filter is doing can
+      // be read straight off the markup.
+      el.dataset.cat = CATEGORY[item.id];
       const cat = CATEGORY_META[CATEGORY[item.id]];
       el.innerHTML =
         '<div class="shop-item-head">' +

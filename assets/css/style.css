@@ -16,6 +16,13 @@
 
 * { box-sizing: border-box; }
 
+/* Anything with hidden set really does go. The browser has its own rule
+   for this, but a browser rule is weaker than any rule we write, so a
+   class of ours that sets display keeps the element on the screen even
+   though its hidden flag is on. That is how the shop filter came to tick
+   a category off and change nothing you could see. */
+[hidden] { display: none !important; }
+
 html { scroll-behavior: smooth; }
 
 body {
