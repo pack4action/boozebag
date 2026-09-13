@@ -166,25 +166,39 @@
   }
   // What a piece of decor does, in one line, for the shop row and the
   // Storage chip. Written once here so the two never disagree.
+  //
+  // These used to be written as short as they would go: "bubbles +25%",
+  // "room +15%", "never quiet". Every one of those is only readable if you
+  // already know what it means, which is the opposite of what a shop row is
+  // for. They are sentences now, and they say what the thing does to the
+  // gym rather than naming the number inside the code.
   const EFFECT_TEXT = {
-    vibe: (a) => ['+' + Math.round(a * VIBE_PER_POINT * 100) + '% vibe for its room',
-      '+' + Math.round(a * VIBE_PER_POINT * 100) + '% vibe'],
-    cap: (a) => ['Bubbles in its room hold ' + Math.round(a * 100) + '% more',
-      'bubbles +' + Math.round(a * 100) + '%'],
-    rush: (a) => ['Busy hours pay ' + Math.round(a * 100) + '% more in its room',
-      'busy hours +' + Math.round(a * 100) + '%'],
-    stock: (a) => ['Counters in its room make stock ' + Math.round(a * 100) + '% faster',
-      'stock ' + Math.round(a * 100) + '% faster'],
-    promo: (a) => ['Promo lasts ' + Math.round(a * 100) + '% longer', 'promo +' + Math.round(a * 100) + '%'],
-    floor: (a) => ['Its room is never quieter than ' + Math.round(a * 100) + '% busy', 'never quiet'],
-    wages: (a) => ['Wages ' + Math.round(a * 100) + '% lower', 'wages -' + Math.round(a * 100) + '%'],
-    jobs: (a) => ['Jobs pay ' + Math.round(a * 100) + '% more', 'jobs +' + Math.round(a * 100) + '%'],
-    cashiers: (a) => [(a === 1 ? 'One more cashier' : a + ' more cashiers')
-      + ' in every location', '+' + a + ' cashier'],
-    room: (a) => ['Everything in its room earns +' + Math.round(a * 100) + '%',
-      'room +' + Math.round(a * 100) + '%'],
-    xp: (a) => ['Everything earns ' + Math.round(a * 100) + '% more XP',
-      'XP +' + Math.round(a * 100) + '%'],
+    vibe: (a) => ['Makes this room nicer: everything in it earns '
+      + Math.round(a * VIBE_PER_POINT * 100) + '% more, and members mind a high price less',
+      'room earns +' + Math.round(a * VIBE_PER_POINT * 100) + '%'],
+    cap: (a) => ['The money bubbles in this room hold ' + Math.round(a * 100)
+      + '% more before they stop filling, so a night away is worth more',
+      'bubbles hold +' + Math.round(a * 100) + '%'],
+    rush: (a) => ['Busy hours pay ' + Math.round(a * 100) + '% more in this room',
+      'busy hours pay +' + Math.round(a * 100) + '%'],
+    stock: (a) => ['Counters in this room make their stock ' + Math.round(a * 100)
+      + '% faster, so delivery contracts get filled sooner',
+      'stock made ' + Math.round(a * 100) + '% faster'],
+    promo: (a) => ['Your Open Day lasts ' + Math.round(a * 100) + '% longer',
+      'Open Day lasts +' + Math.round(a * 100) + '%'],
+    floor: (a) => ['This room never goes quiet: even at the deadest hour it earns as much as '
+      + 'it would ' + Math.round(a * 100) + '% of the way into a busy one',
+      'this room never goes quiet'],
+    wages: (a) => ['Your whole wage bill is ' + Math.round(a * 100) + '% smaller',
+      'wages ' + Math.round(a * 100) + '% smaller'],
+    jobs: (a) => ['Every contract on the Jobs tab pays ' + Math.round(a * 100) + '% more',
+      'contracts pay +' + Math.round(a * 100) + '%'],
+    cashiers: (a) => [(a === 1 ? 'One more Cashier' : a + ' more Cashiers')
+      + ' may be hired in every location', '+' + a + ' Cashier a location'],
+    room: (a) => ['Everything standing in this room earns ' + Math.round(a * 100) + '% more',
+      'room earns +' + Math.round(a * 100) + '%'],
+    xp: (a) => ['Everything you buy is worth ' + Math.round(a * 100)
+      + '% more XP, so you level up faster', '+' + Math.round(a * 100) + '% XP'],
   };
   function effectLine(item, short) {
     if (!item || !item.effect) return '';
@@ -1274,7 +1288,8 @@
       // for them to get on -- which is exactly the trade-off wanted.
       first: 0.22,
       perRoom: true,
-      note: (n) => '+' + Math.round(n * 100) + '% more people want to train here',
+      note: (n) => '+' + Math.round(n * 100) + '% more people want to train in this room',
+      gain: (d) => 'One more brings ' + Math.round(d * 100) + '% more people into this room',
     },
     {
       id: 'cleaner',
@@ -1285,7 +1300,10 @@
       // top of the fittings, and so subject to the same ceiling.
       first: 2,
       max: 4,
-      note: (n) => '+' + staffEffect('cleaner', n).toFixed(1) + ' vibe in every room',
+      note: (n) => 'Every room is ' + Math.round(staffEffect('cleaner', n) * VIBE_PER_POINT * 100)
+        + '% nicer to train in, so everything in it earns that much more',
+      gain: (d) => 'One more makes every room another '
+        + Math.round(d * VIBE_PER_POINT * 100) + '% nicer, so every room earns that much more',
     },
     {
       id: 'receptionist',
@@ -1296,7 +1314,9 @@
       // door: the peak bonus itself is bigger.
       first: 0.3,
       max: 3,
-      note: (n) => 'busy hour bonus +' + Math.round(staffEffect('receptionist', n) * 100) + '%',
+      note: (n) => 'Busy hours pay ' + Math.round(staffEffect('receptionist', n) * 100)
+        + '% more, everywhere',
+      gain: (d) => 'One more makes busy hours pay another ' + Math.round(d * 100) + '%',
     },
     {
       id: 'manager',
@@ -1305,7 +1325,8 @@
       unlockLevel: 7,
       first: 0.18,
       max: 3,
-      note: (n) => '+' + Math.round(staffEffect('manager', n) * 100) + '% on everything',
+      note: (n) => 'Everything in the gym earns ' + Math.round(staffEffect('manager', n) * 100) + '% more',
+      gain: (d) => 'One more makes the whole gym earn another ' + Math.round(d * 100) + '%',
     },
   ];
   function staffRole(id) {
@@ -3178,7 +3199,7 @@
         const now = Math.max(1, gps);
         return { base: now, target: Math.ceil(now * (1.5 + Math.random() * 0.8)) };
       },
-      text: (j) => 'Reach ' + formatNum(j.target) + ' gains/sec',
+      text: (j) => 'Build the gym up to $' + formatNum(j.target) + ' a second',
       done: () => gps,
     },
     fillRoom: {
@@ -3197,7 +3218,7 @@
         return { base: now, step, cap,
           target: Math.min(cap, Math.max(step, Math.ceil((now + step) / step) * step)) };
       },
-      text: (j) => 'Fit out one room to a +' + j.target + '% vibe',
+      text: (j) => 'Decorate one room until everything in it earns +' + j.target + '%',
       done: (j, tally) => tally.bestVibe,
     },
     deliver: {
@@ -3221,7 +3242,8 @@
         const now = Math.round((ctx.tally.bestSynergy - 1) * 100);
         return { base: now, step: 12, target: Math.max(24, Math.round((now + 12) / 12) * 12) };
       },
-      text: (j) => 'Get one piece earning a +' + j.target + '% synergy bonus',
+      text: (j) => 'Stand matching gear together until one piece earns +'
+        + j.target + '% from its neighbours',
       done: (j, tally) => Math.round((tally.bestSynergy - 1) * 100),
     },
   };
@@ -4796,7 +4818,7 @@
     const would = Math.round(((1 + (held + offer) * FRANCHISE_PER_POINT) - 1) * 100);
     setText(franchiseNoteEl, offer
       ? 'Cash this gym in for ' + offer + ' more point' + (offer === 1 ? '' : 's') + '. '
-        + 'A point is +' + per + '% on everything you earn, for good \u2014 that would put you on +'
+        + 'A point is +' + per + '% on everything you earn, for good, so that would put you on +'
         + formatNum(would) + '%. '
         + 'You keep your level and everything it unlocked, and the points you have. '
         + 'You lose the gear, every room past the first, and the staff.'
@@ -5333,12 +5355,12 @@
         els.btn.disabled = true;
         return;
       }
-      // What they are worth now, and what one more would add on top.
+      // What they are worth now, and what one more would add on top. Both
+      // say what the number is of: "next +30%" on its own was thirty per
+      // cent of something the row never named.
       const next = staffEffect(role.id, have + 1) - staffEffect(role.id, have);
-      setText(els.note, lvNote + (have ? role.note(have) + ' \u00b7 ' : '')
-        + 'next +' + (role.id === 'cleaner'
-          ? next.toFixed(1) + ' vibe' : Math.round(next * 100) + '%')
-        + ' for ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings');
+      setText(els.note, lvNote + (have ? role.note(have) + '. ' : '')
+        + role.gain(next) + ', for ' + Math.round(WAGE_SHARE_EACH * 100) + '% of the takings');
       setText(els.btn, 'Hire for $' + formatNum(cost));
       els.btn.disabled = state.balance < cost;
     });
@@ -6084,41 +6106,37 @@
       // The desk is the one thing whose mark buys holding room rather than
       // takings, and that is the whole reason to improve it, so it is what
       // the row says instead of a rate.
-      const long = 'Opens the location. Bubbles hold ' + capWords(pileCapSeconds())
-        + ' of what a machine makes'
+      return 'Opens the location. Its money bubbles hold ' + capWords(pileCapSeconds())
+        + ' of what a machine makes before they stop filling'
         + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '');
-      const short = 'Opens up \u00b7 bubbles hold ' + capWords(pileCapSeconds());
-      return '<span class="btn-long">' + long + '</span>'
-        + '<span class="btn-short">' + short + '</span>';
     }
     // Decor earns nothing. What it does instead is the reason to buy it,
     // so that is what its row says.
     if (item.effect) {
-      // Two lengths of the same sentence. A fitting's line runs to three
-      // clauses, which is three lines of a phone's shop row, so the phone
-      // gets the short form of each: the stylesheet picks.
+      // Decor gets the same sentence at every width. It used to be cut down
+      // to "room +15% \u00b7 makes stock" on a phone, which saved a line and
+      // told you nothing: a phone is where most of this is read, and a row
+      // that has to be decoded is a row nobody buys from.
+      //
       // A gym-wide effect counts once however many you own, and the row has
       // to say so: with a cap per location printed beside it, four Neon
-      // Signs otherwise look like four times the promo.
+      // Signs otherwise look like four Open Days. The cap that follows is
+      // about where the thing may stand, not about what it is worth, which
+      // is why the two do not contradict each other.
       const wide = !!item.effect.gym;
-      const long = effectLine(item)
-        + (wide ? ', for the whole gym, however many you own' : '')
-        + (makesStock(itemId) ? '. Makes ' + RECIPES_OF[itemId]
-          .map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ') : '')
-        + (maxPerLocation(itemId) ? '. Max ' + maxPerLocation(itemId) + ' per location' : '');
-      const short = effectLine(item, true)
-        + (wide ? ' \u00b7 whole gym, counts once' : '')
-        + (makesStock(itemId) ? ' \u00b7 makes stock' : '')
-        + (maxPerLocation(itemId) ? ' \u00b7 ' + maxPerLocation(itemId) + '/location' : '');
-      return '<span class="btn-long">' + long + '</span>'
-        + '<span class="btn-short">' + short + '</span>';
+      return effectLine(item)
+        + (wide ? ', counted once for the whole gym however many you own' : '')
+        + (makesStock(itemId) ? '. It also makes ' + RECIPES_OF[itemId]
+          .map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ')
+          + ' on its own, a batch at a time. They wait in your larder until a '
+          + 'delivery contract on the Jobs tab asks for them' : '')
+        + (maxPerLocation(itemId)
+          ? '. You can have ' + maxPerLocation(itemId) + ' in a location' : '');
     }
     return '+' + formatNum(gpsOf(itemId)) + '/s once placed'
       + (tier > 1 ? ' (' + TIER_NAMES[tier] + ')' : '')
       + (maxPerLocation(itemId)
-        ? '<span class="btn-long">. Max ' + maxPerLocation(itemId) + ' per location</span>'
-          + '<span class="btn-short"> \u00b7 ' + maxPerLocation(itemId) + '/location</span>'
-        : '');
+        ? ' \u00b7 ' + maxPerLocation(itemId) + ' per location' : '');
   }
 
   // Which categories the shop is hiding. Empty is everything shown, which
