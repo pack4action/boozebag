@@ -19,14 +19,35 @@
   // frames sprints on a 120hz screen and jogs on a tired phone, and the
   // course is not the same course at the two.
   const START_SPEED = 250;
-  const SPEED_PER_MILE = 11;
-  const MAX_SPEED = 570;
+  // He never quite tops out: twenty six miles at this puts the last one a
+  // shade under the ceiling, so the road is still speeding up at the end.
+  const SPEED_PER_MILE = 18;
+  const MAX_SPEED = 760;
   const GRAVITY = 2230;
   // High enough that the window for clearing a bin is a window and not a
   // frame: at the slowest the course ever runs, he is above the tallest
   // thing in the road for about half a second, and the tallest thing needs
   // a bit over a third of that to get past him.
   const JUMP_V = -790;
+  // How much road there is on top of the jump itself between one thing and
+  // the next, which is the whole of how hard the running is. It starts
+  // generous and closes up mile by mile: half a second of spare road at the
+  // first marker, a tenth of one at the last. Flat at the generous end the
+  // course could not be lost by anybody who could see.
+  const GAP_SPARE_FIRST = 120;
+  const GAP_SPARE_LAST = 34;
+  const GAP_ROLL_FIRST = 260;
+  const GAP_ROLL_LAST = 70;
+  // And from the sixth marker they start arriving in pairs, near enough
+  // that one jump has to take both.
+  const PAIR_FROM_MILE = 5;
+  const PAIR_PER_MILE = 0.045;
+  const PAIR_MOST = 0.42;
+  // How much of his jump the drink costs him. A smaller jump, not a random
+  // one: a random one is a jump nobody can learn, and this is a game about
+  // learning the road.
+  const DRUNK_JUMP_LOSS = 0.13;
+  const DRUNK_JUMP_WOBBLE = 60;
 
   // ---- The drink ----
   const CHUG_SECONDS = 2.6;      // to get the first one down
@@ -143,7 +164,8 @@
     if (!runner.air) {
       runner.air = true;
       // A drink in you is a jump you do not quite control.
-      runner.vy = JUMP_V + (Math.random() - 0.5) * bac * 190;
+      runner.vy = JUMP_V * (1 - bac * DRUNK_JUMP_LOSS)
+        + (Math.random() - 0.5) * bac * DRUNK_JUMP_WOBBLE;
     }
   }
 
@@ -202,11 +224,28 @@
   function spawnObstacle() {
     const kind = OBSTACLES[Math.floor(Math.random() * OBSTACLES.length)];
     obstacles.push({ x: W + 40, w: kind.w, h: kind.h, kind: kind.kind });
+    let end = W + 40 + kind.w;
+    // A pair is two of them close enough that there is no landing between,
+    // so it is one jump or none. They fit well inside the arc: the whole
+    // pair is under two hundred pixels and the jump carries three times
+    // that even at the end of the race with a full skinful.
+    const along = Math.min(1, miles / Math.max(1, MILES - 1));
+    const pairChance = miles <= PAIR_FROM_MILE ? 0
+      : Math.min(PAIR_MOST, (miles - PAIR_FROM_MILE) * PAIR_PER_MILE);
+    if (Math.random() < pairChance) {
+      const second = OBSTACLES[Math.floor(Math.random() * OBSTACLES.length)];
+      const apart = 26 + Math.random() * 34;
+      obstacles.push({ x: end + apart, w: second.w, h: second.h, kind: second.kind });
+      end += apart + second.w;
+    }
     // Never closer together than a jump takes, with room to land and go
-    // again, so every gap is one somebody could actually make.
+    // again, so every gap is one somebody could actually make. What that
+    // spare room is shrinks as the race goes on.
     const airborne = (-JUMP_V / GRAVITY) * 2;
     const jumpRun = airborne * speed;
-    nextObstacleAt = dist + jumpRun + 120 + Math.random() * 260;
+    const spare = GAP_SPARE_FIRST + (GAP_SPARE_LAST - GAP_SPARE_FIRST) * along;
+    const roll = GAP_ROLL_FIRST + (GAP_ROLL_LAST - GAP_ROLL_FIRST) * along;
+    nextObstacleAt = dist + (end - (W + 40)) + jumpRun + spare + Math.random() * roll;
   }
 
   function hit() {

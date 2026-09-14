@@ -1255,7 +1255,11 @@
   // them is another figure to draw twenty times a second. The decision is
   // now which locations are worth staffing and which roles are worth
   // paying to train, rather than how many bodies to stack in a corner.
-  const WAGE_SHARE_EACH = 0.03;
+  // A full shift is five of them, so a wage that vanished into the noise at
+  // three per cent a head is worth thinking about at five: staffing a
+  // location costs a quarter of what it takes, and a location that is not
+  // earning much is not worth staffing yet.
+  const WAGE_SHARE_EACH = 0.05;
   // High enough that a badly overstaffed gym really is worse off than a
   // well-staffed one -- capped at 45% the wages could never catch the
   // bonuses, so hiring everybody was strictly correct and there was no
@@ -1448,8 +1452,20 @@
   // The whole wage bill as a share of what the gym takes. Capped, so however
   // badly a gym is overstaffed it still earns something -- a tycoon game that
   // can be driven to zero income by buying things is a trap, not a decision.
+  // What the wages come to for one location, as a share of what that
+  // location takes. A worker belongs to a location and everything they do
+  // is for that location, so that is where their wage comes off.
+  //
+  // Charged against the whole gym, which is how it worked while most of the
+  // roles were gym-wide, staffing a small location quietly taxed a big one:
+  // five hires on the pier came off the basement's takings as well and did
+  // nothing for the basement. That is a trap rather than a decision.
+  function placeWageShare(themeId) {
+    const heads = STAFF_ROLES.reduce((n, r) => n + placeStaffCount(themeId, r.id), 0);
+    return Math.min(WAGE_SHARE_MAX, heads * WAGE_SHARE_EACH) * (1 - gymEffect('wages'));
+  }
   function wageShare() {
-    return Math.min(WAGE_SHARE_MAX, staffTotal() * WAGE_SHARE_EACH) * (1 - gymEffect('wages'));
+    return placeWageShare(state.activeTheme);
   }
 
   // ---- Rush hours ----
@@ -1893,7 +1909,8 @@
   // is the rate the money actually arrives at.
   function roomMultiplier(room) {
     return (1 + roomEffect(room, 'room')) * vibeMultiplier(room) * rushMultiplierFor(room) * promoMultiplier()
-      * (1 + roomStaffEffect(room, 'manager')) * franchiseMultiplier() * reputationMultiplier() * (1 - wageShare())
+      * (1 + roomStaffEffect(room, 'manager')) * franchiseMultiplier() * reputationMultiplier()
+      * (1 - placeWageShare(themeOfRoom(room)))
       * priceMultiplier();
   }
   // ---- Who is in, and what they can get on ----
@@ -5283,10 +5300,12 @@
       els.btn.disabled = hired || state.balance < cost;
     });
     const share = wageShare();
-    setText(staffWagesEl, share > 0
-      ? staffTotal() + ' on staff across the gym. Wages: ' + Math.round(share * 100)
-        + '% of the takings' + (share >= WAGE_SHARE_MAX ? ' (the cap).' : '.')
-      : 'No wages yet.');
+    const heads = STAFF_ROLES.reduce((n, r) => n + placeStaffCount(state.activeTheme, r.id), 0);
+    setText(staffWagesEl, heads > 0
+      ? heads + ' on staff in ' + themeName(state.activeTheme) + ', '
+        + staffTotal() + ' across the gym. Wages here: ' + Math.round(share * 100)
+        + '% of what this location takes.'
+      : 'Nobody on the payroll here.');
   }
 
   // Free to do, and no severance: over-hiring should be a mistake you can
