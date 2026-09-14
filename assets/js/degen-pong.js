@@ -8,8 +8,16 @@
 
   const GRAVITY = 0.34;
   const WALL_DAMP = 0.72;
-  const MAX_PULL = 120;
-  const POWER = 0.19;
+  // How hard a pull throws. Every pixel you drag back is worth a third less
+  // than it used to be, and the drag can go half as far again, so the same
+  // throw takes a longer and gentler pull. The top of the range is where it
+  // was, because it has to be: the cups need most of it to reach them, and
+  // a weaker top than this would leave the far rack impossible rather than
+  // hard. What the change buys is room. Every throw in the game lands in a
+  // narrow band of pull between falling short and arriving too fast to drop
+  // in, and that band was nine pixels wide out of a hundred and twenty.
+  const MAX_PULL = 180;
+  const POWER = 0.1267;
   const CAN_R = 15;
   const ANCHOR = { x: W / 2, y: 610 };
   const TOTAL_BALLS = 5;
