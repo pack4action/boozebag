@@ -48,6 +48,29 @@
   // learning the road.
   const DRUNK_JUMP_LOSS = 0.13;
   const DRUNK_JUMP_WOBBLE = 60;
+  // Something to jump for when there is nothing to jump over. A note
+  // hanging at about the top of the arc, in the middle of a clear stretch:
+  // it is only reachable off the ground, so the road is a thing to read
+  // rather than a thing to survive.
+  const PICKUP_CHANCE = 0.6;
+  const PICKUP_WORTH = 40;
+  // High enough that walking under one never takes it and any real jump
+  // does. His head standing is about a hundred above the road and the arc
+  // carries him a hundred and six even with the whole race in him.
+  const PICKUP_HIGH = 148;
+  const PICKUP_R = 17;
+  const RUNNER_TALL = 104;
+  // Clearing something by a hair. A jump taken as late as it can be taken
+  // is the best jump, and nothing used to pay any more for it than a jump
+  // taken with a yard to spare. Measured rather than guessed: a bot that
+  // goes at the ordinary moment passes about fifty three pixels over a
+  // bin, and one that leaves it as late as the arc allows gets down to
+  // thirty five, so the band sits between the two. Tighter than this and
+  // nobody could reach it at all, which is where it started.
+  const NEAR_MISS_PX = 38;
+  const NEAR_MISS_WORTH = 25;
+  // And emptying the beer with time left on the clock.
+  const QUICK_CHUG_WORTH = 90;
 
   // ---- The drink ----
   const CHUG_SECONDS = 2.6;      // to get the first one down
@@ -124,7 +147,7 @@
   // station, chugging when you reach one, and then running again.
   let phase, dist, speed, miles, drinks, score, bac, gameOver;
   let runner, obstacles, nextObstacleAt, nextStationAt, bounce;
-  let chug, chugLeft, chugSpan, splashes;
+  let chug, chugLeft, chugSpan, splashes, pickups, lastChugBonus;
 
   function reset() {
     phase = 'run';
@@ -138,6 +161,8 @@
     runner = { y: 0, vy: 0, air: false, step: 0 };
     obstacles = [];
     splashes = [];
+    pickups = [];
+    lastChugBonus = 0;
     bounce = 0;
     chug = 0;
     chugLeft = 0;
@@ -183,18 +208,25 @@
     // there would otherwise sit frozen a few strides ahead for as long as
     // the beer took, and be on top of him the moment he set off again.
     obstacles = [];
+    pickups = [];
   }
 
   function finishChug(drained) {
     if (drained) {
       drinks += 1;
       bac = Math.min(1, bac + BAC_PER_BEER);
-      score += 120;
+      // The clock you had left is the clock you get paid for.
+      const spare = Math.max(0, chugLeft) / Math.max(0.001, chugSpan);
+      const quick = Math.round(spare * QUICK_CHUG_WORTH);
+      score += 120 + quick;
+      lastChugBonus = quick;
       for (let i = 0; i < 10; i++) {
         splashes.push({ x: RUNNER_X + 12, y: GROUND_Y - 96,
           vx: (Math.random() - 0.5) * 200, vy: -90 - Math.random() * 150, life: 0.5 });
       }
-      toast(drinks >= MILES ? 'THAT IS ALL OF THEM' : 'DOWN IT! +120', 'legend-moon');
+      toast(drinks >= MILES ? 'THAT IS ALL OF THEM'
+        : 'DOWN IT! +' + (120 + lastChugBonus) + (lastChugBonus ? ' \u00b7 STRAIGHT DOWN' : ''),
+        'legend-moon');
     } else {
       bac = Math.min(1, bac + BAC_PER_SPILL);
       toast('SPILLED IT', 'legend-rekt');
@@ -238,6 +270,7 @@
       obstacles.push({ x: end + apart, w: second.w, h: second.h, kind: second.kind });
       end += apart + second.w;
     }
+    const spawnedAt = dist;
     // Never closer together than a jump takes, with room to land and go
     // again, so every gap is one somebody could actually make. What that
     // spare room is shrinks as the race goes on.
@@ -246,6 +279,12 @@
     const spare = GAP_SPARE_FIRST + (GAP_SPARE_LAST - GAP_SPARE_FIRST) * along;
     const roll = GAP_ROLL_FIRST + (GAP_ROLL_LAST - GAP_ROLL_FIRST) * along;
     nextObstacleAt = dist + (end - (W + 40)) + jumpRun + spare + Math.random() * roll;
+    // Hung in the middle of the clear road that follows, where jumping for
+    // it costs nothing but a jump you did not have to make.
+    if (Math.random() < PICKUP_CHANCE) {
+      const clear = nextObstacleAt - spawnedAt;
+      pickups.push({ x: end + clear * 0.45, y: GROUND_Y - PICKUP_HIGH, spin: Math.random() * 6 });
+    }
   }
 
   function hit() {
@@ -325,7 +364,12 @@
 
     // The world moves; everything on the road moves with it.
     for (const o of obstacles) o.x -= speed * dt;
+    // Anything well behind him is done with. It is kept until it is a long
+    // way past, because a bin he only just cleared is paid for after it has
+    // gone by him rather than as he goes over it.
     obstacles = obstacles.filter((o) => o.x + o.w > -60);
+    for (const q of pickups) { q.x -= speed * dt; q.spin += dt * 4; }
+    pickups = pickups.filter((q) => q.x > -60);
 
     stepSplashes(dt);
 
@@ -337,7 +381,38 @@
     for (const o of obstacles) {
       if (o.x > bodyR || o.x + o.w < bodyL) continue;
       if (feet > GROUND_Y - o.h + 6) { hit(); return; }
+      // How near the soles came to the top of it, kept so a late jump can
+      // be paid for once the thing is safely behind him.
+      const clear = (GROUND_Y - o.h + 6) - feet;
+      o.closest = o.closest === undefined ? clear : Math.min(o.closest, clear);
     }
+    // Behind him now, and cleared by a hair.
+    for (const o of obstacles) {
+      if (o.paid || o.closest === undefined || o.x + o.w >= bodyL) continue;
+      o.paid = true;
+      if (o.closest <= NEAR_MISS_PX) {
+        score += NEAR_MISS_WORTH;
+        toast('THAT WAS CLOSE +' + NEAR_MISS_WORTH, 'legend-10x');
+      }
+    }
+    // And anything he jumped through on the way. Against the whole of him,
+    // boots to hair: a note hanging at head height passes through his legs
+    // at the top of a jump, and a check against his chest alone never saw
+    // one of them.
+    const feetY = GROUND_Y + runner.y;
+    pickups.forEach((q) => {
+      if (q.got) return;
+      if (Math.abs(q.x - RUNNER_X) > PICKUP_R + 18) return;
+      if (q.y > feetY + PICKUP_R || q.y < feetY - RUNNER_TALL - PICKUP_R) return;
+      q.got = true;
+      score += PICKUP_WORTH;
+      for (let i = 0; i < 8; i++) {
+        splashes.push({ x: q.x, y: q.y, vx: (Math.random() - 0.5) * 220,
+          vy: -60 - Math.random() * 160, life: 0.45 });
+      }
+      toast('+' + PICKUP_WORTH, 'legend-moon');
+    });
+    pickups = pickups.filter((q) => !q.got);
   }
 
   // ---- Drawing ----
@@ -462,6 +537,33 @@
       ctx.fillText(String(m), x, GROUND_Y - 36);
     }
     ctx.textAlign = 'start';
+  }
+
+  // A rolled note, hung at the top of the arc and turning slowly so it
+  // catches the eye against a road that is all browns and greys.
+  function drawPickups(t) {
+    pickups.forEach((q) => {
+      const bob = Math.sin(t * 0.004 + q.spin) * 5;
+      ctx.save();
+      ctx.translate(q.x, q.y + bob);
+      ctx.rotate(Math.sin(t * 0.003 + q.spin) * 0.35);
+      ctx.fillStyle = 'rgba(53, 224, 138, 0.22)';
+      ctx.beginPath();
+      ctx.arc(0, 0, PICKUP_R + 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#35e08a';
+      ctx.fillRect(-PICKUP_R, -10, PICKUP_R * 2, 20);
+      ctx.fillStyle = '#0d3a24';
+      ctx.fillRect(-PICKUP_R + 3, -7, PICKUP_R * 2 - 6, 14);
+      ctx.fillStyle = '#35e08a';
+      ctx.font = '800 13px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('$', 0, 1);
+      ctx.textAlign = 'start';
+      ctx.textBaseline = 'alphabetic';
+      ctx.restore();
+    });
   }
 
   function drawObstacle(o) {
@@ -684,6 +786,7 @@
     drawLamps();
     drawRoad();
     for (const o of obstacles) drawObstacle(o);
+    drawPickups(t);
     if (phase === 'chug') drawStation();
     drawRunner(t);
     for (const s of splashes) {

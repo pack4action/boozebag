@@ -110,7 +110,13 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s ease, transform 0.3s ease;
-  white-space: nowrap;
+  /* A long line wraps inside the stage instead of running off both sides
+     of it. Short ones still sit on one line, so nothing that used to fit
+     looks any different. */
+  max-width: 92%;
+  text-align: center;
+  text-wrap: balance;
+  line-height: 1.05;
 }
 .game-toast.show {
   opacity: 1;

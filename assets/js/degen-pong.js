@@ -15,6 +15,24 @@
   const TOTAL_BALLS = 5;
   const CUP_HIT_MULT = 0.52;
   const MAX_LANDING_SPEED = 8;
+  // The table starts still and does not stay still. Every rack past the
+  // second slides the cups further and faster, which is the whole of what
+  // makes rack ten a different game from rack one: before this the slots
+  // never moved and only the labels on them were shuffled, so the twentieth
+  // rack was the first rack with different words on it.
+  const DRIFT_FROM_RACK = 2;
+  const DRIFT_PER_RACK = 7;      // pixels of swing either side
+  const DRIFT_MOST = 46;
+  const DRIFT_SPEED = 0.00055;
+  // Sinking one after another without a miss. The cup's own points are
+  // multiplied, so a run of five is worth far more than five cups.
+  const STREAK_STEP = 0.25;
+  const STREAK_MOST = 2.5;
+  // What is left in your hands when a rack falls. Cans used to vanish
+  // between racks and clearing one paid a flat fifty however many it took,
+  // so there was no reason to be careful once the rack was winnable.
+  const SPARE_CAN_WORTH = 25;
+  const CARRY_MOST = 3;
   const MISS_WORDS = ['DAMMIT', 'SHIT', 'FUCK', 'AW HELL', 'GODDAMMIT', 'BULLSHIT'];
 
   // ---- Persistence (local for now; structured so swapping in a real
@@ -83,17 +101,39 @@
 
   function makeCups() {
     const types = shuffled(CUP_TYPES);
-    return CUP_SLOTS.map((slot, i) => ({ ...slot, ...types[i], sunk: false }));
+    // Each cup keeps where it belongs and swings around it, out of step
+    // with the others so the table never reads as one sliding block.
+    return CUP_SLOTS.map((slot, i) => ({ ...slot, ...types[i], sunk: false,
+      homeX: slot.x, phase: Math.random() * Math.PI * 2 }));
+  }
+  // How far the cups swing on this rack.
+  function driftNow() {
+    return Math.min(DRIFT_MOST, Math.max(0, rack - DRIFT_FROM_RACK) * DRIFT_PER_RACK);
+  }
+  function moveCups(now) {
+    const swing = driftNow();
+    cups.forEach((cup) => {
+      cup.x = cup.homeX + Math.sin(now * DRIFT_SPEED + cup.phase) * swing;
+    });
   }
 
+  let rack = 1;
   let cups = makeCups();
   let ball = null;
   let ballsLeft = TOTAL_BALLS;
   let score = 0;
-  let rack = 1;
+  let streak = 0;
+  let carried = 0;
   let best = getBestScore();
   let dragging = false;
   let dragPos = null;
+  // How hard the room is still rocking from the last rug, in pixels.
+  let shake = 0;
+  // True from the moment a rack falls until the next one is set. Without it
+  // a can thrown during that pause lands on a table of already-sunk cups,
+  // which reads as another clear: the bonus is paid twice and the rack
+  // counter jumps two.
+  let racking = false;
   let gameOver = false;
   let particles = [];
 
@@ -149,7 +189,7 @@
   }
 
   function startDrag(clientX, clientY) {
-    if (gameOver || ball.flying || ballsLeft <= 0) return;
+    if (gameOver || racking || ball.flying || ballsLeft <= 0) return;
     const p = pointerToCanvas(clientX, clientY);
     if (distToAnchor(p) > 70) return;
     dragging = true;
@@ -200,12 +240,21 @@
     ballsLeft--;
     hudBalls.textContent = Math.max(ballsLeft, 0);
     resetBall();
-    const rackCleared = cups.filter((c) => c.label !== 'RUG').every((c) => c.sunk);
+    const rackCleared = !racking && cups.filter((c) => c.label !== 'RUG').every((c) => c.sunk);
     if (rackCleared) {
-      const bonus = 50;
+      racking = true;
+      // What you did not have to throw is what the rack is worth. Finishing
+      // with cans in hand pays for each of them and up to three of them come
+      // with you to the next rack, so there is a reason to keep aiming
+      // properly once the rack is already won.
+      const spare = Math.max(0, ballsLeft);
+      const bonus = 50 + spare * SPARE_CAN_WORTH;
       score += bonus;
       hudScore.textContent = score;
-      toast('RACK CLEARED +' + bonus, 'legend-moon');
+      carried = Math.min(CARRY_MOST, spare);
+      toast('RACK CLEARED +' + bonus
+        + (spare ? ' \u00b7 ' + spare + ' spare' : '')
+        + (carried ? ' \u00b7 ' + carried + ' carried over' : ''), 'legend-moon');
       setTimeout(startNextRack, 900);
     } else if (ballsLeft <= 0) {
       setTimeout(endGame, 500);
@@ -213,11 +262,18 @@
   }
 
   function startNextRack() {
+    racking = false;
     rack++;
     hudRack.textContent = rack;
     cups = makeCups();
-    ballsLeft = TOTAL_BALLS;
+    ballsLeft = TOTAL_BALLS + carried;
+    carried = 0;
     hudBalls.textContent = ballsLeft;
+    const swing = driftNow();
+    if (swing > 0) {
+      toast(rack === DRIFT_FROM_RACK + 1 ? 'THE TABLE IS MOVING' : 'RACK ' + rack + ' \u00b7 MOVING FASTER',
+        'legend-10x');
+    }
   }
 
   function endGame() {
@@ -235,10 +291,14 @@
   }
 
   btnReplay.addEventListener('click', () => {
+    rack = 1;
     cups = makeCups();
     ballsLeft = TOTAL_BALLS;
     score = 0;
-    rack = 1;
+    streak = 0;
+    carried = 0;
+    racking = false;
+    shake = 0;
     gameOver = false;
     particles = [];
     hudScore.textContent = 0;
@@ -249,6 +309,7 @@
   });
 
   function update() {
+    if (!gameOver) moveCups(Date.now());
     if (ball.flying) {
       ball.vy += GRAVITY;
       ball.x += ball.vx;
@@ -265,12 +326,20 @@
           const isSoftLanding = ball.vy > 0 && speed <= MAX_LANDING_SPEED;
           if (!isSoftLanding) continue;
           cup.sunk = true;
-          score += cup.points;
+          // A run of sinks multiplies what the cup is worth. A rug still
+          // costs what a rug costs and ends the run: there is no version of
+          // hitting that one that should feel like progress.
+          if (cup.points > 0) streak += 1;
+          else { streak = 0; shake = 14; }
+          const mult = Math.min(STREAK_MOST, 1 + Math.max(0, streak - 1) * STREAK_STEP);
+          const got = cup.points > 0 ? Math.round(cup.points * mult) : cup.points;
+          score += got;
           hudScore.textContent = score;
           if (cup.bonusCans > 0) ballsLeft += cup.bonusCans;
           const cls = cup.points >= 75 ? 'legend-moon' : cup.points >= 40 ? 'legend-10x' : cup.points > 0 ? 'legend-rekt' : 'legend-rug';
-          const sign = cup.points > 0 ? '+' : cup.points < 0 ? '' : '';
-          let msg = (cup.points !== 0 ? sign + cup.points + ' ' : '') + cup.label.replace('\n', ' ');
+          const sign = got > 0 ? '+' : '';
+          let msg = (got !== 0 ? sign + got + ' ' : '') + cup.label.replace('\n', ' ');
+          if (streak > 1 && cup.points > 0) msg += ' \u00b7 ON A RUN x' + streak;
           if (cup.bonusCans > 0) msg += ' +' + cup.bonusCans + (cup.bonusCans > 1 ? ' cans' : ' can');
           toast(msg, cls);
           if (cup.points >= 60) spawnBurst(cup.x, cup.y, cup.fill);
@@ -282,10 +351,14 @@
 
       if (ball.flying && ball.y - CAN_R > H) {
         toast(MISS_WORDS[Math.floor(Math.random() * MISS_WORDS.length)], 'legend-rekt');
+        streak = 0;
         ball.flying = false;
         finishThrow();
       }
     }
+
+    shake *= 0.86;
+    if (shake < 0.3) shake = 0;
 
     particles = particles.filter((p) => p.life > 0);
     for (const p of particles) {
@@ -701,6 +774,8 @@
 
   function draw() {
     ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    if (shake) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
     ctx.drawImage(bg, 0, 0);
 
     for (const cup of cups) drawCup(cup);
@@ -759,6 +834,7 @@
       const angle = Math.atan2(ball.vy, ball.vx) * 0.3;
       drawCan(ball.x, ball.y, angle);
     }
+    ctx.restore();
   }
 
   function loop() {

@@ -13,12 +13,31 @@
   const BASE_TOP_Y = BASE_BOTTOM_Y - BASE_H;
   const CEILING_Y = 220; // once the tower grows this high on screen, the camera starts following
   const MIN_OVERLAP = 5;
-  const SNAP_SLOP = 4; // how close to dead-center counts as a PERFECT snap
+  // Three ways a block can land rather than two. Dead centre keeps the
+  // whole plate; near enough loses only the sliver it missed by; anything
+  // else is trimmed to the overlap the way it always was. The middle one is
+  // the point: with only PERFECT and a full trim, a drop two pixels out and
+  // a drop twenty pixels out cost the same, so there was nothing to aim at
+  // once you knew you had missed.
+  const SNAP_SLOP = 4;
+  const CLOSE_SLOP = 15;
   const MIN_SPEED = 2.2;
-  const MAX_SPEED = 7.5;
-  const SPEED_STEP = 0.09;
+  const MAX_SPEED = 9.5;
+  const SPEED_STEP = 0.1;
+  // Past this height the plate stops sliding at one speed: it eases into
+  // the turns and hurries through the middle, so the moment it is over the
+  // tower is not the moment it looks like it is. Faded in over the next
+  // twenty five so nobody has a drop change under them.
+  const WOBBLE_FROM = 18;
+  const WOBBLE_OVER = 25;
+  const WOBBLE_DEPTH = 0.45;
+  // Getting the width back. One is the reward for a clean run and the other
+  // is the floor under a bad one, so a tower that has been whittled down is
+  // never quite unrecoverable.
+  const REBUILD_EVERY = 4;    // perfects in a row
+  const REBUILD_GROWTH = 0.2;
   const POWERUP_INTERVAL = 15; // every Nth block stacked
-  const POWERUP_GROWTH = 0.35; // +35% width
+  const POWERUP_GROWTH = 0.22;
   const MISS_WORDS = ['DAMMIT', 'SHIT', 'FUCK', 'AW HELL', 'GODDAMMIT', 'BULLSHIT'];
   // Weight-plate colors, echoing real bumper-plate conventions while staying
   // in the site's warm palette.
@@ -99,8 +118,18 @@
     return PLATES[Math.floor(Math.random() * PLATES.length)];
   }
 
+  // What a plate is worth where it lands. The fiftieth is a harder drop
+  // than the fifth, on a narrower tower moving faster, and it ought to pay
+  // like one: a flat ten a block meant the back half of a run was the same
+  // money as the front half for far more work.
+  function plateValue(height) {
+    return 10 + Math.floor(height * 0.9);
+  }
+
   // ---- Game state ----
   let stack, active, debris, particles, cameraOffset, cameraTarget, score, combo, gameOver;
+  // How hard the room is still rocking from the last bad drop, in pixels.
+  let shake = 0;
 
   function spawnPerfectBurst(x, y, color) {
     for (let i = 0; i < 16; i++) {
@@ -135,6 +164,7 @@
     stack = [{ x: (W - BASE_W) / 2, w: BASE_W, y: BASE_TOP_Y, h: BASE_H, color: '#2b2724', isBase: true }];
     debris = [];
     particles = [];
+    shake = 0;
     score = 0;
     combo = 0;
     gameOver = false;
@@ -159,14 +189,41 @@
     }
   }
 
-  function maybeTriggerPowerup(height) {
-    if (height === 0 || height % POWERUP_INTERVAL !== 0) return;
+  // Wider, up to the width it started at. Nothing ever grows past the base:
+  // a tower that got broader than its own foundations would undo the whole
+  // point of stacking carefully. The caller says what to put on the screen,
+  // because a reward that lands on the same frame as a drop has to share
+  // one line with it rather than wipe it.
+  function widen(by, colour) {
     const top = stack[stack.length - 1];
-    const growBy = top.w * POWERUP_GROWTH;
+    const growBy = Math.min(top.w * by, Math.max(0, BASE_W - top.w));
+    if (growBy < 1) return false;
     top.w += growBy;
     top.x = Math.max(0, Math.min(W - top.w, top.x - growBy / 2));
-    toast('POWER UP! +' + Math.round(POWERUP_GROWTH * 100) + '% SIZE', 'legend-moon');
-    spawnPerfectBurst(top.x + top.w / 2, top.y + BLOCK_H / 2, '#8ecbff');
+    spawnPerfectBurst(top.x + top.w / 2, top.y + BLOCK_H / 2, colour);
+    return true;
+  }
+  // A run of clean drops buys the tower some of its width back. This is the
+  // one that makes a perfect worth chasing rather than just worth points:
+  // four in a row and the thing you are stacking onto is bigger than it was.
+  function maybeRebuild(landedPerfect) {
+    // Only a fresh perfect pays this. A near miss keeps the run alive but
+    // does not earn it again, otherwise every close drop after a fourth
+    // perfect would hand out width for nothing.
+    if (!landedPerfect || !combo || combo % REBUILD_EVERY !== 0) return '';
+    return widen(REBUILD_GROWTH, '#ffd28a') ? ' \u00b7 WIDER' : '';
+  }
+  // Every fifteenth plate is a gift. If the tower is already as broad as the
+  // base there is no width to give, so it pays out instead: a milestone that
+  // quietly does nothing is worse than no milestone at all.
+  function maybeTriggerPowerup(height) {
+    if (height === 0 || height % POWERUP_INTERVAL !== 0) return '';
+    if (widen(POWERUP_GROWTH, '#8ecbff')) return ' \u00b7 PLATE ' + height + ', WIDER';
+    const gift = plateValue(height) * 3;
+    score += gift;
+    spawnPerfectBurst(stack[stack.length - 1].x + stack[stack.length - 1].w / 2,
+      stack[stack.length - 1].y + BLOCK_H / 2, '#8ecbff');
+    return ' \u00b7 PLATE ' + height + ', +' + gift;
   }
 
   function endGame() {
@@ -196,40 +253,61 @@
       debris.push({ x: active.x, y: newY, w: active.w, h: BLOCK_H, color: active.color, vx: active.dir * 2.4, vy: -2, rot: 0, vr: active.dir * 0.14 });
       active = null;
       toast(MISS_WORDS[Math.floor(Math.random() * MISS_WORDS.length)], 'legend-rekt');
+      shake = 16;
       endGame();
       return;
     }
 
     let placedX, placedW;
+    let said = '';
+    let tone = null;
 
     const activeCenter = active.x + active.w / 2;
     const topCenter = top.x + top.w / 2;
-    const isSnap = Math.abs(activeCenter - topCenter) <= SNAP_SLOP;
-    if (isSnap) {
-      // Close enough to dead-center: snap it flush, full width, no
-      // overhang, no trim -- a genuine PERFECT rather than just a
-      // generous tolerance check.
+    const miss = Math.abs(activeCenter - topCenter);
+    const height = stack.length; // what this plate's own height will be
+    const worth = plateValue(height);
+    if (miss <= SNAP_SLOP) {
+      // Dead centre: snap it flush, full width, no overhang, no trim -- a
+      // genuine PERFECT rather than a generous tolerance check.
       placedX = Math.max(0, Math.min(W - active.w, topCenter - active.w / 2));
       placedW = active.w;
       combo++;
-      const bonus = 10 + combo * 2;
+      const bonus = Math.round(worth * (1 + combo * 0.3));
       score += bonus;
-      toast(combo > 1 ? 'PERFECT x' + combo + '! +' + bonus : 'PERFECT! +' + bonus, 'legend-moon');
+      said = combo > 1 ? 'PERFECT x' + combo + '! +' + bonus : 'PERFECT! +' + bonus;
+      tone = 'legend-moon';
       spawnPerfectBurst(placedX + placedW / 2, newY + BLOCK_H / 2, '#ffd28a');
+    } else if (miss <= CLOSE_SLOP) {
+      // Near enough: it settles into place and loses only what it missed
+      // by, rather than the whole overhang. The run of perfects survives
+      // but does not grow, so a tidy player is not punished for a near
+      // thing and is not rewarded for it either.
+      const lost = miss - SNAP_SLOP;
+      placedW = Math.max(MIN_OVERLAP, active.w - lost);
+      placedX = Math.max(0, Math.min(W - placedW, topCenter - placedW / 2));
+      spawnOverhangDebris(active, placedX, placedW, newY);
+      score += worth;
+      said = 'NICE +' + worth;
     } else {
       placedX = overlapLeft;
       placedW = overlapW;
       spawnOverhangDebris(active, placedX, placedW, newY);
       combo = 0;
-      score += 10;
-      toast('+10', null);
+      shake = Math.min(9, 3 + (active.w - placedW) / 14);
+      score += Math.round(worth * 0.5);
+      said = '+' + Math.round(worth * 0.5);
     }
 
     stack.push({ x: placedX, w: placedW, y: newY, h: BLOCK_H, color: active.color, label: active.label });
+    // The rewards are worked out before anything is said, so a drop and the
+    // gift it earned go on one line instead of one wiping the other out.
+    said += maybeRebuild(miss <= SNAP_SLOP);
+    said += maybeTriggerPowerup(stack.length - 1);
+    toast(said, tone);
     hudScore.textContent = score;
     hudHeight.textContent = stack.length - 1;
     hudCombo.textContent = combo;
-    maybeTriggerPowerup(stack.length - 1);
     active = null;
     setTimeout(spawnActive, 90);
   }
@@ -243,11 +321,21 @@
 
   function update() {
     if (!gameOver && active) {
-      active.x += active.dir * active.speed;
+      // Slow at the turns and quick through the middle, more so the higher
+      // the tower goes. A plate that crosses the middle at one speed is a
+      // plate you can time by counting; one that does not has to be read.
+      const height = stack.length - 1;
+      const ease = Math.max(0, Math.min(1, (height - WOBBLE_FROM) / WOBBLE_OVER));
+      const span = Math.max(1, W - active.w);
+      const along = Math.max(0, Math.min(1, active.x / span));
+      const swing = 1 + WOBBLE_DEPTH * ease * (Math.sin(along * Math.PI) * 2 - 1);
+      active.x += active.dir * active.speed * swing;
       if (active.x <= 0) { active.x = 0; active.dir = 1; }
       if (active.x + active.w >= W) { active.x = W - active.w; active.dir = -1; }
     }
     cameraOffset += (cameraTarget - cameraOffset) * 0.16;
+    shake *= 0.85;
+    if (shake < 0.3) shake = 0;
 
     for (const d of debris) {
       d.vy += 0.5;
@@ -304,6 +392,25 @@
       ctx.beginPath();
       ctx.ellipse(W - uprightW / 2 - 9, y2, 7, 11, 0, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // The climb, written up the rack. Every fifth plate gets a line and a
+    // number and every fifteenth gets the bright one, so the next gift is
+    // always something you can see coming rather than a surprise.
+    ctx.textBaseline = 'middle';
+    ctx.font = '700 11px Anton, sans-serif';
+    for (let n = 5; n <= 400; n += 5) {
+      const y = BASE_TOP_Y - n * BLOCK_H + BLOCK_H / 2 + cameraOffset;
+      if (y < -20) break;
+      if (y > H + 20) continue;
+      const big = n % POWERUP_INTERVAL === 0;
+      ctx.fillStyle = big ? 'rgba(142,203,255,0.55)' : 'rgba(255,255,255,0.16)';
+      ctx.fillRect(uprightW, y - 1, big ? 16 : 9, 2);
+      ctx.fillRect(W - uprightW - (big ? 16 : 9), y - 1, big ? 16 : 9, 2);
+      ctx.textAlign = 'left';
+      ctx.fillText(String(n), uprightW + 20, y);
+      ctx.textAlign = 'right';
+      ctx.fillText(String(n), W - uprightW - 20, y);
     }
 
     // rubber floor speckle, scrolling
@@ -416,6 +523,8 @@
 
   function draw() {
     ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    if (shake) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
     drawBackground();
 
     stack.forEach((b, i) => { if (i === 0) drawBase(b); else drawBlock(b); });
@@ -443,6 +552,7 @@
       ctx.fill();
       ctx.globalAlpha = 1;
     }
+    ctx.restore();
   }
 
   function loop() {
