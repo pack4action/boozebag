@@ -15,15 +15,7 @@
   const TOTAL_BALLS = 5;
   const CUP_HIT_MULT = 0.52;
   const MAX_LANDING_SPEED = 8;
-  // The table starts still and does not stay still. Every rack past the
-  // second slides the cups further and faster, which is the whole of what
-  // makes rack ten a different game from rack one: before this the slots
-  // never moved and only the labels on them were shuffled, so the twentieth
-  // rack was the first rack with different words on it.
-  const DRIFT_FROM_RACK = 2;
-  const DRIFT_PER_RACK = 7;      // pixels of swing either side
-  const DRIFT_MOST = 46;
-  const DRIFT_SPEED = 0.00055;
+  const MIN_CUP_MOUTH = 9;
   // Sinking one after another without a miss. The cup's own points are
   // multiplied, so a run of five is worth far more than five cups.
   const STREAK_STEP = 0.25;
@@ -34,6 +26,12 @@
   const SPARE_CAN_WORTH = 25;
   const CARRY_MOST = 3;
   const MISS_WORDS = ['DAMMIT', 'SHIT', 'FUCK', 'AW HELL', 'GODDAMMIT', 'BULLSHIT'];
+
+  // Where the table ends. The cups are laid out against these, so a rack
+  // that moves back lands on the table rather than near it.
+  const TABLE_BACK_Y = 108;
+  const TABLE_BACK_X0 = 168;
+  const TABLE_BACK_X1 = 332;
 
   // ---- Persistence (local for now; structured so swapping in a real
   // backend later only means rewriting the bodies of these functions) ----
@@ -73,14 +71,37 @@
   // Slot positions are fixed (physics/reachability was tuned around these
   // exact spots); which cup type lands in which slot is shuffled instead,
   // so the board layout changes each rack without breaking the tuning.
-  const CUP_SLOTS = [
-    { x: 190, y: 130, r: 22 },
-    { x: 250, y: 130, r: 22 },
-    { x: 310, y: 130, r: 22 },
-    { x: 220, y: 186, r: 22 },
-    { x: 280, y: 186, r: 22 },
-    { x: 250, y: 242, r: 22 },
+  // The rack does not sit in one place for the whole game. It starts within
+  // easy reach, goes back a step when you clear it, back again when you
+  // clear that, and stays at the far end of the table from then on. Further
+  // away means smaller, closer together and a harder pull, which is a
+  // difficulty you can see rather than one you have to be told about.
+  const CUP_ROW_GAP = 60;    // between cups across a row, at the near end
+  const CUP_ROW_STEP = 56;   // between the rows
+  const CUP_R = 22;
+  const CUP_STAGES = [
+    { back: 130, scale: 1, worth: 1 },
+    { back: 123, scale: 0.82, worth: 1.25 },
+    { back: 116, scale: 0.68, worth: 1.5 },
   ];
+  // How far back the rack is on this rack number. Three steps and then it
+  // stays put.
+  function stageOfRack(n) {
+    return Math.min(CUP_STAGES.length - 1, Math.max(0, n - 1));
+  }
+  // The same triangle every time, drawn to the size the distance calls for.
+  function slotsFor(stage) {
+    const s = CUP_STAGES[stage];
+    const gap = CUP_ROW_GAP * s.scale;
+    const step = CUP_ROW_STEP * s.scale;
+    const r = CUP_R * s.scale;
+    const mid = W / 2;
+    return [
+      { x: mid - gap, y: s.back }, { x: mid, y: s.back }, { x: mid + gap, y: s.back },
+      { x: mid - gap / 2, y: s.back + step }, { x: mid + gap / 2, y: s.back + step },
+      { x: mid, y: s.back + step * 2 },
+    ].map((p) => ({ x: p.x, y: p.y, r }));
+  }
   const CUP_TYPES = [
     { label: 'MOON', points: 100, bonusCans: 3, fill: '#6fb98f' },
     { label: '10X', points: 75, bonusCans: 1, fill: '#f0a94e' },
@@ -101,20 +122,11 @@
 
   function makeCups() {
     const types = shuffled(CUP_TYPES);
-    // Each cup keeps where it belongs and swings around it, out of step
-    // with the others so the table never reads as one sliding block.
-    return CUP_SLOTS.map((slot, i) => ({ ...slot, ...types[i], sunk: false,
-      homeX: slot.x, phase: Math.random() * Math.PI * 2 }));
-  }
-  // How far the cups swing on this rack.
-  function driftNow() {
-    return Math.min(DRIFT_MOST, Math.max(0, rack - DRIFT_FROM_RACK) * DRIFT_PER_RACK);
-  }
-  function moveCups(now) {
-    const swing = driftNow();
-    cups.forEach((cup) => {
-      cup.x = cup.homeX + Math.sin(now * DRIFT_SPEED + cup.phase) * swing;
-    });
+    const stage = stageOfRack(rack);
+    // Once a rack is set the cups stand still for the whole of it. The
+    // only thing that ever moves them is the step back between racks.
+    return slotsFor(stage).map((slot, i) => ({ ...slot, ...types[i], sunk: false,
+      stage }));
   }
 
   let rack = 1;
@@ -252,9 +264,11 @@
       score += bonus;
       hudScore.textContent = score;
       carried = Math.min(CARRY_MOST, spare);
+      // Short enough to stay on two lines. The bonus already says how many
+      // cans were spare, so the only other thing worth the room is how many
+      // of them are coming with you.
       toast('RACK CLEARED +' + bonus
-        + (spare ? ' \u00b7 ' + spare + ' spare' : '')
-        + (carried ? ' \u00b7 ' + carried + ' carried over' : ''), 'legend-moon');
+        + (carried ? ' \u00b7 ' + carried + ' CANS CARRIED' : ''), 'legend-moon');
       setTimeout(startNextRack, 900);
     } else if (ballsLeft <= 0) {
       setTimeout(endGame, 500);
@@ -269,9 +283,9 @@
     ballsLeft = TOTAL_BALLS + carried;
     carried = 0;
     hudBalls.textContent = ballsLeft;
-    const swing = driftNow();
-    if (swing > 0) {
-      toast(rack === DRIFT_FROM_RACK + 1 ? 'THE TABLE IS MOVING' : 'RACK ' + rack + ' \u00b7 MOVING FASTER',
+    const stage = stageOfRack(rack);
+    if (stage > stageOfRack(rack - 1)) {
+      toast(stage === CUP_STAGES.length - 1 ? 'ALL THE WAY BACK NOW' : 'THE CUPS MOVED BACK',
         'legend-10x');
     }
   }
@@ -309,7 +323,6 @@
   });
 
   function update() {
-    if (!gameOver) moveCups(Date.now());
     if (ball.flying) {
       ball.vy += GRAVITY;
       ball.x += ball.vx;
@@ -321,7 +334,11 @@
       for (const cup of cups) {
         if (cup.sunk) continue;
         const d = Math.hypot(ball.x - cup.x, ball.y - cup.y);
-        if (d < cup.r * CUP_HIT_MULT) {
+        // Never tighter than this, however far away the rack is. The can
+        // moves several pixels a frame, so a mouth much smaller than that
+        // is one a perfectly aimed throw can pass straight through between
+        // two frames.
+        if (d < Math.max(MIN_CUP_MOUTH, cup.r * CUP_HIT_MULT)) {
           const speed = Math.hypot(ball.vx, ball.vy);
           const isSoftLanding = ball.vy > 0 && speed <= MAX_LANDING_SPEED;
           if (!isSoftLanding) continue;
@@ -332,7 +349,10 @@
           if (cup.points > 0) streak += 1;
           else { streak = 0; shake = 14; }
           const mult = Math.min(STREAK_MOST, 1 + Math.max(0, streak - 1) * STREAK_STEP);
-          const got = cup.points > 0 ? Math.round(cup.points * mult) : cup.points;
+          // The far end of the table pays for itself. A rug costs what a
+          // rug costs wherever it is standing.
+          const far = CUP_STAGES[cup.stage || 0].worth;
+          const got = cup.points > 0 ? Math.round(cup.points * mult * far) : cup.points;
           score += got;
           hudScore.textContent = score;
           if (cup.bonusCans > 0) ballsLeft += cup.bonusCans;
@@ -375,10 +395,6 @@
   bg.width = W;
   bg.height = H;
   const bgx = bg.getContext('2d');
-
-  const TABLE_BACK_Y = 108;
-  const TABLE_BACK_X0 = 168;
-  const TABLE_BACK_X1 = 332;
 
   function drawStringLights(g, x0, y0, x1, y1, sag, colors) {
     // gentle catenary-ish sag using a quadratic curve
@@ -669,12 +685,14 @@
 
     if (!cup.sunk) {
       ctx.fillStyle = cup.points >= 75 || cup.fill === '#5c3427' ? '#fff' : '#0a0a0d';
-      ctx.font = '700 8px Inter, sans-serif';
+      // Smaller on a smaller cup, but never so small it stops being a word.
+      const size = Math.max(6.5, 8 * (cup.r / CUP_R));
+      ctx.font = '700 ' + size.toFixed(1) + 'px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const lines = cup.label.split('\n');
       lines.forEach((line, i) => {
-        ctx.fillText(line, cup.x, cup.y + bodyH * 0.55 + (i - (lines.length - 1) / 2) * 9);
+        ctx.fillText(line, cup.x, cup.y + bodyH * 0.55 + (i - (lines.length - 1) / 2) * (size + 1));
       });
     }
     ctx.restore();

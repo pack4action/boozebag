@@ -104,7 +104,10 @@
   left: 50%;
   transform: translate(-50%, -10px);
   font-family: 'Anton', sans-serif;
-  font-size: clamp(1.4rem, 6vw, 2.2rem);
+  /* Eased down from 2.2rem: the lines got longer when they started
+     carrying what a drop earned as well as what it scored, and at the old
+     size a long one filled the whole board. */
+  font-size: clamp(1.3rem, 5.4vw, 1.9rem);
   color: #fff;
   text-shadow: 0 3px 0 #000, 0 0 20px rgba(0,0,0,0.6);
   opacity: 0;
