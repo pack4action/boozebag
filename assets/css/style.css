@@ -738,7 +738,10 @@ img { max-width: 100%; display: block; }
 /* Content grid */
 .content-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  /* Wide enough that a phone gets one column. At 175 two of them fitted
+     side by side on a 430px screen, which left every card three words to a
+     line and a wall of ragged text. */
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 22px;
 }
 .content-card {
@@ -752,6 +755,10 @@ img { max-width: 100%; display: block; }
 .content-icon .icon { display: inline-block; vertical-align: top; }
 .content-card h3 { font-size: 17px; margin-bottom: 10px; }
 .content-card p { color: var(--muted); font-size: 14px; line-height: 1.6; margin: 0; }
+/* Same reason as the game cards: five cards of different lengths in one
+   row, and the headings have to start level or the row looks dropped. */
+.content-card { display: flex; flex-direction: column; }
+.content-card h3 { margin-top: 0; }
 
 /* Play */
 .game-featured {
@@ -799,6 +806,9 @@ img { max-width: 100%; display: block; }
 }
 .game-card h3 { font-size: 19px; margin: 0; }
 .game-card p { color: var(--muted); font-size: 14px; line-height: 1.6; margin: 0 0 6px; }
+/* The three descriptions are different lengths, so without this the three
+   Play buttons sat at three different heights and the row read as crooked. */
+.game-card .btn { margin-top: auto; }
 
 /* Tokenomics */
 .token-grid {
