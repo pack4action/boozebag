@@ -6,3 +6,17 @@
   cursor: pointer;
   touch-action: manipulation;
 }
+
+/* On a phone the board takes the whole width of the screen rather than
+   sitting inside the page's padding. It is a wide picture, so every bit of
+   width is height for the runner. The game's own zoom does the rest. */
+@media (max-width: 640px) {
+  .game-stage {
+    max-width: none;
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+}

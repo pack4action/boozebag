@@ -2,9 +2,42 @@
   const canvas = document.getElementById('mile-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  const juice = window.BoozebagJuice;
 
   const W = canvas.width;
   const H = canvas.height;
+
+  // ---- How close the camera is ----
+  // The world is 720 wide and stays 720 wide: where things spawn and how
+  // long you have to see them coming never changes. What changes is how
+  // much of it is on the board. Closer in, the runner is bigger and the
+  // board is taller, which is the difference between a game and a
+  // letterbox on a phone. Remembered, and closer by default on a narrow
+  // screen. Nothing behind him is worth the room, so the crop comes off
+  // the left first.
+  const ZOOM_KEY = 'beerMileZoom';
+  const ZOOMS = [1, 1.3, 1.6];
+  let zoom = 1;
+  try {
+    const kept = Number(localStorage.getItem(ZOOM_KEY));
+    zoom = ZOOMS.indexOf(kept) >= 0 ? kept : (window.innerWidth < 640 ? 1.3 : 1);
+  } catch (e) { zoom = 1; }
+  let viewLeft = 0;
+  let zoomBtn = null;
+  function applyZoom() {
+    canvas.height = Math.round(H * zoom);
+    const seen = W / zoom;
+    viewLeft = Math.max(0, Math.min(W - seen, RUNNER_X - seen * 0.3));
+    if (zoomBtn) zoomBtn.querySelector('.hud-value').textContent = zoom + 'x';
+  }
+  function cycleZoom() {
+    zoom = ZOOMS[(ZOOMS.indexOf(zoom) + 1) % ZOOMS.length];
+    try { localStorage.setItem(ZOOM_KEY, String(zoom)); } catch (e) { /* fine */ }
+    applyZoom();
+  }
+  // A point in the world, as a fraction of the board as it is being shown.
+  const fx = (x) => ((x - viewLeft) * zoom) / W;
+  const fy = (y) => y / H;
 
   // ---- The course ----
   const GROUND_Y = 330;          // where the road meets the runner's feet
@@ -134,6 +167,19 @@
   let best = getBestScore();
   hudBest.textContent = best;
   renderLeaderboard();
+  juice.attach(document.querySelector('.game-stage'), document.querySelector('.game-hud'));
+  {
+    const hud = document.querySelector('.game-hud');
+    zoomBtn = document.createElement('button');
+    zoomBtn.type = 'button';
+    zoomBtn.className = 'hud-stat hud-sound hud-zoom';
+    zoomBtn.id = 'btn-zoom';
+    zoomBtn.setAttribute('aria-label', 'How close the camera is');
+    zoomBtn.innerHTML = '<span class="hud-label">Zoom</span><span class="hud-value"></span>';
+    zoomBtn.addEventListener('click', cycleZoom);
+    if (hud) hud.appendChild(zoomBtn);
+  }
+  applyZoom();
 
   function toast(msg, cls) {
     toastEl.textContent = msg;
@@ -148,6 +194,20 @@
   let phase, dist, speed, miles, drinks, score, bac, gameOver;
   let runner, obstacles, nextObstacleAt, nextStationAt, bounce;
   let chug, chugLeft, chugSpan, splashes, pickups, lastChugBonus;
+  // Only the picture: how stretched he is off a jump, the dust his boots
+  // kick up, the jolt through the frame when he hits something, and the
+  // streaks across the sky once the road is properly quick.
+  let stretch = 0;
+  let jolt = 0;
+  let dust = [];
+  let streaks = [];
+  function kickDust(n, spread) {
+    for (let i = 0; i < n; i++) {
+      dust.push({ x: RUNNER_X - 8 + (Math.random() - 0.5) * 10, y: GROUND_Y + 2,
+        vx: -(40 + Math.random() * spread), vy: -(20 + Math.random() * 70),
+        life: 0.3 + Math.random() * 0.25, r: 2 + Math.random() * 2.5 });
+    }
+  }
 
   function reset() {
     phase = 'run';
@@ -163,6 +223,10 @@
     splashes = [];
     pickups = [];
     lastChugBonus = 0;
+    stretch = 0;
+    jolt = 0;
+    dust = [];
+    streaks = [];
     bounce = 0;
     chug = 0;
     chugLeft = 0;
@@ -183,11 +247,15 @@
     if (gameOver) return;
     if (phase === 'chug') {
       chug = Math.min(1, chug + CHUG_PER_TAP);
+      juice.sfx.gulp(chug);
       if (chug >= 1) finishChug(true);
       return;
     }
     if (!runner.air) {
       runner.air = true;
+      juice.sfx.jump();
+      stretch = 1;
+      kickDust(4, 60);
       // A drink in you is a jump you do not quite control.
       runner.vy = JUMP_V * (1 - bac * DRUNK_JUMP_LOSS)
         + (Math.random() - 0.5) * bac * DRUNK_JUMP_WOBBLE;
@@ -220,6 +288,9 @@
       const quick = Math.round(spare * QUICK_CHUG_WORTH);
       score += 120 + quick;
       lastChugBonus = quick;
+      juice.sfx.downed();
+      juice.float('+' + (120 + quick), 0.5, 0.36, quick ? 'is-gold is-big' : 'is-gold');
+      if (quick >= 60) juice.flash('#ffd28a', 260);
       for (let i = 0; i < 10; i++) {
         splashes.push({ x: RUNNER_X + 12, y: GROUND_Y - 96,
           vx: (Math.random() - 0.5) * 200, vy: -90 - Math.random() * 150, life: 0.5 });
@@ -230,9 +301,12 @@
     } else {
       bac = Math.min(1, bac + BAC_PER_SPILL);
       toast('SPILLED IT', 'legend-rekt');
+      juice.sfx.spill();
+      juice.flash('#c0483a', 240);
     }
     hudDrinks.textContent = drinks;
-    hudScore.textContent = score;
+    juice.pop(hudDrinks);
+    juice.count(hudScore, score);
     if (miles >= MILES) {
       finish(true);
       return;
@@ -248,7 +322,10 @@
     score += 100;
     speed = Math.min(MAX_SPEED, START_SPEED + miles * SPEED_PER_MILE);
     hudMile.textContent = miles;
-    hudScore.textContent = score;
+    juice.pop(hudMile);
+    juice.count(hudScore, score);
+    juice.sfx.bell();
+    juice.float('MILE ' + miles + ' \u00b7 +100', fx(RUNNER_X + 40), 0.3, 'is-gold');
     nextStationAt = dist + MILE_PX;
     startChug();
   }
@@ -289,6 +366,11 @@
 
   function hit() {
     toast(HIT_WORDS[Math.floor(Math.random() * HIT_WORDS.length)], 'legend-rekt');
+    juice.sfx.crash();
+    juice.flash('#c0483a', 380);
+    juice.hold(170);
+    jolt = 14;
+    kickDust(12, 160);
     finish(false);
   }
 
@@ -296,8 +378,10 @@
     gameOver = true;
     phase = 'over';
     if (won) score += 2600;
+    const beaten = score > best && score > 0;
     best = submitScore(score);
-    overlayTitle.textContent = won ? 'TWENTY SIX AND TWENTY SIX' : 'RUN OVER';
+    overlayTitle.textContent = won ? 'TWENTY SIX AND TWENTY SIX' : beaten ? 'NEW BEST BAG' : 'RUN OVER';
+    if (won || beaten) setTimeout(() => { juice.sfx.newBest(); juice.celebrate(); }, won ? 200 : 450);
     overlayScore.textContent = 'Final bag: $' + score + ', ' + miles
       + (miles === 1 ? ' mile, ' : ' miles, ') + drinks
       + (drinks === 1 ? ' drink' : ' drinks');
@@ -352,9 +436,30 @@
         runner.vy = 0;
         runner.air = false;
         bounce = 0.1;
+        juice.sfx.land();
+        kickDust(6, 90);
       }
     }
     if (bounce > 0) bounce = Math.max(0, bounce - dt);
+    if (stretch > 0) stretch = Math.max(0, stretch - dt * 5);
+    jolt *= Math.pow(0.02, dt);
+    if (jolt < 0.3) jolt = 0;
+    for (const d of dust) {
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      d.vy += 320 * dt;
+      d.life -= dt;
+    }
+    dust = dust.filter((d) => d.life > 0);
+    // Streaks across the sky once the road is quick, more of them the
+    // quicker it gets, so the speed is a thing you can see.
+    const quick = Math.max(0, (speed - 430) / (MAX_SPEED - 430));
+    if (quick > 0 && Math.random() < quick * 0.9) {
+      streaks.push({ x: W + 60, y: 20 + Math.random() * (GROUND_Y - 60),
+        len: 50 + Math.random() * 110, life: 1 });
+    }
+    for (const k of streaks) { k.x -= (speed * 2.2) * dt; k.life -= dt * 0.9; }
+    streaks = streaks.filter((k) => k.life > 0 && k.x + k.len > -20);
 
     if (dist >= nextStationAt) {
       passMile();
@@ -393,6 +498,12 @@
       if (o.closest <= NEAR_MISS_PX) {
         score += NEAR_MISS_WORTH;
         toast('THAT WAS CLOSE +' + NEAR_MISS_WORTH, 'legend-10x');
+        // Time thickens for a moment, so a jump taken by a hair can be
+        // seen to have been taken by a hair.
+        juice.sfx.whoosh(1);
+        juice.slow(0.32, 280);
+        juice.float('+' + NEAR_MISS_WORTH, fx(o.x + o.w / 2), fy(GROUND_Y - o.h - 30), 'is-blue');
+        juice.count(hudScore, score);
       }
     }
     // And anything he jumped through on the way. Against the whole of him,
@@ -406,6 +517,9 @@
       if (q.y > feetY + PICKUP_R || q.y < feetY - RUNNER_TALL - PICKUP_R) return;
       q.got = true;
       score += PICKUP_WORTH;
+      juice.sfx.coin();
+      juice.float('+' + PICKUP_WORTH, fx(q.x), fy(q.y), 'is-green');
+      juice.count(hudScore, score);
       for (let i = 0; i < 8; i++) {
         splashes.push({ x: q.x, y: q.y, vx: (Math.random() - 0.5) * 220,
           vy: -60 - Math.random() * 160, life: 0.45 });
@@ -634,6 +748,9 @@
     ctx.translate(RUNNER_X, y);
     ctx.rotate(lean);
     ctx.scale(1 + squash, 1 - squash);
+    // Long and thin off the ground, for a beat, the way anything that
+    // jumps is.
+    if (stretch > 0) ctx.scale(1 - stretch * 0.12, 1 + stretch * 0.16);
 
     // Shadow on the road, tighter the closer he is to it.
     ctx.save();
@@ -775,19 +892,39 @@
   }
 
   function draw(t) {
-    ctx.clearRect(0, 0, W, H);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
+    // The camera: the world drawn closer in, with the strip behind him
+    // cropped off. Everything in the world is drawn in its own units and
+    // knows nothing about this.
+    ctx.setTransform(zoom, 0, 0, zoom, -viewLeft * zoom, 0);
+    if (jolt) ctx.translate((Math.random() - 0.5) * jolt, (Math.random() - 0.5) * jolt);
     // Everything in the world leans together. The bars and the numbers do
     // not, or you could not read them by mile twenty.
     ctx.translate(W / 2, H);
     ctx.rotate(sway(t));
     ctx.translate(-W / 2, -H);
     drawSky();
+    for (const k of streaks) {
+      ctx.globalAlpha = Math.min(0.35, k.life * 0.4);
+      ctx.fillStyle = '#fff6df';
+      ctx.fillRect(k.x, k.y, k.len, 1.5);
+    }
+    ctx.globalAlpha = 1;
     drawLamps();
     drawRoad();
     for (const o of obstacles) drawObstacle(o);
     drawPickups(t);
     if (phase === 'chug') drawStation();
+    for (const d of dust) {
+      ctx.globalAlpha = Math.min(0.55, d.life * 1.6);
+      ctx.fillStyle = '#8d7d70';
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
     drawRunner(t);
     for (const s of splashes) {
       ctx.globalAlpha = Math.max(0, s.life / 0.5);
@@ -798,10 +935,11 @@
       ctx.globalAlpha = 1;
     }
     ctx.restore();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 
     if (bac > 0.55) {
       ctx.fillStyle = 'rgba(255, 140, 26, ' + ((bac - 0.55) * 0.22).toFixed(3) + ')';
-      ctx.fillRect(0, 0, W, H);
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
     drawHudOnCanvas();
     if (phase === 'chug') drawChug();
@@ -815,7 +953,9 @@
     if (!last) last = now;
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    update(dt);
+    // Slow motion and the odd held frame come from here: the game is
+    // stepped by less time than has passed, or by none.
+    update(dt * juice.timeScale());
     draw(now);
     requestAnimationFrame(loop);
   }

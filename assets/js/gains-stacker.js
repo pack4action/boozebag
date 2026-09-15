@@ -2,6 +2,7 @@
   const canvas = document.getElementById('stacker-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  const juice = window.BoozebagJuice;
 
   const W = canvas.width;
   const H = canvas.height;
@@ -51,8 +52,19 @@
 
   // ---- Persistence (local for now; see wallet.js/leaderboard.js for why) ----
   const STORAGE_KEY = 'gainsStackerHighScore';
+  // How high the tower has ever got, kept apart from the money because a
+  // line on the rack that says BEST is worth having whatever it paid.
+  const HEIGHT_KEY = 'gainsStackerBestHeight';
   function getBestScore() {
     return Number(localStorage.getItem(STORAGE_KEY) || 0);
+  }
+  function getBestHeight() {
+    try { return Number(localStorage.getItem(HEIGHT_KEY) || 0); } catch (e) { return 0; }
+  }
+  function submitHeight(h) {
+    if (h > getBestHeight()) {
+      try { localStorage.setItem(HEIGHT_KEY, String(h)); } catch (e) { /* fine */ }
+    }
   }
   function submitScore(score) {
     const best = getBestScore();
@@ -92,8 +104,10 @@
   const btnReplay = document.getElementById('btn-replay');
 
   let best = getBestScore();
+  let bestHeight = getBestHeight();
   hudBest.textContent = best;
   renderLeaderboard();
+  juice.attach(document.querySelector('.game-stage'), document.querySelector('.game-hud'));
 
   function toast(msg, cls) {
     toastEl.textContent = msg;
@@ -130,6 +144,23 @@
   let stack, active, debris, particles, cameraOffset, cameraTarget, score, combo, gameOver;
   // How hard the room is still rocking from the last bad drop, in pixels.
   let shake = 0;
+  // Rings that spread out from a clean landing, and the dust a plate kicks
+  // up when it lands. Neither touches the game; both make a landing land.
+  let rings = [];
+  let dust = [];
+  function ring(x, y, w, colour) {
+    rings.push({ x, y, w, colour, life: 1 });
+  }
+  function puff(x, y, dir, n) {
+    for (let i = 0; i < n; i++) {
+      dust.push({ x, y: y + Math.random() * 6, vx: dir * (0.8 + Math.random() * 2.2),
+        vy: -(0.4 + Math.random() * 1.2), life: 22 + Math.random() * 14, r: 2 + Math.random() * 2.5 });
+    }
+  }
+  // Where a point on the board is, as a fraction of it, for the words that
+  // float up off the board.
+  const fx = (x) => x / W;
+  const fy = (y) => (y + cameraOffset) / H;
 
   function spawnPerfectBurst(x, y, color) {
     for (let i = 0; i < 16; i++) {
@@ -164,6 +195,8 @@
     stack = [{ x: (W - BASE_W) / 2, w: BASE_W, y: BASE_TOP_Y, h: BASE_H, color: '#2b2724', isBase: true }];
     debris = [];
     particles = [];
+    rings = [];
+    dust = [];
     shake = 0;
     score = 0;
     combo = 0;
@@ -201,6 +234,8 @@
     top.w += growBy;
     top.x = Math.max(0, Math.min(W - top.w, top.x - growBy / 2));
     spawnPerfectBurst(top.x + top.w / 2, top.y + BLOCK_H / 2, colour);
+    ring(top.x + top.w / 2, top.y + BLOCK_H / 2, top.w, colour);
+    juice.sfx.widen();
     return true;
   }
   // A run of clean drops buys the tower some of its width back. This is the
@@ -221,6 +256,8 @@
     if (widen(POWERUP_GROWTH, '#8ecbff')) return ' \u00b7 PLATE ' + height + ', WIDER';
     const gift = plateValue(height) * 3;
     score += gift;
+    juice.sfx.milestone();
+    juice.float('+' + gift, 0.5, fy(stack[stack.length - 1].y) - 0.06, 'is-blue is-big');
     spawnPerfectBurst(stack[stack.length - 1].x + stack[stack.length - 1].w / 2,
       stack[stack.length - 1].y + BLOCK_H / 2, '#8ecbff');
     return ' \u00b7 PLATE ' + height + ', +' + gift;
@@ -229,8 +266,15 @@
   function endGame() {
     gameOver = true;
     const height = stack.length - 1;
+    const beaten = score > best && score > 0;
     best = submitScore(score);
-    overlayTitle.textContent = 'TOWER TOPPLED';
+    submitHeight(height);
+    bestHeight = getBestHeight();
+    overlayTitle.textContent = beaten ? 'NEW BEST BAG' : 'TOWER TOPPLED';
+    if (beaten) {
+      // Give the crash a beat to be heard before the celebration starts.
+      setTimeout(() => { juice.sfx.newBest(); juice.celebrate(); }, 380);
+    }
     overlayScore.textContent = 'Final bag: $' + score + ', height ' + height;
     overlayBest.textContent = 'Best bag: $' + best;
     hudBest.textContent = best;
@@ -254,6 +298,9 @@
       active = null;
       toast(MISS_WORDS[Math.floor(Math.random() * MISS_WORDS.length)], 'legend-rekt');
       shake = 16;
+      juice.sfx.crash();
+      juice.flash('#c0483a', 320);
+      juice.hold(140);
       endGame();
       return;
     }
@@ -278,6 +325,14 @@
       said = combo > 1 ? 'PERFECT x' + combo + '! +' + bonus : 'PERFECT! +' + bonus;
       tone = 'legend-moon';
       spawnPerfectBurst(placedX + placedW / 2, newY + BLOCK_H / 2, '#ffd28a');
+      // A clean landing is felt as well as seen: a chime that climbs with
+      // the run, a ring out from the plate, a blink of the whole board
+      // once the run is long, and the money rising off the plate.
+      juice.sfx.perfect(combo);
+      ring(placedX + placedW / 2, newY + BLOCK_H, placedW, '#ffd28a');
+      juice.float('+' + bonus, fx(placedX + placedW / 2), fy(newY), 'is-gold');
+      juice.hold(combo >= 3 ? 55 : 35);
+      if (combo >= 5) juice.flash('#ffd28a', 200);
     } else if (miss <= CLOSE_SLOP) {
       // Near enough: it settles into place and loses only what it missed
       // by, rather than the whole overhang. The run of perfects survives
@@ -289,6 +344,8 @@
       spawnOverhangDebris(active, placedX, placedW, newY);
       score += worth;
       said = 'NICE +' + worth;
+      juice.sfx.nice();
+      juice.float('+' + worth, fx(placedX + placedW / 2), fy(newY));
     } else {
       placedX = overlapLeft;
       placedW = overlapW;
@@ -297,17 +354,28 @@
       shake = Math.min(9, 3 + (active.w - placedW) / 14);
       score += Math.round(worth * 0.5);
       said = '+' + Math.round(worth * 0.5);
+      juice.sfx.trim();
+      juice.float('+' + Math.round(worth * 0.5), fx(placedX + placedW / 2), fy(newY));
     }
 
-    stack.push({ x: placedX, w: placedW, y: newY, h: BLOCK_H, color: active.color, label: active.label });
+    stack.push({ x: placedX, w: placedW, y: newY, h: BLOCK_H, color: active.color, label: active.label,
+      settle: 1 });
+    // Every landing kicks up a little from each end and knocks.
+    puff(placedX, newY + BLOCK_H, -1, 4);
+    puff(placedX + placedW, newY + BLOCK_H, 1, 4);
+    juice.sfx.thud();
     // The rewards are worked out before anything is said, so a drop and the
     // gift it earned go on one line instead of one wiping the other out.
     said += maybeRebuild(miss <= SNAP_SLOP);
     said += maybeTriggerPowerup(stack.length - 1);
     toast(said, tone);
-    hudScore.textContent = score;
+    juice.count(hudScore, score);
     hudHeight.textContent = stack.length - 1;
-    hudCombo.textContent = combo;
+    juice.pop(hudHeight);
+    if (String(combo) !== hudCombo.textContent) {
+      hudCombo.textContent = combo;
+      if (combo) juice.pop(hudCombo);
+    }
     active = null;
     setTimeout(spawnActive, 90);
   }
@@ -336,6 +404,24 @@
     cameraOffset += (cameraTarget - cameraOffset) * 0.16;
     shake *= 0.85;
     if (shake < 0.3) shake = 0;
+
+    // The plate that just landed settles: squashed for a moment, then
+    // springing back to its shape.
+    const topBlock = stack[stack.length - 1];
+    if (topBlock && topBlock.settle) {
+      topBlock.settle *= 0.78;
+      if (topBlock.settle < 0.02) topBlock.settle = 0;
+    }
+    for (const r of rings) { r.life -= 0.06; }
+    rings = rings.filter((r) => r.life > 0);
+    for (const d of dust) {
+      d.x += d.vx;
+      d.y += d.vy;
+      d.vy += 0.06;
+      d.vx *= 0.94;
+      d.life -= 1;
+    }
+    dust = dust.filter((d) => d.life > 0);
 
     for (const d of debris) {
       d.vy += 0.5;
@@ -460,6 +546,15 @@
     const screenY = b.y + cameraOffset;
     if (screenY > H + 10 || screenY + b.h < -10) return;
     const r = Math.min(10, b.h / 2, b.w / 2);
+    // A landing squashes the plate about its own base and it springs back.
+    // Only the drawing: the block underneath it is exactly where it was.
+    const squash = b.settle || 0;
+    if (squash) {
+      ctx.save();
+      ctx.translate(b.x + b.w / 2, screenY + b.h);
+      ctx.scale(1 + squash * 0.16, 1 - squash * 0.22);
+      ctx.translate(-(b.x + b.w / 2), -(screenY + b.h));
+    }
 
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath();
@@ -496,6 +591,7 @@
       ctx.textBaseline = 'middle';
       ctx.fillText(b.label, b.x + b.w / 2, screenY + b.h / 2 + 1);
     }
+    if (squash) ctx.restore();
   }
 
   function drawBase(b) {
@@ -529,8 +625,66 @@
 
     stack.forEach((b, i) => { if (i === 0) drawBase(b); else drawBlock(b); });
 
+    // The line the tower has to beat, drawn across the lane at the height
+    // it last got to. It is only there once there is a height to beat.
+    if (bestHeight > 0 && !gameOver) {
+      const y = BASE_TOP_Y - bestHeight * BLOCK_H + cameraOffset;
+      if (y > -10 && y < H + 10) {
+        ctx.save();
+        ctx.setLineDash([8, 7]);
+        ctx.strokeStyle = 'rgba(227,168,59,0.55)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(30, y);
+        ctx.lineTo(W - 30, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(227,168,59,0.85)';
+        ctx.font = '700 11px Anton, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('BEST ' + bestHeight, W - 46, y - 3);
+        ctx.restore();
+      }
+    }
+
     if (active) {
+      // A plate moving quickly leaves a couple of fading copies of itself
+      // behind, so the speed is something you can see and not only a
+      // thing you find out about when you miss.
+      if (active.speed >= 4.5) {
+        const ghosts = active.speed >= 7 ? 3 : 2;
+        for (let i = ghosts; i >= 1; i--) {
+          ctx.save();
+          ctx.globalAlpha = 0.09 * (ghosts + 1 - i);
+          drawBlock({ x: active.x - active.dir * active.speed * i * 1.6, y: active.y,
+            w: active.w, h: BLOCK_H, color: active.color });
+          ctx.restore();
+        }
+      }
       drawBlock({ x: active.x, y: active.y, w: active.w, h: BLOCK_H, color: active.color, label: active.label });
+    }
+
+    for (const r of rings) {
+      const screenY = r.y + cameraOffset;
+      const spread = 1 - r.life;
+      ctx.save();
+      ctx.globalAlpha = r.life * 0.7;
+      ctx.strokeStyle = r.colour;
+      ctx.lineWidth = 3 - spread * 2;
+      ctx.beginPath();
+      ctx.ellipse(r.x, screenY, r.w / 2 + spread * 90, 6 + spread * 22, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    for (const d of dust) {
+      const screenY = d.y + cameraOffset;
+      ctx.globalAlpha = Math.min(0.5, d.life / 30);
+      ctx.fillStyle = '#c9b8a3';
+      ctx.beginPath();
+      ctx.arc(d.x, screenY, d.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
 
     for (const d of debris) {
@@ -556,7 +710,9 @@
   }
 
   function loop() {
-    update();
+    // A held frame is still drawn, so the freeze reads as a freeze and
+    // not as a stall.
+    if (!juice.holding()) update();
     draw();
     requestAnimationFrame(loop);
   }

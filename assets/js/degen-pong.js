@@ -2,6 +2,7 @@
   const canvas = document.getElementById('pong-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  const juice = window.BoozebagJuice;
 
   const W = canvas.width;
   const H = canvas.height;
@@ -189,6 +190,23 @@
 
   hudBest.textContent = best;
   renderLeaderboard();
+  juice.attach(document.querySelector('.game-stage'), document.querySelector('.game-hud'));
+
+  // Where the can has just been, for the trail it leaves; rings that
+  // spread from a cup it drops into; and how deep the last pull was, so
+  // the slingshot can tick as it stretches rather than every frame.
+  let trail = [];
+  let rings = [];
+  let stretchLevel = 0;
+  function ring(x, y, r, colour) {
+    rings.push({ x, y, r, colour, life: 1 });
+  }
+  function sparks(x, y, dir) {
+    for (let i = 0; i < 7; i++) {
+      particles.push({ x, y, vx: dir * (1 + Math.random() * 3), vy: (Math.random() - 0.5) * 4,
+        life: 18 + Math.random() * 10, color: '#fff2c4' });
+    }
+  }
 
   function resetBall() {
     ball = { x: ANCHOR.x, y: ANCHOR.y, vx: 0, vy: 0, flying: false };
@@ -238,6 +256,11 @@
   function moveDrag(clientX, clientY) {
     if (!dragging) return;
     dragPos = pointerToCanvas(clientX, clientY);
+    // A tick every quarter of the way back, climbing, like the band of a
+    // slingshot taking the strain.
+    const level = Math.floor((Math.min(distToAnchor(dragPos), MAX_PULL) / MAX_PULL) * 4);
+    if (level > stretchLevel) juice.sfx.stretch(level);
+    stretchLevel = Math.max(0, level);
   }
 
   function endDrag() {
@@ -254,6 +277,9 @@
     ball.vy = dy * POWER;
     ball.flying = true;
     dragPos = null;
+    trail = [];
+    juice.sfx.sling(dist / MAX_PULL);
+    stretchLevel = 0;
   }
 
   canvas.addEventListener('mousedown', (e) => startDrag(e.clientX, e.clientY));
@@ -278,6 +304,7 @@
   function finishThrow() {
     ballsLeft--;
     hudBalls.textContent = Math.max(ballsLeft, 0);
+    juice.pop(hudBalls);
     resetBall();
     const rackCleared = !racking && cups.filter((c) => c.label !== 'RUG').every((c) => c.sunk);
     if (rackCleared) {
@@ -289,7 +316,9 @@
       const spare = Math.max(0, ballsLeft);
       const bonus = 50 + spare * SPARE_CAN_WORTH;
       score += bonus;
-      hudScore.textContent = score;
+      juice.count(hudScore, score);
+      juice.sfx.rackClear();
+      juice.flash('#ffd28a', 380);
       carried = Math.min(CARRY_MOST, spare);
       // Short enough to stay on two lines. The bonus already says how many
       // cans were spare, so the only other thing worth the room is how many
@@ -305,13 +334,19 @@
   function startNextRack() {
     racking = false;
     rack++;
-    hudRack.textContent = rack;
     cups = makeCups();
     ballsLeft = TOTAL_BALLS + carried;
     carried = 0;
     hudBalls.textContent = ballsLeft;
+    juice.pop(hudBalls);
+    hudRack.textContent = rack;
+    juice.pop(hudRack);
+    // The new rack slides down into place from up the table, each cup a
+    // beat behind the one before it.
+    cups.forEach((c, i) => { c.arrive = 1 + i * 0.12; });
     const stage = stageOfRack(rack);
     if (stage > stageOfRack(rack - 1)) {
+      juice.sfx.moveBack();
       toast(stage === CUP_STAGES.length - 1 ? 'ALL THE WAY BACK NOW' : 'THE CUPS MOVED BACK',
         'legend-10x');
     }
@@ -319,8 +354,10 @@
 
   function endGame() {
     gameOver = true;
+    const beaten = score > best && score > 0;
     best = submitScore(score);
-    overlayTitle.textContent = 'OUT OF CANS';
+    overlayTitle.textContent = beaten ? 'NEW BEST BAG' : 'OUT OF CANS';
+    if (beaten) setTimeout(() => { juice.sfx.newBest(); juice.celebrate(); }, 250);
     overlayScore.textContent = 'Final bag: $' + score + ', rack ' + rack;
     overlayBest.textContent = 'Best bag: $' + best;
     hudBest.textContent = best;
@@ -355,8 +392,16 @@
       ball.x += ball.vx;
       ball.y += ball.vy;
 
-      if (ball.x - CAN_R < 0) { ball.x = CAN_R; ball.vx *= -WALL_DAMP; }
-      if (ball.x + CAN_R > W) { ball.x = W - CAN_R; ball.vx *= -WALL_DAMP; }
+      if (ball.x - CAN_R < 0) {
+        ball.x = CAN_R; ball.vx *= -WALL_DAMP;
+        juice.sfx.bounce(); sparks(CAN_R, ball.y, 1);
+      }
+      if (ball.x + CAN_R > W) {
+        ball.x = W - CAN_R; ball.vx *= -WALL_DAMP;
+        juice.sfx.bounce(); sparks(W - CAN_R, ball.y, -1);
+      }
+      trail.push({ x: ball.x, y: ball.y });
+      if (trail.length > 9) trail.shift();
 
       for (const cup of cups) {
         if (cup.sunk) continue;
@@ -375,14 +420,35 @@
           // hitting that one that should feel like progress.
           if (cup.points > 0) streak += 1;
           else { streak = 0; shake = 14; }
+          // The cup takes it: a plop and a chime pitched by what the cup
+          // was worth, a gulp of the cup itself, a ring out across the
+          // table, and a beat of stillness so the moment lands. A rug gets
+          // a buzzer and a red wash instead.
+          cup.gulp = 1;
+          if (cup.points > 0) {
+            juice.sfx.sink(cup.points);
+            ring(cup.x, cup.y, cup.r, cup.fill);
+            juice.hold(cup.points >= 75 ? 70 : 40);
+            if (cup.points >= 100) juice.flash('#6fb98f', 220);
+          } else {
+            juice.sfx.rug();
+            juice.flash('#c0483a', 320);
+            juice.hold(60);
+          }
           const mult = Math.min(STREAK_MOST, 1 + Math.max(0, streak - 1) * STREAK_STEP);
           // The far end of the table pays for itself. A rug costs what a
           // rug costs wherever it is standing.
           const far = CUP_STAGES[cup.stage || 0].worth;
           const got = cup.points > 0 ? Math.round(cup.points * mult * far) : cup.points;
           score += got;
-          hudScore.textContent = score;
-          if (cup.bonusCans > 0) ballsLeft += cup.bonusCans;
+          juice.count(hudScore, score);
+          juice.float((got > 0 ? '+' : '') + got, cup.x / W, cup.y / H,
+            got >= 75 ? 'is-green is-big' : got > 0 ? 'is-gold' : 'is-red is-big');
+          if (cup.bonusCans > 0) {
+            ballsLeft += cup.bonusCans;
+            juice.float('+' + cup.bonusCans + (cup.bonusCans > 1 ? ' CANS' : ' CAN'),
+              cup.x / W, cup.y / H + 0.07, 'is-blue');
+          }
           const cls = cup.points >= 75 ? 'legend-moon' : cup.points >= 40 ? 'legend-10x' : cup.points > 0 ? 'legend-rekt' : 'legend-rug';
           const sign = got > 0 ? '+' : '';
           let msg = (got !== 0 ? sign + got + ' ' : '') + cup.label.replace('\n', ' ');
@@ -398,6 +464,7 @@
 
       if (ball.flying && ball.y - CAN_R > H) {
         toast(MISS_WORDS[Math.floor(Math.random() * MISS_WORDS.length)], 'legend-rekt');
+        juice.sfx.miss();
         streak = 0;
         ball.flying = false;
         finishThrow();
@@ -406,6 +473,13 @@
 
     shake *= 0.86;
     if (shake < 0.3) shake = 0;
+    for (const cup of cups) {
+      if (cup.gulp) { cup.gulp *= 0.8; if (cup.gulp < 0.02) cup.gulp = 0; }
+      if (cup.arrive) { cup.arrive *= 0.82; if (cup.arrive < 0.01) cup.arrive = 0; }
+    }
+    for (const r of rings) r.life -= 0.05;
+    rings = rings.filter((r) => r.life > 0);
+    if (!ball.flying && trail.length) trail.shift();
 
     particles = particles.filter((p) => p.life > 0);
     for (const p of particles) {
@@ -670,6 +744,17 @@
   function drawCup(cup) {
     ctx.save();
     if (cup.sunk) ctx.globalAlpha = 0.18;
+    // A cup that has just taken a can gulps: squashed down about its rim
+    // for a moment, then back. One arriving with a new rack drops in from
+    // up the table. Only the drawing; the cup is where it is.
+    const gulp = cup.gulp || 0;
+    const arrive = Math.min(1, cup.arrive || 0);
+    if (gulp || arrive) {
+      ctx.translate(cup.x, cup.y);
+      if (arrive) { ctx.translate(0, -arrive * 46); ctx.globalAlpha *= (1 - arrive * 0.85); }
+      if (gulp) ctx.scale(1 + gulp * 0.18, 1 - gulp * 0.26);
+      ctx.translate(-cup.x, -cup.y);
+    }
 
     const topW = cup.r;
     const botW = cup.r * 0.62;
@@ -825,6 +910,27 @@
 
     for (const cup of cups) drawCup(cup);
 
+    for (const r of rings) {
+      const spread = 1 - r.life;
+      ctx.save();
+      ctx.globalAlpha = r.life * 0.8;
+      ctx.strokeStyle = r.colour;
+      ctx.lineWidth = 3 - spread * 2;
+      ctx.beginPath();
+      ctx.ellipse(r.x, r.y, r.r + spread * 60, (r.r + spread * 60) * 0.42, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    // The can's trail: where it was over the last few frames, fading.
+    trail.forEach((p, i) => {
+      ctx.globalAlpha = ((i + 1) / trail.length) * 0.32;
+      ctx.fillStyle = '#f4f0ea';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4 + (i / trail.length) * 6, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
     for (const p of particles) {
       ctx.globalAlpha = Math.max(p.life / 40, 0);
       ctx.fillStyle = p.color;
@@ -883,7 +989,7 @@
   }
 
   function loop() {
-    update();
+    if (!juice.holding()) update();
     draw();
     requestAnimationFrame(loop);
   }
