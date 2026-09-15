@@ -269,8 +269,22 @@ img { max-width: 100%; display: block; }
 @media (min-width: 760px) {
   .nav-cta { display: inline-flex; }
 }
+/* ---- The menu on a phone ----
+   A sheet that drops from the bar, over a dimmed page that does not
+   scroll behind it. The links are set in the heading face and sized for
+   a thumb, the one for the part of the page you are on is lit, and the
+   buy button that the bar has no room for on a phone sits at the bottom
+   of the list. The menu button folds into a cross while it is open. Tap
+   the dim, the cross or a link, or press Escape, and it goes. */
 @media (max-width: 1040px) {
   .nav-toggle { display: flex; }
+  .nav-toggle span {
+    transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2), opacity 0.15s ease;
+    transform-origin: center;
+  }
+  .nav-toggle[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .nav-toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; transform: scaleX(0.2); }
+  .nav-toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
   .nav-links {
     position: absolute;
     top: 100%;
@@ -278,17 +292,94 @@ img { max-width: 100%; display: block; }
     right: 0;
     flex-direction: column;
     gap: 0;
+    padding: 4px 0 16px;
     background: var(--bg);
-    border-bottom: 1px solid var(--panel-border);
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.25s ease;
+    border-bottom: 3px solid #000;
+    box-shadow: 0 8px 0 #000;
+    max-height: calc(100vh - 100%);
+    overflow-y: auto;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-10px);
+    transition: transform 0.2s ease, opacity 0.16s ease, visibility 0s linear 0.2s;
   }
-  .nav-links.open { max-height: 320px; }
+  .nav-links.open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: none;
+    transition: transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.15), opacity 0.16s ease;
+  }
   .nav-links a {
-    padding: 16px 6vw;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 15px 6vw;
     border-top: 1px solid var(--panel-border);
+    font-family: 'Anton', sans-serif;
+    font-weight: 400;
+    font-size: 21px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text);
   }
+  .nav-links a:active { background: rgba(255, 255, 255, 0.04); }
+  /* The dot at the end of the row says which part of the page you are
+     on; it stands in for the underline the wide bar uses. */
+  .nav-links a::after {
+    position: static;
+    display: block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--panel-border);
+    transform: none;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+  }
+  .nav-links a:hover::after { transform: none; }
+  .nav-links a.is-here { color: var(--amber); }
+  .nav-links a.is-here::after { background: var(--amber); box-shadow: 0 0 0 3px rgba(255, 183, 3, 0.2); }
+  .nav-links .nav-menu-buy {
+    display: flex;
+    justify-content: center;
+    margin: 14px 6vw 2px;
+    padding: 15px 22px;
+    border-top: 0;
+    font-size: 17px;
+    letter-spacing: 0.6px;
+  }
+  .nav-links .nav-menu-buy::after { display: none; }
+  /* Each row lands a beat after the one above it. */
+  .js .nav-links.open a { animation: nav-row 0.3s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+  .js .nav-links.open a:nth-child(2) { animation-delay: 0.03s; }
+  .js .nav-links.open a:nth-child(3) { animation-delay: 0.06s; }
+  .js .nav-links.open a:nth-child(4) { animation-delay: 0.09s; }
+  .js .nav-links.open a:nth-child(5) { animation-delay: 0.12s; }
+  .js .nav-links.open a:nth-child(6) { animation-delay: 0.15s; }
+  .js .nav-links.open a:nth-child(7) { animation-delay: 0.18s; }
+  .js .nav-links.open a:nth-child(8) { animation-delay: 0.21s; }
+  @keyframes nav-row {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+/* The dim over the page while the menu is open. Put there by main.js. */
+.nav-shade {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(4, 4, 6, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.nav-shade.open { opacity: 1; pointer-events: auto; }
+body.nav-open { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .nav-links, .nav-links.open, .nav-toggle span, .nav-shade { transition: none; }
+  .js .nav-links.open a { animation: none; }
 }
 
 /* Hero */
@@ -1245,10 +1336,7 @@ html { scroll-padding-top: 84px; }
 .nav-links a.is-here { color: var(--text); }
 .nav { transition: box-shadow 0.2s ease; }
 .nav.is-scrolled { box-shadow: 0 3px 0 #000; }
-@media (max-width: 1040px) {
-  .nav-links a::after { display: none; }
-  .nav-links a.is-here { color: var(--amber); }
-}
+
 
 /* Copying the address is the thing most people come here to do, so it has
    to feel like something happened. The whole box takes the tap, the

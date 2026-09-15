@@ -10,16 +10,43 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').match
 const navToggle = document.getElementById('nav-toggle');
 const navLinks = document.getElementById('nav-links');
 
+// ---- The menu on a phone ----
+// A sheet under the bar with a dim over the page, which does not scroll
+// while it is open. The buy button the bar has no room for on a phone is
+// copied into the bottom of the list. The dim, the cross, Escape and any
+// link all close it.
 if (navToggle && navLinks) {
-  navToggle.addEventListener('click', () => {
-    const isOpen = navLinks.classList.toggle('open');
-    navToggle.setAttribute('aria-expanded', String(isOpen));
+  const shade = document.createElement('div');
+  shade.className = 'nav-shade';
+  shade.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(shade);
+  navToggle.setAttribute('aria-controls', 'nav-links');
+  const cta = document.querySelector('.nav-cta');
+  if (cta && !navLinks.querySelector('.nav-menu-buy')) {
+    const buy = cta.cloneNode(true);
+    buy.classList.remove('nav-cta');
+    buy.classList.add('nav-menu-buy');
+    navLinks.appendChild(buy);
+  }
+  const setOpen = (open) => {
+    navLinks.classList.toggle('open', open);
+    shade.classList.toggle('open', open);
+    document.body.classList.toggle('nav-open', open);
+    navToggle.setAttribute('aria-expanded', String(open));
+    navToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+  };
+  navToggle.addEventListener('click', () => setOpen(!navLinks.classList.contains('open')));
+  shade.addEventListener('click', () => setOpen(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && navLinks.classList.contains('open')) { setOpen(false); navToggle.focus(); }
   });
   navLinks.querySelectorAll('a').forEach((link) => {
-    link.addEventListener('click', () => {
-      navLinks.classList.remove('open');
-      navToggle.setAttribute('aria-expanded', 'false');
-    });
+    link.addEventListener('click', () => setOpen(false));
+  });
+  // Widened past the point where the bar shows the links itself, the
+  // sheet has no business being open.
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 1040 && navLinks.classList.contains('open')) setOpen(false);
   });
 }
 
