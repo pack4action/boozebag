@@ -573,7 +573,7 @@ img { max-width: 100%; display: block; }
   font-size: 13px;
   letter-spacing: 2px;
   text-transform: uppercase;
-  margin-top: 10px;
+  margin-top: 16px;
 }
 
 /* Lore */
@@ -1084,4 +1084,239 @@ img { max-width: 100%; display: block; }
 }
 @media (prefers-reduced-motion: reduce) {
   .road-item.is-now .road-dot { box-shadow: none; }
+}
+
+/* ---- Feel ----
+   What the page does when you touch it. All of it in the language it
+   already speaks: black keylines, offset shadows, a few degrees of tilt,
+   marker pen. Nothing fades in on scroll for the sake of it; the page is
+   all there at rest, and the few things that move only move once, when
+   they come into view, and quickly. */
+::selection { background: var(--amber); color: #1a1200; }
+html { scroll-padding-top: 84px; }
+.btn:focus-visible, .ca-box:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+
+/* A press is quicker than a lift, the way a real button is. */
+.btn { transition: transform 0.14s cubic-bezier(0.2, 0.9, 0.3, 1.3), box-shadow 0.14s ease; }
+.btn:active { transition-duration: 0.05s; }
+
+/* The words in the title that matter get a marker pen through them instead
+   of a gradient. The pen goes on after the page has landed. */
+.hero-title .hl {
+  position: relative;
+  display: inline-block;
+  isolation: isolate;
+  padding: 0 0.12em;
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: #1a1200;
+}
+.hero-title .hl::before {
+  content: "";
+  position: absolute;
+  inset: 0.1em -0.06em 0.04em -0.06em;
+  background: var(--amber);
+  border-radius: 0.08em;
+  transform: rotate(-1.3deg);
+  transform-origin: left center;
+  z-index: -1;
+}
+.js .hero-title .hl { animation: hl-ink 0.5s steps(1, end) 0.3s both; }
+.js .hero-title .hl::before { animation: hl-swipe 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s both; }
+@keyframes hl-swipe { from { transform: rotate(-1.3deg) scaleX(0); } to { transform: rotate(-1.3deg) scaleX(1); } }
+@keyframes hl-ink { from { color: var(--text); } to { color: #1a1200; } }
+
+/* A strip of tape across the page under the hero, running. Tilted like it
+   was stuck on by hand. Stops when you point at it so it can be read. */
+/* The wrap clips the tilt, so the tape's corners never poke past the edge
+   of a phone screen and give the page a sideways scroll. */
+.tape-wrap {
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+  margin: -14px 0 6px;
+  padding: 12px 0 14px;
+}
+.tape {
+  position: relative;
+  overflow: hidden;
+  background: var(--amber);
+  color: #1a1200;
+  border-top: 3px solid #000;
+  border-bottom: 3px solid #000;
+  box-shadow: 0 6px 0 #000;
+  transform: rotate(-1.1deg) scale(1.03);
+}
+.tape-track {
+  display: flex;
+  width: max-content;
+  padding: 11px 0;
+  font-family: 'Anton', sans-serif;
+  font-size: 15px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: tape-run 28s linear infinite;
+}
+.tape-half { display: inline-flex; align-items: center; gap: 30px; padding-right: 30px; }
+.tape-half .icon { width: 1.15em; height: 1.15em; opacity: 0.85; }
+.tape:hover .tape-track { animation-play-state: paused; }
+@keyframes tape-run { to { transform: translateX(-50%); } }
+
+/* Section titles get a line of marker under them that draws itself the
+   first time you reach it. The line is put there by main.js, so a page
+   with no script has no line and no gap where one should be. */
+.section-title { position: relative; display: inline-block; }
+.title-stroke {
+  position: absolute;
+  left: -3%;
+  bottom: -0.16em;
+  width: 106%;
+  height: 0.34em;
+  overflow: visible;
+  pointer-events: none;
+}
+.title-stroke path {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0.9;
+  transition: stroke-dashoffset 0.55s cubic-bezier(0.3, 0.8, 0.3, 1) 0.12s;
+}
+.section-title.in .title-stroke path { stroke-dashoffset: 0; }
+
+/* The roadmap stops arrive one at a time as you get to them: the dot
+   grows to its size and the card slides the last few pixels into place.
+   Only when the script is there to bring them in, and only once. */
+.js .road-item .road-dot { transition: transform 0.38s cubic-bezier(0.2, 1.5, 0.4, 1); }
+.js .road-item .road-body { transition: opacity 0.32s ease, transform 0.32s ease; }
+.js .road-item:not(.in) .road-dot { transform: scale(0.5); }
+.js .road-item:not(.in) .road-body { opacity: 0; transform: translateX(12px); }
+/* What is running now has a pulse on its dot, in its own colour. */
+.road-item.is-now .road-dot::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(255, 183, 3, 0.45);
+  animation: road-ping 2.4s ease-out infinite;
+}
+@keyframes road-ping {
+  0% { box-shadow: 0 0 0 0 rgba(255, 183, 3, 0.45); }
+  70%, 100% { box-shadow: 0 0 0 10px rgba(255, 183, 3, 0); }
+}
+
+/* Cards lift into a shadow when pointed at, the way the buttons do. The
+   ones that go somewhere lift the most. */
+.game-card, .community-card, .game-featured, .content-card, .token-card, .step {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.game-card:hover, .community-card:hover {
+  transform: translate(-3px, -3px);
+  box-shadow: 5px 5px 0 #000;
+  border-color: var(--amber);
+}
+.game-featured:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 #000; }
+.content-card:hover, .token-card:hover, .step:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 183, 3, 0.45);
+}
+
+/* The bar knows where you are. The link for the part of the page you are
+   on is lit and underlined, and the underline slides in under whichever
+   one you point at. */
+.nav-links a { position: relative; transition: color 0.15s ease; }
+.nav-links a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 2px;
+  background: var(--amber);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.2s ease;
+}
+.nav-links a:hover::after, .nav-links a.is-here::after { transform: scaleX(1); }
+.nav-links a.is-here { color: var(--text); }
+.nav { transition: box-shadow 0.2s ease; }
+.nav.is-scrolled { box-shadow: 0 3px 0 #000; }
+@media (max-width: 1040px) {
+  .nav-links a::after { display: none; }
+  .nav-links a.is-here { color: var(--amber); }
+}
+
+/* Copying the address is the thing most people come here to do, so it has
+   to feel like something happened. The whole box takes the tap, the
+   dashes go solid, the address lights up, and a stamp lands on the corner. */
+.ca-box {
+  position: relative;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+}
+.ca-box:hover { border-color: var(--amber); }
+.ca-box:active { transform: scale(0.995); }
+.ca-box.is-copied {
+  border-style: solid;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 4px rgba(255, 183, 3, 0.16);
+}
+.ca-box.is-copied .ca-address { color: var(--amber); }
+.ca-stamp {
+  position: absolute;
+  top: -13px;
+  right: 16px;
+  font-family: 'Anton', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: #06130b;
+  background: var(--green);
+  border: 2px solid #000;
+  border-radius: 6px;
+  padding: 4px 10px;
+  box-shadow: 2px 2px 0 #000;
+  transform: rotate(-8deg) scale(0);
+  transition: transform 0.28s cubic-bezier(0.2, 1.6, 0.4, 1);
+  pointer-events: none;
+}
+.ca-box.is-copied .ca-stamp { transform: rotate(-8deg) scale(1); }
+/* The address in step three copies too, and flashes to say so. */
+.copy-code { cursor: pointer; transition: background 0.2s ease, color 0.2s ease; }
+.copy-code:hover { border-color: var(--amber); }
+.copy-code.is-copied { background: var(--amber); color: #1a1200; }
+
+/* Two bits of tape hold the quote up. */
+.callout { position: relative; }
+.callout::before, .callout::after {
+  content: "";
+  position: absolute;
+  width: 84px;
+  height: 24px;
+  background: rgba(255, 183, 3, 0.62);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+.callout::before { top: -12px; left: 28px; transform: rotate(-6deg); }
+.callout::after { bottom: -12px; right: 32px; transform: rotate(5deg); }
+
+/* The props in the hero drift at different speeds as you scroll, which is
+   what makes them props on a set rather than pictures on a wall. */
+.hero { --py: 0px; }
+.hero-prop-can { transform: rotate(-12deg) translateY(calc(var(--py) * 0.22)); }
+.hero-prop-syringe { transform: rotate(8deg) translateY(calc(var(--py) * -0.16)); }
+.hero-prop-sign { transform: rotate(6deg) translateY(calc(var(--py) * 0.1)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .js .hero-title .hl, .js .hero-title .hl::before { animation: none; }
+  .tape-track { animation: none; }
+  .title-stroke path { transition: none; stroke-dashoffset: 0; }
+  .js .road-item:not(.in) .road-dot { transform: none; }
+  .js .road-item:not(.in) .road-body { opacity: 1; transform: none; }
+  .road-item.is-now .road-dot::after { animation: none; }
+  .hero { --py: 0px !important; }
 }
