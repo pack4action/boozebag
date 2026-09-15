@@ -79,21 +79,40 @@
   // Slot positions are fixed (physics/reachability was tuned around these
   // exact spots); which cup type lands in which slot is shuffled instead,
   // so the board layout changes each rack without breaking the tuning.
-  // The rack does not sit in one place for the whole game. It starts within
-  // easy reach, goes back a step when you clear it, back again when you
-  // clear that, and stays at the far end of the table from then on. Further
-  // away means smaller, closer together and a harder pull, which is a
-  // difficulty you can see rather than one you have to be told about.
-  const CUP_ROW_GAP = 60;    // between cups across a row, at the near end
+  // The rack does not sit in one place for the whole game. It starts down
+  // by your hand, where the cups are big and the throw is short, and every
+  // time you clear it it goes back one step. Six steps and it is at the far
+  // end of the table, and there it stays until you lose. A new game puts it
+  // back down by your hand again.
+  const CUP_ROW_GAP = 60;    // between cups across a row, at the reference depth
   const CUP_ROW_STEP = 56;   // between the rows
   const CUP_R = 22;
-  const CUP_STAGES = [
-    { back: 130, scale: 1, worth: 1 },
-    { back: 123, scale: 0.82, worth: 1.25 },
-    { back: 116, scale: 0.68, worth: 1.5 },
-  ];
-  // How far back the rack is on this rack number. Three steps and then it
-  // stays put.
+  const CUP_NEAR_Y = 290;    // the back row on your first rack
+  const CUP_FAR_Y = 116;     // and on your last, just inside the end of the table
+  const CUP_REF_Y = 130;     // the depth everything is drawn to scale against
+  const CUP_STAGE_COUNT = 6;
+  const CUP_WORTH_STEP = 0.15;
+  // How wide the table is at a given depth. The cups are sized and spread
+  // against this, so a rack always looks like it is standing on the table
+  // rather than floating at some size of its own.
+  function tableHalfWidth(y) {
+    const along = (y - TABLE_BACK_Y) / (H - TABLE_BACK_Y);
+    const atBack = (TABLE_BACK_X1 - TABLE_BACK_X0) / 2;
+    return atBack + along * ((W / 2 + 40) - atBack);
+  }
+  const CUP_STAGES = [];
+  for (let i = 0; i < CUP_STAGE_COUNT; i++) {
+    const back = CUP_NEAR_Y + (CUP_FAR_Y - CUP_NEAR_Y) * (i / (CUP_STAGE_COUNT - 1));
+    CUP_STAGES.push({
+      back,
+      scale: tableHalfWidth(back) / tableHalfWidth(CUP_REF_Y),
+      // Further away is a longer, straighter throw at a smaller target, so
+      // it pays more for the same cup.
+      worth: 1 + i * CUP_WORTH_STEP,
+    });
+  }
+  // How far back the rack is on this rack number. One step per clear, and
+  // then it stays at the end.
   function stageOfRack(n) {
     return Math.min(CUP_STAGES.length - 1, Math.max(0, n - 1));
   }
