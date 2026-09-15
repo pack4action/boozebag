@@ -117,12 +117,29 @@
   function stageOfRack(n) {
     return Math.min(CUP_STAGES.length - 1, Math.max(0, n - 1));
   }
+  // Past the far end the rack has nowhere left to go, so the cups get
+  // smaller instead, a little every rack, down to a floor. Before this the
+  // seventh rack and the seventieth were the same rack, and a game with no
+  // more to ask of you is a game with nothing to lose to. It pays a little
+  // more each rack for the same reason the far end does.
+  const SHRINK_PER_RACK = 0.94;
+  const SHRINK_FLOOR = 0.62;
+  const WORTH_PER_EXTRA_RACK = 0.1;
+  function extraRacks(n) {
+    return Math.max(0, n - CUP_STAGE_COUNT);
+  }
+  function scaleOfRack(n) {
+    return Math.max(SHRINK_FLOOR, CUP_STAGES[stageOfRack(n)].scale * Math.pow(SHRINK_PER_RACK, extraRacks(n)));
+  }
+  function worthOfRack(n) {
+    return CUP_STAGES[stageOfRack(n)].worth + extraRacks(n) * WORTH_PER_EXTRA_RACK;
+  }
   // The same triangle every time, drawn to the size the distance calls for.
-  function slotsFor(stage) {
+  function slotsFor(stage, scale) {
     const s = CUP_STAGES[stage];
-    const gap = CUP_ROW_GAP * s.scale;
-    const step = CUP_ROW_STEP * s.scale;
-    const r = CUP_R * s.scale;
+    const gap = CUP_ROW_GAP * scale;
+    const step = CUP_ROW_STEP * scale;
+    const r = CUP_R * scale;
     const mid = W / 2;
     return [
       { x: mid - gap, y: s.back }, { x: mid, y: s.back }, { x: mid + gap, y: s.back },
@@ -131,11 +148,15 @@
     ].map((p) => ({ x: p.x, y: p.y, r }));
   }
   const CUP_TYPES = [
-    { label: 'MOON', points: 100, bonusCans: 3, fill: '#6fb98f' },
+    // Only the good cups hand a can back. Every cup but the rug used to,
+    // seven a rack, which is more throws than a rack takes: you could miss
+    // most of them and never run out. Four a rack now, and only if you
+    // sink the cups that pay them.
+    { label: 'MOON', points: 100, bonusCans: 2, fill: '#6fb98f' },
     { label: '10X', points: 75, bonusCans: 1, fill: '#f0a94e' },
     { label: 'DIAMOND\nHANDS', points: 60, bonusCans: 1, fill: '#5ec4c9' },
-    { label: 'PAPER\nHANDS', points: 20, bonusCans: 1, fill: '#d9c3a3' },
-    { label: 'REKT', points: 10, bonusCans: 1, fill: '#d9634f' },
+    { label: 'PAPER\nHANDS', points: 20, bonusCans: 0, fill: '#d9c3a3' },
+    { label: 'REKT', points: 10, bonusCans: 0, fill: '#d9634f' },
     { label: 'RUG', points: -50, bonusCans: 0, fill: '#5c3427' },
   ];
 
@@ -151,10 +172,11 @@
   function makeCups() {
     const types = shuffled(CUP_TYPES);
     const stage = stageOfRack(rack);
+    const worth = worthOfRack(rack);
     // Once a rack is set the cups stand still for the whole of it. The
     // only thing that ever moves them is the step back between racks.
-    return slotsFor(stage).map((slot, i) => ({ ...slot, ...types[i], sunk: false,
-      stage }));
+    return slotsFor(stage, scaleOfRack(rack)).map((slot, i) => ({ ...slot, ...types[i], sunk: false,
+      stage, worth }));
   }
 
   let rack = 1;
@@ -349,6 +371,9 @@
       juice.sfx.moveBack();
       toast(stage === CUP_STAGES.length - 1 ? 'ALL THE WAY BACK NOW' : 'THE CUPS MOVED BACK',
         'legend-10x');
+    } else if (scaleOfRack(rack) < scaleOfRack(rack - 1)) {
+      juice.sfx.moveBack();
+      toast('RACK ' + rack + ' \u00b7 SMALLER CUPS', 'legend-10x');
     }
   }
 
@@ -438,7 +463,7 @@
           const mult = Math.min(STREAK_MOST, 1 + Math.max(0, streak - 1) * STREAK_STEP);
           // The far end of the table pays for itself. A rug costs what a
           // rug costs wherever it is standing.
-          const far = CUP_STAGES[cup.stage || 0].worth;
+          const far = cup.worth || 1;
           const got = cup.points > 0 ? Math.round(cup.points * mult * far) : cup.points;
           score += got;
           juice.count(hudScore, score);
