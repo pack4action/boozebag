@@ -15,26 +15,18 @@
   // letterbox on a phone. Remembered, and closer by default on a narrow
   // screen. Nothing behind him is worth the room, so the crop comes off
   // the left first.
-  const ZOOM_KEY = 'beerMileZoom';
-  const ZOOMS = [1, 1.3, 1.6];
+  // Picked from the width of the screen, and picked again if that changes.
+  // A phone gets the camera close in; a desktop sees the whole road.
   let zoom = 1;
-  try {
-    const kept = Number(localStorage.getItem(ZOOM_KEY));
-    zoom = ZOOMS.indexOf(kept) >= 0 ? kept : (window.innerWidth < 640 ? 1.3 : 1);
-  } catch (e) { zoom = 1; }
   let viewLeft = 0;
-  let zoomBtn = null;
   function applyZoom() {
+    const wide = window.innerWidth;
+    zoom = wide < 480 ? 1.6 : wide < 760 ? 1.3 : 1;
     canvas.height = Math.round(H * zoom);
     const seen = W / zoom;
     viewLeft = Math.max(0, Math.min(W - seen, RUNNER_X - seen * 0.3));
-    if (zoomBtn) zoomBtn.querySelector('.hud-value').textContent = zoom + 'x';
   }
-  function cycleZoom() {
-    zoom = ZOOMS[(ZOOMS.indexOf(zoom) + 1) % ZOOMS.length];
-    try { localStorage.setItem(ZOOM_KEY, String(zoom)); } catch (e) { /* fine */ }
-    applyZoom();
-  }
+  window.addEventListener('resize', applyZoom);
   // A point in the world, as a fraction of the board as it is being shown.
   const fx = (x) => ((x - viewLeft) * zoom) / W;
   const fy = (y) => y / H;
@@ -119,7 +111,48 @@
     { kind: 'crate', w: 46, h: 38 },
     { kind: 'bin', w: 40, h: 50 },
   ];
+  // Things hung over the road that have to be gone under rather than over.
+  // `bottom` is how far above the road the underside is: lower than his
+  // head standing, higher than his head sliding.
+  const HANGING = [
+    { kind: 'sign', w: 64, h: 0, hang: true, bottom: 56 },
+    { kind: 'pipe', w: 34, h: 0, hang: true, bottom: 52 },
+  ];
+  const HANG_FROM_MILE = 2;
+  const HANG_CHANCE = 0.34;
   const HIT_WORDS = ['ATE IT', 'DOWN HE GOES', 'FACE FIRST', 'THAT WILL BRUISE', 'WIPEOUT'];
+
+  // ---- The race ----
+  // It is a race, and the other runner is the point of it. Steve does not
+  // drink, does not fall, and does not stop for anything but his beer; he
+  // just runs, at a pace that a decent run beats and a sloppy one does
+  // not. He keeps running while you are at the table, which is what makes
+  // every second of a chug cost something.
+  // Measured, not guessed: a bot that never falls and empties every glass
+  // in a quarter of a second runs the course in about seventy two seconds
+  // of real time. A person taps a beer down in about two, which is forty
+  // seconds more over twenty six of them, and goes over a few times at a
+  // couple of seconds each: call it a hundred and twenty. Steve takes
+  // about a hundred and twenty nine, so a decent run beats him by a
+  // stride and a sloppy one does not. He is quicker than you are sober,
+  // so he leads early, and you reel him in as the beers make you quicker
+  // than he is.
+  const RIVAL_NAME = 'SOBER STEVE';
+  const RIVAL_START = 440;
+  const RIVAL_PER_MILE = 9;
+  const RIVAL_CHUG = 2.4;        // seconds he stands at each table
+  const FINAL_STRETCH = 700;     // road after the last beer to the tape
+  // Going down is not the end of anything. You are on the road for a
+  // second, you get up slower than you went down, and Steve does not wait.
+  const FALL_SECONDS = 1.1;
+  const FALL_SPEED_KEEP = 0.5;
+  const SPEED_RECOVER = 1.8;     // how quickly he gets back up to pace
+  // What is in him makes him quicker, right up to a full skinful. It also
+  // makes him wobble, which is the trade.
+  const DRUNK_SPEED_BOOST = 230;
+  // Sliding: low and quick and over before you know it.
+  const SLIDE_SECONDS = 0.62;
+  const RUNNER_LOW = 42;
 
   // ---- Persistence ----
   const STORAGE_KEY = 'beerMileHighScore';
@@ -168,17 +201,6 @@
   hudBest.textContent = best;
   renderLeaderboard();
   juice.attach(document.querySelector('.game-stage'), document.querySelector('.game-hud'));
-  {
-    const hud = document.querySelector('.game-hud');
-    zoomBtn = document.createElement('button');
-    zoomBtn.type = 'button';
-    zoomBtn.className = 'hud-stat hud-sound hud-zoom';
-    zoomBtn.id = 'btn-zoom';
-    zoomBtn.setAttribute('aria-label', 'How close the camera is');
-    zoomBtn.innerHTML = '<span class="hud-label">Zoom</span><span class="hud-value"></span>';
-    zoomBtn.addEventListener('click', cycleZoom);
-    if (hud) hud.appendChild(zoomBtn);
-  }
   applyZoom();
 
   function toast(msg, cls) {
@@ -194,6 +216,20 @@
   let phase, dist, speed, miles, drinks, score, bac, gameOver;
   let runner, obstacles, nextObstacleAt, nextStationAt, bounce;
   let chug, chugLeft, chugSpan, splashes, pickups, lastChugBonus;
+  // The other runner, how far the tape is, and whether the last beer is
+  // down and it is only road to the line from here.
+  let rival, finishAt, sprinting, falls, tape;
+  function rivalPace() {
+    return RIVAL_START + rival.miles * RIVAL_PER_MILE;
+  }
+  // What he can do right now, with what is in him.
+  function paceNow() {
+    return Math.min(MAX_SPEED + DRUNK_SPEED_BOOST,
+      START_SPEED + miles * SPEED_PER_MILE + bac * DRUNK_SPEED_BOOST);
+  }
+  function runnerHeight() {
+    return runner.slide > 0 ? RUNNER_LOW : RUNNER_TALL;
+  }
   // Only the picture: how stretched he is off a jump, the dust his boots
   // kick up, the jolt through the frame when he hits something, and the
   // streaks across the sky once the road is properly quick.
@@ -218,7 +254,12 @@
     score = 0;
     bac = 0;
     gameOver = false;
-    runner = { y: 0, vy: 0, air: false, step: 0 };
+    runner = { y: 0, vy: 0, air: false, step: 0, slide: 0, fall: 0 };
+    rival = { dist: 0, miles: 0, stop: 0 };
+    finishAt = MILES * MILE_PX + FINAL_STRETCH;
+    sprinting = false;
+    falls = 0;
+    tape = null;
     obstacles = [];
     splashes = [];
     pickups = [];
@@ -241,8 +282,9 @@
   }
 
   // ---- What the player does ----
-  // One button the whole way through. Running, it is a jump; at the table,
-  // it is a swallow.
+  // Two things on the road: up, over what is standing in it, and down,
+  // under what is hanging over it. At the table, either one is a swallow.
+  // A jump cuts a slide short, so a late change of mind still counts.
   function press() {
     if (gameOver) return;
     if (phase === 'chug') {
@@ -251,8 +293,10 @@
       if (chug >= 1) finishChug(true);
       return;
     }
+    if (runner.fall > 0) return;
     if (!runner.air) {
       runner.air = true;
+      runner.slide = 0;
       juice.sfx.jump();
       stretch = 1;
       kickDust(4, 60);
@@ -260,6 +304,35 @@
       runner.vy = JUMP_V * (1 - bac * DRUNK_JUMP_LOSS)
         + (Math.random() - 0.5) * bac * DRUNK_JUMP_WOBBLE;
     }
+  }
+
+  function duck() {
+    if (gameOver) return;
+    if (phase === 'chug') { press(); return; }
+    if (runner.fall > 0 || runner.air || runner.slide > 0) return;
+    runner.slide = SLIDE_SECONDS;
+    juice.sfx.whoosh(0.45);
+    kickDust(5, 120);
+  }
+
+  // Down, and up again slower than he went down. The thing that put him
+  // there is done with; nothing else on the road touches him while he is
+  // on it, because he is under all of it.
+  function fall(o) {
+    o.hit = true;
+    falls += 1;
+    runner.fall = FALL_SECONDS;
+    runner.slide = 0;
+    runner.air = false;
+    runner.y = 0;
+    runner.vy = 0;
+    speed *= FALL_SPEED_KEEP;
+    toast(HIT_WORDS[Math.floor(Math.random() * HIT_WORDS.length)], 'legend-rekt');
+    juice.sfx.crash();
+    juice.flash('#c0483a', 300);
+    juice.hold(110);
+    jolt = 14;
+    kickDust(12, 160);
   }
 
   function startChug() {
@@ -272,6 +345,8 @@
     runner.y = 0;
     runner.vy = 0;
     runner.air = false;
+    runner.slide = 0;
+    runner.fall = 0;
     // The road empties while he is at the table. Anything already out
     // there would otherwise sit frozen a few strides ahead for as long as
     // the beer took, and be on top of him the moment he set off again.
@@ -307,11 +382,16 @@
     hudDrinks.textContent = drinks;
     juice.pop(hudDrinks);
     juice.count(hudScore, score);
+    phase = 'run';
     if (miles >= MILES) {
-      finish(true);
+      // The last beer is down. Nothing left but road and the tape, and
+      // whoever gets there first.
+      sprinting = true;
+      obstacles = [];
+      pickups = [];
+      toast('LAST BEER DOWN \u00b7 RUN', 'legend-10x');
       return;
     }
-    phase = 'run';
     // A clear run out of the aid station, so the first thing past the table
     // is never a cone you could not have seen.
     nextObstacleAt = dist + 260;
@@ -320,7 +400,6 @@
   function passMile() {
     miles += 1;
     score += 100;
-    speed = Math.min(MAX_SPEED, START_SPEED + miles * SPEED_PER_MILE);
     hudMile.textContent = miles;
     juice.pop(hudMile);
     juice.count(hudScore, score);
@@ -331,8 +410,14 @@
   }
 
   function spawnObstacle() {
-    const kind = OBSTACLES[Math.floor(Math.random() * OBSTACLES.length)];
-    obstacles.push({ x: W + 40, w: kind.w, h: kind.h, kind: kind.kind });
+    // From the second mile some of what turns up is hung over the road
+    // rather than stood in it, and a hung thing never comes as a pair.
+    const hangIt = miles >= HANG_FROM_MILE && Math.random() < HANG_CHANCE;
+    const kind = hangIt
+      ? HANGING[Math.floor(Math.random() * HANGING.length)]
+      : OBSTACLES[Math.floor(Math.random() * OBSTACLES.length)];
+    obstacles.push({ x: W + 40, w: kind.w, h: kind.h, kind: kind.kind,
+      hang: !!kind.hang, bottom: kind.bottom || 0 });
     let end = W + 40 + kind.w;
     // A pair is two of them close enough that there is no landing between,
     // so it is one jump or none. They fit well inside the arc: the whole
@@ -341,7 +426,7 @@
     const along = Math.min(1, miles / Math.max(1, MILES - 1));
     const pairChance = miles <= PAIR_FROM_MILE ? 0
       : Math.min(PAIR_MOST, (miles - PAIR_FROM_MILE) * PAIR_PER_MILE);
-    if (Math.random() < pairChance) {
+    if (!hangIt && Math.random() < pairChance) {
       const second = OBSTACLES[Math.floor(Math.random() * OBSTACLES.length)];
       const apart = 26 + Math.random() * 34;
       obstacles.push({ x: end + apart, w: second.w, h: second.h, kind: second.kind });
@@ -364,28 +449,26 @@
     }
   }
 
-  function hit() {
-    toast(HIT_WORDS[Math.floor(Math.random() * HIT_WORDS.length)], 'legend-rekt');
-    juice.sfx.crash();
-    juice.flash('#c0483a', 380);
-    juice.hold(170);
-    jolt = 14;
-    kickDust(12, 160);
-    finish(false);
-  }
-
   function finish(won) {
     gameOver = true;
     phase = 'over';
     if (won) score += 2600;
     const beaten = score > best && score > 0;
     best = submitScore(score);
-    overlayTitle.textContent = won ? 'TWENTY SIX AND TWENTY SIX' : beaten ? 'NEW BEST BAG' : 'RUN OVER';
+    // The race is the headline whichever way it went; a best bag on a
+    // lost race is the second line.
+    overlayTitle.textContent = won ? 'YOU BEAT STEVE' : 'STEVE GOT THERE FIRST';
     if (won || beaten) setTimeout(() => { juice.sfx.newBest(); juice.celebrate(); }, won ? 200 : 450);
-    overlayScore.textContent = 'Final bag: $' + score + ', ' + miles
-      + (miles === 1 ? ' mile, ' : ' miles, ') + drinks
-      + (drinks === 1 ? ' drink' : ' drinks');
-    overlayBest.textContent = 'Best bag: $' + best;
+    if (won) {
+      juice.flash('#ffd28a', 500);
+      tape = { broke: 0 };
+    }
+    const fell = falls === 0 ? 'never went down' : falls === 1 ? 'went down once' : 'went down ' + falls + ' times';
+    overlayScore.textContent = won
+      ? 'Final bag: $' + score + '. All 26 down, ' + fell + '.'
+      : 'Final bag: $' + score + '. You were on mile ' + Math.min(MILES, miles + 1)
+        + ' with ' + drinks + (drinks === 1 ? ' drink' : ' drinks') + ' down, and ' + fell + '.';
+    overlayBest.textContent = (beaten ? 'New best bag: $' : 'Best bag: $') + best;
     hudBest.textContent = best;
     if (connectedWallet) {
       leaderboard.upsert(connectedWallet, score, drinks);
@@ -394,10 +477,19 @@
     overlay.hidden = false;
   }
 
-  canvas.addEventListener('mousedown', (e) => { e.preventDefault(); press(); });
-  canvas.addEventListener('touchstart', (e) => { e.preventDefault(); press(); }, { passive: false });
+  // The top of the board is up and the bottom of it is down: a tap high
+  // jumps and a tap low slides, with nothing to wait for to tell them
+  // apart. At the table, anywhere is a swallow.
+  function pressAt(clientY) {
+    const box = canvas.getBoundingClientRect();
+    const low = (clientY - box.top) / box.height > 0.55;
+    if (low) duck(); else press();
+  }
+  canvas.addEventListener('mousedown', (e) => { e.preventDefault(); pressAt(e.clientY); });
+  canvas.addEventListener('touchstart', (e) => { e.preventDefault(); pressAt(e.touches[0].clientY); }, { passive: false });
   window.addEventListener('keydown', (e) => {
-    if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); press(); }
+    if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') { e.preventDefault(); press(); }
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') { e.preventDefault(); duck(); }
   });
   btnReplay.addEventListener('click', reset);
 
@@ -412,11 +504,26 @@
     splashes = splashes.filter((s) => s.life > 0);
   }
 
+  // Steve, every frame, whatever you are doing. He stops at every table
+  // for the same time each, and otherwise runs.
+  function stepRival(dt) {
+    if (rival.stop > 0) { rival.stop -= dt; return; }
+    rival.dist += rivalPace() * dt;
+    if (rival.miles < MILES && rival.dist >= (rival.miles + 1) * MILE_PX) {
+      rival.miles += 1;
+      rival.stop = RIVAL_CHUG;
+    }
+    if (rival.miles >= MILES && rival.dist >= finishAt) finish(false);
+  }
+
   function update(dt) {
     if (gameOver) {
       stepSplashes(dt);
+      if (tape) tape.broke = Math.min(1, tape.broke + dt * 2);
       return;
     }
+    stepRival(dt);
+    if (gameOver) return;
 
     if (phase === 'chug') {
       chugLeft -= dt;
@@ -425,8 +532,20 @@
       return;
     }
 
+    // He gets back up to pace after a fall rather than snapping to it,
+    // and the pace itself is what is in him as much as how far he is.
+    const pace = paceNow();
+    if (runner.fall > 0) {
+      runner.fall = Math.max(0, runner.fall - dt);
+      speed = Math.max(speed, START_SPEED * 0.3);
+    } else {
+      speed += (pace - speed) * Math.min(1, dt * SPEED_RECOVER);
+    }
+    if (runner.slide > 0) runner.slide = Math.max(0, runner.slide - dt);
+
     dist += speed * dt;
     runner.step += speed * dt * 0.055;
+    if (sprinting && dist >= finishAt) { finish(true); return; }
 
     if (runner.air) {
       runner.vy += GRAVITY * dt;
@@ -461,11 +580,11 @@
     for (const k of streaks) { k.x -= (speed * 2.2) * dt; k.life -= dt * 0.9; }
     streaks = streaks.filter((k) => k.life > 0 && k.x + k.len > -20);
 
-    if (dist >= nextStationAt) {
+    if (!sprinting && dist >= nextStationAt) {
       passMile();
       return;
     }
-    if (dist >= nextObstacleAt) spawnObstacle();
+    if (!sprinting && dist >= nextObstacleAt) spawnObstacle();
 
     // The world moves; everything on the road moves with it.
     for (const o of obstacles) o.x -= speed * dt;
@@ -483,9 +602,17 @@
     const bodyL = RUNNER_X - 13;
     const bodyR = RUNNER_X + 15;
     const feet = GROUND_Y + runner.y;
+    const head = feet - runnerHeight();
     for (const o of obstacles) {
-      if (o.x > bodyR || o.x + o.w < bodyL) continue;
-      if (feet > GROUND_Y - o.h + 6) { hit(); return; }
+      if (o.hit || o.x > bodyR || o.x + o.w < bodyL) continue;
+      if (runner.fall > 0) continue;
+      if (o.hang) {
+        // Under it or into it. Sliding, his head is below the underside;
+        // standing or jumping it is not.
+        if (head < GROUND_Y - o.bottom) { fall(o); return; }
+        continue;
+      }
+      if (feet > GROUND_Y - o.h + 6) { fall(o); return; }
       // How near the soles came to the top of it, kept so a late jump can
       // be paid for once the thing is safely behind him.
       const clear = (GROUND_Y - o.h + 6) - feet;
@@ -493,7 +620,7 @@
     }
     // Behind him now, and cleared by a hair.
     for (const o of obstacles) {
-      if (o.paid || o.closest === undefined || o.x + o.w >= bodyL) continue;
+      if (o.paid || o.hit || o.closest === undefined || o.x + o.w >= bodyL) continue;
       o.paid = true;
       if (o.closest <= NEAR_MISS_PX) {
         score += NEAR_MISS_WORTH;
@@ -684,6 +811,50 @@
     const y = GROUND_Y;
     ctx.save();
     ctx.translate(o.x, y);
+    if (o.hang) {
+      // Hung from something above the top of the picture, so it reads as
+      // a thing to go under from the moment it comes on.
+      const under = -o.bottom;
+      ctx.strokeStyle = '#3a3238';
+      ctx.lineWidth = 5;
+      if (o.kind === 'sign') {
+        ctx.beginPath();
+        ctx.moveTo(o.w / 2 - 14, -GROUND_Y);
+        ctx.lineTo(o.w / 2 - 14, under - 30);
+        ctx.moveTo(o.w / 2 + 14, -GROUND_Y);
+        ctx.lineTo(o.w / 2 + 14, under - 30);
+        ctx.stroke();
+        ctx.fillStyle = '#2a1e12';
+        ctx.fillRect(0, under - 32, o.w, 32);
+        ctx.strokeStyle = '#ffb703';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(2, under - 30, o.w - 4, 28);
+        ctx.fillStyle = '#ffb703';
+        ctx.font = '700 13px Anton, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('BAR', o.w / 2, under - 16);
+        ctx.textAlign = 'start';
+        ctx.textBaseline = 'alphabetic';
+      } else {
+        // A scaffold pole across the pavement, on two hangers.
+        ctx.beginPath();
+        ctx.moveTo(5, -GROUND_Y);
+        ctx.lineTo(5, under - 6);
+        ctx.moveTo(o.w - 5, -GROUND_Y);
+        ctx.lineTo(o.w - 5, under - 6);
+        ctx.stroke();
+        ctx.fillStyle = '#7b8089';
+        ctx.fillRect(-14, under - 10, o.w + 28, 10);
+        ctx.fillStyle = '#aeb4bd';
+        ctx.fillRect(-14, under - 10, o.w + 28, 3);
+        ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-14, under - 10, o.w + 28, 10);
+      }
+      ctx.restore();
+      return;
+    }
     if (o.kind === 'cone') {
       ctx.fillStyle = '#d7542c';
       ctx.beginPath();
@@ -719,6 +890,114 @@
     ctx.restore();
   }
 
+  // The other runner, drawn on the road a lane behind, when he is near
+  // enough to be on the picture at all. He is a pace to be measured
+  // against, so he is grey where you are yellow.
+  function drawRival(t) {
+    const sx = RUNNER_X + (rival.dist - dist);
+    if (sx < -60 || sx > W + 60) return;
+    const y = GROUND_Y - 6;
+    const cycle = rival.dist * 0.055;
+    const swing = rival.stop > 0 ? 0 : Math.sin(cycle) * 1.1;
+    ctx.save();
+    ctx.translate(sx, y);
+    ctx.scale(0.92, 0.92);
+    ctx.globalAlpha = 0.92;
+    const skin = '#c9a184';
+    const leg = (dir, color) => {
+      ctx.save();
+      ctx.translate(dir * 3, -30);
+      ctx.rotate(swing * dir * 0.5);
+      ctx.fillStyle = color;
+      ctx.fillRect(-5, 0, 10, 30);
+      ctx.fillStyle = '#d8d8dc';
+      ctx.fillRect(-8, 27, 15, 6);
+      ctx.restore();
+    };
+    leg(-1, shade(skin, -50));
+    leg(1, skin);
+    ctx.fillStyle = '#2b2f3a';
+    ctx.fillRect(-11, -44, 22, 16);
+    ctx.fillStyle = '#9aa3b2';
+    ctx.fillRect(-12, -72, 24, 28);
+    ctx.fillStyle = '#556072';
+    ctx.font = '700 9px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('0.0', 0, -55);
+    ctx.fillStyle = skin;
+    ctx.fillRect(-4, -78, 8, 8);
+    ctx.beginPath();
+    ctx.arc(0, -86, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#3d7a9e';
+    ctx.beginPath();
+    ctx.arc(0, -88, 11, Math.PI * 1.02, Math.PI * 2.05);
+    ctx.fill();
+    ctx.fillRect(6, -90, 12, 4);
+    // A bottle of water. Of course.
+    if (rival.stop > 0) {
+      ctx.fillStyle = '#8ecbff';
+      ctx.fillRect(14, -70, 6, 16);
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(244,240,234,0.7)';
+    ctx.font = '700 10px Inter, system-ui, sans-serif';
+    ctx.fillText('STEVE', 0, -104);
+    ctx.textAlign = 'start';
+    ctx.restore();
+  }
+
+  // The line, the tape across it, and the people who came to see it. All
+  // of it in the world, so it comes up the road the way everything does.
+  function drawFinish(t) {
+    const fx0 = RUNNER_X + (finishAt - dist);
+    if (fx0 > W + 220) return;
+    // A crowd along the last stretch, bobbing.
+    for (let i = -26; i <= 4; i++) {
+      const cx = fx0 + i * 27;
+      if (cx < -20 || cx > W + 20) continue;
+      const bob = Math.sin(t * 0.008 + i * 1.7) * 3;
+      ctx.fillStyle = i % 3 === 0 ? '#5a3a2a' : i % 3 === 1 ? '#3a4a6a' : '#6a3a4a';
+      ctx.fillRect(cx - 7, GROUND_Y - 30 + bob, 14, 26);
+      ctx.fillStyle = i % 2 ? '#e3b189' : '#b98a68';
+      ctx.beginPath();
+      ctx.arc(cx, GROUND_Y - 36 + bob, 7, 0, Math.PI * 2);
+      ctx.fill();
+      if (i % 4 === 0) {
+        ctx.fillStyle = '#ffb703';
+        ctx.fillRect(cx - 9, GROUND_Y - 58 + bob * 1.4, 18, 12);
+      }
+    }
+    // Two posts and the banner.
+    ctx.fillStyle = '#d8d8dc';
+    ctx.fillRect(fx0 - 3, GROUND_Y - 150, 6, 150);
+    ctx.fillRect(fx0 + 61, GROUND_Y - 150, 6, 150);
+    ctx.fillStyle = '#ffb703';
+    ctx.fillRect(fx0 - 6, GROUND_Y - 150, 76, 26);
+    ctx.fillStyle = '#1a1200';
+    ctx.font = '700 15px Anton, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('FINISH', fx0 + 32, GROUND_Y - 137);
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+    // The tape, whole until it is not.
+    ctx.strokeStyle = '#ff3b3b';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    if (!tape) {
+      ctx.moveTo(fx0, GROUND_Y - 78);
+      ctx.lineTo(fx0 + 64, GROUND_Y - 78);
+    } else {
+      const b = tape.broke;
+      ctx.moveTo(fx0, GROUND_Y - 78);
+      ctx.quadraticCurveTo(fx0 + 18, GROUND_Y - 78 + b * 30, fx0 + 26 - b * 14, GROUND_Y - 60 + b * 40);
+      ctx.moveTo(fx0 + 64, GROUND_Y - 78);
+      ctx.quadraticCurveTo(fx0 + 46, GROUND_Y - 78 + b * 30, fx0 + 38 + b * 14, GROUND_Y - 60 + b * 40);
+    }
+    ctx.stroke();
+  }
+
   function drawStation() {
     // The table he is standing at while the beer goes down.
     const x = RUNNER_X + 52;
@@ -751,6 +1030,19 @@
     // Long and thin off the ground, for a beat, the way anything that
     // jumps is.
     if (stretch > 0) ctx.scale(1 - stretch * 0.12, 1 + stretch * 0.16);
+    if (runner.fall > 0) {
+      // Over onto his face, fast, and back up again slower.
+      const into = FALL_SECONDS - runner.fall;
+      const down = Math.min(1, into * 5);
+      const up = Math.max(0, 1 - runner.fall / 0.38);
+      const over = 1.4 * down * (1 - up);
+      ctx.rotate(over);
+      ctx.translate(0, over * 16);
+    } else if (runner.slide > 0) {
+      // Flat out under it, feet first.
+      ctx.rotate(-0.22);
+      ctx.scale(1.25, 0.42);
+    }
 
     // Shadow on the road, tighter the closer he is to it.
     ctx.save();
@@ -889,6 +1181,38 @@
     ctx.fillText('MILE ' + Math.min(miles + 1, MILES) + ' OF ' + MILES, W - 16, 26);
     ctx.fillText(drinks + ' DOWN', W - 16, 44);
     ctx.textAlign = 'start';
+
+    // The race, across the top: the road from the start to the tape, with
+    // you and Steve on it. Which of you is in front is the whole game, so
+    // it is the thing in the middle of the screen.
+    const x0 = 212;
+    const x1 = W - 178;
+    const y = 30;
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    ctx.fillRect(x0, y - 2, x1 - x0, 4);
+    ctx.fillStyle = '#ffb703';
+    ctx.fillRect(x1 - 1, y - 9, 3, 18);
+    const at = (d) => x0 + Math.max(0, Math.min(1, d / finishAt)) * (x1 - x0);
+    const you = at(dist);
+    const him = at(rival.dist);
+    ctx.fillStyle = '#9aa3b2';
+    ctx.beginPath();
+    ctx.arc(him, y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffb703';
+    ctx.beginPath();
+    ctx.arc(you, y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.font = '700 10px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffb703';
+    ctx.fillText('YOU', you, y - 11);
+    ctx.fillStyle = '#9aa3b2';
+    ctx.fillText('STEVE', him, y + 20);
+    ctx.textAlign = 'start';
   }
 
   function draw(t) {
@@ -914,6 +1238,8 @@
     ctx.globalAlpha = 1;
     drawLamps();
     drawRoad();
+    drawFinish(t);
+    drawRival(t);
     for (const o of obstacles) drawObstacle(o);
     drawPickups(t);
     if (phase === 'chug') drawStation();
