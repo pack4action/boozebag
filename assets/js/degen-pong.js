@@ -88,7 +88,11 @@
   const CUP_ROW_GAP = 60;    // between cups across a row, at the reference depth
   const CUP_ROW_STEP = 56;   // between the rows
   const CUP_R = 22;
-  const CUP_NEAR_Y = 290;    // the back row on your first rack
+  // The line across the table is the front of the court. Every rack, the
+  // first included, stands behind it: the front cup's base has to clear
+  // it, which is what sets how near the first rack can start.
+  const COURT_LINE_Y = 470;
+  const CUP_NEAR_Y = 246;    // the back row on your first rack
   const CUP_FAR_Y = 116;     // and on your last, just inside the end of the table
   const CUP_REF_Y = 130;     // the depth everything is drawn to scale against
   const CUP_STAGE_COUNT = 6;
@@ -720,8 +724,8 @@
     g.strokeStyle = 'rgba(255,240,220,0.16)';
     g.lineWidth = 2;
     g.beginPath();
-    g.moveTo(40, 470);
-    g.lineTo(W - 40, 470);
+    g.moveTo(40, COURT_LINE_Y);
+    g.lineTo(W - 40, COURT_LINE_Y);
     g.stroke();
 
     // soft warm glow pooling under the pendant lamp, onto the table
