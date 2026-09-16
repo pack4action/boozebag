@@ -1597,8 +1597,15 @@
   const STREAK_RUN = 7;
   const STREAK_CYCLE_MS = 12 * 3600 * 1000;
   const STREAK_LAPSE_MS = 36 * 3600 * 1000;
-  // The share of the cycle's takings it hands over, every collection.
-  const STREAK_SHARE = 0.1;
+  // What a collection hands over: five minutes of the gym's takings, and
+  // a little more for every day of the run, so the seventh is worth close
+  // to twice the first. It used to be a tenth of the whole twelve hours,
+  // which is seventy two minutes of takings for turning up, twice a day.
+  // At a gym making a few hundred a second that was over a million, next
+  // to a shop where the dearest thing was a third of that: one collection
+  // bought the lot, and the grind the shop is there for never happened.
+  const STREAK_MINUTES = 5;
+  const STREAK_RUN_GROWTH = 0.15;
   // And the XP, as a share of what the level you are on costs to clear. A
   // flat handful was worth a level early on and a rounding error by twenty,
   // so it is measured against the climb you are actually making.
@@ -1648,8 +1655,10 @@
   function streakRunStep(n) {
     return ((Math.max(1, n) - 1) % STREAK_RUN) + 1;
   }
-  function streakCash() {
-    return Math.max(10, roundMoney(gps * (STREAK_CYCLE_MS / 1000) * STREAK_SHARE));
+  function streakCash(n) {
+    const step = streakRunStep(n === undefined ? streakStepNow() : n);
+    const grown = 1 + (step - 1) * STREAK_RUN_GROWTH;
+    return Math.max(10, roundMoney(gps * 60 * STREAK_MINUTES * grown));
   }
   function streakXp(n) {
     const level = currentLevel();
@@ -1674,7 +1683,7 @@
     const step = streakStepNow();
     k.n = step;
     k.at = Date.now();
-    const cash = streakCash();
+    const cash = streakCash(step);
     state.balance += cash;
     state.lifetime += cash;
     addXp(streakXp(step));
