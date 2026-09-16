@@ -90,9 +90,9 @@
       effect: { kind: 'staff', amount: 0.3, gym: true } },
 
     // The counters close the list. They are decoration as well -- they earn
-    // nothing standing there -- but they also make stock for the delivery
-    // orders on the Jobs tab, so they read as the last and biggest thing a
-    // room can have rather than the first.
+    // nothing standing there -- but they make stock out of what the pantry
+    // holds, and the regulars pay for it, so they read as the last and
+    // biggest thing a room can have rather than the first.
     { id: 'juicebar', name: 'Juice Bar', baseCost: 3600, unlockLevel: 3,
       effect: { kind: 'room', amount: 0.15, max: 0.25 } },
     { id: 'proshop', name: 'Pro Shop', baseCost: 220000, unlockLevel: 7,
@@ -182,7 +182,7 @@
     rush: (a) => ['Busy hours pay ' + Math.round(a * 100) + '% more in this room',
       'busy hours pay +' + Math.round(a * 100) + '%'],
     stock: (a) => ['Counters in this room make their stock ' + Math.round(a * 100)
-      + '% faster, so delivery contracts get filled sooner',
+      + '% faster, so orders get filled sooner',
       'stock made ' + Math.round(a * 100) + '% faster'],
     promo: (a) => ['Your Open Day lasts ' + Math.round(a * 100) + '% longer',
       'Open Day lasts +' + Math.round(a * 100) + '%'],
@@ -949,12 +949,34 @@
   function larderCap() {
     return Math.min(LARDER_CAP_MAX, LARDER_CAP + levelPerk('larder'));
   }
+  // Each one is made from things in the pantry, which are bought, so a
+  // batch costs something as well as taking time, and an order that pays
+  // for it is paying for both. The times came down when the ingredients
+  // went in: seven minutes for a smoothie was a long wait for a thing
+  // nobody had asked for.
   const PRODUCTS = {
-    shake: { name: 'Protein Shake', from: 'juicebar', seconds: 45, color: '#e2724a' },
-    smoothie: { name: 'Green Smoothie', from: 'juicebar', seconds: 420, color: '#5db56a' },
-    tee: { name: 'Gym Tee', from: 'proshop', seconds: 120, color: '#4f9ad1' },
-    belt: { name: 'Lifting Belt', from: 'proshop', seconds: 900, color: '#b4574a' },
+    shake: { name: 'Protein Shake', from: 'juicebar', seconds: 45, color: '#e2724a',
+      needs: { protein: 1, banana: 1 } },
+    smoothie: { name: 'Green Smoothie', from: 'juicebar', seconds: 150, color: '#5db56a',
+      needs: { banana: 2, spinach: 1 } },
+    tee: { name: 'Gym Tee', from: 'proshop', seconds: 120, color: '#4f9ad1',
+      needs: { cotton: 2 } },
+    belt: { name: 'Lifting Belt', from: 'proshop', seconds: 360, color: '#b4574a',
+      needs: { leather: 2, cotton: 1 } },
   };
+  // What the counters are made from. `units` is what one costs, in units
+  // of a base price that is a few seconds of the gym's takings, so a banana
+  // is always cheap for the gym that is buying it and never nothing.
+  const INGREDIENTS = {
+    banana: { name: 'Bananas', one: 'banana', many: 'bananas', units: 1, color: '#f2d15a' },
+    spinach: { name: 'Spinach', one: 'spinach', many: 'spinach', units: 1, color: '#4c9a5a' },
+    protein: { name: 'Protein Powder', one: 'protein powder', many: 'protein powder', units: 3, color: '#e0d6c4' },
+    cotton: { name: 'Cotton', one: 'cotton', many: 'cotton', units: 1.5, color: '#dfe6f0' },
+    leather: { name: 'Leather', one: 'leather', many: 'leather', units: 4, color: '#9a6a3c' },
+  };
+  const PANTRY_CAP = 40;
+  const PANTRY_BUY = 5;
+  const PRICE_SECONDS = 4;
   const RECIPES_OF = {
     juicebar: ['shake', 'smoothie'],
     proshop: ['tee', 'belt'],
@@ -2616,6 +2638,8 @@
       // How far each role has been trained, one level per role.
       staffLevel: {},
       larder: {},
+      pantry: {},
+      orders: [],
       franchise: { points: 0, runs: 0 },
       owned: {},
       themeRooms: defaultThemeRooms(),
@@ -2860,6 +2884,18 @@
       if (n > 0) stock[p] = Math.min(LARDER_CAP_MAX, n);
     });
     s.larder = stock;
+    // The pantry the same way, and the orders: whole counts of things that
+    // exist, and nothing else.
+    const held = {};
+    Object.keys(s.pantry && typeof s.pantry === 'object' ? s.pantry : {}).forEach((i) => {
+      if (!INGREDIENTS[i]) return;
+      const n = Math.floor(Number(s.pantry[i]) || 0);
+      if (n > 0) held[i] = Math.min(PANTRY_CAP, n);
+    });
+    s.pantry = held;
+    s.orders = Array.isArray(s.orders) ? s.orders.filter((o) => o && Array.isArray(o.wants)
+      && o.wants.every((w) => w && PRODUCTS[w.p] && Number.isFinite(w.n))) : [];
+    if (!Number.isFinite(s.orderPassAt)) s.orderPassAt = 0;
 
     // A save from before the membership price existed charges the standard
     // rate, and a hand-edited one cannot charge something that is not on
@@ -2975,8 +3011,8 @@
   // is the one part of it that is a queue: you put a batch on, it takes real
   // time to run whether you watch it or not, and what comes off is a thing
   // you hold rather than a number that went up. What it is for is the
-  // delivery orders on the Jobs board, which pay better than anything else
-  // and can only be filled out of the larder.
+  // orders the regulars put in on the Counter tab, which pay better than
+  // anything else and can only be filled out of the larder.
   //
   // Each counter runs up to three batches back to back. The quick recipe is
   // for someone sitting there filling an order now; the slow one is for
@@ -3005,6 +3041,66 @@
     if (had < n) return false;
     larder()[productId] = had - n;
     return true;
+  }
+
+  // ---- The pantry ----
+  // Ingredients, bought five at a time, held up to a cap. A batch takes
+  // its ingredients the moment it goes on, so what the pantry holds is
+  // what is still to be made.
+  function basePrice() {
+    return Math.max(1, roundMoney(gps * PRICE_SECONDS));
+  }
+  function ingredientPrice(id, n) {
+    return Math.max(1, roundMoney(basePrice() * INGREDIENTS[id].units * (n || 1)));
+  }
+  function pantry() {
+    if (!state.pantry || typeof state.pantry !== 'object') state.pantry = {};
+    return state.pantry;
+  }
+  function pantryCount(id) {
+    return Math.max(0, Math.floor(pantry()[id] || 0));
+  }
+  function buyIngredient(id, n) {
+    if (!INGREDIENTS[id]) return false;
+    const room = PANTRY_CAP - pantryCount(id);
+    const take = Math.min(n, room);
+    if (take <= 0) return false;
+    const cost = ingredientPrice(id, take);
+    if (state.balance < cost) return false;
+    state.balance -= cost;
+    pantry()[id] = pantryCount(id) + take;
+    sfx.thunk();
+    save();
+    return true;
+  }
+  function canMake(productId) {
+    const needs = PRODUCTS[productId].needs;
+    return Object.keys(needs).every((i) => pantryCount(i) >= needs[i]);
+  }
+  // What is missing for one batch, said the way a person would.
+  function shortFor(productId) {
+    const needs = PRODUCTS[productId].needs;
+    const parts = Object.keys(needs)
+      .filter((i) => pantryCount(i) < needs[i])
+      .map((i) => (needs[i] - pantryCount(i)) + ' ' + (needs[i] - pantryCount(i) === 1
+        ? INGREDIENTS[i].one : INGREDIENTS[i].many));
+    return parts.length ? 'Need ' + parts.join(', ') : '';
+  }
+  function needsText(productId) {
+    const needs = PRODUCTS[productId].needs;
+    return Object.keys(needs).map((i) => needs[i] + ' ' + (needs[i] === 1
+      ? INGREDIENTS[i].one : INGREDIENTS[i].many)).join(', ');
+  }
+  function useIngredients(productId) {
+    const needs = PRODUCTS[productId].needs;
+    Object.keys(needs).forEach((i) => { pantry()[i] = pantryCount(i) - needs[i]; });
+  }
+  // What one of a product is worth: what went into it, and the time it
+  // took, both in units of the base price.
+  function productWorth(productId) {
+    const pr = PRODUCTS[productId];
+    const parts = Object.keys(pr.needs).reduce((sum, i) => sum + INGREDIENTS[i].units * pr.needs[i], 0);
+    return basePrice() * (parts * 1.6 + (pr.seconds / 60) * 1.2);
   }
 
   // The batches a room's counters have on, one list per slot, in the same
@@ -3040,6 +3136,8 @@
     if (room.layout[index] !== product.from) return false;
     const q = queueAt(room, index);
     if (q.length >= QUEUE_SLOTS) return false;
+    if (!canMake(productId)) return false;
+    useIngredients(productId);
     const now = Date.now();
     const startsAt = q.length ? Math.max(now, q[q.length - 1].at) : now;
     const secs = batchSeconds(room, product);
@@ -3100,7 +3198,7 @@
     )));
   }
   // Every counter standing on a floor anywhere, which is what the panel
-  // lists and what decides whether a delivery order can be asked for.
+  // lists and what decides what an order can ask for.
   function countersPlaced() {
     const out = [];
     THEMES.forEach((t) => {
@@ -3116,6 +3214,101 @@
     const from = {};
     countersPlaced().forEach((c) => { from[c.itemId] = true; });
     return Object.keys(PRODUCTS).filter((p) => from[PRODUCTS[p].from]);
+  }
+  function ingredientsInUse() {
+    const used = {};
+    productsMakeable().forEach((p) => { Object.keys(PRODUCTS[p].needs).forEach((i) => { used[i] = true; }); });
+    return Object.keys(INGREDIENTS).filter((i) => used[i]);
+  }
+
+  // ---- Orders ----
+  // What the stock is for. Three regulars at a time want something off
+  // the counter, and they are on the Counter tab itself, beside the thing
+  // that makes it, rather than one job among eight on the board where a
+  // player could make ten smoothies and never be asked for one. An order
+  // pays for what went into it and the time it took, and a little over.
+  // One can be passed on, but not another one straight after.
+  const ORDERS_ON_BOARD = 3;
+  const ORDER_PASS_SECONDS = 45;
+  function orders() {
+    if (!Array.isArray(state.orders)) state.orders = [];
+    return state.orders;
+  }
+  function makeOrder() {
+    const products = productsMakeable();
+    if (!products.length) return null;
+    const level = currentLevel();
+    const most = level >= 12 ? 5 : level >= 6 ? 4 : 3;
+    const pool = products.slice().sort(() => Math.random() - 0.5);
+    const kinds = pool.length > 1 && Math.random() < 0.35 ? 2 : 1;
+    const wants = pool.slice(0, kinds).map((p) => ({
+      p,
+      // The slow things are wanted in smaller numbers.
+      n: 1 + Math.floor(Math.random() * (PRODUCTS[p].seconds >= 300 ? Math.min(2, most) : most)),
+    }));
+    const size = wants.reduce((sum, w) => sum + w.n, 0);
+    const worth = wants.reduce((sum, w) => sum + productWorth(w.p) * w.n, 0);
+    const cash = Math.max(10, roundMoney(worth * (1.25 + size * 0.06) * (1 + gymEffect('jobs'))));
+    const xp = Math.round(10 * size * (1 + level * 0.12));
+    const taken = orders().map((o) => o.who);
+    const free = REGULAR_NAMES.filter((n) => taken.indexOf(n) === -1);
+    return { id: Math.round(Date.now() + Math.random() * 1000), who: pickOf(free.length ? free : REGULAR_NAMES),
+      wants, cash, xp };
+  }
+  // The board topped up, and anything asking for a thing no counter makes
+  // any more dropped off it.
+  function refillOrders() {
+    const makeable = productsMakeable();
+    state.orders = orders().filter((o) => o && Array.isArray(o.wants) && o.wants.length
+      && o.wants.every((w) => w && PRODUCTS[w.p] && makeable.indexOf(w.p) >= 0 && w.n > 0));
+    let guard = 0;
+    while (makeable.length && state.orders.length < ORDERS_ON_BOARD && guard++ < 6) {
+      const o = makeOrder();
+      if (!o) break;
+      state.orders.push(o);
+    }
+  }
+  function orderReady(o) {
+    return o.wants.every((w) => larderCount(w.p) >= w.n);
+  }
+  function anyOrderReady() {
+    return orders().some(orderReady);
+  }
+  function orderText(o) {
+    return o.wants.map((w) => w.n + ' x ' + PRODUCTS[w.p].name).join(' and ');
+  }
+  function deliverOrder(index) {
+    const o = orders()[index];
+    if (!o || !orderReady(o)) return;
+    o.wants.forEach((w) => spendFromLarder(w.p, w.n));
+    const before = currentLevel();
+    state.balance += o.cash;
+    state.lifetime += o.cash;
+    addXp(o.xp);
+    state.ordersDone = (state.ordersDone || 0) + 1;
+    orders().splice(index, 1);
+    refillOrders();
+    ordersSignature = '';
+    sfx.cash();
+    if (currentLevel() > before) announceLevel(currentLevel());
+    else toast(o.who + ' paid $' + formatNum(o.cash) + ' and ' + o.xp + ' XP', 'good');
+    refreshHud();
+    refreshLevelUI();
+    refreshCounterUI();
+    updateLeaderboardEntry();
+    save();
+  }
+  function passWaitMs() {
+    return Math.max(0, (state.orderPassAt || 0) - Date.now());
+  }
+  function passOrder(index) {
+    if (passWaitMs() > 0 || !orders()[index]) return;
+    orders().splice(index, 1);
+    state.orderPassAt = Date.now() + ORDER_PASS_SECONDS * 1000;
+    refillOrders();
+    ordersSignature = '';
+    refreshCounterUI();
+    save();
   }
 
   // ---- Jobs ----
@@ -3259,9 +3452,9 @@
     // Only worth asking once there is a fitting to buy that would move it.
     if (ITEMS.some((i) => i.effect && i.effect.kind === 'vibe' && unlockedFor(i))) kinds.push('vibe');
     if (tally.placed >= 6 && !tally.fullRoom) kinds.push('fillRoom');
-    // A delivery can only be asked for if there is a counter on a floor
-    // somewhere that makes the thing.
-    if (productsMakeable().length) kinds.push('deliver');
+    // Deliveries are asked for on the Counter tab now, beside the thing
+    // that makes them. The kind is kept so a save with one on the board
+    // can still hand it in.
     return kinds;
   }
 
@@ -5070,10 +5263,16 @@
   // every tick and rebuilding the DOM under a cursor ten times a second
   // makes the buttons unclickable.
   const larderEl = document.getElementById('larder');
+  const ordersEl = document.getElementById('orders');
+  const pantryEl = document.getElementById('pantry');
   const counterListEl = document.getElementById('counter-list');
   const counterDotEl = document.getElementById('tab-dot-counter');
   let counterRows = [];
   let counterSignature = '';
+  let ordersSignature = '';
+  let orderRows = [];
+  let pantrySignature = '';
+  let pantryRows = [];
 
   function counterKeyOf(c) {
     return c.themeId + ':' + c.roomIndex + ':' + c.index + ':' + c.itemId;
@@ -5125,7 +5324,9 @@
         b.type = 'button';
         b.className = 'tycoon-make-btn';
         b.innerHTML = PRODUCTS[productId].name
-          + '<span class="tycoon-make-secs">' + secondsText(PRODUCTS[productId].seconds) + '</span>';
+          + '<span class="tycoon-make-secs">' + secondsText(PRODUCTS[productId].seconds) + '</span>'
+          + '<span class="tycoon-make-needs"></span>';
+        setText(b.querySelector('.tycoon-make-needs'), needsText(productId));
         b.addEventListener('click', () => {
           if (startBatch(c.themeId, c.roomIndex, c.index, productId)) refreshCounterUI();
         });
@@ -5155,6 +5356,125 @@
         makeBtns,
         collect,
       });
+    });
+  }
+
+  // ---- The orders ----
+  // Rebuilt when the set of orders changes, or an order becomes ready or
+  // stops being ready, or the pass cooldown ends. Written into in place
+  // for the "have x of y" line, which moves as batches come off.
+  function orderSignature() {
+    return orders().map((o) => o.id + (orderReady(o) ? '!' : '')).join(',')
+      + (passWaitMs() > 0 ? '|wait' : '');
+  }
+  function haveText(o) {
+    const parts = o.wants.map((w) => Math.min(w.n, larderCount(w.p)) + ' of ' + w.n);
+    return 'Have ' + parts.join(', ');
+  }
+  function buildOrdersUI() {
+    ordersEl.innerHTML = '';
+    orderRows = [];
+    const list = orders();
+    if (!list.length) {
+      const none = document.createElement('p');
+      none.className = 'tycoon-counter-empty';
+      setText(none, countersPlaced().length ? 'Nobody has ordered yet.' : 'Put a counter on the floor and the regulars will start ordering.');
+      ordersEl.appendChild(none);
+      return;
+    }
+    const waiting = passWaitMs() > 0;
+    list.forEach((o, index) => {
+      const card = document.createElement('div');
+      card.className = 'tycoon-order' + (orderReady(o) ? ' is-ready' : '');
+      card.innerHTML =
+        '<div class="tycoon-order-head">'
+          + '<span class="tycoon-order-who"></span>'
+          + '<span class="tycoon-order-reward"></span>'
+        + '</div>'
+        + '<div class="tycoon-order-text"></div>'
+        + '<div class="tycoon-order-foot">'
+          + '<span class="tycoon-order-have"></span>'
+          + '<span class="tycoon-order-btns">'
+            + '<button type="button" class="tycoon-order-pass">Pass</button>'
+            + '<button type="button" class="tycoon-order-deliver">Deliver</button>'
+          + '</span>'
+        + '</div>';
+      setText(card.querySelector('.tycoon-order-who'), o.who + ' wants');
+      setText(card.querySelector('.tycoon-order-reward'), '$' + formatNum(o.cash) + ' \u00b7 ' + o.xp + ' XP');
+      setText(card.querySelector('.tycoon-order-text'), orderText(o));
+      const have = card.querySelector('.tycoon-order-have');
+      const deliver = card.querySelector('.tycoon-order-deliver');
+      const pass = card.querySelector('.tycoon-order-pass');
+      deliver.disabled = !orderReady(o);
+      pass.disabled = waiting;
+      pass.title = waiting ? 'You passed one a moment ago' : 'Send this one away';
+      deliver.addEventListener('click', () => deliverOrder(orders().indexOf(o)));
+      pass.addEventListener('click', () => passOrder(orders().indexOf(o)));
+      ordersEl.appendChild(card);
+      orderRows.push({ o, have, pass });
+    });
+  }
+  function refreshOrdersUI() {
+    if (!ordersEl) return;
+    const sig = orderSignature();
+    if (sig !== ordersSignature) {
+      ordersSignature = sig;
+      buildOrdersUI();
+    }
+    orderRows.forEach((row) => {
+      setText(row.have, orderReady(row.o) ? 'Ready to hand over' : haveText(row.o));
+    });
+  }
+
+  // ---- The pantry ----
+  // One row per ingredient any placed counter uses: how many are in, and a
+  // button that buys five. The price moves with the gym's takings, so the
+  // rows are written into in place rather than rebuilt.
+  function refreshPantryUI() {
+    if (!pantryEl) return;
+    const used = ingredientsInUse();
+    const sig = used.join(',');
+    if (sig !== pantrySignature) {
+      pantrySignature = sig;
+      pantryEl.innerHTML = '';
+      pantryRows = [];
+      if (!used.length) {
+        const none = document.createElement('p');
+        none.className = 'tycoon-counter-empty';
+        setText(none, 'Nothing to stock until a counter is on the floor.');
+        pantryEl.appendChild(none);
+      }
+      used.forEach((id) => {
+        const row = document.createElement('div');
+        row.className = 'tycoon-pantry-row';
+        row.style.color = INGREDIENTS[id].color;
+        row.innerHTML = '<span class="tycoon-stock-dot"></span>'
+          + '<span class="tycoon-pantry-name"></span>'
+          + '<span class="tycoon-pantry-n"></span>'
+          + '<button type="button" class="tycoon-pantry-buy"></button>';
+        setText(row.querySelector('.tycoon-pantry-name'), INGREDIENTS[id].name);
+        const buy = row.querySelector('.tycoon-pantry-buy');
+        buy.addEventListener('click', () => {
+          if (!buyIngredient(id, PANTRY_BUY)) return;
+          refreshHud();
+          refreshCounterUI();
+        });
+        pantryEl.appendChild(row);
+        pantryRows.push({ id, n: row.querySelector('.tycoon-pantry-n'), buy, row });
+      });
+    }
+    pantryRows.forEach((r) => {
+      const have = pantryCount(r.id);
+      const full = have >= PANTRY_CAP;
+      const take = Math.min(PANTRY_BUY, PANTRY_CAP - have);
+      const cost = take > 0 ? ingredientPrice(r.id, take) : 0;
+      setText(r.n, have + ' / ' + PANTRY_CAP);
+      setText(r.buy, full ? 'Full' : 'Buy ' + take + ' \u00b7 $' + formatNum(cost));
+      const off = full || state.balance < cost;
+      if (r.buy.disabled !== off) r.buy.disabled = off;
+      const why = full ? 'The pantry holds ' + PANTRY_CAP : state.balance < cost ? 'Not enough cash' : '';
+      if (r.buy.title !== why) r.buy.title = why;
+      r.row.classList.toggle('is-out', have === 0);
     });
   }
 
@@ -5202,7 +5522,10 @@
       counterSignature = sig;
       buildCounterUI(counters);
     }
+    refillOrders();
+    refreshOrdersUI();
     refreshLarderUI();
+    refreshPantryUI();
     const now = Date.now();
     counterRows.forEach((row) => {
       const c = row.at;
@@ -5244,15 +5567,16 @@
       row.makeBtns.forEach((mb) => {
         const full = q.length >= QUEUE_SLOTS;
         const noRoom = larderRoom(mb.productId) === 0;
-        const off = full || noRoom;
+        const short = !canMake(mb.productId);
+        const off = full || noRoom || short;
         if (mb.btn.disabled !== off) mb.btn.disabled = off;
         const why = full ? 'All three slots are running' : noRoom
-          ? 'The larder is full of those' : '';
+          ? 'The larder is full of those' : short ? shortFor(mb.productId) + ' in the pantry' : '';
         if (mb.btn.title !== why) mb.btn.title = why;
       });
     });
     if (counterDotEl) {
-      const ready = anythingReady();
+      const ready = anythingReady() || anyOrderReady();
       if (counterDotEl.hidden === ready) counterDotEl.hidden = !ready;
     }
   }
@@ -6067,8 +6391,8 @@
       if (makesStock(itemId)) {
         bits.push('It also makes ' + RECIPES_OF[itemId]
           .map((pr) => PRODUCTS[pr].name.toLowerCase() + 's').join(' and ')
-          + ' on its own, a batch at a time. They wait in your larder until a delivery '
-          + 'contract on the Jobs tab asks for them, and those pay about double.');
+          + ' from things you buy for the pantry, a batch at a time. Regulars put in '
+          + 'orders for them on the Counter tab, and pay for the batch and then some.');
       }
       bits.push('It earns nothing standing there, and it takes floor a machine could have had.');
     } else {

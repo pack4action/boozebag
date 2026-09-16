@@ -1201,6 +1201,130 @@
   text-align: center;
 }
 
+/* The four parts of the tab, each under a small heading: what the
+   regulars want, what is made, what makes it, and what it is made from. */
+.tycoon-counter-heading {
+  margin: 14px 0 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted, #8b8b93);
+  text-align: left;
+}
+.tycoon-counter-heading:first-of-type { margin-top: 0; }
+.tycoon-larder { margin-bottom: 0; }
+
+.tycoon-orders { display: flex; flex-direction: column; gap: 8px; }
+.tycoon-order {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 9px 10px;
+  text-align: left;
+}
+.tycoon-order.is-ready {
+  border-color: rgba(126, 224, 176, 0.55);
+  background: rgba(126, 224, 176, 0.07);
+}
+.tycoon-order-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tycoon-order-who { font-size: 10px; letter-spacing: 0.2px; color: var(--muted, #8b8b93); }
+.tycoon-order-reward { font-size: 10px; font-weight: 700; color: #e8c46a; white-space: nowrap; }
+.tycoon-order-text {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 3px 0 7px;
+}
+.tycoon-order-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tycoon-order-have { font-size: 10px; color: var(--muted, #8b8b93); }
+.tycoon-order.is-ready .tycoon-order-have { color: #7ee0b0; font-weight: 700; }
+.tycoon-order-btns { display: flex; gap: 6px; }
+.tycoon-order-deliver,
+.tycoon-order-pass {
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+}
+.tycoon-order-deliver {
+  color: #06231a;
+  background: linear-gradient(180deg, #8fe9be, #5ec9a0);
+}
+.tycoon-order-deliver[disabled] {
+  cursor: default;
+  color: var(--muted, #8b8b93);
+  background: rgba(255, 255, 255, 0.06);
+}
+.tycoon-order-pass {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 4px 9px;
+  color: var(--muted, #8b8b93);
+  background: transparent;
+}
+.tycoon-order-pass:hover:not([disabled]) { color: #e9e9ee; border-color: rgba(255, 255, 255, 0.3); }
+.tycoon-order-pass[disabled] { cursor: default; opacity: 0.4; }
+
+.tycoon-make-btn .tycoon-make-needs {
+  display: block;
+  margin-top: 2px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--muted, #8b8b93);
+}
+
+.tycoon-pantry { display: flex; flex-direction: column; gap: 5px; }
+.tycoon-pantry-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  padding: 6px 7px 6px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+}
+.tycoon-pantry-row.is-out { border-color: rgba(232, 131, 122, 0.4); }
+.tycoon-pantry-name { color: #e9e9ee; }
+.tycoon-pantry-n {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--muted, #8b8b93);
+  white-space: nowrap;
+}
+.tycoon-pantry-row.is-out .tycoon-pantry-n { color: #e8837a; }
+.tycoon-pantry-buy {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  color: #e9e9ee;
+  background: rgba(255, 255, 255, 0.05);
+}
+.tycoon-pantry-buy:hover:not([disabled]) { border-color: rgba(255, 255, 255, 0.3); }
+.tycoon-pantry-buy[disabled] { cursor: default; opacity: 0.42; }
+
 /* ---- Franchising ----
    Hidden until it is worth anything, then loud, because it is the one
    control in the game that throws work away. */
