@@ -1597,14 +1597,14 @@
   const STREAK_RUN = 7;
   const STREAK_CYCLE_MS = 12 * 3600 * 1000;
   const STREAK_LAPSE_MS = 36 * 3600 * 1000;
-  // What a collection hands over: five minutes of the gym's takings, and
-  // a little more for every day of the run, so the seventh is worth close
-  // to twice the first. It used to be a tenth of the whole twelve hours,
+  // What a collection hands over: fifteen minutes of the gym's takings,
+  // and a little more for every day of the run, so the seventh is worth
+  // close to twice the first. It used to be a tenth of the whole twelve hours,
   // which is seventy two minutes of takings for turning up, twice a day.
   // At a gym making a few hundred a second that was over a million, next
   // to a shop where the dearest thing was a third of that: one collection
   // bought the lot, and the grind the shop is there for never happened.
-  const STREAK_MINUTES = 5;
+  const STREAK_MINUTES = 15;
   const STREAK_RUN_GROWTH = 0.15;
   // And the XP, as a share of what the level you are on costs to clear. A
   // flat handful was worth a level early on and a rounding error by twenty,
