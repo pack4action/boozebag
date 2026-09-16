@@ -20,3 +20,52 @@
     border-right: 0;
   }
 }
+
+/* ---- Jump and Slide ----
+   Two buttons in the bottom corners of the board, big enough for a thumb,
+   over the road where nothing else is drawn. They sit under the toast and
+   the card and above the canvas, and a press on them never reaches the
+   board underneath. */
+.mile-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 12px 12px;
+  pointer-events: none;
+  z-index: 2;
+}
+.mile-btn {
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  border: 3px solid #000;
+  background: rgba(255, 183, 3, 0.92);
+  color: #1a1200;
+  font-family: 'Anton', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  box-shadow: 4px 4px 0 #000;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+.mile-btn svg { width: 26px; height: 26px; }
+.mile-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #000; }
+.mile-btn-slide { background: rgba(244, 240, 234, 0.92); }
+.mile-btn:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (max-width: 640px) {
+  .mile-btn { width: 66px; height: 66px; }
+}

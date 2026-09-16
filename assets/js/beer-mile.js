@@ -485,6 +485,13 @@
     const low = (clientY - box.top) / box.height > 0.55;
     if (low) duck(); else press();
   }
+  // Two buttons on the board as well, for anyone who would rather press
+  // a thing that says what it does. Pointer down rather than click, so
+  // there is nothing to wait for.
+  const btnJump = document.getElementById('btn-jump');
+  const btnSlide = document.getElementById('btn-slide');
+  if (btnJump) btnJump.addEventListener('pointerdown', (e) => { e.preventDefault(); press(); });
+  if (btnSlide) btnSlide.addEventListener('pointerdown', (e) => { e.preventDefault(); duck(); });
   canvas.addEventListener('mousedown', (e) => { e.preventDefault(); pressAt(e.clientY); });
   canvas.addEventListener('touchstart', (e) => { e.preventDefault(); pressAt(e.touches[0].clientY); }, { passive: false });
   window.addEventListener('keydown', (e) => {
@@ -1020,7 +1027,7 @@
     const lean = bac * 0.16 + Math.sin(t * 0.006) * bac * 0.09;
     const y = GROUND_Y + runner.y;
     const cycle = runner.step;
-    const swing = runner.air ? 0.7 : Math.sin(cycle) * 1.15;
+    const swing = runner.slide > 0 ? 0.15 : runner.air ? 0.7 : Math.sin(cycle) * 1.15;
     const squash = bounce > 0 ? bounce * 1.2 : 0;
 
     ctx.save();
@@ -1039,9 +1046,14 @@
       ctx.rotate(over);
       ctx.translate(0, over * 16);
     } else if (runner.slide > 0) {
-      // Flat out under it, feet first.
-      ctx.rotate(-0.22);
-      ctx.scale(1.25, 0.42);
+      // On his back, feet first, low along the road: the whole of him
+      // turned to lie along it rather than squashed into it. He drops
+      // into it and comes back up out of it over the length of the slide.
+      const into = Math.min(1, (SLIDE_SECONDS - runner.slide) * 9);
+      const outOf = Math.min(1, runner.slide * 6);
+      const flat = Math.min(into, outOf);
+      ctx.translate(-8 * flat, -14 * flat);
+      ctx.rotate(-1.22 * flat);
     }
 
     // Shadow on the road, tighter the closer he is to it.

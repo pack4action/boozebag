@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=24" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=11" />
-<link rel="stylesheet" href="assets/css/beer-mile.css?v=2" />
+<link rel="stylesheet" href="assets/css/beer-mile.css?v=3" />
 </head>
 <body class="game-body">
 
@@ -86,6 +86,16 @@
 
   <div class="game-stage">
     <canvas id="mile-canvas" width="720" height="420" aria-label="Beer Mile game board"></canvas>
+    <div class="mile-controls" aria-label="Controls">
+      <button class="mile-btn mile-btn-slide" id="btn-slide" type="button" aria-label="Slide">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v13M6 12l6 6 6-6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Slide</span>
+      </button>
+      <button class="mile-btn mile-btn-jump" id="btn-jump" type="button" aria-label="Jump">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V7M6 12l6-6 6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Jump</span>
+      </button>
+    </div>
     <div class="game-toast" id="game-toast"></div>
     <div class="game-overlay" id="game-overlay" hidden>
       <div class="overlay-card">
@@ -98,7 +108,7 @@
   </div>
 
   <div class="game-rail game-rail-right">
-    <p class="game-hint">Tap the top of the screen to jump, the bottom to slide. On a keyboard it is up and down. At a mile marker, tap fast to empty the beer.</p>
+    <p class="game-hint">Jump and Slide are the two buttons on the board, or tap the top of the screen to jump and the bottom to slide. On a keyboard it is up and down. At a mile marker, tap fast to empty the beer.</p>
     <p class="game-hint">Jump what is standing in the road and slide under what is hanging over it. Hit something and you go down for a second while Steve keeps going.</p>
     <p class="game-hint">Every beer down makes you faster and harder to steer. That is the trade.</p>
 
@@ -116,6 +126,6 @@
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=2"></script>
 <script src="assets/js/game-juice.js?v=1"></script>
-<script src="assets/js/beer-mile.js?v=10"></script>
+<script src="assets/js/beer-mile.js?v=11"></script>
 </body>
 </html>
