@@ -2192,7 +2192,11 @@
     // something to it. The money still arrives; the picture of it waits.
     if (key !== pileLevelsKey) {
       pileLevelsKey = key;
-      if (!wantsStillness()) paintScene();
+      // Only when nothing else is painting. With people in the gym the
+      // animation loop paints the plan many times a second and will have
+      // the bigger pile down within a frame; painting it here as well was
+      // a whole extra plan several times a second, on top of the loop's.
+      if (!wantsStillness() && !members.length && !rainStrength()) paintScene();
     }
   }
   // What every piece in a room earns, worked out once and handed back to
@@ -4050,6 +4054,13 @@
       // A cashier carries the takings in a pouch on the hip. Nobody on staff
       // carries a gym bag or a water bottle: those are what members bring.
       carry: staffRoleId === 'cashier' ? 'pouch' : staffRoleId ? 'none' : pickOf(MEMBER_CARRY),
+      // The small things that make one person not another: sleeves or a
+      // vest, a print on the chest, headphones, a band on the wrist. Staff
+      // wear the polo with sleeves and nothing else.
+      sleeves: staffRoleId ? true : Math.random() < 0.6,
+      logo: staffRoleId ? false : Math.random() < 0.32,
+      phones: staffRoleId ? false : Math.random() < 0.22,
+      wrist: staffRoleId ? false : Math.random() < 0.35,
     };
   }
 
@@ -4088,6 +4099,10 @@
           legs: pickOf(MEMBER_LEGS),
           build: 0.93 + Math.random() * 0.14,
           broad: 0.92 + Math.random() * 0.20,
+          sleeves: Math.random() < 0.6,
+          logo: Math.random() < 0.32,
+          phones: Math.random() < 0.22,
+          wrist: Math.random() < 0.35,
         },
       };
     }
@@ -4108,6 +4123,9 @@
     m.legs = look.legs || m.legs;
     m.build = look.build || m.build;
     m.broad = look.broad || m.broad;
+    ['sleeves', 'logo', 'phones', 'wrist'].forEach((k) => {
+      if (look[k] !== undefined) m[k] = look[k];
+    });
     m.carry = 'bottle';
     if (reg.fav && CATEGORY[reg.fav]) m.wants = CATEGORY[reg.fav];
     return m;
@@ -7744,6 +7762,10 @@
   // stands the right height next to a squat rack, and everything else
   // built by hand is measured against the same number.
   const PX_PER_METRE_TALL = (ROOM.tileH * 1.45) * (3 / 1.15);
+  // The box on the screen a standing figure can reach into, in plan units:
+  // the tallest build with a hand over their head, and an elbow out.
+  const MEMBER_BOX_TALL = Math.ceil(1.72 * 1.07 * PX_PER_METRE_TALL * 1.25);
+  const MEMBER_BOX_HALF = Math.ceil(1.72 * 1.07 * PX_PER_METRE_TALL * 0.40);
 
   // Metres to lattice units on the floor, and metres to pixels upward. Every
   // piece below is written in these, so a bench is 0.45 tall because a bench
@@ -13778,6 +13800,7 @@
   }
 
   function renderScene() {
+    paintWhole = true;
     rebuildPlan();
     rebuildMembers();
     fitZoomToStage();
@@ -13898,13 +13921,22 @@
   }
   function measureVisibleBox() {
     if (!stageScrollEl || !zoomLevel) return null;
-    const w = stageScrollEl.clientWidth;
-    const h = stageScrollEl.clientHeight;
+    // While fingers are down the window's size was measured once at the
+    // start of the gesture; asking the element again would force a layout
+    // in the middle of a pinch.
+    const w = gestureStageRect ? gestureStageRect.width : stageScrollEl.clientWidth;
+    const h = gestureStageRect ? gestureStageRect.height : stageScrollEl.clientHeight;
     if (!w || !h) return null;
     // Worked out from where the view is scrolled to rather than by asking
     // the browser for the canvas box, which forces a layout every frame.
     const padTop = stagePadTop();
-    const pad = 200;
+    // How far past the window to paint, so a flick has something drawn
+    // under its leading edge before the next frame lands. A flick moves
+    // the same number of screen pixels a frame at any zoom, so this is a
+    // fixed distance on the screen and a shorter one on the plan the
+    // closer in the plan is; two hundred flat left the box, zoomed in, a
+    // good deal bigger than the plan itself.
+    const pad = Math.min(200, Math.max(40, 160 / zoomLevel));
     const x0 = stageScrollEl.scrollLeft / zoomLevel - sitePad;
     const y0 = (stageScrollEl.scrollTop - padTop) / zoomLevel - sitePad;
     void 0;
@@ -13997,6 +14029,7 @@
   }
 
   function paintScene() {
+    liveTransform = null;
     ratesChanged();
     crowdBoxes = [];
     const colors = colorsFor(state.activeTheme);
@@ -14047,7 +14080,8 @@
     // pass -- it was worked out twice, and the cuts below have to line up
     // with it exactly.
     const order = build();
-    if (key !== stillKey) {
+    const rebuilt = key !== stillKey;
+    if (rebuilt) {
       stillKey = key;
       const live = floorCtx;
       // The whole footprint first, then everything built on it. Two passes
@@ -14077,21 +14111,48 @@
     // Anything the window cannot see is not drawn. The floor being worked
     // on is always drawn, so a piece in hand never blinks out.
     const seen = visibleCanvasBox();
-    // The whole still layer, every frame. Copying only the part the window
-    // can see is worth about half a millisecond in a nine-millisecond frame
-    // and costs the promise that everything on the plan is painted: it left
-    // the canvas bare past the edge of the copy, which a fast flick can
-    // reach and which the seam check is right to object to. Half a
-    // millisecond is not worth a class of bug where things are not drawn.
+    // The still layer goes down whole when it has just been drawn again,
+    // when the picture was asked for by something that happened rather
+    // than by the clock, and whenever the window's box is not known. On
+    // the ordinary animation frames between, only the part of it the
+    // window can see is put down, with a wide margin: everything else the
+    // frame paints is inside that margin too, so what lies past it is the
+    // plan as it was a frame or two ago, which is the same plan. Zoomed in
+    // on a phone the canvas is several million pixels and the window shows
+    // a third of them, and copying the lot every frame was the single
+    // biggest thing in the frame. The old way, a partial copy with the
+    // 'copy' rule, cleared everything outside it and left the canvas bare
+    // past the edge; this clears and redraws the same box, and nothing
+    // else.
+    const whole = paintWhole || rebuilt || !seen;
+    paintWhole = false;
+    const part = whole ? null : {
+      x: Math.max(0, seen.x0 - STAMP_MARGIN), y: Math.max(0, seen.y0 - STAMP_MARGIN),
+      x1: Math.min(W, seen.x1 + STAMP_MARGIN), y1: Math.min(H, seen.y1 + STAMP_MARGIN) };
     const stamp = (src, mode) => {
       floorCtx.save();
       if (mode) floorCtx.globalCompositeOperation = mode;
-      floorCtx.drawImage(src, 0, 0, W, H);
+      if (part) {
+        const k = src.width / W;
+        const pw = part.x1 - part.x;
+        const ph = part.y1 - part.y;
+        if (pw > 0 && ph > 0) {
+          floorCtx.drawImage(src, part.x * k, part.y * k, pw * k, ph * k, part.x, part.y, pw, ph);
+        }
+      } else {
+        floorCtx.drawImage(src, 0, 0, W, H);
+      }
       floorCtx.restore();
     };
-    // 'copy' puts the still layer down and clears whatever was there in the
-    // same pass, rather than wiping the canvas and then drawing over it.
-    stamp(stillUnder, 'copy');
+    // Cleared, then drawn over. The 'copy' rule looked like the one
+    // operation that would do both, and it was, at three times the price:
+    // measured, a frame with a 'copy' stamp in it cost twenty-six
+    // milliseconds against eight for the same frame cleared and drawn,
+    // most of it paid by the drawing that came after the stamp rather
+    // than the stamp itself.
+    if (part) floorCtx.clearRect(part.x, part.y, part.x1 - part.x, part.y1 - part.y);
+    else floorCtx.clearRect(0, 0, W, H);
+    stamp(stillUnder);
     // The crowd, and the gear standing beside them, are painted over the
     // still layer every frame -- so on their own they walk straight over
     // any wall that stands in front of them. After each floor has had its
@@ -14156,8 +14217,11 @@
       if (!hit.length) return;
       // Only the wall behind the people who strayed onto it, not the whole
       // wall: the repair is the size of a person, wherever they happen to
-      // be standing.
-      const near = mine.filter((b) => hit.some((band) => boxBehindWall(b, band)));
+      // be standing. And only that much of the still layer is drawn: the
+      // whole layer put through a clip cost as much as the whole layer,
+      // clip or no clip -- zoomed in on a phone that was four copies of a
+      // nine-million-pixel picture a frame, for a few people's heads.
+      const near = mergeBoxes(mine.filter((b) => hit.some((band) => boxBehindWall(b, band))));
       floorCtx.save();
       floorCtx.beginPath();
       hit.forEach(({ poly }) => {
@@ -14166,22 +14230,14 @@
         floorCtx.closePath();
       });
       floorCtx.clip();
-      floorCtx.beginPath();
-      near.forEach((b) => floorCtx.rect(b.x, b.y, b.w, b.h));
-      floorCtx.clip();
-      floorCtx.drawImage(stillUnder, 0, 0, W, H);
+      near.forEach((b) => stampBox(stillUnder, b));
       floorCtx.restore();
     });
     // The railings are already down with their own floors. This puts them
     // back over anybody standing at one, and only there -- stamped whole
     // over the plan it was a far floor's railing crossing a nearer one.
     if (stillOverUsed && crowdBoxes.length) {
-      floorCtx.save();
-      floorCtx.beginPath();
-      crowdBoxes.forEach((b) => floorCtx.rect(b.x, b.y, b.w, b.h));
-      floorCtx.clip();
-      floorCtx.drawImage(stillOver, 0, 0, W, H);
-      floorCtx.restore();
+      mergeBoxes(crowdBoxes).forEach((b) => stampBox(stillOver, b));
     }
 
     // The money tags, over everything in the plan: a tag is a label on the
@@ -14205,10 +14261,60 @@
       floorCtx.save();
       floorCtx.globalCompositeOperation = 'source-atop';
       floorCtx.fillStyle = 'rgba(' + sky.r + ',' + sky.g + ',' + sky.b + ',' + sky.a.toFixed(3) + ')';
-      floorCtx.fillRect(0, 0, W, H);
+      // Over the part that was painted this frame, which is all of it on
+      // a whole pass. The wash moves with the hour, slowly enough that the
+      // part outside the window, washed a frame or two ago, matches.
+      if (part) floorCtx.fillRect(part.x, part.y, part.x1 - part.x, part.y1 - part.y);
+      else floorCtx.fillRect(0, 0, W, H);
       floorCtx.restore();
     }
   }
+  // A box of a still layer, put down where it came from. The source is a
+  // canvas at the backing scale and the box is in plan units.
+  function stampBox(src, b) {
+    const k = src.width / BASE_W;
+    const x = Math.max(0, b.x);
+    const y = Math.max(0, b.y);
+    const w = Math.min(BASE_W, b.x + b.w) - x;
+    const h = Math.min(BASE_H, b.y + b.h) - y;
+    if (w <= 0 || h <= 0) return;
+    floorCtx.drawImage(src, x * k, y * k, w * k, h * k, x, y, w, h);
+  }
+  // Boxes that overlap, joined into one, so no pixel is drawn twice: the
+  // still layers have soft edges, and a soft edge drawn over itself is a
+  // harder edge.
+  function mergeBoxes(list) {
+    const out = list.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h }));
+    let joined = true;
+    while (joined) {
+      joined = false;
+      for (let i = 0; i < out.length && !joined; i++) {
+        for (let j = i + 1; j < out.length; j++) {
+          const a = out[i];
+          const b = out[j];
+          if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) {
+            const x = Math.min(a.x, b.x);
+            const y = Math.min(a.y, b.y);
+            out[i] = { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+            out.splice(j, 1);
+            joined = true;
+            break;
+          }
+        }
+      }
+    }
+    return out;
+  }
+  // Whether the next paint has to put the whole still layer down. Set by
+  // anything that asks for the picture outright rather than by the clock
+  // (see renderScene), so nothing a test or a screenshot looks at is ever
+  // a frame behind anywhere on the plan.
+  let paintWhole = true;
+  // How far past the window's box a partial paint reaches, in plan units.
+  // Wider than anything painted on an animation frame: a figure whose feet
+  // are just inside the box stands a hundred and thirty units up out of
+  // it, and a tag over a machine at the edge sits about as high.
+  const STAMP_MARGIN = 170;
 
   // ---- Weather ----
   // Two of the four locations are outdoors, and until now they were outdoors
@@ -14489,9 +14595,13 @@
 
     // Only the people and the money the window is showing. A big floor half
     // off screen used to draw its whole crowd and lay out every tag on it.
+    // The box already reaches two hundred units past the window on every
+    // side. A figure whose feet are above its top edge is wholly above the
+    // window, so the margin that way is small; below, feet a way past the
+    // bottom edge still have a body standing up into view.
     const seen = visibleCanvasBox();
     const onScreen = (c) => !seen || (c.x > seen.x0 - 60 && c.x < seen.x1 + 60
-      && c.y > seen.y0 - 170 && c.y < seen.y1 + 60);
+      && c.y > seen.y0 - 20 && c.y < seen.y1 + 60);
     const people = membersInside(place).map((m) => ({
       member: m, spot: { u: m.gx - place.gx0, v: m.gy - place.gy0 },
     })).filter((e) => onScreen(isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v)));
@@ -14526,7 +14636,11 @@
       // floor and two metres tall: the guess missed most of what it covers.
       const screenBoxOf = (e) => {
         const c = isoPoint(place.gx0 + e.spot.u, place.gy0 + e.spot.v);
-        if (e.member) return { x: c.x - 46, y: c.y - 150, w: 92, h: 182 };
+        // The box a figure covers: a little wider than an arm held out and
+        // a little taller than they stand, from the feet up. It used to
+        // be nearly twice the size of the person, and every machine that
+        // met the spare part of it was painted again for nothing.
+        if (e.member) return { x: c.x - MEMBER_BOX_HALF, y: c.y - MEMBER_BOX_TALL, w: MEMBER_BOX_HALF * 2, h: MEMBER_BOX_TALL + 8 };
         if (e.fixture) {
           const f = e.fixture;
           const pts = [[f.u0, f.v0], [f.u1, f.v0], [f.u1, f.v1], [f.u0, f.v1]]
@@ -14924,8 +15038,10 @@
           handY: 0.700, handX: 0.098, lean: 0.048,
         });
       case 'curl':
+        // The hand comes forward as it comes up, the way a forearm hinged
+        // at the elbow does; the elbow itself stays down at the side.
         return Object.assign(base, {
-          handY: 0.545 + cycle * 0.205, handX: 0.118, hold: 'dumbbells', spread: 1.1,
+          handY: 0.545 + cycle * 0.205, handX: 0.118 + cycle * 0.095, hold: 'dumbbells', spread: 1.1,
         });
       case 'press':
         // Overhead, with a dip in the knees as the bar comes back down.
@@ -15103,14 +15219,66 @@
       bar(lean + reach, handY + 0.048, handY - 0.048, 0.040, '#3a4049');
     };
 
+    // Limbs are two pieces with a joint between. Where the joint goes is
+    // worked out from the two ends and the lengths of the pieces: the two
+    // places it could be are either side of the line between the ends,
+    // and the one further the preferred way is taken -- an elbow drops and
+    // goes out from the body, a knee comes forward. An arm reaching its
+    // full length is straight, a hand near the shoulder bends it double,
+    // and everything the poses ask for in between comes out on its own.
+    const joint = (x1, y1, x2, y2, a, b, px, py, ease) => {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const d = Math.hypot(dx, dy) || 0.0001;
+      if (d >= a + b) return { x: x1 + dx * (a / (a + b)), y: y1 + dy * (a / (a + b)) };
+      const along = (d * d + a * a - b * b) / (2 * d);
+      // `ease` takes some of the bend out: the figure is seen from the
+      // front, where a knee comes at you rather than out to the side, so
+      // the full geometric bend drawn sideways reads bow-legged.
+      const h = Math.sqrt(Math.max(0, a * a - along * along)) * (ease || 1);
+      const ux = dx / d;
+      const uy = dy / d;
+      const nx = -uy;
+      const ny = ux;
+      const side = (nx * px + ny * py) >= 0 ? 1 : -1;
+      return { x: x1 + ux * along + nx * h * side, y: y1 + uy * along + ny * h * side };
+    };
+    const ARM_UPPER = 0.15;
+    const ARM_FORE = 0.14;
+    const LEG_THIGH = 0.197;
+    const LEG_SHIN = 0.197;
+    // An arm from the shoulder to the hand, with a sleeve over the top of
+    // it when the shirt has them. `out` is which way is away from the
+    // body for this arm, which is where its elbow goes if it cannot drop.
+    const arm = (sx, sy, hx, hy, w, color, out, sleeve) => {
+      const e = joint(sx, sy, hx, hy, ARM_UPPER, ARM_FORE, out * 0.35, -1);
+      limb(sx, sy, e.x, e.y, w, color);
+      limb(e.x, e.y, hx, hy, w * 0.92, color);
+      if (sleeve && trim) limb(sx, sy, sx + (e.x - sx) * 0.42, sy + (e.y - sy) * 0.42, w * 1.6, sleeve);
+    };
+    // A leg from the hip to the foot, and the shoe on the end of it: a
+    // sock above and a sole under when there is the size to see them.
+    // The knee goes out to that leg's own side, so a crouch is the
+    // diamond a front view of one makes rather than both knees swung the
+    // same way.
+    const leg = (hx, hy, fx, fy, w, color, shoe, out) => {
+      const k = joint(hx, hy, fx, fy, LEG_THIGH, LEG_SHIN, out, 0.15, 0.62);
+      limb(hx, hy, k.x, k.y, w, color);
+      limb(k.x, k.y, fx, fy, w * 0.9, color);
+      if (!trim) return;
+      const foot = fy - 0.045;
+      if (fine && bare) bar(fx, 0.094 + foot, 0.056 + foot, 0.082, '#f3f5f8');
+      bar(fx, 0.062 + foot, 0.006 + foot, 0.098, shoe);
+      if (fine) bar(fx, 0.017 + foot, 0.004 + foot, 0.104, shade(shoe, -42));
+    };
+
     // Back limbs first, darkened, so the figure has some depth to it.
-    limb(-shoulderX + lean * 2, shoulderY, -handX - armT + lean * 2, handY, armW, shade(m.skin, -38));
-    bar(-stance - legT, hip, 0.045 + backFoot, 0.078 * broad, legBack);
-    if (trim) bar(-stance - legT, 0.062 + backFoot, 0.006 + backFoot, 0.098, '#b9c2cc');
+    arm(-shoulderX + lean * 2, shoulderY, -handX - armT + lean * 2, handY, armW, shade(m.skin, -38), -1,
+      m.sleeves ? shade(m.shirt, -26) : null);
+    leg(-stance * 0.45, hip, -stance - legT, 0.045 + backFoot, 0.078 * broad, legBack, '#b9c2cc', -1);
 
     // Front leg and its shoe.
-    bar(stance + legT, hip, 0.045 + frontFoot, 0.078 * broad, legFront);
-    if (trim) bar(stance + legT, 0.062 + frontFoot, 0.006 + frontFoot, 0.098, '#e9edf2');
+    leg(stance * 0.45, hip, stance + legT, 0.045 + frontFoot, 0.078 * broad, legFront, '#e9edf2', 1);
 
     bar(lean * 0.35, 0.545 - drop, (m.shortsLen || 0.415) - drop, 0.200 * broad, shorts);
 
@@ -15137,6 +15305,14 @@
         { x: X(0.03 + lean * 0.35), y: Y(0.53 - drop) }, H * 0.02);
       ctx.fillStyle = shade(m.shirt, 30);
       ctx.fill();
+      // The hem, so the shirt ends rather than fades into the shorts.
+      bar(lean * 0.35, 0.524 - drop, 0.510 - drop, (waist + 0.004) * 2, shade(m.shirt, -30));
+      // A print on the chest, on the shirts that have one.
+      if (m.logo && !m.staffRole) {
+        roundRectPath(ctx, X(-0.010 + lean), Y(0.748 - drop), 0.050 * H * f, 0.034 * H, H * 0.008);
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fill();
+      }
     }
 
     // A gym bag hangs off the back shoulder, so it sits over the shirt and
@@ -15157,7 +15333,9 @@
       }
     }
 
-    limb(shoulderX, shoulderY, handX + armT, handY, armW, m.skin);
+    arm(shoulderX, shoulderY, handX + armT, handY, armW, m.skin, 1, m.sleeves ? m.shirt : null);
+    // A band on the wrist.
+    if (m.wrist && fine) bar(handX + armT, handY + 0.040, handY + 0.020, armW * 1.3, '#2f3238');
 
     // A towel goes over the near shoulder, on top of the arm under it.
     if (m.carry === 'towel' && m.state !== 'using') {
@@ -15212,6 +15390,28 @@
     } else if (m.hairStyle === 'band') {
       bar(0.008 + lean, 0.948 - drop, 0.918 - drop, 0.152, m.capColor);
     }
+    // An eye, below the hairline on the side the face is turned to. One
+    // dot is the difference between a head and a face.
+    if (trim) {
+      ctx.beginPath();
+      ctx.arc(X(0.050 + lean), Y(0.898 - drop), H * 0.0115, 0, Math.PI * 2);
+      ctx.fillStyle = '#1d1a1c';
+      ctx.fill();
+    }
+    // Headphones: a band over whatever is on the head, and the cup on the
+    // ear that can be seen.
+    if (m.phones && trim) {
+      ctx.beginPath();
+      ctx.arc(X(0.008 + lean), Y(0.918 - drop), H * 0.088, Math.PI * 1.12, Math.PI * 1.92);
+      ctx.strokeStyle = '#23262c';
+      ctx.lineWidth = H * 0.018;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(X(-0.064 + lean), Y(0.912 - drop), H * 0.026, 0, Math.PI * 2);
+      ctx.fillStyle = '#2b2f36';
+      ctx.fill();
+      outline();
+    }
     if (m.staffRole) drawStaffMark(ctx, c, m);
   }
 
@@ -15244,7 +15444,8 @@
   function memberLook(m) {
     if (!m.lookKey) {
       m.lookKey = [m.build, m.broad, m.skin, m.legs, m.shirt, m.hair, m.capColor,
-        m.hairStyle, m.shortsLen, m.bagColor, m.staffRole || ''].join(',');
+        m.hairStyle, m.shortsLen, m.bagColor, m.staffRole || '',
+        m.sleeves ? 's' : '', m.logo ? 'l' : '', m.phones ? 'p' : '', m.wrist ? 'w' : ''].join(',');
     }
     return m.lookKey;
   }
@@ -15275,7 +15476,8 @@
     const lean = Math.abs(p.lean);
     let top = Math.max(1.07 + p.bob, p.handY - p.crouch * 0.135 + (p.hold ? 0.12 : 0.08));
     if (m.staffRole) top = Math.max(top, 1.19);
-    let half = Math.max(0.26 + lean, Math.abs(p.handX) + lean + 0.15);
+    // An elbow can stand the length of an upper arm out from the shoulder.
+    let half = Math.max(0.36 + lean, Math.abs(p.handX) + lean + 0.15);
     if (p.hold && p.hold !== 'dumbbells') {
       half = Math.max(half, lean + Math.max(Math.abs(p.handX) + 0.06, 0.13) + 0.15);
     }
@@ -15302,6 +15504,7 @@
     return e;
   }
 
+  let liveTransform = null;
   function drawMember(c, m) {
     const H = 1.72 * (m.build || 1) * PX_PER_METRE_TALL;
     const tall = H * backScale;
@@ -15312,7 +15515,10 @@
       spriteScale = backScale;
       spriteReady = now + SPRITE_SETTLE_MS;
     }
-    const t = floorCtx.getTransform();
+    // The transform is the same for every figure in a frame; asking the
+    // context for it makes a new matrix every time.
+    if (!liveTransform) liveTransform = floorCtx.getTransform();
+    const t = liveTransform;
     const plain = !t.b && !t.c && Math.abs(t.a - backScale) < 1e-6
       && Math.abs(t.d - backScale) < 1e-6;
     if (tall <= SPRITE_MAX_TALL && plain && now >= spriteReady) {
@@ -15320,7 +15526,9 @@
       const s = memberSprite(m, H, tall);
       const dx = Math.round(c.x * t.a + t.e);
       const dy = Math.round(c.y * t.d + t.f) - s.oy;
-      floorCtx.save();
+      // The transform is put back by hand: save and restore round every
+      // one of twenty figures a frame copies the whole drawing state each
+      // way, and the transform is all that changes.
       if (m.facing < 0) {
         floorCtx.setTransform(-1, 0, 0, 1, dx, dy);
         floorCtx.drawImage(s.cv, -s.ox, 0);
@@ -15328,7 +15536,7 @@
         floorCtx.setTransform(1, 0, 0, 1, dx - s.ox, dy);
         floorCtx.drawImage(s.cv, 0, 0);
       }
-      floorCtx.restore();
+      floorCtx.setTransform(t);
     } else {
       paintMember(floorCtx, c, m, tall, m.facing);
     }
@@ -16254,7 +16462,7 @@
     zoomAround(zoomLevel * factor, e.clientX, e.clientY);
   }, { passive: false });
 
-  gestureEl.addEventListener('pointercancel', (e) => {
+  function onPointerCancel(e) {
     const wasPinching = !!pinchState;
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchState = null;
@@ -16262,7 +16470,14 @@
     dragState = null;
     if (wasPinching && !pinchState) resumeSinglePointer();
     restCursor();
-  });
+  }
+  gestureEl.addEventListener('pointercancel', onPointerCancel);
+  // A finger that joined the gesture from the page beside the window can
+  // be cancelled there too, and used to be left counted as still down.
+  document.addEventListener('pointercancel', (e) => {
+    if (gestureEl.contains(e.target) || !pointers.has(e.pointerId)) return;
+    onPointerCancel(e);
+  }, true);
 
   // ---- Placing gear ----
   // Nothing is dropped straight onto the floor any more. Picking a piece --
@@ -18018,10 +18233,13 @@
 
   // ---- The place in motion ----
   // Members are stepped on a capped frame rate rather than every animation
-  // frame: a walk reads fine at twenty a second and costs a third of what
-  // sixty would on a phone. An empty gym repaints not at all, and nothing
+  // frame: a walk reads smooth at thirty a second and costs half of what
+  // sixty would on a phone, and a phone that cannot manage thirty is held
+  // to what it can paint (see animateMembers). An empty gym repaints not at all, and nothing
   // runs at all while the tab is hidden -- the same rule the earnings follow.
-  const MEMBER_FPS = 20;
+  const MEMBER_FPS = 30;
+  // The least time between two paints while two fingers are on the glass.
+  const PINCH_PAINT_MS = 150;
   let lastPaintMs = 0;
   let paintAvg = 0;
   let lastTuneAt = 0;
@@ -18106,22 +18324,22 @@
       return;
     }
     // While two fingers are on the glass the plan rides the zoom as a CSS
-    // scale, and nothing drawn on it needs drawing again: the crowd can
-    // stand still for the half second the pinch takes. Painting through the
-    // gesture is what made pinching on a phone a slideshow -- the paint is
-    // the most expensive thing this page does, and doing it on every frame
-    // of a pinch leaves the browser nothing to scale the picture with.
-    // Measured on a four-times-throttled phone, a pinch went at three and a
-    // half frames a second; without the painting it keeps up with the hand.
-    if (pinchState) {
-      lastFrameAt = 0;
-      lastRafAt = now;
-      return;
-    }
+    // scale, so the picture on the canvas stays right and the crowd can
+    // go on walking across it. Painting on every frame of the gesture is
+    // what made pinching on a phone a slideshow -- the paint is the most
+    // expensive thing this page does, and doing it sixty times a second
+    // leaves the browser nothing to scale the picture with. Measured on a
+    // four-times-throttled phone, that went at three and a half frames a
+    // second. So through a pinch the crowd is painted a few times a second
+    // instead: enough that it never stands frozen, which is what it did
+    // when the pinch painted nothing at all, and little enough that the
+    // zoom keeps up with the hand.
+    const pinching = !!pinchState;
     // Every frame the browser gives us, painted or not -- this is the
     // measure of what it has left over, which is what decides how fine a
-    // picture it can afford.
-    if (lastRafAt) {
+    // picture it can afford. Not during a pinch, when the scaling is the
+    // load and the frame rate says nothing about the painting.
+    if (lastRafAt && !pinching) {
       const gap = now - lastRafAt;
       if (gap > 0 && gap < 400) rafGapAvg = rafGapAvg ? rafGapAvg * 0.9 + gap * 0.1 : gap;
     }
@@ -18130,13 +18348,14 @@
       lastFrameAt = now;
       return;
     }
-    // How often to repaint. Twenty times a second is the most it is worth,
-    // but on a phone that cannot paint the gym in fifty milliseconds,
-    // asking for twenty leaves nothing for the taps and the scrolling and
-    // the whole thing feels worse than a slower, steadier picture. So the
-    // gap is whichever is longer: the cap, or a bit over what the last
-    // paint actually took.
-    const wait = Math.max(1000 / MEMBER_FPS, Math.min(120, lastPaintMs * 1.7));
+    // How often to repaint. The cap is the most it is worth, but on a
+    // phone that cannot paint the gym in that time, asking for it leaves
+    // nothing for the taps and the scrolling and the whole thing feels
+    // worse than a slower, steadier picture. So the gap is whichever is
+    // longer: the cap, or a bit over what the last paint actually took.
+    const wait = pinching
+      ? Math.max(PINCH_PAINT_MS, lastPaintMs * 4)
+      : Math.max(1000 / MEMBER_FPS, Math.min(120, lastPaintMs * 1.7));
     if (now - lastFrameAt < wait) return;
     const dt = Math.min(0.25, (now - lastFrameAt) / 1000);
     lastFrameAt = now;
@@ -18145,7 +18364,7 @@
     // moments no change to the gym can predict -- asking only when
     // something was bought or moved left a gym that emptied out and stayed
     // empty until the next thing you did.
-    if (now - lastCrowdAt > 250) {
+    if (!pinching && now - lastCrowdAt > 250) {
       lastCrowdAt = now;
       rebuildMembers();
     }
@@ -18154,8 +18373,10 @@
       const t0 = performance.now();
       paintScene();
       lastPaintMs = performance.now() - t0;
-      paintAvg = paintAvg ? paintAvg * 0.85 + lastPaintMs * 0.15 : lastPaintMs;
-      tunePixelBudget(now);
+      if (!pinching) {
+        paintAvg = paintAvg ? paintAvg * 0.85 + lastPaintMs * 0.15 : lastPaintMs;
+        tunePixelBudget(now);
+      }
       lastBatchPaint = now;
       return;
     }
