@@ -7364,7 +7364,16 @@
   // cannot keep up at two is stepped down instead: a steady picture is
   // worth more than a crisp one.
   const PIXEL_STEPS = [3, 2.2, 1.6, 1.15, 0.9];
+  // Where the last session settled, so this one starts there rather than
+  // stepping down to it again: each step down is a new backing store and
+  // a whole redraw, a hitch, and a phone that needed three of them paid
+  // for all three in its first fifteen seconds, every time.
+  const PIXEL_STEP_KEY = 'gymTycoonPixelStep';
   let pixelStep = 1;
+  try {
+    const kept = parseInt(localStorage.getItem(PIXEL_STEP_KEY), 10);
+    if (kept >= 1 && kept < PIXEL_STEPS.length) pixelStep = kept;
+  } catch (err) { /* private mode */ }
   function pixelBudget() {
     return PIXEL_STEPS[pixelStep];
   }
@@ -13936,7 +13945,7 @@
     // fixed distance on the screen and a shorter one on the plan the
     // closer in the plan is; two hundred flat left the box, zoomed in, a
     // good deal bigger than the plan itself.
-    const pad = Math.min(200, Math.max(40, 160 / zoomLevel));
+    const pad = Math.min(200, Math.max(40, 140 / zoomLevel));
     const x0 = stageScrollEl.scrollLeft / zoomLevel - sitePad;
     const y0 = (stageScrollEl.scrollTop - padTop) / zoomLevel - sitePad;
     void 0;
@@ -13986,7 +13995,10 @@
       previewFor('wall', theme) || d.walls[theme] || '',
       previewFor('floor', theme) || d.floors[theme] || '',
       previewFor('finish', theme) || d.finish || '',
-      Math.round(lampBoost() * 20),
+      // A tenth of a unit of lamp glow: finer than that had the whole still
+      // layer drawn again every half minute through dusk and dawn, a hitch
+      // each time, for a step in the glow nobody could see.
+      Math.round(lampBoost() * 10),
       state.gymName || '', decorSignature()];
     placements.forEach((p) => parts.push(p.gx0, p.gy0, p.cols, p.rows, p.cut ? 1 : 0));
     corridors.forEach((c) => parts.push(c.gx0, c.gy0, c.cols, c.rows, c.axis));
@@ -14029,7 +14041,8 @@
   }
 
   function paintScene() {
-    liveTransform = null;
+    liveTransform = floorCtx.getTransform();
+    spriteCutsThisFrame = 0;
     ratesChanged();
     crowdBoxes = [];
     const colors = colorsFor(state.activeTheme);
@@ -14127,8 +14140,8 @@
     const whole = paintWhole || rebuilt || !seen;
     paintWhole = false;
     const part = whole ? null : {
-      x: Math.max(0, seen.x0 - STAMP_MARGIN), y: Math.max(0, seen.y0 - STAMP_MARGIN),
-      x1: Math.min(W, seen.x1 + STAMP_MARGIN), y1: Math.min(H, seen.y1 + STAMP_MARGIN) };
+      x: Math.max(0, seen.x0 - STAMP_SIDE), y: Math.max(0, seen.y0 - STAMP_TOP),
+      x1: Math.min(W, seen.x1 + STAMP_SIDE), y1: Math.min(H, seen.y1 + STAMP_BOTTOM) };
     const stamp = (src, mode) => {
       floorCtx.save();
       if (mode) floorCtx.globalCompositeOperation = mode;
@@ -14310,11 +14323,15 @@
   // (see renderScene), so nothing a test or a screenshot looks at is ever
   // a frame behind anywhere on the plan.
   let paintWhole = true;
-  // How far past the window's box a partial paint reaches, in plan units.
-  // Wider than anything painted on an animation frame: a figure whose feet
-  // are just inside the box stands a hundred and thirty units up out of
-  // it, and a tag over a machine at the edge sits about as high.
-  const STAMP_MARGIN = 170;
+  // How far past the window's box a partial paint reaches, in plan units,
+  // on each side. Wider than anything painted on an animation frame: a
+  // figure whose feet are just inside the box stands a hundred and thirty
+  // units up out of it and a tag over a machine at the edge stacks a
+  // little higher; sideways a figure reaches half its width past the
+  // culling margin; below, only the feet and their shadow.
+  const STAMP_TOP = 180;
+  const STAMP_SIDE = 100;
+  const STAMP_BOTTOM = 70;
 
   // ---- Weather ----
   // Two of the four locations are outdoors, and until now they were outdoors
@@ -14405,6 +14422,7 @@
     return f.v1 <= 5 || f.u1 <= 5;
   }
 
+  const liveEntryCache = [];
   function drawRoom(layout, colors, light, roomIndex) {
     const theme = state.activeTheme;
     const place = placements[roomIndex];
@@ -14496,14 +14514,23 @@
     // order comes from the pieces themselves -- furthest back first, or a
     // piece behind another would paint over it.
     const room = activeRooms()[roomIndex];
-    const items = [];
-    layout.forEach((itemId, index) => {
-      if (!itemId) return;
-      const spot = spotOf(room, index, shape);
-      items.push({ index, itemId, spot });
-    });
-    const loose = (place.fixtures || []).filter((f) => !fixtureAtBack(f))
-      .map((f) => ({ fixture: f, spot: { u: (f.u0 + f.u1) / 2, v: (f.v0 + f.v1) / 2 } }));
+    // The pieces on the floor and the fixtures standing loose on it. Kept
+    // from one frame to the next under the still layer's key, which turns
+    // over whenever any of it could have changed: the live pass runs for
+    // every room on every frame, and working these out afresh each time
+    // was a room's worth of objects a frame for the collector to sweep.
+    const kept = liveEntryCache[roomIndex];
+    const fresh = !kept || kept.key !== stillKey;
+    const items = fresh ? [] : kept.items;
+    if (fresh) {
+      layout.forEach((itemId, index) => {
+        if (!itemId) return;
+        const spot = spotOf(room, index, shape);
+        items.push({ index, itemId, spot });
+      });
+    }
+    const loose = fresh ? (place.fixtures || []).filter((f) => !fixtureAtBack(f))
+      .map((f) => ({ fixture: f, spot: { u: (f.u0 + f.u1) / 2, v: (f.v0 + f.v1) / 2 } })) : kept.loose;
     const depthOf = (e) => e.spot.u + e.spot.v;
     // The floor each one really takes up, which is what settles who is in
     // front of whom. A person is treated as half a metre of standing room.
@@ -14675,7 +14702,10 @@
         };
       };
       people.forEach((p) => liveQueue.push(entryOf(p)));
-      items.concat(loose).forEach((e) => livePool.push(entryOf(e)));
+      // The gear's entries are the same every frame until the key turns.
+      if (fresh) liveEntryCache[roomIndex] = { key: stillKey, items, loose, list: items.concat(loose).map(entryOf) };
+      const list = liveEntryCache[roomIndex].list;
+      for (let i = 0; i < list.length; i++) livePool.push(list[i]);
     }
 
     if (editing && editing.roomIndex === roomIndex) {
@@ -14791,16 +14821,45 @@
   // Green is flat out, amber is half the day, grey is a machine nobody has
   // come for -- the money in a room is in the green ones, and the grey ones
   // are floor you could have given to something else.
+  // The pill of a tag, with its tail and its coin or its bar, drawn once
+  // for each width and kept: everything on it but the figure is the same
+  // picture every frame, and a frame draws forty of them. The figure is
+  // written over the top each time.
+  const pillCache = new Map();
+  let pillScale = 0;
+  function stampPill(kind, r, paint) {
+    const k = (liveTransform || floorCtx.getTransform()).a || 1;
+    if (k !== pillScale) {
+      pillCache.clear();
+      pillScale = k;
+    }
+    const w = Math.round(r.w);
+    const key = kind + '|' + w;
+    let e = pillCache.get(key);
+    if (!e) {
+      const cw = w + 2;
+      const ch = TAG_H + 7;
+      const cv = document.createElement('canvas');
+      cv.width = Math.ceil(cw * k);
+      cv.height = Math.ceil(ch * k);
+      const g = cv.getContext('2d');
+      g.setTransform(k, 0, 0, k, 0, 0);
+      paint(g, { x: 1, y: 1, w, h: TAG_H }, 1 + w / 2);
+      e = { cv, cw, ch };
+      if (pillCache.size > 240) pillCache.clear();
+      pillCache.set(key, e);
+    }
+    // Copied pixel for pixel: on a whole pixel of the backing store and at
+    // the bitmap's own size, the way the figures are stamped. Drawn through
+    // the scale at its plan size it was resampled, and the coin's colour
+    // came out a shade off.
+    const t = liveTransform || floorCtx.getTransform();
+    floorCtx.setTransform(1, 0, 0, 1, Math.round((r.x - 1) * t.a + t.e), Math.round((r.y - 1) * t.d + t.f));
+    floorCtx.drawImage(e.cv, 0, 0);
+    floorCtx.setTransform(t);
+  }
   function drawUseTag(r, label, t) {
     const ctx = floorCtx;
-    // Flat and opaque, whatever the painting before it left set: a tag that
-    // half shows the machine through it is not a reading of anything.
-    ctx.save();
-    ctx.globalAlpha = 1;
-    ctx.shadowBlur = 0;
-    const u = t.use;
-    const tone = u >= 0.95 ? '#3f9e74' : u >= 0.45 ? '#b8862a' : u > 0.05 ? '#8a4a2a' : '#3d4148';
-    const ink = u >= 0.05 ? '#ffffff' : '#aab0ba';
     if (r.y + r.h < t.y - 4) {
       ctx.beginPath();
       ctx.moveTo(t.x, r.y + r.h);
@@ -14809,10 +14868,31 @@
       ctx.lineWidth = 1;
       ctx.stroke();
     }
+    const u = Math.max(0, Math.min(1, t.use));
+    const tone = u >= 0.95 ? '#3f9e74' : u >= 0.45 ? '#b8862a' : u > 0.05 ? '#8a4a2a' : '#3d4148';
+    const ink = u >= 0.05 ? '#ffffff' : '#aab0ba';
+    // The bar is as full as the figure, to the twenty-fifth.
+    const fill = Math.round(u * 25) / 25;
+    stampPill('u|' + tone + '|' + fill, r, (g, box, tx) => paintUsePill(g, box, tx, tone, fill));
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.fillStyle = ink;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, r.x + r.w / 2, r.y + r.h / 2 - 1);
+    ctx.restore();
+  }
+  function paintUsePill(ctx, r, tx, tone, u) {
+    // Flat and opaque, whatever the painting before it left set: a tag that
+    // half shows the machine through it is not a reading of anything.
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
     ctx.beginPath();
-    ctx.moveTo(t.x - 4, r.y + r.h - 0.5);
-    ctx.lineTo(t.x + 4, r.y + r.h - 0.5);
-    ctx.lineTo(t.x, r.y + r.h + 4.5);
+    ctx.moveTo(tx - 4, r.y + r.h - 0.5);
+    ctx.lineTo(tx + 4, r.y + r.h - 0.5);
+    ctx.lineTo(tx, r.y + r.h + 4.5);
     ctx.closePath();
     ctx.fillStyle = tone;
     ctx.fill();
@@ -14829,14 +14909,6 @@
     roundRectPath(ctx, r.x + pad, r.y + r.h - 5, bw, 2.6, 1.3);
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.fill();
-    ctx.font = 'bold 10px system-ui, sans-serif';
-    ctx.fillStyle = ink;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, r.x + r.w / 2, r.y + r.h / 2 - 1);
-    ctx.textAlign = 'start';
-    ctx.textBaseline = 'alphabetic';
-    ctx.restore();
   }
   function drawPileTag(r, label, t) {
     const ctx = floorCtx;
@@ -14851,12 +14923,23 @@
       ctx.lineWidth = 1;
       ctx.stroke();
     }
-
+    stampPill(full ? 'pf' : 'p', r, (g, box, tx) => paintPill(g, box, tx, full));
+    const cx = r.x + r.h / 2 + 1;
+    const cy = r.y + r.h / 2;
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = full ? '#1a1200' : '#eafbef';
+    ctx.fillText(label, cx + 6 + (r.w - r.h - 6) / 2, cy + 0.5);
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+  }
+  function paintPill(ctx, r, tx, full) {
     // The bubble, with a little tail pointing down at the machine.
     ctx.beginPath();
-    ctx.moveTo(t.x - 4, r.y + r.h - 0.5);
-    ctx.lineTo(t.x + 4, r.y + r.h - 0.5);
-    ctx.lineTo(t.x, r.y + r.h + 4.5);
+    ctx.moveTo(tx - 4, r.y + r.h - 0.5);
+    ctx.lineTo(tx + 4, r.y + r.h - 0.5);
+    ctx.lineTo(tx, r.y + r.h + 4.5);
     ctx.closePath();
     ctx.fillStyle = full ? 'rgba(255,183,3,0.96)' : 'rgba(18,20,26,0.9)';
     ctx.fill();
@@ -14885,12 +14968,6 @@
     ctx.textBaseline = 'middle';
     ctx.fillStyle = full ? '#f6d98f' : '#7a5a12';
     ctx.fillText('$', cx, cy + 0.5);
-
-    ctx.font = 'bold 10px system-ui, sans-serif';
-    ctx.fillStyle = full ? '#1a1200' : '#eafbef';
-    ctx.fillText(label, cx + 6 + (r.w - r.h - 6) / 2, cy + 0.5);
-    ctx.textAlign = 'start';
-    ctx.textBaseline = 'alphabetic';
   }
 
   // The tag under a point, if any -- tested last-drawn first, so the one on
@@ -15495,6 +15572,12 @@
     }
   }
 
+  // How many figures may be cut into sprites in one frame. After a zoom
+  // settles every figure on screen needs cutting at once, and twenty cuts
+  // in a frame was a hitch of a tenth of a second; the ones not yet cut
+  // are drawn straight for a frame or two instead.
+  const SPRITE_CUTS_PER_FRAME = 3;
+  let spriteCutsThisFrame = 0;
   function memberSprite(m, H, tall) {
     const using = m.state === 'using';
     const step = Math.round((m.phase || 0) / (Math.PI * 2) * PHASE_STEPS);
@@ -15505,6 +15588,8 @@
       e.t = spriteClock;
       return e;
     }
+    if (spriteCutsThisFrame >= SPRITE_CUTS_PER_FRAME) return null;
+    spriteCutsThisFrame += 1;
     // How much room the pose actually needs, in body heights out from the
     // feet. Sized to the pose rather than to the widest one there is: a
     // walker's sprite is a third of the area of a rower's, and that is the
@@ -15558,9 +15643,9 @@
     const t = liveTransform;
     const plain = !t.b && !t.c && Math.abs(t.a - backScale) < 1e-6
       && Math.abs(t.d - backScale) < 1e-6;
-    if (tall <= SPRITE_MAX_TALL && plain && now >= spriteReady) {
+    const s = tall <= SPRITE_MAX_TALL && plain && now >= spriteReady ? memberSprite(m, H, tall) : null;
+    if (s) {
       spriteClock += 1;
-      const s = memberSprite(m, H, tall);
       const dx = Math.round(c.x * t.a + t.e);
       const dy = Math.round(c.y * t.d + t.f) - s.oy;
       // The transform is put back by hand: save and restore round every
@@ -17252,6 +17337,21 @@
     });
   }
 
+  // What a whole location earns a second. Scoring every room in every
+  // location is the dearest sum the sidebar does, and two parts of it
+  // asked for it on every tick; the figure is worked out at most twice a
+  // second and handed to both.
+  const themeRateHeld = {};
+  function themeRate(t) {
+    const rooms = state.themeRooms[t.id] || [];
+    if (!chainHasDesk(rooms)) return 0;
+    const now = Date.now();
+    const held = themeRateHeld[t.id];
+    if (held && now - held.at < 1100) return held.rate;
+    const rate = rooms.reduce((sum, room, i) => sum + computeGps(room, roomShapeFor(t.id, i)), 0);
+    themeRateHeld[t.id] = { at: now, rate };
+    return rate;
+  }
   function refreshThemeRow() {
     THEMES.forEach((t) => {
       const btn = themeBtns[t.id];
@@ -17259,15 +17359,14 @@
       const unlocked = themeOpen(t);
       const rooms = state.themeRooms[t.id] || [];
       const open = chainHasDesk(rooms);
-      const rate = open ? rooms.reduce(
-        (sum, room, i) => sum + computeGps(room, roomShapeFor(t.id, i)), 0) : 0;
+      const rate = themeRate(t);
       const waiting = rooms.reduce(
         (sum, room) => sum + roomCash(room).reduce((a, b) => a + b, 0), 0);
       const label = !unlocked
         ? t.name + ' <span class="btn-lock-icon">' + iconMarkup('lock', 11) + '</span><span class="theme-lv"> Lv ' + t.unlockLevel + '</span>'
         : t.name + '<span class="theme-rate">' + (open ? formatNum(rate) + '/s' : 'shut') + '</span>'
           + (waiting >= 1 ? '<span class="theme-dot" title="Money waiting in the bubbles here"></span>' : '');
-      if (btn.innerHTML !== label) btn.innerHTML = label;
+      setHtml(btn, label);
       btn.classList.toggle('is-active', state.activeTheme === t.id);
       btn.classList.toggle('is-locked', !unlocked);
       btn.classList.toggle('is-shut', unlocked && !open);
@@ -17772,6 +17871,9 @@
   const tabEls = {};
   let activePanel = 'shop';
   const PANEL_KEY = 'gymTycoonPanel';
+  // Set once the page is built, so a panel opened while it is still being
+  // put together is not asked to refresh things that are not there yet.
+  var panelsReady = false;
   function showPanel(name) {
     if (!panelEls[name] || tabEls[name].hidden) return;
     activePanel = name;
@@ -17780,6 +17882,8 @@
       panelEls[key].hidden = key !== name;
       tabEls[key].classList.toggle('is-active', key === name);
     });
+    // Fresh the moment it is opened, rather than up to a second behind.
+    if (panelsReady) refreshPanel(name);
   }
   function buildTabs() {
     if (!tabsEl) return;
@@ -18076,8 +18180,7 @@
       const unlocked = themeOpen(t);
       const open = chainHasDesk(rooms);
       const placed = rooms.reduce((n, r) => n + r.layout.filter(Boolean).length, 0);
-      const rate = open ? rooms.reduce(
-        (sum, room, i) => sum + computeGps(room, roomShapeFor(t.id, i)), 0) : 0;
+      const rate = themeRate(t);
       if (open) places++;
       pieces += placed;
       const meta = !unlocked ? 'Locked until level ' + t.unlockLevel
@@ -18101,8 +18204,13 @@
   function setText(el, text) {
     if (el && el.textContent !== text) el.textContent = text;
   }
+  // Reading innerHTML back is the browser serialising the element, and
+  // the shop did that for every one of its buttons ten times a second.
+  // What was last written is remembered on the element instead.
   function setHtml(el, html) {
-    if (el && el.innerHTML !== html) el.innerHTML = html;
+    if (!el || el.__html === html) return;
+    el.__html = html;
+    el.innerHTML = html;
   }
   // The same, for a plain string. The panel beside the gym is gone over ten
   // times a second, and almost nothing on it has changed since the last
@@ -18195,6 +18303,33 @@
   let lastTickAt = Date.now();
   let lastRush = -1;
 
+  // What each panel needs refreshed while it is the one on screen.
+  function refreshPanel(name) {
+    if (name === 'shop') refreshShopUI();
+    else if (name === 'jobs') { refreshJobsUI(); refreshRushOrderUI(); refreshJobsDot(); }
+    else if (name === 'staff') refreshStaffUI();
+    else if (name === 'counter') refreshCounterUI();
+    else if (name === 'design') refreshDesignUI();
+    else if (name === 'gym') { refreshOverview(); refreshFranchiseUI(); }
+  }
+  // Everything else the sidebar shows, taken in turn, one a tick. The
+  // tab dots and the tabs that appear and disappear are kept here, so a
+  // panel that is not on screen still says within a second that there is
+  // something on it.
+  const TICK_TURNS = [
+    refreshShopUI,
+    () => { refreshJobsUI(); refreshJobsDot(); },
+    refreshStaffUI,
+    refreshCounterUI,
+    refreshThemeRow,
+    refreshRushOrderUI,
+    refreshOverview,
+    refreshNextStep,
+    refreshFranchiseUI,
+    refreshDesignUI,
+  ];
+  let tickTurn = 0;
+  panelsReady = true;
   setInterval(() => {
     const now = Date.now();
     const dt = (now - lastTickAt) / 1000;
@@ -18203,8 +18338,11 @@
 
     // The rush moves on its own, so the rate has to be recomputed as it
     // does -- but only when it has actually shifted, not ten times a second.
+    // A fiftieth rather than a two-hundred-and-fiftieth: below that the
+    // rate is the same to the eye, and every step here is a rescoring of
+    // the whole gym and a repaint of the site.
     const rush = rushFactor();
-    if (Math.abs(rush - lastRush) > 0.004) {
+    if (Math.abs(rush - lastRush) > 0.02) {
       lastRush = rush;
       recomputeStats();
       refreshRushUI();
@@ -18224,28 +18362,32 @@
 
     earnTick(dt);
     refreshHud();
-    refreshJobsUI();
-    refreshShopUI();
-    refreshStaffUI();
-    refreshCounterUI();
-    refreshFranchiseUI();
-    refreshThemeRow();
     refreshRoomActions();
     tickRushOrder();
-    refreshRushOrderUI();
-    refreshJobsDot();
-    refreshNextStep();
     refreshStreakUI();
     refreshLevelCard();
-    refreshOverview();
     refreshPriceUI();
-    refreshDesignUI();
+    refreshPromoUI();
     checkTrophies();
+    // The sidebar used to be gone over whole, ten times a second: every
+    // panel, shown or not, and the location row and the overview, which
+    // each score every room in every location to put a rate beside it.
+    // Measured on a slowed phone that was a quarter of the main thread, in
+    // a block every hundred milliseconds that landed between two frames
+    // of the crowd. Now the panel on screen is refreshed every tick and
+    // the rest take turns, one a tick, so each comes round about once a
+    // second and no tick carries the lot.
+    refreshPanel(activePanel);
+    tickTurn = (tickTurn + 1) % TICK_TURNS.length;
+    TICK_TURNS[tickTurn]();
 
     const affordable = nextRoomAffordable();
     if (affordable !== couldAffordNextRoom) {
       couldAffordNextRoom = affordable;
-      renderScene();
+      // The sign on the plot lights up. It is painted in the live pass,
+      // so a repaint is all it takes.
+      paintWhole = true;
+      paintScene();
     }
   }, TICK_MS);
 
@@ -18302,7 +18444,10 @@
   // empties out between rushes, and without this a phone would climb back
   // up every quiet minute and fall down again the moment somebody walked
   // in, which is worse to look at than either size on its own.
-  let stepFloor = 0;
+  // A session starts one step above where the last one settled, so a
+  // device that has got quicker can climb back; one that has not steps
+  // down once and stays.
+  let stepFloor = Math.max(0, pixelStep - 1);
   function tunePixelBudget(now) {
     // The first look is a warm-up. A page that has just loaded has a
     // frame or two of everything else going on in it, and judging the
@@ -18332,6 +18477,7 @@
     if (slowRuns >= 2 && pixelStep < PIXEL_STEPS.length - 1) {
       next = pixelStep + 1;
       stepFloor = Math.max(stepFloor, next);
+      try { localStorage.setItem(PIXEL_STEP_KEY, String(next)); } catch (err) { /* private mode */ }
     } else if (easyRuns >= 3 && pixelStep > stepFloor) {
       next = pixelStep - 1;
     }
@@ -18341,7 +18487,13 @@
     pixelStep = next;
     paintAvg = 0;
     rafGapAvg = 0;
-    renderScene();
+    // Only the resolution changed: the plan, the crowd and the zoom are
+    // as they were, and rebuilding all of them for a new backing store
+    // was most of a two-hundred-millisecond hitch.
+    paintWhole = true;
+    fitCanvasResolution();
+    paintStageGround();
+    paintScene();
   }
   let lastFrameAt = 0;
   // Scrolled past the plan, there is nothing to animate for. The observer is
