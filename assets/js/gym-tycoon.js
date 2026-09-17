@@ -15038,10 +15038,10 @@
           handY: 0.700, handX: 0.098, lean: 0.048,
         });
       case 'curl':
-        // The hand comes forward as it comes up, the way a forearm hinged
-        // at the elbow does; the elbow itself stays down at the side.
+        // The hand rises up the side of the body to the shoulder, the
+        // elbow staying down at the side (see arm() in paintMember).
         return Object.assign(base, {
-          handY: 0.545 + cycle * 0.205, handX: 0.118 + cycle * 0.095, hold: 'dumbbells', spread: 1.1,
+          handY: 0.545 + cycle * 0.215, handX: 0.118 + cycle * 0.03, hold: 'dumbbells', spread: 1.1,
         });
       case 'press':
         // Overhead, with a dip in the knees as the bar comes back down.
@@ -15178,8 +15178,10 @@
     // the lean reads as somebody putting their weight into it.
     const lean = p.lean;
     const shoulderX = 0.133 * broad + lean;
-    const stance = 0.052 * p.spread;
-    const legT = p.legT * 0.08;
+    const stance = 0.048 * p.spread;
+    // A shorter stride than the rig used to take: seen from the front, a
+    // long one reads as a giant step rather than a walk.
+    const legT = p.legT * 0.058;
     const armT = p.armT * 0.06;
     const backFoot = p.lift * Math.max(0, -p.legT);
     const frontFoot = p.lift * Math.max(0, p.legT);
@@ -15243,23 +15245,53 @@
       const side = (nx * px + ny * py) >= 0 ? 1 : -1;
       return { x: x1 + ux * along + nx * h * side, y: y1 + uy * along + ny * h * side };
     };
-    // Short enough that an arm hanging at the side is all but straight:
-    // a longer one had to bend somewhere, and bent at the elbow out to
-    // the side, which read as hands on hips.
-    const ARM_UPPER = 0.14;
-    const ARM_FORE = 0.125;
+    // Exactly the length of an arm hanging at the side, so one hanging is
+    // straight and only a pose that brings the hand in bends it.
+    const ARM_UPPER = 0.135;
+    const ARM_FORE = 0.12;
     const LEG_THIGH = 0.197;
     const LEG_SHIN = 0.197;
+    // A limb is one line through its joint, stroked with round ends and
+    // a round elbow or knee, over a wider dark stroke for its outline.
+    // Two capsules meeting at the joint left a line across every elbow.
+    const chain = (pts, w, color) => {
+      ctx.beginPath();
+      ctx.moveTo(X(pts[0].x), Y(pts[0].y));
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(X(pts[i].x), Y(pts[i].y));
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      if (fine) {
+        ctx.strokeStyle = line;
+        ctx.lineWidth = w * H + pen * 2;
+        ctx.stroke();
+      }
+      ctx.strokeStyle = color;
+      ctx.lineWidth = w * H;
+      ctx.stroke();
+    };
     // An arm from the shoulder to the hand, with a sleeve over the top of
-    // it when the shirt has them. The elbow drops, and goes behind the
-    // body when it cannot drop: the figure faces the way it walks, so a
-    // running arm folds back the way a running arm does rather than out
-    // sideways like a wing.
-    const arm = (sx, sy, hx, hy, w, color, sleeve) => {
-      const e = joint(sx, sy, hx, hy, ARM_UPPER, ARM_FORE, -0.4, -1);
-      limb(sx, sy, e.x, e.y, w, color);
-      limb(e.x, e.y, hx, hy, w * 0.92, color);
-      if (sleeve && trim) limb(sx, sy, sx + (e.x - sx) * 0.42, sy + (e.y - sy) * 0.42, w * 1.6, sleeve);
+    // it when the shirt has them. With the hands low the elbow drops, and
+    // goes behind the body when it cannot drop: the figure faces the way
+    // it walks, so a running arm folds back the way a running arm does.
+    // With the hands overhead the elbow goes out from the body, the way
+    // it does under a bar. `out` is which way is away from the body for
+    // this arm.
+    // A hand brought in close to the shoulder is a folded arm, and seen
+    // from the front a folded arm keeps its elbow straight down at the
+    // side with the forearm rising over the upper arm: a curl, a punch
+    // drawn back, a bar held at the chest. The geometry alone put that
+    // elbow out behind or across the chest. So near the shoulder the
+    // elbow is held down, and the further out the hand goes the more the
+    // geometry has its way.
+    const arm = (sx, sy, hx, hy, w, color, out, sleeve) => {
+      const overhead = hy > sy + 0.04;
+      const g = joint(sx, sy, hx, hy, ARM_UPPER, ARM_FORE, overhead ? out * 0.5 : -0.4, overhead ? -0.2 : -1);
+      const d = Math.hypot(hx - sx, hy - sy);
+      const t = Math.max(0, Math.min(1, (d - 0.13) / 0.09));
+      const e = { x: sx + (hx - sx) * 0.15 + (g.x - sx - (hx - sx) * 0.15) * t,
+        y: (sy - ARM_UPPER) + (g.y - (sy - ARM_UPPER)) * t };
+      chain([{ x: sx, y: sy }, e, { x: hx, y: hy }], w, color);
+      if (sleeve && trim) chain([{ x: sx, y: sy }, { x: sx + (e.x - sx) * 0.5, y: sy + (e.y - sy) * 0.5 }], w * 1.3, sleeve);
     };
     // A leg from the hip to the foot, and the shoe on the end of it: a
     // sock above and a sole under when there is the size to see them.
@@ -15269,8 +15301,7 @@
     // knees swung the same way.
     const leg = (hx, hy, fx, fy, w, color, shoe, out) => {
       const k = joint(hx, hy, fx, fy, LEG_THIGH, LEG_SHIN, p.crouch > 0.15 ? out : 1, 0.15, 0.62);
-      limb(hx, hy, k.x, k.y, w, color);
-      limb(k.x, k.y, fx, fy, w * 0.9, color);
+      chain([{ x: hx, y: hy }, k, { x: fx, y: fy }], w, color);
       if (!trim) return;
       const foot = fy - 0.045;
       if (fine && bare) bar(fx, 0.094 + foot, 0.056 + foot, 0.082, '#f3f5f8');
@@ -15279,7 +15310,7 @@
     };
 
     // Back limbs first, darkened, so the figure has some depth to it.
-    arm(-shoulderX + lean * 2, shoulderY, -handX - armT + lean * 2, handY, armW, shade(m.skin, -38),
+    arm(-shoulderX + lean * 2, shoulderY, -handX - armT + lean * 2, handY, armW, shade(m.skin, -38), -1,
       m.sleeves ? shade(m.shirt, -26) : null);
     leg(-stance * 0.45, hip, -stance - legT, 0.045 + backFoot, 0.078 * broad, legBack, '#b9c2cc', -1);
 
@@ -15339,7 +15370,7 @@
       }
     }
 
-    arm(shoulderX, shoulderY, handX + armT, handY, armW, m.skin, m.sleeves ? m.shirt : null);
+    arm(shoulderX, shoulderY, handX + armT, handY, armW, m.skin, 1, m.sleeves ? m.shirt : null);
     // A band on the wrist.
     if (m.wrist && fine) bar(handX + armT, handY + 0.040, handY + 0.020, armW * 1.3, '#2f3238');
 
