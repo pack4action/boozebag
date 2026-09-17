@@ -228,3 +228,218 @@ function onScroll() {
 }
 window.addEventListener('scroll', onScroll, { passive: true });
 onScroll();
+
+
+// ---- Today's regimen ----
+// One drink an hour, every hour, on whoever is looking's own clock. The
+// number is the hour plus one: the day's first goes down at midnight and
+// the twenty-fourth at eleven, and the strip says which one is next.
+const regimenCans = document.getElementById('regimen-cans');
+const regimenLine = document.getElementById('regimen-line');
+const regimenMood = document.getElementById('regimen-mood');
+const crackBtn = document.getElementById('btn-crack');
+const regimenSay = document.getElementById('regimen-say');
+
+function moodAt(hour) {
+  if (hour < 5) return 'blackout gains';
+  if (hour < 9) return 'hungover, still up';
+  if (hour < 12) return 'first ones down';
+  if (hour < 16) return 'warming up';
+  if (hour < 21) return 'peak form';
+  return 'degen mode';
+}
+function twoDigits(n) { return (n < 10 ? '0' : '') + n; }
+
+if (regimenCans && regimenLine) {
+  const cans = [];
+  for (let i = 0; i < 24; i++) {
+    const can = document.createElement('span');
+    can.className = 'regimen-can';
+    can.innerHTML = '<svg class="icon"><use href="#i-beer"></use></svg>';
+    regimenCans.appendChild(can);
+    cans.push(can);
+  }
+  let shownDown = -1;
+  const tick = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    const down = hour + 1;
+    if (down !== shownDown) {
+      shownDown = down;
+      cans.forEach((can, i) => {
+        can.classList.toggle('is-down', i < down);
+        can.classList.toggle('is-next', i === down);
+      });
+      const next = down < 24 ? twoDigits(down) + ':00' : 'midnight, when it starts again';
+      regimenLine.innerHTML = 'One an hour, every hour. Drink <b>' + down + ' of 24</b> is down. '
+        + (down < 24 ? 'Next one at <b>' + next + '</b>.' : 'That\'s the day. Next one at <b>midnight</b>.');
+      if (regimenMood) regimenMood.textContent = moodAt(hour);
+    }
+  };
+  tick();
+  setInterval(tick, 20000);
+}
+
+// ---- Cracking one ----
+// A tap on the button: a can on the strip jumps, foam goes up off the
+// button, he says something, and the sound of it if sound is on. The
+// same switch the games use, so somebody who turned them off stays in
+// quiet.
+let cracks = null;
+const CRACK_LINES = [
+  'That\'s breakfast.',
+  'Hydration.',
+  'This counts as cardio.',
+  'Sober Steve could never.',
+  'One more never hurt. Historically.',
+  'Rest day. Wrist day.',
+  'The regimen doesn\'t drink itself.',
+  'Protein. Liquid protein.',
+  'Nobody sells. Everybody drinks.',
+  'Arms every day. Curls count.',
+  'Stage ready. Bar ready.',
+  'Chart\'s red. Beer\'s cold.',
+];
+let lastLine = -1;
+function crackLine() {
+  let i = Math.floor(Math.random() * CRACK_LINES.length);
+  if (i === lastLine) i = (i + 1) % CRACK_LINES.length;
+  lastLine = i;
+  return CRACK_LINES[i];
+}
+let audio = null;
+function crackSound() {
+  try { if (localStorage.getItem('boozebagGameSound') === 'off') return; } catch (e) { /* fine */ }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try {
+    if (!audio) audio = new AC();
+    if (audio.state === 'suspended') audio.resume();
+    const t = audio.currentTime;
+    // The crack: a burst of noise, sharp at the front, through a high pass,
+    // trailing off into the hiss.
+    const len = Math.floor(audio.sampleRate * 0.42);
+    const buf = audio.createBuffer(1, len, audio.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      const p = i / len;
+      d[i] = (Math.random() * 2 - 1) * (p < 0.025 ? 1 : Math.pow(1 - p, 2.4) * 0.3);
+    }
+    const src = audio.createBufferSource();
+    src.buffer = buf;
+    const hp = audio.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 1600;
+    const g = audio.createGain();
+    g.gain.value = 0.45;
+    src.connect(hp);
+    hp.connect(g);
+    g.connect(audio.destination);
+    src.start(t);
+    // And the pop under it.
+    const osc = audio.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300, t);
+    osc.frequency.exponentialRampToValueAtTime(80, t + 0.09);
+    const og = audio.createGain();
+    og.gain.setValueAtTime(0.3, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+    osc.connect(og);
+    og.connect(audio.destination);
+    osc.start(t);
+    osc.stop(t + 0.14);
+  } catch (e) { /* no sound is fine */ }
+}
+function foam(fromEl) {
+  if (reduceMotion) return;
+  const r = fromEl.getBoundingClientRect();
+  const cx = r.left + r.width * (0.35 + Math.random() * 0.3);
+  const cy = r.top + 4;
+  for (let i = 0; i < 18; i++) {
+    const b = document.createElement('span');
+    b.className = 'foam';
+    const size = 4 + Math.random() * 10;
+    b.style.width = size + 'px';
+    b.style.height = size + 'px';
+    b.style.left = cx + 'px';
+    b.style.top = cy + 'px';
+    b.style.background = Math.random() < 0.65 ? '#fff6dc' : '#ffb703';
+    document.body.appendChild(b);
+    const ang = -Math.PI / 2 + (Math.random() - 0.5) * 1.5;
+    const v = 70 + Math.random() * 150;
+    const dx = Math.cos(ang) * v;
+    const dy = Math.sin(ang) * v;
+    b.animate([
+      { transform: 'translate(-50%, -50%) scale(0.6)', opacity: 1 },
+      { transform: 'translate(calc(-50% + ' + dx.toFixed(0) + 'px), calc(-50% + ' + (dy * 0.55).toFixed(0) + 'px)) scale(1.1)', opacity: 1, offset: 0.35 },
+      { transform: 'translate(calc(-50% + ' + (dx * 1.2).toFixed(0) + 'px), calc(-50% + ' + (dy * 0.2 + 140).toFixed(0) + 'px)) scale(0.5)', opacity: 0 },
+    ], { duration: 650 + Math.random() * 450, easing: 'cubic-bezier(0.2, 0.7, 0.4, 1)' }).onfinish = () => b.remove();
+  }
+}
+if (crackBtn) {
+  const dayKey = () => 'boozebagCracks:' + new Date().toDateString();
+  const tallyEl = document.createElement('span');
+  tallyEl.className = 'regimen-tally';
+  tallyEl.hidden = true;
+  crackBtn.parentNode.appendChild(tallyEl);
+  const showTally = () => {
+    if (cracks === null) {
+      try { cracks = parseInt(localStorage.getItem(dayKey()), 10) || 0; } catch (e) { cracks = 0; }
+    }
+    if (cracks <= 0) return;
+    tallyEl.hidden = false;
+    tallyEl.textContent = cracks === 1 ? 'You\'ve had one with him today.'
+      : 'You\'ve had ' + cracks + ' with him today.' + (cracks >= 24 ? ' That\'s the full regimen. Respect.' : '');
+  };
+  showTally();
+  let sayTimer = 0;
+  crackBtn.addEventListener('click', () => {
+    cracks = (cracks || 0) + 1;
+    try { localStorage.setItem(dayKey(), String(cracks)); } catch (e) { /* fine */ }
+    crackSound();
+    buzz(18);
+    foam(crackBtn);
+    if (regimenCans) {
+      const lit = regimenCans.querySelectorAll('.regimen-can.is-down');
+      const can = lit[Math.floor(Math.random() * lit.length)] || regimenCans.firstChild;
+      if (can) {
+        can.classList.remove('is-wobble');
+        void can.offsetWidth;
+        can.classList.add('is-wobble');
+      }
+    }
+    if (regimenSay) {
+      regimenSay.textContent = crackLine();
+      regimenSay.classList.remove('is-in');
+      void regimenSay.offsetWidth;
+      regimenSay.classList.add('is-in');
+      clearTimeout(sayTimer);
+      sayTimer = setTimeout(() => { regimenSay.textContent = ''; }, 4200);
+    }
+    showTally();
+  });
+}
+
+// ---- Top bags ----
+// The richest gyms off the shared board, on the front page: the same
+// list the game shows, cut to five by the stylesheet. Drawn once every
+// script on the page is in, since the rows use the wallet's short form
+// of an address.
+function shortNum(n) {
+  const v = Number(n) || 0;
+  if (v >= 1e9) return (v / 1e9).toFixed(v >= 1e10 ? 0 : 1) + 'B';
+  if (v >= 1e6) return (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(v >= 1e4 ? 0 : 1) + 'K';
+  return String(Math.round(v));
+}
+const topbagsList = document.getElementById('topbags-list');
+const topbagsEmpty = document.getElementById('topbags-empty');
+if (topbagsList && topbagsEmpty) {
+  const drawBoard = () => {
+    if (!window.BoozebagLeaderboard) return;
+    const board = window.BoozebagLeaderboard.makeLeaderboard('gym-tycoon', 'gymTycoonLeaderboard');
+    board.render(topbagsList, topbagsEmpty, (rate) => shortNum(rate) + '/s', (score) => '$' + shortNum(score));
+  };
+  if (document.readyState === 'complete') drawBoard();
+  else window.addEventListener('load', drawBoard);
+}

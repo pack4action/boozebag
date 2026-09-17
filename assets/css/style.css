@@ -1459,3 +1459,226 @@ html { scroll-padding-top: 84px; }
   .road-item.is-now .road-dot::after { animation: none; }
   .hero { --py: 0px !important; }
 }
+
+
+/* ---- Today's regimen ----
+   One drink an hour on the visitor's own clock, which is the whole bit
+   made live: twenty-four cans, the ones that are down lit, the next one
+   waiting, and a button to crack one along with him. Sits right under
+   the tape, so it reads as part of the hero's noise rather than a
+   section of its own. */
+.regimen {
+  position: relative;
+  z-index: 1;
+  padding: 10px 16px 30px;
+}
+.regimen-inner {
+  max-width: 760px;
+  margin: 0 auto;
+  background: var(--panel);
+  border: 2px solid #000;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hard);
+  padding: 16px 18px 18px;
+  transform: rotate(-0.4deg);
+}
+.regimen-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.regimen-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.regimen-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red, #e63946);
+  box-shadow: 0 0 0 0 rgba(230, 57, 70, 0.6);
+  animation: regimen-pulse 1.6s ease-out infinite;
+}
+@keyframes regimen-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(230, 57, 70, 0.6); }
+  100% { box-shadow: 0 0 0 9px rgba(230, 57, 70, 0); }
+}
+.regimen-mood {
+  font-family: 'Caveat', 'Comic Sans MS', cursive;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--text);
+  transform: rotate(-2deg);
+}
+.regimen-cans {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 3px;
+  margin-bottom: 12px;
+}
+.regimen-can {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1.25;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.16);
+  transition: color 0.3s ease, background-color 0.3s ease, transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+}
+.regimen-can .icon { width: 62%; height: 62%; }
+.regimen-can.is-down {
+  color: #1a1200;
+  background: var(--amber);
+  border-color: rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+}
+.regimen-can.is-next {
+  color: var(--amber);
+  border-color: rgba(255, 183, 3, 0.55);
+  animation: regimen-next 1.1s ease-in-out infinite alternate;
+}
+@keyframes regimen-next {
+  from { background: rgba(255, 183, 3, 0.06); transform: translateY(0); }
+  to { background: rgba(255, 183, 3, 0.2); transform: translateY(-2px); }
+}
+.regimen-can.is-wobble { animation: regimen-wobble 0.5s ease-out; }
+@keyframes regimen-wobble {
+  0% { transform: rotate(0) scale(1); }
+  30% { transform: rotate(-12deg) scale(1.25); }
+  60% { transform: rotate(9deg) scale(1.1); }
+  100% { transform: rotate(0) scale(1); }
+}
+.regimen-line {
+  margin: 0 0 12px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.regimen-line b { color: var(--amber); }
+.regimen-act {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.regimen-crack { position: relative; }
+.regimen-crack:active { transform: translate(2px, 2px) scale(0.98); }
+.regimen-say {
+  font-family: 'Caveat', 'Comic Sans MS', cursive;
+  font-size: 19px;
+  line-height: 1.1;
+  color: var(--amber);
+  min-height: 1em;
+}
+.regimen-say.is-in { animation: say-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
+@keyframes say-in {
+  from { opacity: 0; transform: translateY(6px) rotate(-3deg); }
+  to { opacity: 1; transform: none; }
+}
+.regimen-tally {
+  display: block;
+  width: 100%;
+  font-size: 12px;
+  color: var(--muted);
+}
+/* Foam, thrown up off the button when a can is cracked. */
+.foam {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 60;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+@media (max-width: 640px) {
+  .regimen { padding: 6px 12px 24px; }
+  .regimen-inner { padding: 14px 14px 16px; transform: none; }
+  .regimen-cans { gap: 2px; }
+  .regimen-can { border-radius: 3px; }
+  .regimen-line { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .regimen-live, .regimen-can.is-next, .regimen-can.is-wobble, .regimen-say.is-in { animation: none; }
+}
+
+/* ---- Top bags ----
+   The richest gyms off the shared board, under the featured game: a
+   reason to open it that is other people. Same rows the game itself
+   uses, five of them. */
+.topbags {
+  max-width: 620px;
+  margin: -14px auto 34px;
+  background: var(--panel);
+  border: 2px solid #000;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hard);
+  padding: 16px 20px 14px;
+  text-align: left;
+}
+.topbags-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.topbags-head h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 17px;
+}
+.topbags-head h3 .icon { color: var(--amber); width: 1.1em; height: 1.1em; }
+.topbags .leaderboard-sub {
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.topbags-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: bag;
+}
+.topbags-list li {
+  display: grid;
+  grid-template-columns: 26px 1fr auto auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--panel-border);
+  font-size: 14px;
+  counter-increment: bag;
+}
+.topbags-list li::before {
+  content: counter(bag);
+  font-family: 'Anton', sans-serif;
+  font-size: 16px;
+  color: var(--muted);
+}
+.topbags-list li:first-child::before { color: var(--amber); }
+.topbags-list li:nth-child(n + 6) { display: none; }
+.topbags-list .lb-addr { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbags-list .lb-meta { font-size: 12px; color: var(--muted); }
+.topbags-list .lb-score { font-weight: 800; color: var(--amber); font-variant-numeric: tabular-nums; }
+.topbags-list li.is-you .lb-addr { color: var(--amber); }
+.topbags-empty { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); }
+.topbags-empty[hidden] { display: none; }
+.topbags-note { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+@media (max-width: 640px) {
+  .topbags { padding: 14px 14px 12px; }
+  .topbags-list li { grid-template-columns: 22px 1fr auto; }
+  .topbags-list .lb-meta { display: none; }
+}
