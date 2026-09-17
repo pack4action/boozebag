@@ -15243,26 +15243,32 @@
       const side = (nx * px + ny * py) >= 0 ? 1 : -1;
       return { x: x1 + ux * along + nx * h * side, y: y1 + uy * along + ny * h * side };
     };
-    const ARM_UPPER = 0.15;
-    const ARM_FORE = 0.14;
+    // Short enough that an arm hanging at the side is all but straight:
+    // a longer one had to bend somewhere, and bent at the elbow out to
+    // the side, which read as hands on hips.
+    const ARM_UPPER = 0.14;
+    const ARM_FORE = 0.125;
     const LEG_THIGH = 0.197;
     const LEG_SHIN = 0.197;
     // An arm from the shoulder to the hand, with a sleeve over the top of
-    // it when the shirt has them. `out` is which way is away from the
-    // body for this arm, which is where its elbow goes if it cannot drop.
-    const arm = (sx, sy, hx, hy, w, color, out, sleeve) => {
-      const e = joint(sx, sy, hx, hy, ARM_UPPER, ARM_FORE, out * 0.35, -1);
+    // it when the shirt has them. The elbow drops, and goes behind the
+    // body when it cannot drop: the figure faces the way it walks, so a
+    // running arm folds back the way a running arm does rather than out
+    // sideways like a wing.
+    const arm = (sx, sy, hx, hy, w, color, sleeve) => {
+      const e = joint(sx, sy, hx, hy, ARM_UPPER, ARM_FORE, -0.4, -1);
       limb(sx, sy, e.x, e.y, w, color);
       limb(e.x, e.y, hx, hy, w * 0.92, color);
       if (sleeve && trim) limb(sx, sy, sx + (e.x - sx) * 0.42, sy + (e.y - sy) * 0.42, w * 1.6, sleeve);
     };
     // A leg from the hip to the foot, and the shoe on the end of it: a
     // sock above and a sole under when there is the size to see them.
-    // The knee goes out to that leg's own side, so a crouch is the
-    // diamond a front view of one makes rather than both knees swung the
-    // same way.
+    // In a stride the knee comes forward, the way the figure is facing,
+    // on both legs. In a crouch it goes out to that leg's own side, so a
+    // squat is the diamond a front view of one makes rather than both
+    // knees swung the same way.
     const leg = (hx, hy, fx, fy, w, color, shoe, out) => {
-      const k = joint(hx, hy, fx, fy, LEG_THIGH, LEG_SHIN, out, 0.15, 0.62);
+      const k = joint(hx, hy, fx, fy, LEG_THIGH, LEG_SHIN, p.crouch > 0.15 ? out : 1, 0.15, 0.62);
       limb(hx, hy, k.x, k.y, w, color);
       limb(k.x, k.y, fx, fy, w * 0.9, color);
       if (!trim) return;
@@ -15273,7 +15279,7 @@
     };
 
     // Back limbs first, darkened, so the figure has some depth to it.
-    arm(-shoulderX + lean * 2, shoulderY, -handX - armT + lean * 2, handY, armW, shade(m.skin, -38), -1,
+    arm(-shoulderX + lean * 2, shoulderY, -handX - armT + lean * 2, handY, armW, shade(m.skin, -38),
       m.sleeves ? shade(m.shirt, -26) : null);
     leg(-stance * 0.45, hip, -stance - legT, 0.045 + backFoot, 0.078 * broad, legBack, '#b9c2cc', -1);
 
@@ -15333,7 +15339,7 @@
       }
     }
 
-    arm(shoulderX, shoulderY, handX + armT, handY, armW, m.skin, 1, m.sleeves ? m.shirt : null);
+    arm(shoulderX, shoulderY, handX + armT, handY, armW, m.skin, m.sleeves ? m.shirt : null);
     // A band on the wrist.
     if (m.wrist && fine) bar(handX + armT, handY + 0.040, handY + 0.020, armW * 1.3, '#2f3238');
 
