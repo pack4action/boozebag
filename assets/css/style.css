@@ -143,6 +143,10 @@ img { max-width: 100%; display: block; }
 .nav-links a { color: var(--muted); white-space: nowrap; }
 .nav-links a:hover { color: var(--text); }
 .nav-cta { display: none; }
+/* The copy of the buy button that the phone menu carries. It is made by
+   the script and only ever meant for the sheet, so anywhere the bar has
+   its own it stays away. */
+.nav-menu-buy { display: none; }
 .nav-toggle {
   display: none;
   flex-direction: column;
@@ -351,6 +355,11 @@ img { max-width: 100%; display: block; }
     letter-spacing: 0.6px;
   }
   .nav-links .nav-menu-buy::after { display: none; }
+  /* Play is the one thing on the list that is a game rather than a part
+     of the page, so it is lit in the sheet as well. */
+  .nav-links .nav-play { justify-content: flex-start; color: var(--amber); }
+  .nav-links .nav-play::before { content: "\25B6"; font-size: 12px; margin-right: -2px; }
+  .nav-links .nav-play::after { margin-left: auto; }
   /* Each row lands a beat after the one above it. */
   .js .nav-links.open a { animation: nav-row 0.3s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
   .js .nav-links.open a:nth-child(2) { animation-delay: 0.03s; }
@@ -1334,6 +1343,36 @@ html { scroll-padding-top: 84px; }
 }
 .nav-links a:hover::after, .nav-links a.is-here::after { transform: scaleX(1); }
 .nav-links a.is-here { color: var(--text); }
+/* Once the bar has its own buy button, the sheet's copy goes: there was a
+   stretch of widths with one in the bar and one in the list, and on a
+   wide screen the copy sat in the row of links as a second button. */
+@media (min-width: 760px) {
+  .nav-links .nav-menu-buy { display: none; }
+}
+/* Play stands apart from the links on a wide bar: a small amber pill at
+   the end of the row, set off from the words, filled when you are on it
+   or point at it. It is a game, not a heading, and reads as one. */
+@media (min-width: 1041px) {
+  .nav-links .nav-play {
+    margin-left: 10px;
+    padding: 7px 14px 6px;
+    border: 2px solid var(--amber);
+    border-radius: 999px;
+    font-family: 'Anton', sans-serif;
+    font-weight: 400;
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--amber);
+    line-height: 1;
+    transition: color 0.15s ease, background-color 0.15s ease, transform 0.14s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+  }
+  .nav-links .nav-play::before { content: "\25B6"; font-size: 10px; margin-right: 7px; }
+  .nav-links .nav-play::after { display: none; }
+  .nav-links .nav-play:hover,
+  .nav-links .nav-play.is-here { background: var(--amber); color: #1a1200; }
+  .nav-links .nav-play:hover { transform: translateY(-1px); }
+}
 .nav { transition: box-shadow 0.2s ease; }
 .nav.is-scrolled { box-shadow: 0 3px 0 #000; }
 
