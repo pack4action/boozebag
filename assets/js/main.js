@@ -816,18 +816,21 @@ if (buybar && heroEl && window.IntersectionObserver) {
         const d = el('circle', { class: 'wave-drop', cx: r(dx), cy: r(topY(dx) + 5), r: 2.4 }, dress);
         d.style.animationDelay = (-rand() * 2.6).toFixed(2) + 's';
       }
-      // Bubbles rising through the beer along this stretch.
-      for (let i = 0; i < 4; i++) {
-        const bx = x + (rand() - 0.5) * PERIOD * 0.9;
-        const c = el('circle', { class: 'wave-bubble', cx: r(bx), cy: r(topY(bx) + THICK * 1.6), r: r(1.8 + rand() * 2.4) }, dress);
-        c.style.animationDuration = (2.8 + rand() * 1.8).toFixed(2) + 's';
-        c.style.animationDelay = (-rand() * 4).toFixed(2) + 's';
-      }
-      // And two popping at the top, between this crest and the next.
-      for (let i = 0; i < 2; i++) {
-        const px = x + 120 + rand() * 380;
-        const pop = el('circle', { class: 'wave-pop', cx: r(px), cy: r(topY(px) + 6), r: 4 }, dress);
-        pop.style.animationDelay = (-rand() * 3.2).toFixed(2) + 's';
+      // Bubbles that float up through the beer, wobbling as they go, and
+      // pop when they reach the surface, leaving a ring that spreads and
+      // fades. The bubble and its ring share one clock.
+      for (let i = 0; i < 6; i++) {
+        const bx = x + (rand() - 0.5) * PERIOD * 0.95;
+        const depth = 12 + rand() * 28;
+        const clock = (3 + rand() * 2.4).toFixed(2) + 's linear ' + (-rand() * 6).toFixed(2) + 's infinite';
+        const g = el('g', { class: 'wave-bub' }, dress);
+        g.style.setProperty('--rise', -depth.toFixed(1) + 'px');
+        const c = el('circle', { class: 'wave-bubble', cx: r(bx), cy: r(topY(bx) + 2 + depth), r: r(1.4 + rand() * 2) }, g);
+        const pop = el('circle', { class: 'wave-pop', cx: r(bx), cy: r(topY(bx) + 2), r: 3.5 }, g);
+        if (!stillness) {
+          c.style.animation = 'wave-rise ' + clock;
+          pop.style.animation = 'wave-burst ' + clock;
+        }
       }
     }
   }
