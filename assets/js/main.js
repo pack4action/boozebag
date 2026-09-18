@@ -742,8 +742,8 @@ if (buybar && heroEl && window.IntersectionObserver) {
   // Foam on every crest, no two heads alike. A skirt of foam grows out
   // of the surface either side of the crest, and a head of blobs rises
   // from it, drawn twice, outlined and then filled, so only the outer
-  // edge keeps its line. Drips hang down the front, flecks hang in the
-  // air over a lively head, drops fall, bubbles rise and pop.
+  // edge keeps its line. Flecks hang in the air over a lively head,
+  // drops fall, bubbles rise and pop.
   function dressUp(cycle) {
     while (dress.firstChild) dress.removeChild(dress.firstChild);
     const perCycle = Math.max(1, Math.round(cycle / PERIOD));
@@ -792,16 +792,6 @@ if (buybar && heroEl && window.IntersectionObserver) {
         blob('wave-head-shade', [b[0] + b[2] * 0.2, b[1] + b[2] * 0.3, b[2] * 0.6, b[3]]);
         blob('wave-head-hole', [b[0] + (rand() - 0.5) * b[2], b[1] + (rand() - 0.5) * b[2] * 0.8, 1 + rand() * 1.2, b[3]]);
       });
-      // A drip or two hanging off the head down the front of the wave.
-      const drips = kind === 1 ? 2 : kind === 0 ? 1 : 0;
-      for (let i = 0; i < drips; i++) {
-        const dx = x + (rand() - 0.5) * spread * 0.8;
-        const dy = topY(dx) + 4;
-        const len = 9 + rand() * 9;
-        el('path', { class: 'wave-drip', d: 'M' + r(dx - 3) + ' ' + r(dy) + ' L' + r(dx + 3) + ' ' + r(dy)
-          + ' Q' + r(dx + 3.6) + ' ' + r(dy + len * 0.75) + ' ' + r(dx) + ' ' + r(dy + len)
-          + ' Q' + r(dx - 3.6) + ' ' + r(dy + len * 0.75) + ' ' + r(dx - 3) + ' ' + r(dy) + ' Z' }, dress);
-      }
       // Flecks thrown up off a lively head, hanging in the air.
       if (kind === 2) {
         for (let i = 0; i < 3; i++) {
