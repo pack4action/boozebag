@@ -570,26 +570,30 @@ if (kickSlug && livePill) {
         if (!a) throw new Error('no answer');
         if (a.kick) showLive(a.kick);
         if (a.discord && a.discord.members) setCount('discord', countText(a.discord.members, 'members'));
+        else askDiscordDirect();
         if (!a.kick) return askKickDirect();
         return null;
       })
       : Promise.reject(new Error('no site api'));
-    viaSite.catch(() => askKickDirect()).catch(() => {});
+    viaSite.catch(() => { askDiscordDirect(); return askKickDirect(); }).catch(() => {});
   };
   check();
   setInterval(() => { if (!document.hidden) check(); }, 120000);
 }
 
 // ---- Discord: how many are in ----
-// Asked straight when there is no Worker to ask; with one, it comes in
-// the same answer as Kick.
+// Asked straight when there is no Worker to ask, or when the Worker's
+// answer had nothing from Discord; with one, it comes in the same answer
+// as Kick.
 const discordInvite = metaValue('boozebag-discord');
-if (!siteApi && discordInvite && document.querySelector('.community-card[data-live="discord"]')) {
+function askDiscordDirect() {
+  if (!discordInvite || !document.querySelector('.community-card[data-live="discord"]')) return;
   fetch('https://discord.com/api/v10/invites/' + encodeURIComponent(discordInvite) + '?with_counts=true')
     .then((r) => (r.ok ? r.json() : null))
     .then((inv) => { if (inv) setCount('discord', countText(inv.approximate_member_count, 'members')); })
     .catch(() => {});
 }
+if (!siteApi) askDiscordDirect();
 // The counts written by hand on the cards, for the places with no open door.
 document.querySelectorAll('.community-card[data-count]').forEach((card) => {
   const el = card.querySelector('.community-count');

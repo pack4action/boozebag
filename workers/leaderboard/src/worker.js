@@ -202,10 +202,21 @@ async function discordCount(env) {
   }
 }
 
+// The last answer each source gave, kept while this instance lives. Kick
+// and Discord both refuse a call now and then, and a refusal should not
+// blank the page for two minutes when the last good answer is minutes old.
+const LAST_GOOD_MS = 30 * 60 * 1000;
+let lastKick = null;
+let lastDiscord = null;
+
 async function liveAnswer(env) {
   const now = Date.now();
   if (liveHeld && now - liveHeld.at < LIVE_HOLD_MS) return liveHeld.body;
-  const [kick, discord] = await Promise.all([kickStatus(env), discordCount(env)]);
+  let [kick, discord] = await Promise.all([kickStatus(env), discordCount(env)]);
+  if (kick) lastKick = { at: now, kick };
+  else if (lastKick && now - lastKick.at < LAST_GOOD_MS) kick = lastKick.kick;
+  if (discord) lastDiscord = { at: now, discord };
+  else if (lastDiscord && now - lastDiscord.at < LAST_GOOD_MS) discord = lastDiscord.discord;
   const body = { kick, discord: discord ? { members: discord } : null, at: now };
   liveHeld = { at: now, body };
   return body;
