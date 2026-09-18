@@ -688,7 +688,7 @@ if (buybar && heroEl && window.IntersectionObserver) {
   el('path', { class: 'wave-shadow', d: band, transform: 'translate(0 7)' }, drift);
   el('path', { class: 'wave-band', d: band }, drift);
   const flow = el('g', {}, drift);
-  el('path', { class: 'wave-foam', d: curve(top, 'M') }, drift);
+  el('path', { class: 'wave-foam', d: curve(wavePoints(MID - THICK + 2.5), 'M') }, drift);
   const dress = el('g', {}, drift);
   const riders = el('g', {}, drift);
   let run = null;
@@ -755,15 +755,15 @@ if (buybar && heroEl && window.IntersectionObserver) {
       const kind = (k % perCycle) % 3;
       const reach = kind === 0 ? 150 : kind === 1 ? 95 : 120;
       const rise = kind === 0 ? 9 : kind === 1 ? 6 : 8;
-      // The skirt, from the surface up, thickest under the crest.
+      // The skirt, from the surface up, thickest under the crest, and
+      // the head of blobs rising from it. The outlines of all of it go
+      // down first and the fills over them, so only the outer edge of
+      // the whole head keeps its line, however the blobs move.
       const over = [], under = [];
       for (let u = -reach; u <= reach; u += 15) {
-        over.push([x + u, topY(x + u) - rise * bell(u / reach) - 1.5]);
+        over.push([x + u, topY(x + u) - (rise + 1.5) * bell(u / reach)]);
         under.push([x + u, topY(x + u) + 5]);
       }
-      el('path', { class: 'wave-skirt', d: curve(over, 'M') + curve(under.slice().reverse(), ' L') + ' Z' }, dress);
-      el('path', { class: 'wave-skirt-edge', d: curve(over, 'M') }, dress);
-      // The head of blobs, dipping just below the surface.
       const n = kind === 0 ? 7 : kind === 1 ? 4 : 5;
       const spread = kind === 0 ? 118 : kind === 1 ? 62 : 86;
       const blobs = [];
@@ -771,24 +771,26 @@ if (buybar && heroEl && window.IntersectionObserver) {
         const mid = (n - 1) / 2;
         const cx = x - spread / 2 + spread * (i / (n - 1)) + (rand() - 0.5) * 12;
         const rad = (7.5 + rand() * 8) * (1 + 0.7 * (1 - Math.abs(i - mid) / (mid || 1)));
-        blobs.push([cx, topY(cx) - rad * 0.8, rad]);
+        // Each blob swells, shrinks and shifts on its own beat.
+        const beat = stillness ? '' : 'wave-blob-' + (i % 2 ? 'a' : 'b') + ' ' + (1.8 + rand() * 1.4).toFixed(2) + 's ease-in-out ' + (-rand() * 3).toFixed(2) + 's infinite alternate';
+        blobs.push([cx, topY(cx) - rad * 0.8, rad, beat]);
       }
-      const bob = el('g', { class: 'wave-head-bob' }, dress);
-      bob.style.animationDelay = (-rand() * 2.6).toFixed(2) + 's';
-      const head = el('g', {}, bob);
-      blobs.forEach((b) => el('circle', { class: 'wave-head-line', cx: r(b[0]), cy: r(b[1]), r: r(b[2]) }, head));
-      blobs.forEach((b) => el('circle', { class: 'wave-head', cx: r(b[0]), cy: r(b[1]), r: r(b[2]) }, head));
-      // Foam at the surface, drawn over the blobs, so their bottoms sit
-      // in the beer with no line showing through it.
-      const lip = [];
-      for (let u = -reach; u <= reach; u += 15) lip.push([x + u, topY(x + u) + 0.5]);
-      el('path', { class: 'wave-skirt', d: curve(lip, 'M') + curve(under.slice().reverse(), ' L') + ' Z' }, head);
-      // Shade low on the bigger blobs, and a few holes, so the foam has
-      // some body to it.
+      const head = el('g', {}, dress);
+      const blob = (cls, b) => {
+        const c = el('circle', { class: cls, cx: r(b[0]), cy: r(b[1]), r: r(b[2]) }, head);
+        if (b[3]) c.style.animation = b[3];
+        return c;
+      };
+      el('path', { class: 'wave-skirt-edge', d: curve(over, 'M') }, head);
+      blobs.forEach((b) => blob('wave-head-line', b));
+      el('path', { class: 'wave-skirt', d: curve(over, 'M') + curve(under.slice().reverse(), ' L') + ' Z' }, head);
+      blobs.forEach((b) => blob('wave-head', b));
+      // Shade low on the bigger blobs, and a hole or two, so the foam
+      // has some body to it. They move with their blob.
       blobs.forEach((b) => {
         if (b[2] < 10) return;
-        el('circle', { class: 'wave-head-shade', cx: r(b[0] + b[2] * 0.2), cy: r(b[1] + b[2] * 0.3), r: r(b[2] * 0.6) }, head);
-        el('circle', { class: 'wave-head-hole', cx: r(b[0] + (rand() - 0.5) * b[2]), cy: r(b[1] + (rand() - 0.5) * b[2] * 0.8), r: r(1 + rand() * 1.2) }, head);
+        blob('wave-head-shade', [b[0] + b[2] * 0.2, b[1] + b[2] * 0.3, b[2] * 0.6, b[3]]);
+        blob('wave-head-hole', [b[0] + (rand() - 0.5) * b[2], b[1] + (rand() - 0.5) * b[2] * 0.8, 1 + rand() * 1.2, b[3]]);
       });
       // A drip or two hanging off the head down the front of the wave.
       const drips = kind === 1 ? 2 : kind === 0 ? 1 : 0;
