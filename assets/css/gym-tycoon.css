@@ -3532,6 +3532,59 @@
   outline: none;
 }
 
+/* The name is claimed with a button, and shown on a plate once it is. */
+.tycoon-namer-form { display: grid; gap: 8px; }
+.tycoon-namer-actions { display: flex; gap: 8px; justify-content: center; }
+.tycoon-namer-submit {
+  font: inherit;
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #1a1200;
+  background: #ffd166;
+  border: 2px solid #000;
+  border-radius: 999px;
+  padding: 8px 18px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 #000;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.tycoon-namer-submit:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 #000; }
+.tycoon-namer-submit:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+.tycoon-namer-submit[disabled] { opacity: 0.6; cursor: wait; transform: none; box-shadow: 3px 3px 0 #000; }
+.tycoon-namer-cancel, .tycoon-namer-edit {
+  font: inherit;
+  font-weight: 700;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.tycoon-namer-cancel:hover, .tycoon-namer-edit:hover { color: #fff; border-color: rgba(255, 255, 255, 0.4); }
+.tycoon-namer-set { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.tycoon-namer-plate {
+  font-family: 'Anton', sans-serif;
+  font-size: 22px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #1a1200;
+  background: #ffd166;
+  border: 2px solid #000;
+  border-radius: 6px;
+  padding: 4px 14px;
+  box-shadow: 3px 3px 0 #000;
+  transform: rotate(-1.5deg);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.tycoon-namer-note { margin: 8px 0 0; font-size: 12px; color: rgba(255, 255, 255, 0.6); text-align: center; min-height: 1em; }
+.tycoon-namer-note.is-good { color: #8be0a4; }
+.tycoon-namer-note.is-bad { color: #ff8a8a; }
+
 /* ---- Photo mode ----
    The gym with nothing in front of it. The plan window goes full screen,
    everything that is a control rather than the gym gets out of the way,

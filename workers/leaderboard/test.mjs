@@ -96,6 +96,19 @@ ok('a name is taken', dressed.status === 200, dressed.status);
 ok('with the invisible characters out and cut to twenty',
   row && row.name === 'IronPalace and a gre', row && row.name);
 
+// One name per wallet: a claim on a name somebody else holds is refused,
+// spelt any way, and a score post carrying it goes up without it.
+await wait(GAP);
+const grab = await post({ game: 'gym-tycoon', address: W[4], score: 10, name: 'ironpalace and a GRE', claim: true });
+ok('a claim on a taken name is refused', grab.status === 409 && grab.body && grab.body.error === 'taken', grab);
+await wait(GAP);
+const slip = await post({ game: 'gym-tycoon', address: W[4], score: 12, name: 'IronPalace and a gre' });
+const slipRow = slip.body && slip.body.board && slip.body.board.find((e) => e.address === W[4]);
+ok('a score post with a taken name goes up nameless', slip.status === 200 && slipRow && !slipRow.name, slipRow);
+await wait(GAP);
+const own = await post({ game: 'gym-tycoon', address: W[3], score: 41, name: 'Iron Palace II', claim: true });
+ok('a claim on a free name is taken at once', own.status === 200 && own.body && own.body.name === 'Iron Palace II', own.body && own.body.name);
+
 // More than twenty seconds have passed by now, so this one is taken --
 // and a wallet's row is its best, so a worse run leaves it where it was.
 await wait(GAP);

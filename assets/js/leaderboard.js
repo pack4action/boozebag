@@ -127,6 +127,26 @@
       return out;
     }
 
+    // The name, put up right now, from the button in the game. Answers
+    // 'yours' when it went up, 'taken' when somebody else has it, 'slow'
+    // when the board asked for a moment, and 'offline' when there is no
+    // shared board or it did not answer.
+    function claim(address, score, meta, name) {
+      if (!API) return Promise.resolve('offline');
+      return fetch(API + '/scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ game: gameId, address, score, meta, name, claim: true }),
+      }).then((r) => r.json().then((reply) => {
+        if (r.status === 409) return 'taken';
+        if (r.status === 429) return 'slow';
+        if (!r.ok) return 'offline';
+        writeLocal(address, score, meta, name);
+        tookTheBoard(reply);
+        return 'yours';
+      })).catch(() => 'offline');
+    }
+
     function pull() {
       if (!API) return;
       pulledAt = Date.now();
@@ -189,7 +209,7 @@
       draw();
     }
 
-    return { load, upsert, render, refresh: pull, remote: !!API };
+    return { load, upsert, claim, render, refresh: pull, remote: !!API };
   }
 
   window.BoozebagLeaderboard = { makeLeaderboard, api: API };

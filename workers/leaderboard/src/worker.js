@@ -275,14 +275,31 @@ export default {
     if (score === null) return json(request, { error: 'that is not a score' }, 400);
     const meta = body.meta === undefined || body.meta === null
       ? null : number(body.meta, rules.metaCeiling);
-    const name = cleanName(body.name);
+    let name = cleanName(body.name);
+    // A post that is about the name, from the button in the game, rather
+    // than a score going up in passing: it answers straight away and is
+    // not held to the wallet's posting window, since a person pressed it.
+    const claim = body.claim === true && name !== null;
 
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
     if (await tooSoon(env, 'ip:' + ip, ORIGIN_EVERY, ORIGIN_PER_HOUR)) {
       return json(request, { error: 'slow down' }, 429);
     }
-    if (await tooSoon(env, 'w:' + game + ':' + address, WALLET_EVERY, 0)) {
+    if (!claim && await tooSoon(env, 'w:' + game + ':' + address, WALLET_EVERY, 0)) {
       return json(request, { error: 'slow down' }, 429);
+    }
+
+    // A name is one wallet's, first come first served, spelt any way.
+    // A claim on somebody else's is refused; a score post carrying one
+    // just goes up without it.
+    if (name !== null) {
+      const holder = await env.DB.prepare(
+        'SELECT address FROM scores WHERE game = ?1 AND lower(name) = lower(?2) AND address != ?3 LIMIT 1',
+      ).bind(game, name, address).first();
+      if (holder) {
+        if (claim) return json(request, { error: 'taken', name }, 409);
+        name = null;
+      }
     }
 
     const now = Math.floor(Date.now() / 1000);
@@ -303,6 +320,6 @@ export default {
     // growing for ever without anything having to run on a timer.
     ctx.waitUntil(env.DB.prepare('DELETE FROM hits WHERE at < ?1').bind(now - 3600).run());
 
-    return json(request, { game, board: await board(env, game, BOARD_SIZE) });
+    return json(request, { game, name, board: await board(env, game, BOARD_SIZE) });
   },
 };

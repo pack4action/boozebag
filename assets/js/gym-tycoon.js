@@ -5224,17 +5224,65 @@
     }, 3600);
   }
 
-  // The name is the player's, so it is kept the moment it is typed rather
-  // than behind a save button nobody would press.
-  let nameSaveTimer = null;
-  if (gymNameEl) {
-    gymNameEl.value = state.gymName || '';
-    gymNameEl.addEventListener('input', () => {
-      state.gymName = gymNameEl.value.slice(0, 28);
+  // The name is claimed with a button, and one name belongs to one gym on
+  // the shared board. A gym with a name shows it on a plate; Edit brings
+  // the form back, and a change has to be confirmed.
+  const nameFormEl = document.getElementById('gym-name-form');
+  const nameSetEl = document.getElementById('gym-name-set');
+  const namePlateEl = document.getElementById('gym-name-plate');
+  const nameSubmitEl = document.getElementById('gym-name-submit');
+  const nameCancelEl = document.getElementById('gym-name-cancel');
+  const nameEditEl = document.getElementById('gym-name-edit');
+  const nameNoteEl = document.getElementById('gym-name-note');
+  function nameNote(text, mood) {
+    if (!nameNoteEl) return;
+    setText(nameNoteEl, text || '');
+    nameNoteEl.className = 'tycoon-namer-note' + (mood ? ' is-' + mood : '');
+  }
+  function showNamer(editing) {
+    if (!nameFormEl) return;
+    const named = (state.gymName || '').trim();
+    const formOpen = editing || !named;
+    nameFormEl.hidden = !formOpen;
+    nameSetEl.hidden = formOpen;
+    if (named) setText(namePlateEl, named);
+    nameCancelEl.hidden = !(editing && named);
+    setText(nameSubmitEl, named ? 'Confirm the change' : 'Claim the name');
+    if (formOpen) gymNameEl.value = editing ? named : gymNameEl.value;
+  }
+  function claimGymName() {
+    const wanted = (gymNameEl.value || '').replace(/\s+/g, ' ').trim().slice(0, 20);
+    if (!wanted) { nameNote('Type a name first.', 'bad'); return; }
+    const before = (state.gymName || '').trim();
+    if (wanted === before) { nameNote('That is already its name.'); showNamer(false); return; }
+    const keep = () => {
+      state.gymName = wanted;
       checkTrophies();
-      clearTimeout(nameSaveTimer);
-      nameSaveTimer = setTimeout(save, 400);
+      save();
+      showNamer(false);
+    };
+    if (!connectedWallet || !leaderboard.remote) {
+      keep();
+      nameNote(leaderboard.remote ? 'Saved here. Connect a wallet to claim it on the board.' : 'Saved.', 'good');
+      return;
+    }
+    nameSubmitEl.disabled = true;
+    nameNote('Asking the board…');
+    leaderboard.claim(connectedWallet, Math.floor(state.lifetime), Math.round(gps * 10) / 10, wanted).then((answer) => {
+      nameSubmitEl.disabled = false;
+      if (answer === 'taken') { nameNote('Taken. Somebody already has that one.', 'bad'); return; }
+      if (answer === 'slow') { nameNote('The board asked for a moment. Try again.', 'bad'); return; }
+      keep();
+      renderLeaderboard();
+      nameNote(answer === 'yours' ? 'Yours. It is on the board.' : 'Saved here. The board did not answer, so it goes up with your next score.', 'good');
     });
+  }
+  if (gymNameEl && nameFormEl) {
+    gymNameEl.value = state.gymName || '';
+    showNamer(false);
+    nameFormEl.addEventListener('submit', (e) => { e.preventDefault(); claimGymName(); });
+    nameEditEl.addEventListener('click', () => { nameNote(''); showNamer(true); gymNameEl.focus(); gymNameEl.select(); });
+    nameCancelEl.addEventListener('click', () => { nameNote(''); showNamer(false); });
   }
 
   const staffListEl = document.getElementById('staff-list');
@@ -17679,7 +17727,7 @@
     // to put it back itself or it would keep showing a cleared gym's.
     refreshTrophyUI();
     refreshRushOrderUI();
-    if (gymNameEl) gymNameEl.value = '';
+    if (gymNameEl) { gymNameEl.value = ''; nameNote(''); showNamer(false); }
     renderScene();
     renderInventory();
     refreshThemeRow();
