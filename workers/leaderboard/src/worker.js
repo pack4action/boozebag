@@ -114,11 +114,119 @@ async function tooSoon(env, key, every, perHour) {
   return false;
 }
 
+// ---- Is he live? ----
+// A browser cannot ask Kick itself: kick.com sits behind bot protection
+// and does not answer other sites. So the site asks from here, and every
+// page gets the one answer for the next three quarters of a minute rather
+// than each of them knocking. Two ways to ask, tried in turn: Kick's own
+// API when an app has been made for it and its two secrets are set on
+// the Worker, and otherwise the channel record the Kick site itself
+// reads. Discord's invite count comes along in the same answer.
+const LIVE_HOLD_MS = 45000;
+let liveHeld = null;
+
+async function kickOfficial(env, slug) {
+  const form = new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_id: env.KICK_CLIENT_ID,
+    client_secret: env.KICK_CLIENT_SECRET,
+  });
+  const tok = await fetch('https://id.kick.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form.toString(),
+  }).then((r) => (r.ok ? r.json() : null));
+  if (!tok || !tok.access_token) return null;
+  const r = await fetch('https://api.kick.com/public/v1/channels?slug=' + encodeURIComponent(slug), {
+    headers: { Authorization: 'Bearer ' + tok.access_token, Accept: 'application/json' },
+  });
+  if (!r.ok) return null;
+  const body = await r.json();
+  const ch = body && Array.isArray(body.data) ? body.data[0] : null;
+  if (!ch) return null;
+  const s = ch.stream || null;
+  return {
+    live: !!(s && s.is_live),
+    viewers: s ? Number(s.viewer_count) || 0 : 0,
+    title: (s && s.stream_title) || ch.stream_title || '',
+    followers: null,
+  };
+}
+
+async function kickSite(slug) {
+  const r = await fetch('https://kick.com/api/v2/channels/' + encodeURIComponent(slug), {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) boozebag-site/1.0',
+    },
+  });
+  if (!r.ok) return null;
+  const ch = await r.json();
+  if (!ch || typeof ch !== 'object') return null;
+  const s = ch.livestream || null;
+  return {
+    live: !!(s && s.is_live !== false),
+    viewers: s ? Number(s.viewer_count) || 0 : 0,
+    title: s ? (s.session_title || '') : '',
+    followers: Number(ch.followers_count) || null,
+  };
+}
+
+async function kickStatus(env) {
+  const slug = env.KICK_SLUG || 'petermossfield';
+  if (env.KICK_CLIENT_ID && env.KICK_CLIENT_SECRET) {
+    try {
+      const got = await kickOfficial(env, slug);
+      if (got) return got;
+    } catch (e) { /* fall through to the site */ }
+  }
+  try {
+    return await kickSite(slug);
+  } catch (e) {
+    return null;
+  }
+}
+
+async function discordCount(env) {
+  const code = env.DISCORD_INVITE || 'K6QfX6e7Yn';
+  try {
+    const r = await fetch('https://discord.com/api/v10/invites/' + encodeURIComponent(code) + '?with_counts=true', {
+      headers: { Accept: 'application/json' },
+    });
+    if (!r.ok) return null;
+    const inv = await r.json();
+    const n = Number(inv && inv.approximate_member_count);
+    return n > 0 ? n : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function liveAnswer(env) {
+  const now = Date.now();
+  if (liveHeld && now - liveHeld.at < LIVE_HOLD_MS) return liveHeld.body;
+  const [kick, discord] = await Promise.all([kickStatus(env), discordCount(env)]);
+  const body = { kick, discord: discord ? { members: discord } : null, at: now };
+  liveHeld = { at: now, body };
+  return body;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsFor(request) });
+    }
+    if (url.pathname === '/api/live') {
+      if (request.method !== 'GET') return json(request, { error: 'GET' }, 405);
+      const body = await liveAnswer(env);
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: Object.assign({
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'public, max-age=30',
+        }, corsFor(request)),
+      });
     }
     if (url.pathname !== '/api/scores') {
       return json(request, { error: 'no such thing here' }, 404);

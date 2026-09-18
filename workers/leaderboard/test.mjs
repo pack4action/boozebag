@@ -37,6 +37,19 @@ const ok = (name, cond, saw) => {
   if (!cond) fails.push(name + (saw === undefined ? '' : ' (saw ' + JSON.stringify(saw) + ')'));
 };
 
+// Whether he is live. Kick and Discord may or may not answer from where
+// this runs; what has to hold is the shape of the answer and that it is
+// served with the headers a page on the site needs.
+{
+  const r = await fetch(BASE + '/api/live', { headers: { Origin: 'https://boozebag.xyz' } });
+  const body = await r.json().catch(() => null);
+  ok('live answers', r.status === 200, r.status);
+  ok('live has the two sources', body && 'kick' in body && 'discord' in body, body);
+  ok('live is allowed on the site', r.headers.get('access-control-allow-origin') === 'https://boozebag.xyz');
+  ok('live is held a moment', /max-age=\d+/.test(r.headers.get('cache-control') || ''));
+  if (body && body.kick) ok('a live answer says whether', typeof body.kick.live === 'boolean', body.kick);
+}
+
 const good = await post({ game: 'gym-tycoon', address: W[0], score: 500, meta: 2, name: 'Sweatbox' });
 ok('a score is taken', good.status === 200, good.status);
 ok('and comes back on the board',

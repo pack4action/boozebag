@@ -50,6 +50,47 @@ curl 'https://boozebag.xyz/api/scores?game=gym-tycoon'
 That is the whole of it. The site itself is static and deploys however it
 already does; the Worker sits beside it on the same domain.
 
+## Is he live
+
+`GET /api/live` says whether the Kick channel is streaming, how many are
+watching, and how many are in the Discord:
+
+```json
+{"kick":{"live":true,"viewers":87,"title":"...","followers":2340},"discord":{"members":1512},"at":1726660000000}
+```
+
+A browser cannot ask Kick itself (kick.com does not answer other sites),
+so the front page asks here, and the Worker asks Kick at most once every
+forty-five seconds however many people are looking.
+
+It asks two ways. If a Kick app has been made at
+https://kick.com/settings/developer and its two values are put on the
+Worker, it uses Kick's own API:
+
+```sh
+npx wrangler secret put KICK_CLIENT_ID
+npx wrangler secret put KICK_CLIENT_SECRET
+```
+
+Without them it reads the channel record the Kick site itself uses,
+which works until Kick decides it should not. Either way `kick` is `null`
+when nothing answered, and the page keeps its plain "live on Kick every
+day" pill. The channel is `petermossfield` unless `KICK_SLUG` is set, and
+the Discord invite is the one on the page unless `DISCORD_INVITE` is set.
+
+### On GitHub Pages
+
+The site finds `/api` by itself only on `boozebag.xyz` and `*.pages.dev`.
+Served from anywhere else, such as `pack4action.github.io`, tell the page
+where the Worker is with one tag in the head of `index.html` (every
+deployed Worker also answers at its `workers.dev` address):
+
+```html
+<meta name="boozebag-api" content="https://boozebag-leaderboard.<your-account>.workers.dev/api" />
+```
+
+The Worker already allows `pack4action.github.io` to ask.
+
 ## What it will and will not stop
 
 A score arrives from a browser, and a browser will say whatever it is told

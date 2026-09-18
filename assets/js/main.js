@@ -527,40 +527,64 @@ function setCount(kind, text) {
   const el = card && card.querySelector('.community-count');
   if (el && text) el.textContent = text;
 }
+// Where the site's own Worker is, if there is one: named in the head, or
+// found by the leaderboard on the real domain. It asks Kick on the page's
+// behalf, since Kick does not answer a browser from another site.
+const siteApi = metaValue('boozebag-api').replace(/\/+$/, '')
+  || (window.BoozebagLeaderboard && window.BoozebagLeaderboard.api) || '';
 const kickSlug = metaValue('boozebag-kick');
 const livePill = document.getElementById('live-pill');
-if (kickSlug && livePill) {
+function showLive(status) {
   const onAir = document.getElementById('regimen-onair');
   const num = document.getElementById('live-num');
   const label = document.getElementById('live-label');
+  if (status.followers) setCount('kick', countText(status.followers, 'followers'));
+  livePill.classList.toggle('is-on', !!status.live);
+  if (status.live) {
+    const watching = Number(status.viewers) || 0;
+    if (num) num.textContent = 'live now';
+    if (label) label.innerHTML = (watching > 0 ? watching + ' watching<br />on Kick' : 'on Kick<br />right now');
+    if (onAir) onAir.hidden = false;
+  } else {
+    if (num) num.textContent = 'live';
+    if (label) label.innerHTML = 'on Kick<br />every day';
+    if (onAir) onAir.hidden = true;
+  }
+}
+// Straight from Kick, for a page with no Worker to ask. Kick usually does
+// not answer, and then nothing changes.
+function askKickDirect() {
+  return fetch('https://kick.com/api/v2/channels/' + encodeURIComponent(kickSlug))
+    .then((r) => (r.ok ? r.json() : null))
+    .then((ch) => {
+      if (!ch) return;
+      const s = ch.livestream;
+      showLive({ live: !!(s && s.is_live !== false), viewers: s ? (s.viewer_count || s.viewers) : 0,
+        followers: ch.followers_count || ch.followersCount });
+    });
+}
+if (kickSlug && livePill) {
   const check = () => {
-    fetch('https://kick.com/api/v2/channels/' + encodeURIComponent(kickSlug))
-      .then((r) => (r.ok ? r.json() : null))
-      .then((ch) => {
-        if (!ch) return;
-        setCount('kick', countText(ch.followers_count || ch.followersCount, 'followers'));
-        const live = ch.livestream && (ch.livestream.is_live !== false);
-        livePill.classList.toggle('is-on', !!live);
-        if (live) {
-          const watching = Number(ch.livestream.viewer_count || ch.livestream.viewers || 0);
-          if (num) num.textContent = 'live now';
-          if (label) label.innerHTML = (watching > 0 ? watching + ' watching<br />on Kick' : 'on Kick<br />right now');
-          if (onAir) onAir.hidden = false;
-        } else {
-          if (num) num.textContent = 'live';
-          if (label) label.innerHTML = 'on Kick<br />every day';
-          if (onAir) onAir.hidden = true;
-        }
+    const viaSite = siteApi
+      ? fetch(siteApi + '/live').then((r) => (r.ok ? r.json() : null)).then((a) => {
+        if (!a) throw new Error('no answer');
+        if (a.kick) showLive(a.kick);
+        if (a.discord && a.discord.members) setCount('discord', countText(a.discord.members, 'members'));
+        if (!a.kick) return askKickDirect();
+        return null;
       })
-      .catch(() => {});
+      : Promise.reject(new Error('no site api'));
+    viaSite.catch(() => askKickDirect()).catch(() => {});
   };
   check();
   setInterval(() => { if (!document.hidden) check(); }, 120000);
 }
 
 // ---- Discord: how many are in ----
+// Asked straight when there is no Worker to ask; with one, it comes in
+// the same answer as Kick.
 const discordInvite = metaValue('boozebag-discord');
-if (discordInvite && document.querySelector('.community-card[data-live="discord"]')) {
+if (!siteApi && discordInvite && document.querySelector('.community-card[data-live="discord"]')) {
   fetch('https://discord.com/api/v10/invites/' + encodeURIComponent(discordInvite) + '?with_counts=true')
     .then((r) => (r.ok ? r.json() : null))
     .then((inv) => { if (inv) setCount('discord', countText(inv.approximate_member_count, 'members')); })
