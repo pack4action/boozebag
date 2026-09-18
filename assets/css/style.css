@@ -264,7 +264,10 @@ img { max-width: 100%; display: block; }
   .wallet-label { display: none; }
   .wallet-chevron { display: none; }
   .nav-wallet .wallet-toggle { padding: 11px; }
+  /* No room for the word: a tap on the pill brings it out. */
   .wallet-disconnect { display: none; }
+  .wallet-connected { cursor: pointer; }
+  .wallet-connected.is-open .wallet-disconnect { display: inline; }
 }
 @media (max-width: 1200px) {
   .nav-links { gap: 20px; }

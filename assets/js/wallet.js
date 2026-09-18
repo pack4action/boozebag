@@ -37,19 +37,98 @@
     localStorage.removeItem(STORAGE_KEY);
   }
 
-  // A phone's own browser has no wallet in it. The wallet apps each have
-  // a browser of their own, and a link that opens a page inside it, where
-  // the wallet is there to connect. So on a phone the page sends itself
-  // there. On a desktop with no extension, the wallet's site is the place
-  // to get one.
+  // ---- Connecting from a phone's own browser ----
+  // A phone's browser has no wallet in it, but the wallet apps answer a
+  // link: the page sends the visitor to the app with a fresh public key,
+  // the app asks them to approve, and sends them back to this page with
+  // the wallet's address sealed to that key. The page opens it and is
+  // connected, in the browser they started in. The sealing needs a small
+  // library, fetched only on a phone and only when it is needed.
   const onPhone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
     || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
-  function openInWalletApp(name) {
-    const page = encodeURIComponent(location.href);
-    const ref = encodeURIComponent(location.origin);
-    location.href = name === 'phantom'
-      ? 'https://phantom.app/ul/browse/' + page + '?ref=' + ref
-      : 'https://solflare.com/ul/v1/browse/' + page + '?ref=' + ref;
+  const LINK_KEY = 'boozebagWalletLink';
+  const NACL_SRC = 'assets/js/vendor/nacl-fast.min.js';
+  const ALPHA = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  function b58encode(bytes) {
+    let n = 0n;
+    for (const b of bytes) n = (n << 8n) | BigInt(b);
+    let out = '';
+    while (n > 0n) { out = ALPHA[Number(n % 58n)] + out; n /= 58n; }
+    for (const b of bytes) { if (b === 0) out = '1' + out; else break; }
+    return out;
+  }
+  function b58decode(str) {
+    let n = 0n;
+    for (const c of str) {
+      const i = ALPHA.indexOf(c);
+      if (i < 0) throw new Error('not base58');
+      n = n * 58n + BigInt(i);
+    }
+    const out = [];
+    while (n > 0n) { out.unshift(Number(n & 255n)); n >>= 8n; }
+    for (const c of str) { if (c === '1') out.unshift(0); else break; }
+    return Uint8Array.from(out);
+  }
+  let naclLoading = null;
+  function loadNacl() {
+    if (window.nacl) return Promise.resolve(window.nacl);
+    if (!naclLoading) {
+      naclLoading = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = NACL_SRC;
+        s.onload = () => resolve(window.nacl);
+        s.onerror = () => reject(new Error('Could not load the wallet link'));
+        document.head.appendChild(s);
+      });
+    }
+    return naclLoading;
+  }
+  const LINK_PARAMS = ['phantom_encryption_public_key', 'solflare_encryption_public_key', 'nonce', 'data', 'errorCode', 'errorMessage'];
+  function hereWithoutLinkParams() {
+    const u = new URL(location.href);
+    LINK_PARAMS.forEach((k) => u.searchParams.delete(k));
+    return u;
+  }
+  async function linkOut(name) {
+    const nacl = await loadNacl();
+    const kp = nacl.box.keyPair();
+    localStorage.setItem(LINK_KEY, JSON.stringify({ wallet: name, secret: b58encode(kp.secretKey), at: Date.now() }));
+    const q = new URLSearchParams({
+      app_url: location.origin,
+      dapp_encryption_public_key: b58encode(kp.publicKey),
+      redirect_link: hereWithoutLinkParams().href,
+      cluster: 'mainnet-beta',
+    });
+    location.href = (name === 'phantom' ? 'https://phantom.app/ul/v1/connect' : 'https://solflare.com/ul/v1/connect') + '?' + q.toString();
+  }
+  // Back from the app: the answer is in the address bar. Returns the
+  // wallet's address, null when there is nothing to pick up, and throws
+  // when the app said no.
+  async function linkBack() {
+    let pending = null;
+    try { pending = JSON.parse(localStorage.getItem(LINK_KEY)); } catch (e) { pending = null; }
+    if (!pending) return null;
+    const p = new URL(location.href).searchParams;
+    const theirKey = p.get(pending.wallet + '_encryption_public_key');
+    const nonce = p.get('nonce');
+    const data = p.get('data');
+    const errorCode = p.get('errorCode');
+    if (!theirKey && !errorCode) {
+      // Nothing came back; a link older than ten minutes is forgotten.
+      if (Date.now() - (pending.at || 0) > 600000) localStorage.removeItem(LINK_KEY);
+      return null;
+    }
+    localStorage.removeItem(LINK_KEY);
+    history.replaceState(null, '', hereWithoutLinkParams().href);
+    if (errorCode) throw new Error((pending.wallet === 'phantom' ? 'Phantom' : 'Solflare') + ' said no');
+    const nacl = await loadNacl();
+    const shared = nacl.box.before(b58decode(theirKey), b58decode(pending.secret));
+    const opened = nacl.box.open.after(b58decode(data), b58decode(nonce), shared);
+    if (!opened) throw new Error('The wallet’s answer did not open');
+    const answer = JSON.parse(new TextDecoder().decode(opened));
+    if (!answer.public_key) throw new Error('The wallet sent no address');
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ wallet: pending.wallet, address: answer.public_key, linked: true }));
+    return answer.public_key;
   }
 
   async function connect(name) {
@@ -57,8 +136,8 @@
     const label = name === 'phantom' ? 'Phantom' : 'Solflare';
     if (!provider) {
       if (onPhone) {
-        openInWalletApp(name);
-        throw new Error('Opening this page in ' + label + '…');
+        await linkOut(name);
+        throw new Error('Asking ' + label + '…');
       }
       const url = name === 'phantom' ? 'https://phantom.app/' : 'https://solflare.com/';
       window.open(url, '_blank', 'noopener');
@@ -77,6 +156,9 @@
   async function tryReconnect() {
     const saved = getSaved();
     if (!saved) return null;
+    // A wallet linked from the app stays connected until it is
+    // disconnected here; there is no extension to ask again.
+    if (saved.linked && saved.address) return saved.address;
     const provider = getProvider(saved.wallet);
     if (!provider) { clearSaved(); return null; }
     try {
@@ -158,12 +240,23 @@
         }
       });
     });
-    btnDisconnect.addEventListener('click', () => {
+    btnDisconnect.addEventListener('click', (e) => {
+      e.stopPropagation();
       disconnect();
+      walletConnected.classList.remove('is-open');
       setWalletUI(null);
     });
-    tryReconnect().then((address) => {
+    // Where the bar is too tight to show the word, a tap on the pill
+    // brings Disconnect out, and a tap anywhere else puts it away.
+    walletConnected.addEventListener('click', (e) => {
+      e.stopPropagation();
+      walletConnected.classList.toggle('is-open');
+    });
+    document.addEventListener('click', () => walletConnected.classList.remove('is-open'));
+    linkBack().then((address) => address || tryReconnect()).then((address) => {
       if (address) setWalletUI(address);
+    }).catch((e) => {
+      if (onError) onError(e.message || 'Connection failed');
     });
   }
 
