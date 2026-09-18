@@ -17,4 +17,4 @@ workers_dev = true
 binding = "DB"
 database_name = "boozebag"
 # Filled in by `wrangler d1 create boozebag` -- see README.
-database_id = "PUT-THE-DATABASE-ID-HERE"
+database_id = "5395e5be-720e-4d0f-adea-61d506e0b15a"
