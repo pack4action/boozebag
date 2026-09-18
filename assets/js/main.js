@@ -686,20 +686,89 @@ if (buybar && heroEl && window.IntersectionObserver) {
   el('path', { class: 'wave-shadow', d: band, transform: 'translate(0 7)' }, drift);
   el('path', { class: 'wave-band', d: band }, drift);
   el('path', { class: 'wave-foam', d: curve(top, 'M') }, drift);
-  // Heads of foam on the crests, and bubbles rising through the beer.
-  for (let x = X0 + PERIOD * 3 / 4; x < X1; x += PERIOD) {
-    const y = MID - THICK - AMP;
-    el('ellipse', { class: 'wave-head', cx: r(x - 26), cy: r(y + 1), rx: 13, ry: 7 }, drift);
-    el('ellipse', { class: 'wave-head', cx: r(x + 14), cy: r(y - 1), rx: 18, ry: 8 }, drift);
-    el('circle', { class: 'wave-head', cx: r(x + 44), cy: r(y + 4), r: 5 }, drift);
-    [[-150, 0.9, 0], [-90, 0.3, -1.4], [150, 0.6, -0.7]].forEach((b) => {
-      const c = el('circle', { class: 'wave-bubble', cx: r(x + b[0]), cy: r(MID + THICK * 0.6 + AMP * Math.sin((x + b[0] - X0) / PERIOD * Math.PI * 2)), r: 3 }, drift);
-      c.style.animationDelay = b[2] + 's';
-      c.style.transformBox = 'fill-box';
-    });
-  }
+  el('path', { class: 'wave-depth', d: curve(wavePoints(MID + THICK - 5), 'M') }, drift);
+  el('path', { class: 'wave-gloss', d: curve(wavePoints(MID - THICK + 13), 'M') }, drift);
+  const dress = el('g', {}, drift);
   const riders = el('g', {}, drift);
   let run = null;
+
+  const topY = (x) => MID - THICK + AMP * Math.sin((x - X0) / PERIOD * Math.PI * 2);
+  // The same numbers every time for a given seed, so a crest looks the
+  // same on every visit and its twin one run along matches it.
+  function rng(seed) {
+    let a = (seed * 2654435761) >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // Foam on every crest, no two heads alike: a cluster of blobs drawn
+  // twice, outlined and then filled, so only the outer edge keeps its
+  // line. Then drips down the front, flecks thrown up, drops falling,
+  // bubbles rising through the beer and popping at the top.
+  function dressUp(cycle) {
+    while (dress.firstChild) dress.removeChild(dress.firstChild);
+    const perCycle = Math.max(1, Math.round(cycle / PERIOD));
+    let k = 0;
+    for (let x = X0 + PERIOD * 3 / 4; x < X1; x += PERIOD, k++) {
+      const seed = (k % perCycle) + 1;
+      const rand = rng(seed);
+      const kind = (k % perCycle) % 3;
+      const n = kind === 0 ? 7 : kind === 1 ? 4 : 5;
+      const spread = kind === 0 ? 110 : kind === 1 ? 60 : 82;
+      const blobs = [];
+      for (let i = 0; i < n; i++) {
+        const mid = (n - 1) / 2;
+        const cx = x - spread / 2 + spread * (i / (n - 1)) + (rand() - 0.5) * 12;
+        const rad = (7.5 + rand() * 8) * (1 + 0.7 * (1 - Math.abs(i - mid) / (mid || 1)));
+        blobs.push([cx, topY(cx) - rad * 0.42, rad]);
+      }
+      const head = el('g', { class: 'wave-head-bob' }, dress);
+      head.style.animationDelay = (-rand() * 2.6).toFixed(2) + 's';
+      blobs.forEach((b) => el('circle', { class: 'wave-head-line', cx: r(b[0]), cy: r(b[1]), r: r(b[2]) }, head));
+      blobs.forEach((b) => el('circle', { class: 'wave-head', cx: r(b[0]), cy: r(b[1]), r: r(b[2]) }, head));
+      // A drip or two hanging off the head down the front of the wave.
+      const drips = kind === 1 ? 2 : kind === 0 ? 1 : 0;
+      for (let i = 0; i < drips; i++) {
+        const dx = x + (rand() - 0.5) * spread * 0.8;
+        const dy = topY(dx) + 3;
+        const len = 9 + rand() * 9;
+        el('path', { class: 'wave-drip', d: 'M' + r(dx - 3) + ' ' + r(dy) + ' L' + r(dx + 3) + ' ' + r(dy)
+          + ' Q' + r(dx + 3.6) + ' ' + r(dy + len * 0.75) + ' ' + r(dx) + ' ' + r(dy + len)
+          + ' Q' + r(dx - 3.6) + ' ' + r(dy + len * 0.75) + ' ' + r(dx - 3) + ' ' + r(dy) + ' Z' }, dress);
+      }
+      // Flecks thrown up off a lively head, hanging in the air.
+      if (kind === 2) {
+        for (let i = 0; i < 3; i++) {
+          const fx = x + (rand() - 0.5) * 90;
+          const f = el('circle', { class: 'wave-fleck', cx: r(fx), cy: r(topY(fx) - 14 - rand() * 12), r: r(1.8 + rand() * 1.8) }, dress);
+          f.style.animationDelay = (-rand() * 1.9).toFixed(2) + 's';
+        }
+      }
+      // A drop that falls off the foam, again and again.
+      if (kind !== 1) {
+        const dx = x + (rand() - 0.5) * 60;
+        const d = el('circle', { class: 'wave-drop', cx: r(dx), cy: r(topY(dx) + 4), r: 2.4 }, dress);
+        d.style.animationDelay = (-rand() * 2.6).toFixed(2) + 's';
+      }
+      // Bubbles rising through the beer along this stretch.
+      for (let i = 0; i < 4; i++) {
+        const bx = x + (rand() - 0.5) * PERIOD * 0.9;
+        const c = el('circle', { class: 'wave-bubble', cx: r(bx), cy: r(topY(bx) + THICK * 1.6), r: r(1.8 + rand() * 2.4) }, dress);
+        c.style.animationDuration = (2.8 + rand() * 1.8).toFixed(2) + 's';
+        c.style.animationDelay = (-rand() * 4).toFixed(2) + 's';
+      }
+      // And two popping at the top, between this crest and the next.
+      for (let i = 0; i < 2; i++) {
+        const px = x + 120 + rand() * 380;
+        const pop = el('circle', { class: 'wave-pop', cx: r(px), cy: r(topY(px) + 6), r: 4 }, dress);
+        pop.style.animationDelay = (-rand() * 3.2).toFixed(2) + 's';
+      }
+    }
+  }
 
   function build() {
     while (riders.firstChild) riders.removeChild(riders.firstChild);
@@ -723,6 +792,7 @@ if (buybar && heroEl && window.IntersectionObserver) {
       it.iconAt = at + ICON / 2;
       at += ICON + gap;
     });
+    dressUp(cycle);
     const copies = Math.ceil(pathLen / cycle) + 1;
     for (let k = 0; k < copies; k++) {
       items.forEach((it) => {
