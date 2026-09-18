@@ -178,8 +178,8 @@ if (titles.length) {
   titles.forEach((t) => seen.observe(t));
 }
 
-// ---- The roadmap stops, one at a time ----
-const stops = document.querySelectorAll('.road-item');
+// ---- The roadmap stops, the ledger rows and the stamp, one at a time ----
+const stops = document.querySelectorAll('.road-item, .ledger-row, .proof-stamp');
 if (stops.length) {
   let pending = 0;
   const arrive = new IntersectionObserver((entries) => {

@@ -778,33 +778,90 @@ body.nav-open { overflow: hidden; }
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-.proof-story { display: flex; flex-direction: column; gap: 22px; }
-.beats {
+.proof-story { display: flex; flex-direction: column; gap: 26px; }
+/* The story as a ledger: four numbers, big as headlines, that count up
+   when you get to them, each with its line. */
+.ledger {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+.ledger-row {
   display: grid;
-  gap: 14px;
+  grid-template-columns: minmax(118px, auto) 1fr;
+  align-items: center;
+  gap: 26px;
+  padding: 12px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.14);
+  transition: opacity 0.5s ease, transform 0.5s ease;
 }
-.beats li {
-  position: relative;
-  padding-left: 26px;
-  color: var(--muted);
-  font-size: 16px;
-  line-height: 1.55;
+.ledger-row:last-child { border-bottom: 0; }
+.ledger-num {
+  display: block;
+  font-family: 'Anton', sans-serif;
+  font-size: clamp(52px, 6vw, 84px);
+  line-height: 0.95;
+  color: var(--amber);
+  text-align: right;
+  text-shadow: 4px 4px 0 #000, 7px 7px 0 rgba(255, 183, 3, 0.28);
+  letter-spacing: 1px;
+  transform: rotate(-3deg);
 }
-.beats li::before {
-  content: "";
+.ledger-row:nth-child(even) .ledger-num { transform: rotate(2deg); }
+.ledger-num .stat-num { display: inline; font: inherit; color: inherit; }
+.ledger-text { display: grid; gap: 4px; }
+.ledger-text b {
+  font-family: 'Anton', sans-serif;
+  font-size: 22px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.ledger-text span { color: var(--muted); font-size: 15px; line-height: 1.5; }
+.js .ledger-row:not(.in) { opacity: 0; transform: translateX(22px); }
+
+/* Stamped on the card once you reach it. */
+.proof-stamp {
   position: absolute;
-  left: 0;
-  top: 0.5em;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: var(--amber);
-  box-shadow: 2px 2px 0 #000;
+  top: -12px;
+  right: -34px;
+  z-index: 3;
+  font-family: 'Anton', sans-serif;
+  font-size: 15px;
+  line-height: 1.1;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--red);
+  border: 3px solid var(--red);
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: inset 0 0 0 2px var(--bg-alt), inset 0 0 0 4px var(--red);
+  background: rgba(10, 10, 13, 0.55);
+  transform: rotate(-12deg);
+  transform-origin: right center;
+  opacity: 0.94;
+  transition: transform 0.4s cubic-bezier(0.2, 1.5, 0.4, 1), opacity 0.2s ease;
 }
-.beats b { color: var(--text); font-weight: 800; }
+.js .proof-stamp:not(.in) { transform: rotate(-12deg) scale(2); opacity: 0; }
+.proof-scribble {
+  position: absolute;
+  left: -30px;
+  top: auto;
+  bottom: -22px;
+  order: 0;
+  transform: rotate(-7deg);
+  z-index: 3;
+}
+#proof {
+  background-image: radial-gradient(ellipse at 72% 38%, rgba(255, 183, 3, 0.09), transparent 55%);
+}
+@media (max-width: 820px) {
+  .ledger-row { grid-template-columns: minmax(92px, auto) 1fr; gap: 18px; }
+  .ledger-num { font-size: 56px; }
+  .proof-stamp { right: 0; top: -16px; font-size: 13px; }
+  .proof-scribble { display: none; }
+}
 .proof-links {
   grid-column: 1 / -1;
   display: flex;
@@ -1426,6 +1483,8 @@ html { scroll-padding-top: 84px; }
   .title-stroke path { transition: none; stroke-dashoffset: 0; }
   .js .road-item:not(.in) .road-dot { transform: none; }
   .js .road-item:not(.in) .road-body { opacity: 1; transform: none; }
+  .js .ledger-row:not(.in) { opacity: 1; transform: none; }
+  .js .proof-stamp:not(.in) { transform: rotate(-12deg); opacity: 0.94; }
   .road-item.is-now .road-dot::after { animation: none; }
   .hero { --py: 0px !important; }
 }
