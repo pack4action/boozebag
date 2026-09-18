@@ -5247,14 +5247,14 @@
     nameSetEl.hidden = formOpen;
     if (named) setText(namePlateEl, named);
     nameCancelEl.hidden = !(editing && named);
-    setText(nameSubmitEl, named ? 'Confirm the change' : 'Claim the name');
+    setText(nameSubmitEl, 'Confirm');
     if (formOpen) gymNameEl.value = editing ? named : gymNameEl.value;
   }
   function claimGymName() {
     const wanted = (gymNameEl.value || '').replace(/\s+/g, ' ').trim().slice(0, 20);
     if (!wanted) { nameNote('Type a name first.', 'bad'); return; }
     const before = (state.gymName || '').trim();
-    if (wanted === before) { nameNote('That is already its name.'); showNamer(false); return; }
+    if (wanted === before) { nameNote(''); showNamer(false); return; }
     const keep = () => {
       state.gymName = wanted;
       checkTrophies();
@@ -5263,18 +5263,18 @@
     };
     if (!connectedWallet || !leaderboard.remote) {
       keep();
-      nameNote(leaderboard.remote ? 'Saved here. Connect a wallet to claim it on the board.' : 'Saved.', 'good');
+      nameNote('');
       return;
     }
     nameSubmitEl.disabled = true;
-    nameNote('Asking the board…');
+    nameNote('');
     leaderboard.claim(connectedWallet, Math.floor(state.lifetime), Math.round(gps * 10) / 10, wanted).then((answer) => {
       nameSubmitEl.disabled = false;
-      if (answer === 'taken') { nameNote('Taken. Somebody already has that one.', 'bad'); return; }
-      if (answer === 'slow') { nameNote('The board asked for a moment. Try again.', 'bad'); return; }
+      if (answer === 'taken') { nameNote('That name is taken.', 'bad'); return; }
+      if (answer === 'slow') { nameNote('Try again in a moment.', 'bad'); return; }
       keep();
       renderLeaderboard();
-      nameNote(answer === 'yours' ? 'Yours. It is on the board.' : 'Saved here. The board did not answer, so it goes up with your next score.', 'good');
+      nameNote('');
     });
   }
   if (gymNameEl && nameFormEl) {
