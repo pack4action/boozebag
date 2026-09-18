@@ -625,12 +625,11 @@ if (buybar && heroEl && window.IntersectionObserver) {
 
 // ---- The wave of beer under the hero ----
 // The stats ride a wave: a band of beer with a foam edge, drawn wide
-// enough to be cropped on any screen. Each word is bent along the wave
-// and runs along it, the icons float between the words, and the whole
-// wave drifts more slowly, so the words flow over the liquid. All of it
-// is driven by the browser's own SVG animation, with nothing to do per
-// frame. It stops under the pointer, off screen, and for anyone who has
-// asked for less motion.
+// enough to be cropped on any screen. Each word is bent along the wave,
+// the icons sit between the words, and the whole wave runs across the
+// page as one piece, driven by the browser's own SVG animation with
+// nothing to do per frame. It stops under the pointer, off screen, and
+// for anyone who has asked for less motion.
 (function () {
   const svg = document.getElementById('wave');
   const words = document.querySelector('.wave-words');
@@ -643,10 +642,9 @@ if (buybar && heroEl && window.IntersectionObserver) {
   const THICK = 23;     // half the band's height
   const X0 = -2800;     // the drawing runs well past any screen
   const X1 = 6800;
-  const GAP = 34;       // between a word and its icon
+  const GAP = 34;       // between a word and its icon, at least
   const ICON = 24;
-  const WORD_SPEED = 62;   // drawing units a second, along the wave
-  const WAVE_SPEED = 16;   // how fast the crests drift
+  const SPEED = 62;     // drawing units a second
   const stillness = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const el = (name, attrs, parent) => {
@@ -701,6 +699,7 @@ if (buybar && heroEl && window.IntersectionObserver) {
     });
   }
   const riders = el('g', {}, drift);
+  let run = null;
 
   function build() {
     while (riders.firstChild) riders.removeChild(riders.firstChild);
@@ -712,46 +711,39 @@ if (buybar && heroEl && window.IntersectionObserver) {
       return { text: li.textContent.toUpperCase(), icon: li.dataset.icon, len: probe.getComputedTextLength() };
     });
     svg.removeChild(probe);
+    // One run of the words is stretched to a whole number of waves, so
+    // the whole drawing can slide by one run and land on itself.
+    const bare = items.reduce((n, it) => n + it.len + ICON + GAP * 2, 0);
+    const cycle = Math.ceil(bare / PERIOD) * PERIOD;
+    const gap = GAP + (cycle - bare) / (items.length * 2);
     let at = 0;
     items.forEach((it) => {
       it.at = at;
-      at += it.len + GAP;
+      at += it.len + gap;
       it.iconAt = at + ICON / 2;
-      at += ICON + GAP;
+      at += ICON + gap;
     });
-    const cycle = at;
     const copies = Math.ceil(pathLen / cycle) + 1;
-    const dur = (cycle / WORD_SPEED).toFixed(2) + 's';
     for (let k = 0; k < copies; k++) {
       items.forEach((it) => {
-        const from = it.at + k * cycle;
         const t = el('text', { class: 'wave-text' }, riders);
-        const tp = el('textPath', { startOffset: String(r(from)) }, t);
+        const tp = el('textPath', { startOffset: String(r(it.at + k * cycle)) }, t);
         tp.setAttributeNS(XLINK, 'xlink:href', '#wave-line');
         tp.setAttribute('href', '#wave-line');
         tp.textContent = it.text;
-        if (!stillness) {
-          el('animate', { attributeName: 'startOffset', from: String(r(from)), to: String(r(from - cycle)), dur, begin: '0s', repeatCount: 'indefinite' }, tp);
-        }
-        // An icon rides the wave too, but only where its whole run lies
-        // on the drawn line; the line runs far past the screen, so the
-        // ones left out were never in view.
-        const f1 = (it.iconAt + k * cycle) / pathLen;
-        const f0 = (it.iconAt + (k - 1) * cycle) / pathLen;
-        if (f0 < 0 || f1 > 1) return;
-        const g = el('g', {}, riders);
-        const use = el('use', { class: 'wave-icon', x: -ICON / 2, y: -ICON / 2, width: ICON, height: ICON }, g);
+        const s = it.iconAt + k * cycle;
+        if (s > pathLen) return;
+        const p = line.getPointAtLength(s);
+        const use = el('use', { class: 'wave-icon', x: r(p.x - ICON / 2), y: r(p.y - ICON / 2), width: ICON, height: ICON }, riders);
         use.setAttributeNS(XLINK, 'xlink:href', '#' + it.icon);
         use.setAttribute('href', '#' + it.icon);
-        const m = el('animateMotion', { dur: stillness ? '1s' : dur, begin: '0s', repeatCount: 'indefinite', calcMode: 'linear', keyPoints: stillness ? r(f1) + ';' + r(f1) : f1.toFixed(4) + ';' + f0.toFixed(4), keyTimes: '0;1' }, g);
-        const mp = el('mpath', {}, m);
-        mp.setAttributeNS(XLINK, 'xlink:href', '#wave-line');
-        mp.setAttribute('href', '#wave-line');
       });
     }
-  }
-  if (!stillness) {
-    el('animateTransform', { attributeName: 'transform', type: 'translate', from: '0 0', to: -PERIOD + ' 0', dur: (PERIOD / WAVE_SPEED).toFixed(1) + 's', begin: '0s', repeatCount: 'indefinite' }, drift);
+    if (run) drift.removeChild(run);
+    run = null;
+    if (!stillness) {
+      run = el('animateTransform', { attributeName: 'transform', type: 'translate', from: '0 0', to: -cycle + ' 0', dur: (cycle / SPEED).toFixed(2) + 's', begin: '0s', repeatCount: 'indefinite' }, drift);
+    }
   }
   build();
   // The words are measured in the page's font, which may land later.

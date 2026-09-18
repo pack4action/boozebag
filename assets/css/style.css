@@ -1236,9 +1236,9 @@ html { scroll-padding-top: 84px; }
 @keyframes hl-ink { from { color: var(--text); } to { color: #1a1200; } }
 
 /* A wave of beer across the page under the hero, with the stats riding
-   it. The words are bent along the wave by main.js and run along it;
-   the crests drift more slowly, so the words flow over the liquid. It
-   stops when you point at it so it can be read. The wrap clips the
+   it. The words are bent along the wave by main.js, and the whole wave
+   runs across the page as one piece. It stops when you point at it so
+   it can be read. The wrap clips the
    wide drawing so nothing pokes past a phone screen. */
 .wave-wrap {
   position: relative;
