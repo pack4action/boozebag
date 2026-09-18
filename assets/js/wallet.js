@@ -37,17 +37,37 @@
     localStorage.removeItem(STORAGE_KEY);
   }
 
+  // A phone's own browser has no wallet in it. The wallet apps each have
+  // a browser of their own, and a link that opens a page inside it, where
+  // the wallet is there to connect. So on a phone the page sends itself
+  // there. On a desktop with no extension, the wallet's site is the place
+  // to get one.
+  const onPhone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+  function openInWalletApp(name) {
+    const page = encodeURIComponent(location.href);
+    const ref = encodeURIComponent(location.origin);
+    location.href = name === 'phantom'
+      ? 'https://phantom.app/ul/browse/' + page + '?ref=' + ref
+      : 'https://solflare.com/ul/v1/browse/' + page + '?ref=' + ref;
+  }
+
   async function connect(name) {
     const provider = getProvider(name);
+    const label = name === 'phantom' ? 'Phantom' : 'Solflare';
     if (!provider) {
+      if (onPhone) {
+        openInWalletApp(name);
+        throw new Error('Opening this page in ' + label + '…');
+      }
       const url = name === 'phantom' ? 'https://phantom.app/' : 'https://solflare.com/';
       window.open(url, '_blank', 'noopener');
-      throw new Error((name === 'phantom' ? 'Phantom' : 'Solflare') + ' isn’t installed');
+      throw new Error(label + ' isn’t installed');
     }
     const resp = await provider.connect();
     const address = resp.publicKey.toString();
     if (provider.signMessage) {
-      const msg = new TextEncoder().encode('Sign in to Degen Pong\nWallet: ' + address);
+      const msg = new TextEncoder().encode('Sign in to $BOOZEBAG\nWallet: ' + address);
       await provider.signMessage(msg, 'utf8');
     }
     save(name, address);
