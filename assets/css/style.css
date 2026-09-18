@@ -1244,21 +1244,30 @@ html { scroll-padding-top: 84px; }
   position: relative;
   z-index: 2;
   overflow: hidden;
-  margin: -10px 0 6px;
+  margin: -46px 0 6px;
+  padding: 1.4vw 0;
   line-height: 0;
 }
+/* Tipped a touch, so the beer runs downhill the way it flows. */
 .wave {
   display: block;
   width: 100%;
-  height: 128px;
+  height: 164px;
+  transform: rotate(-1.4deg) scale(1.04);
+  transform-origin: center;
 }
+.js .wave-sway { animation: wave-sway 3.4s ease-in-out infinite alternate; }
 .wave-shadow { fill: #000; }
 .wave-band { fill: url(#wave-beer); stroke: #000; stroke-width: 3; stroke-linejoin: round; }
-.wave-foam { fill: none; stroke: #fff3d2; stroke-width: 7; stroke-linecap: round; }
-.wave-gloss { fill: none; stroke: rgba(255, 255, 255, 0.22); stroke-width: 8; }
-.wave-depth { fill: none; stroke: rgba(90, 30, 0, 0.16); stroke-width: 9; }
+.wave-streak { fill: none; stroke-linecap: round; }
+.wave-bits { fill: none; stroke: #fff3d2; stroke-width: 4; stroke-linecap: round; }
+.wave-foam { fill: none; stroke: #fff3d2; stroke-width: 5; stroke-linecap: round; opacity: 0.9; }
+.wave-skirt { fill: #fff3d2; }
+.wave-skirt-edge { fill: none; stroke: #000; stroke-width: 2.5; stroke-linecap: round; }
 .wave-head-line { fill: #fff3d2; stroke: #000; stroke-width: 2.5; }
 .wave-head { fill: #fff3d2; }
+.wave-head-shade { fill: rgba(150, 110, 40, 0.13); }
+.wave-head-hole { fill: rgba(150, 110, 40, 0.2); }
 .wave-drip { fill: #fff3d2; stroke: rgba(0, 0, 0, 0.55); stroke-width: 1.4; stroke-linejoin: round; }
 .wave-drop { fill: #fff3d2; }
 .wave-fleck { fill: #fff3d2; stroke: #000; stroke-width: 1.2; }
@@ -1279,6 +1288,7 @@ html { scroll-padding-top: 84px; }
 .js .wave-fleck { animation: wave-float 1.9s ease-in-out infinite alternate; }
 .js .wave-pop { animation: wave-pop 3.2s ease-out infinite; }
 @keyframes wave-bob { from { transform: translateY(0); } to { transform: translateY(-2.5px); } }
+@keyframes wave-sway { from { transform: translateY(-2px); } to { transform: translateY(2px); } }
 @keyframes wave-rise {
   0% { transform: translateY(0); opacity: 0; }
   30% { opacity: 1; }
@@ -1484,7 +1494,7 @@ html { scroll-padding-top: 84px; }
 
 @media (prefers-reduced-motion: reduce) {
   .js .hero-title .hl, .js .hero-title .hl::before { animation: none; }
-  .wave-head-bob, .wave-bubble, .wave-drop, .wave-fleck, .wave-pop { animation: none; }
+  .wave-sway, .wave-head-bob, .wave-bubble, .wave-drop, .wave-fleck, .wave-pop { animation: none; }
   .title-stroke path { transition: none; stroke-dashoffset: 0; }
   .js .road-item:not(.in) .road-dot { transform: none; }
   .js .road-item:not(.in) .road-body { opacity: 1; transform: none; }

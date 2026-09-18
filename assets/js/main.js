@@ -682,12 +682,13 @@ if (buybar && heroEl && window.IntersectionObserver) {
   el('stop', { offset: '1', 'stop-color': '#ff9a12' }, grad);
   const line = el('path', { id: 'wave-line', d: curve(wavePoints(MID), 'M'), fill: 'none' }, defs);
 
-  const drift = el('g', {}, svg);
+  // Rocked gently up and down as a whole, on top of the run across.
+  const sway = el('g', { class: 'wave-sway' }, svg);
+  const drift = el('g', {}, sway);
   el('path', { class: 'wave-shadow', d: band, transform: 'translate(0 7)' }, drift);
   el('path', { class: 'wave-band', d: band }, drift);
+  const flow = el('g', {}, drift);
   el('path', { class: 'wave-foam', d: curve(top, 'M') }, drift);
-  el('path', { class: 'wave-depth', d: curve(wavePoints(MID + THICK - 5), 'M') }, drift);
-  el('path', { class: 'wave-gloss', d: curve(wavePoints(MID - THICK + 13), 'M') }, drift);
   const dress = el('g', {}, drift);
   const riders = el('g', {}, drift);
   let run = null;
@@ -705,36 +706,95 @@ if (buybar && heroEl && window.IntersectionObserver) {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  // Foam on every crest, no two heads alike: a cluster of blobs drawn
-  // twice, outlined and then filled, so only the outer edge keeps its
-  // line. Then drips down the front, flecks thrown up, drops falling,
-  // bubbles rising through the beer and popping at the top.
+  // The beer flows: streaks of light and shade slide along the band
+  // faster than the band itself moves, and bits of foam drift along the
+  // surface. Each is a dashed line along the wave with its dashes on the
+  // move, and every dash pattern fits a whole number of times into one
+  // run, so the drawing still lands on itself when it wraps.
+  function flowing(cycleLen) {
+    while (flow.firstChild) flow.removeChild(flow.firstChild);
+    const lines = [
+      // offset from the middle, width, colour, dash share, repeats per run, speed
+      [-15, 5, 'rgba(255, 250, 220, 0.34)', 0.36, 14, 84],
+      [-8, 3, 'rgba(255, 250, 220, 0.26)', 0.22, 23, 118],
+      [0, 4, 'rgba(255, 244, 190, 0.18)', 0.3, 17, 62],
+      [8, 3, 'rgba(255, 250, 220, 0.2)', 0.18, 29, 96],
+      [15, 6, 'rgba(120, 45, 0, 0.16)', 0.42, 11, 48],
+      [19, 3, 'rgba(120, 45, 0, 0.2)', 0.2, 19, 70],
+    ];
+    lines.forEach((ln) => {
+      const sum = cycleLen / ln[4];
+      const path = el('path', { class: 'wave-streak', d: curve(wavePoints(MID + ln[0]), 'M'), stroke: ln[2], 'stroke-width': ln[1],
+        'stroke-dasharray': r(sum * ln[3]) + ' ' + r(sum * (1 - ln[3])) }, flow);
+      if (!stillness) {
+        el('animate', { attributeName: 'stroke-dashoffset', from: '0', to: String(r(sum)), dur: (sum / ln[5]).toFixed(2) + 's', begin: '0s', repeatCount: 'indefinite' }, path);
+      }
+    });
+    // Bits of foam riding the surface, a touch slower than the streaks.
+    const sum = cycleLen / 13;
+    const bits = el('path', { class: 'wave-bits', d: curve(wavePoints(MID - THICK + 1), 'M'),
+      'stroke-dasharray': [0.05, 0.22, 0.12, 0.31, 0.03, 0.27].map((f) => r(sum * f)).join(' ') }, flow);
+    if (!stillness) {
+      el('animate', { attributeName: 'stroke-dashoffset', from: '0', to: String(r(sum)), dur: (sum / 34).toFixed(2) + 's', begin: '0s', repeatCount: 'indefinite' }, bits);
+    }
+  }
+
+  // Foam on every crest, no two heads alike. A skirt of foam grows out
+  // of the surface either side of the crest, and a head of blobs rises
+  // from it, drawn twice, outlined and then filled, so only the outer
+  // edge keeps its line. Drips hang down the front, flecks hang in the
+  // air over a lively head, drops fall, bubbles rise and pop.
   function dressUp(cycle) {
     while (dress.firstChild) dress.removeChild(dress.firstChild);
     const perCycle = Math.max(1, Math.round(cycle / PERIOD));
+    const bell = (u) => { const v = Math.max(0, 1 - u * u); return v * v; };
     let k = 0;
     for (let x = X0 + PERIOD * 3 / 4; x < X1; x += PERIOD, k++) {
       const seed = (k % perCycle) + 1;
       const rand = rng(seed);
       const kind = (k % perCycle) % 3;
+      const reach = kind === 0 ? 150 : kind === 1 ? 95 : 120;
+      const rise = kind === 0 ? 9 : kind === 1 ? 6 : 8;
+      // The skirt, from the surface up, thickest under the crest.
+      const over = [], under = [];
+      for (let u = -reach; u <= reach; u += 15) {
+        over.push([x + u, topY(x + u) - rise * bell(u / reach) - 1.5]);
+        under.push([x + u, topY(x + u) + 5]);
+      }
+      el('path', { class: 'wave-skirt', d: curve(over, 'M') + curve(under.slice().reverse(), ' L') + ' Z' }, dress);
+      el('path', { class: 'wave-skirt-edge', d: curve(over, 'M') }, dress);
+      // The head of blobs, dipping just below the surface.
       const n = kind === 0 ? 7 : kind === 1 ? 4 : 5;
-      const spread = kind === 0 ? 110 : kind === 1 ? 60 : 82;
+      const spread = kind === 0 ? 118 : kind === 1 ? 62 : 86;
       const blobs = [];
       for (let i = 0; i < n; i++) {
         const mid = (n - 1) / 2;
         const cx = x - spread / 2 + spread * (i / (n - 1)) + (rand() - 0.5) * 12;
         const rad = (7.5 + rand() * 8) * (1 + 0.7 * (1 - Math.abs(i - mid) / (mid || 1)));
-        blobs.push([cx, topY(cx) - rad * 0.42, rad]);
+        blobs.push([cx, topY(cx) - rad * 0.8, rad]);
       }
-      const head = el('g', { class: 'wave-head-bob' }, dress);
-      head.style.animationDelay = (-rand() * 2.6).toFixed(2) + 's';
+      const bob = el('g', { class: 'wave-head-bob' }, dress);
+      bob.style.animationDelay = (-rand() * 2.6).toFixed(2) + 's';
+      const head = el('g', {}, bob);
       blobs.forEach((b) => el('circle', { class: 'wave-head-line', cx: r(b[0]), cy: r(b[1]), r: r(b[2]) }, head));
       blobs.forEach((b) => el('circle', { class: 'wave-head', cx: r(b[0]), cy: r(b[1]), r: r(b[2]) }, head));
+      // Foam at the surface, drawn over the blobs, so their bottoms sit
+      // in the beer with no line showing through it.
+      const lip = [];
+      for (let u = -reach; u <= reach; u += 15) lip.push([x + u, topY(x + u) + 0.5]);
+      el('path', { class: 'wave-skirt', d: curve(lip, 'M') + curve(under.slice().reverse(), ' L') + ' Z' }, head);
+      // Shade low on the bigger blobs, and a few holes, so the foam has
+      // some body to it.
+      blobs.forEach((b) => {
+        if (b[2] < 10) return;
+        el('circle', { class: 'wave-head-shade', cx: r(b[0] + b[2] * 0.2), cy: r(b[1] + b[2] * 0.3), r: r(b[2] * 0.6) }, head);
+        el('circle', { class: 'wave-head-hole', cx: r(b[0] + (rand() - 0.5) * b[2]), cy: r(b[1] + (rand() - 0.5) * b[2] * 0.8), r: r(1 + rand() * 1.2) }, head);
+      });
       // A drip or two hanging off the head down the front of the wave.
       const drips = kind === 1 ? 2 : kind === 0 ? 1 : 0;
       for (let i = 0; i < drips; i++) {
         const dx = x + (rand() - 0.5) * spread * 0.8;
-        const dy = topY(dx) + 3;
+        const dy = topY(dx) + 4;
         const len = 9 + rand() * 9;
         el('path', { class: 'wave-drip', d: 'M' + r(dx - 3) + ' ' + r(dy) + ' L' + r(dx + 3) + ' ' + r(dy)
           + ' Q' + r(dx + 3.6) + ' ' + r(dy + len * 0.75) + ' ' + r(dx) + ' ' + r(dy + len)
@@ -744,14 +804,14 @@ if (buybar && heroEl && window.IntersectionObserver) {
       if (kind === 2) {
         for (let i = 0; i < 3; i++) {
           const fx = x + (rand() - 0.5) * 90;
-          const f = el('circle', { class: 'wave-fleck', cx: r(fx), cy: r(topY(fx) - 14 - rand() * 12), r: r(1.8 + rand() * 1.8) }, dress);
+          const f = el('circle', { class: 'wave-fleck', cx: r(fx), cy: r(topY(fx) - 18 - rand() * 12), r: r(1.8 + rand() * 1.8) }, dress);
           f.style.animationDelay = (-rand() * 1.9).toFixed(2) + 's';
         }
       }
       // A drop that falls off the foam, again and again.
       if (kind !== 1) {
         const dx = x + (rand() - 0.5) * 60;
-        const d = el('circle', { class: 'wave-drop', cx: r(dx), cy: r(topY(dx) + 4), r: 2.4 }, dress);
+        const d = el('circle', { class: 'wave-drop', cx: r(dx), cy: r(topY(dx) + 5), r: 2.4 }, dress);
         d.style.animationDelay = (-rand() * 2.6).toFixed(2) + 's';
       }
       // Bubbles rising through the beer along this stretch.
@@ -792,6 +852,7 @@ if (buybar && heroEl && window.IntersectionObserver) {
       it.iconAt = at + ICON / 2;
       at += ICON + gap;
     });
+    flowing(pathLen * cycle / (X1 - X0));
     dressUp(cycle);
     const copies = Math.ceil(pathLen / cycle) + 1;
     for (let k = 0; k < copies; k++) {
