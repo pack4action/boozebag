@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=30" />
+<link rel="stylesheet" href="assets/css/style.css?v=31" />
 </head>
 <body>
 
@@ -248,29 +248,19 @@
   </div>
 </section>
 
-<div class="tape-wrap" aria-hidden="true">
-<div class="tape">
-  <div class="tape-track">
-    <span class="tape-half">
-      <span>24 drinks a day</span><svg class="icon"><use href="#i-beer"></use></svg>
-      <span>0 days lifting</span><svg class="icon"><use href="#i-barbell"></use></svg>
-      <span>5 months on gear</span><svg class="icon"><use href="#i-dot"></use></svg>
-      <span>1 stage walked</span><svg class="icon"><use href="#i-trophy"></use></svg>
-      <span>live on Kick every day</span><svg class="icon"><use href="#i-video"></use></svg>
-      <span>nobody sells</span><svg class="icon"><use href="#i-lock"></use></svg>
-      <span>$BOOZEBAG</span><svg class="icon"><use href="#i-beer"></use></svg>
-    </span>
-    <span class="tape-half">
-      <span>24 drinks a day</span><svg class="icon"><use href="#i-beer"></use></svg>
-      <span>0 days lifting</span><svg class="icon"><use href="#i-barbell"></use></svg>
-      <span>5 months on gear</span><svg class="icon"><use href="#i-dot"></use></svg>
-      <span>1 stage walked</span><svg class="icon"><use href="#i-trophy"></use></svg>
-      <span>live on Kick every day</span><svg class="icon"><use href="#i-video"></use></svg>
-      <span>nobody sells</span><svg class="icon"><use href="#i-lock"></use></svg>
-      <span>$BOOZEBAG</span><svg class="icon"><use href="#i-beer"></use></svg>
-    </span>
-  </div>
-</div>
+<!-- The stats ride a wave of beer across the page. The words live here;
+     main.js bends them along the wave and sets them running. -->
+<div class="wave-wrap" aria-hidden="true">
+  <ul class="wave-words" hidden>
+    <li data-icon="i-beer">24 drinks a day</li>
+    <li data-icon="i-barbell">0 days lifting</li>
+    <li data-icon="i-dot">5 months on gear</li>
+    <li data-icon="i-trophy">2M+ views</li>
+    <li data-icon="i-video">live on Kick every day</li>
+    <li data-icon="i-lock">nobody sells</li>
+    <li data-icon="i-beer">$BOOZEBAG</li>
+  </ul>
+  <svg class="wave" id="wave" viewBox="0 0 3000 128" preserveAspectRatio="xMidYMid slice" focusable="false"></svg>
 </div>
 
 <!-- TODAY'S REGIMEN: one drink an hour, on the visitor's own clock -->
@@ -672,7 +662,7 @@
 
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=2"></script>
-<script src="assets/js/main.js?v=9"></script>
+<script src="assets/js/main.js?v=10"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>

@@ -1235,42 +1235,43 @@ html { scroll-padding-top: 84px; }
 @keyframes hl-swipe { from { transform: rotate(-1.3deg) scaleX(0); } to { transform: rotate(-1.3deg) scaleX(1); } }
 @keyframes hl-ink { from { color: var(--text); } to { color: #1a1200; } }
 
-/* A strip of tape across the page under the hero, running. Tilted like it
-   was stuck on by hand. Stops when you point at it so it can be read. */
-/* The wrap clips the tilt, so the tape's corners never poke past the edge
-   of a phone screen and give the page a sideways scroll. */
-.tape-wrap {
+/* A wave of beer across the page under the hero, with the stats riding
+   it. The words are bent along the wave by main.js and run along it;
+   the crests drift more slowly, so the words flow over the liquid. It
+   stops when you point at it so it can be read. The wrap clips the
+   wide drawing so nothing pokes past a phone screen. */
+.wave-wrap {
   position: relative;
   z-index: 2;
   overflow: hidden;
-  margin: -14px 0 6px;
-  padding: 12px 0 14px;
+  margin: -10px 0 6px;
+  line-height: 0;
 }
-.tape {
-  position: relative;
-  overflow: hidden;
-  background: var(--amber);
-  color: #1a1200;
-  border-top: 3px solid #000;
-  border-bottom: 3px solid #000;
-  box-shadow: 0 6px 0 #000;
-  transform: rotate(-1.1deg) scale(1.03);
+.wave {
+  display: block;
+  width: 100%;
+  height: 128px;
 }
-.tape-track {
-  display: flex;
-  width: max-content;
-  padding: 11px 0;
+.wave-shadow { fill: #000; }
+.wave-band { fill: url(#wave-beer); stroke: #000; stroke-width: 3; stroke-linejoin: round; }
+.wave-foam { fill: none; stroke: #fff3d2; stroke-width: 7; stroke-linecap: round; }
+.wave-head { fill: #fff3d2; stroke: #000; stroke-width: 2.5; }
+.wave-bubble { fill: rgba(255, 246, 214, 0.75); }
+.wave-text {
   font-family: 'Anton', sans-serif;
-  font-size: 15px;
-  letter-spacing: 1.6px;
+  font-size: 19px;
+  letter-spacing: 2px;
   text-transform: uppercase;
-  white-space: nowrap;
-  animation: tape-run 28s linear infinite;
+  fill: #1a1200;
+  dominant-baseline: middle;
 }
-.tape-half { display: inline-flex; align-items: center; gap: 30px; padding-right: 30px; }
-.tape-half .icon { width: 1.15em; height: 1.15em; opacity: 0.85; }
-.tape:hover .tape-track { animation-play-state: paused; }
-@keyframes tape-run { to { transform: translateX(-50%); } }
+.wave-icon { fill: #1a1200; opacity: 0.85; }
+.js .wave-bubble { animation: wave-rise 3.6s ease-in infinite; }
+@keyframes wave-rise {
+  0% { transform: translateY(0); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translateY(-22px); opacity: 0; }
+}
 
 /* Section titles get a line of marker under them that draws itself the
    first time you reach it. The line is put there by main.js, so a page
@@ -1461,7 +1462,7 @@ html { scroll-padding-top: 84px; }
 
 @media (prefers-reduced-motion: reduce) {
   .js .hero-title .hl, .js .hero-title .hl::before { animation: none; }
-  .tape-track { animation: none; }
+  .wave-bubble { animation: none; }
   .title-stroke path { transition: none; stroke-dashoffset: 0; }
   .js .road-item:not(.in) .road-dot { transform: none; }
   .js .road-item:not(.in) .road-body { opacity: 1; transform: none; }
@@ -1474,7 +1475,7 @@ html { scroll-padding-top: 84px; }
    One drink an hour on the visitor's own clock, which is the whole bit
    made live: twenty-four cans, the ones that are down lit, the next one
    waiting, and a button to crack one along with him. Sits right under
-   the tape, so it reads as part of the hero's noise rather than a
+   the wave, so it reads as part of the hero's noise rather than a
    section of its own. */
 .regimen {
   position: relative;

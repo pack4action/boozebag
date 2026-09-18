@@ -622,3 +622,147 @@ if (buybar && heroEl && window.IntersectionObserver) {
     });
   }
 }
+
+// ---- The wave of beer under the hero ----
+// The stats ride a wave: a band of beer with a foam edge, drawn wide
+// enough to be cropped on any screen. Each word is bent along the wave
+// and runs along it, the icons float between the words, and the whole
+// wave drifts more slowly, so the words flow over the liquid. All of it
+// is driven by the browser's own SVG animation, with nothing to do per
+// frame. It stops under the pointer, off screen, and for anyone who has
+// asked for less motion.
+(function () {
+  const svg = document.getElementById('wave');
+  const words = document.querySelector('.wave-words');
+  if (!svg || !words) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const XLINK = 'http://www.w3.org/1999/xlink';
+  const PERIOD = 640;   // one crest to the next
+  const AMP = 24;       // how high the crests rise
+  const MID = 64;       // the middle of the band, in the drawing
+  const THICK = 23;     // half the band's height
+  const X0 = -2800;     // the drawing runs well past any screen
+  const X1 = 6800;
+  const GAP = 34;       // between a word and its icon
+  const ICON = 24;
+  const WORD_SPEED = 62;   // drawing units a second, along the wave
+  const WAVE_SPEED = 16;   // how fast the crests drift
+  const stillness = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const el = (name, attrs, parent) => {
+    const e = document.createElementNS(NS, name);
+    Object.keys(attrs || {}).forEach((k) => e.setAttribute(k, attrs[k]));
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const r = (n) => Math.round(n * 10) / 10;
+  // A smooth curve through points, as cubic pieces.
+  function curve(pts, first) {
+    let d = first + r(pts[0][0]) + ' ' + r(pts[0][1]);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(i - 1, 0)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(i + 2, pts.length - 1)];
+      d += ' C' + r(p1[0] + (p2[0] - p0[0]) / 6) + ' ' + r(p1[1] + (p2[1] - p0[1]) / 6)
+        + ' ' + r(p2[0] - (p3[0] - p1[0]) / 6) + ' ' + r(p2[1] - (p3[1] - p1[1]) / 6)
+        + ' ' + r(p2[0]) + ' ' + r(p2[1]);
+    }
+    return d;
+  }
+  function wavePoints(y0) {
+    const pts = [];
+    for (let x = X0; x <= X1; x += PERIOD / 8) {
+      pts.push([x, y0 + AMP * Math.sin((x - X0) / PERIOD * Math.PI * 2)]);
+    }
+    return pts;
+  }
+  const top = wavePoints(MID - THICK);
+  const bottom = wavePoints(MID + THICK).reverse();
+  const band = curve(top, 'M') + curve(bottom, ' L') + ' Z';
+
+  const defs = el('defs', {}, svg);
+  const grad = el('linearGradient', { id: 'wave-beer', x1: '0', y1: '0', x2: '0', y2: '1' }, defs);
+  el('stop', { offset: '0', 'stop-color': '#ffc632' }, grad);
+  el('stop', { offset: '1', 'stop-color': '#ff9a12' }, grad);
+  const line = el('path', { id: 'wave-line', d: curve(wavePoints(MID), 'M'), fill: 'none' }, defs);
+
+  const drift = el('g', {}, svg);
+  el('path', { class: 'wave-shadow', d: band, transform: 'translate(0 7)' }, drift);
+  el('path', { class: 'wave-band', d: band }, drift);
+  el('path', { class: 'wave-foam', d: curve(top, 'M') }, drift);
+  // Heads of foam on the crests, and bubbles rising through the beer.
+  for (let x = X0 + PERIOD * 3 / 4; x < X1; x += PERIOD) {
+    const y = MID - THICK - AMP;
+    el('ellipse', { class: 'wave-head', cx: r(x - 26), cy: r(y + 1), rx: 13, ry: 7 }, drift);
+    el('ellipse', { class: 'wave-head', cx: r(x + 14), cy: r(y - 1), rx: 18, ry: 8 }, drift);
+    el('circle', { class: 'wave-head', cx: r(x + 44), cy: r(y + 4), r: 5 }, drift);
+    [[-150, 0.9, 0], [-90, 0.3, -1.4], [150, 0.6, -0.7]].forEach((b) => {
+      const c = el('circle', { class: 'wave-bubble', cx: r(x + b[0]), cy: r(MID + THICK * 0.6 + AMP * Math.sin((x + b[0] - X0) / PERIOD * Math.PI * 2)), r: 3 }, drift);
+      c.style.animationDelay = b[2] + 's';
+      c.style.transformBox = 'fill-box';
+    });
+  }
+  const riders = el('g', {}, drift);
+
+  function build() {
+    while (riders.firstChild) riders.removeChild(riders.firstChild);
+    const pathLen = line.getTotalLength();
+    // Measure every word once, so the gaps between them are even.
+    const probe = el('text', { class: 'wave-text', x: 0, y: -100 }, svg);
+    const items = Array.from(words.querySelectorAll('li')).map((li) => {
+      probe.textContent = li.textContent.toUpperCase();
+      return { text: li.textContent.toUpperCase(), icon: li.dataset.icon, len: probe.getComputedTextLength() };
+    });
+    svg.removeChild(probe);
+    let at = 0;
+    items.forEach((it) => {
+      it.at = at;
+      at += it.len + GAP;
+      it.iconAt = at + ICON / 2;
+      at += ICON + GAP;
+    });
+    const cycle = at;
+    const copies = Math.ceil(pathLen / cycle) + 1;
+    const dur = (cycle / WORD_SPEED).toFixed(2) + 's';
+    for (let k = 0; k < copies; k++) {
+      items.forEach((it) => {
+        const from = it.at + k * cycle;
+        const t = el('text', { class: 'wave-text' }, riders);
+        const tp = el('textPath', { startOffset: String(r(from)) }, t);
+        tp.setAttributeNS(XLINK, 'xlink:href', '#wave-line');
+        tp.setAttribute('href', '#wave-line');
+        tp.textContent = it.text;
+        if (!stillness) {
+          el('animate', { attributeName: 'startOffset', from: String(r(from)), to: String(r(from - cycle)), dur, begin: '0s', repeatCount: 'indefinite' }, tp);
+        }
+        // An icon rides the wave too, but only where its whole run lies
+        // on the drawn line; the line runs far past the screen, so the
+        // ones left out were never in view.
+        const f1 = (it.iconAt + k * cycle) / pathLen;
+        const f0 = (it.iconAt + (k - 1) * cycle) / pathLen;
+        if (f0 < 0 || f1 > 1) return;
+        const g = el('g', {}, riders);
+        const use = el('use', { class: 'wave-icon', x: -ICON / 2, y: -ICON / 2, width: ICON, height: ICON }, g);
+        use.setAttributeNS(XLINK, 'xlink:href', '#' + it.icon);
+        use.setAttribute('href', '#' + it.icon);
+        const m = el('animateMotion', { dur: stillness ? '1s' : dur, begin: '0s', repeatCount: 'indefinite', calcMode: 'linear', keyPoints: stillness ? r(f1) + ';' + r(f1) : f1.toFixed(4) + ';' + f0.toFixed(4), keyTimes: '0;1' }, g);
+        const mp = el('mpath', {}, m);
+        mp.setAttributeNS(XLINK, 'xlink:href', '#wave-line');
+        mp.setAttribute('href', '#wave-line');
+      });
+    }
+  }
+  if (!stillness) {
+    el('animateTransform', { attributeName: 'transform', type: 'translate', from: '0 0', to: -PERIOD + ' 0', dur: (PERIOD / WAVE_SPEED).toFixed(1) + 's', begin: '0s', repeatCount: 'indefinite' }, drift);
+  }
+  build();
+  // The words are measured in the page's font, which may land later.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(build);
+
+  // Still under the pointer, and while it is off the screen.
+  let hovered = false, seen = true;
+  const settle = () => { if (hovered || !seen) svg.pauseAnimations(); else svg.unpauseAnimations(); };
+  svg.addEventListener('mouseenter', () => { hovered = true; settle(); });
+  svg.addEventListener('mouseleave', () => { hovered = false; settle(); });
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver((es) => { seen = es[0].isIntersecting; settle(); }).observe(svg);
+  }
+})();
