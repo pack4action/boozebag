@@ -21,34 +21,57 @@ it. Swept on write; nothing in it is worth keeping.
 
 ## Deploying it
 
-You need the Cloudflare account that holds `boozebag.xyz`, and
-`npx wrangler` (it will ask you to log in the first time).
+No domain needed. A free Cloudflare account and `npx wrangler` are all it
+takes; the Worker gets a free address at `workers.dev` and the site on
+GitHub Pages calls it there. About ten minutes.
 
 ```sh
+# 0. A free account at https://dash.cloudflare.com/sign-up if there is
+#    not one yet. Then, from the repo:
 cd workers/leaderboard
 
-# 1. Make the database. This prints a database_id.
+# 1. Log in. This opens a browser once.
+npx wrangler login
+
+# 2. Make the database. This prints a database_id.
 npx wrangler d1 create boozebag
 
-# 2. Put that id into wrangler.toml, replacing PUT-THE-DATABASE-ID-HERE.
+# 3. Put that id into wrangler.toml, replacing PUT-THE-DATABASE-ID-HERE.
 
-# 3. Create the tables, in the real database rather than the local one.
+# 4. Create the tables, in the real database rather than the local one.
 npx wrangler d1 execute boozebag --remote --file=./schema.sql
 
-# 4. Put the Worker up. The routes in wrangler.toml attach it to
-#    boozebag.xyz/api/*, so this is the only step that touches the domain.
+# 5. Put the Worker up. The last line it prints is its address, like
+#    https://boozebag-leaderboard.<your-account>.workers.dev
 npx wrangler deploy
 ```
 
-Check it:
+Check it, with the address it printed:
 
 ```sh
-curl 'https://boozebag.xyz/api/scores?game=gym-tycoon'
+curl 'https://boozebag-leaderboard.<your-account>.workers.dev/api/scores?game=gym-tycoon'
 # {"game":"gym-tycoon","board":[]}
+curl 'https://boozebag-leaderboard.<your-account>.workers.dev/api/live'
+# {"kick":{"live":false,...},"discord":{"members":...},"at":...}
 ```
 
-That is the whole of it. The site itself is static and deploys however it
-already does; the Worker sits beside it on the same domain.
+Then tell the site where it is: in the head of `index.html` and of each
+game page there is a commented-out tag; put the address in it and push.
+
+```html
+<meta name="boozebag-api" content="https://boozebag-leaderboard.<your-account>.workers.dev/api" />
+```
+
+From then on the games say `everybody playing` over their boards, the
+front page's Top bags fills from the same board, and the Kick pill goes
+red when he is on.
+
+### Once there is a domain
+
+When boozebag.xyz is bought and its DNS is on Cloudflare, uncomment the
+`routes` in `wrangler.toml` and deploy again. The Worker then also answers
+at `boozebag.xyz/api/`, the same origin as the page, and the page finds it
+there by itself; the tag can stay or go.
 
 ## Is he live
 
@@ -77,19 +100,6 @@ which works until Kick decides it should not. Either way `kick` is `null`
 when nothing answered, and the page keeps its plain "live on Kick every
 day" pill. The channel is `petermossfield` unless `KICK_SLUG` is set, and
 the Discord invite is the one on the page unless `DISCORD_INVITE` is set.
-
-### On GitHub Pages
-
-The site finds `/api` by itself only on `boozebag.xyz` and `*.pages.dev`.
-Served from anywhere else, such as `pack4action.github.io`, tell the page
-where the Worker is with one tag in the head of `index.html` (every
-deployed Worker also answers at its `workers.dev` address):
-
-```html
-<meta name="boozebag-api" content="https://boozebag-leaderboard.<your-account>.workers.dev/api" />
-```
-
-The Worker already allows `pack4action.github.io` to ask.
 
 ## What it will and will not stop
 

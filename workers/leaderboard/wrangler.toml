@@ -2,12 +2,16 @@ name = "boozebag-leaderboard"
 main = "src/worker.js"
 compatibility_date = "2024-11-01"
 
-# Served from the site's own domain, so the page and the board are the same
-# origin and the browser never has to be told it is allowed to ask.
-routes = [
-  { pattern = "boozebag.xyz/api/*", zone_name = "boozebag.xyz" },
-  { pattern = "www.boozebag.xyz/api/*", zone_name = "boozebag.xyz" }
-]
+# Every Worker gets a free address at <name>.<account>.workers.dev, and
+# that is all the site needs: the page is told where it is with one tag in
+# its head (see README). Once boozebag.xyz is bought and on Cloudflare,
+# uncomment the routes below and the Worker answers on the domain too, at
+# /api/, the same origin as the page.
+workers_dev = true
+# routes = [
+#   { pattern = "boozebag.xyz/api/*", zone_name = "boozebag.xyz" },
+#   { pattern = "www.boozebag.xyz/api/*", zone_name = "boozebag.xyz" }
+# ]
 
 [[d1_databases]]
 binding = "DB"
