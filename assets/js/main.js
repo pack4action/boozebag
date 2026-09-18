@@ -443,3 +443,175 @@ if (topbagsList && topbagsEmpty) {
   if (document.readyState === 'complete') drawBoard();
   else window.addEventListener('load', drawBoard);
 }
+
+
+// ---- The market, live ----
+// DexScreener's token endpoint needs no key and answers from a browser.
+// The pair with the most liquidity is the one that matters; the tiles
+// stay hidden until it has answered, and if it never does the page is as
+// it was.
+const CA = '3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump';
+const marketEl = document.getElementById('market');
+function money(n) {
+  const v = Number(n);
+  if (!isFinite(v)) return '';
+  if (v >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B';
+  if (v >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M';
+  if (v >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'K';
+  return '$' + v.toFixed(0);
+}
+function price(n) {
+  const v = Number(n);
+  if (!isFinite(v)) return '';
+  if (v >= 1) return '$' + v.toFixed(2);
+  if (v >= 0.01) return '$' + v.toFixed(4);
+  // A memecoin price is mostly zeros: show the first few figures that are
+  // not, the way the charts do.
+  const s = v.toFixed(12);
+  const m = s.match(/^0\.(0*)(\d{1,4})/);
+  return m ? '$0.' + m[1] + m[2] : '$' + v.toPrecision(3);
+}
+function setFresh(el, text) {
+  if (!el || el.textContent === text) return;
+  el.textContent = text;
+  el.classList.remove('is-fresh');
+  void el.offsetWidth;
+  el.classList.add('is-fresh');
+}
+if (marketEl) {
+  const pull = () => {
+    fetch('https://api.dexscreener.com/latest/dex/tokens/' + CA)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const pairs = data && Array.isArray(data.pairs) ? data.pairs.filter((p) => p && p.priceUsd) : [];
+        if (!pairs.length) return;
+        pairs.sort((a, b) => ((b.liquidity && b.liquidity.usd) || 0) - ((a.liquidity && a.liquidity.usd) || 0));
+        const p = pairs[0];
+        setFresh(document.getElementById('mk-price'), price(p.priceUsd));
+        setFresh(document.getElementById('mk-mc'), money(p.marketCap || p.fdv));
+        setFresh(document.getElementById('mk-vol'), money(p.volume && p.volume.h24));
+        const ch = p.priceChange && Number(p.priceChange.h24);
+        const chEl = document.getElementById('mk-change');
+        if (chEl && isFinite(ch)) {
+          setFresh(chEl, (ch > 0 ? '+' : '') + ch.toFixed(1) + '%');
+          chEl.classList.toggle('is-up', ch > 0);
+          chEl.classList.toggle('is-down', ch < 0);
+        }
+        if (p.url) marketEl.href = p.url;
+        marketEl.hidden = false;
+      })
+      .catch(() => {});
+  };
+  pull();
+  setInterval(() => { if (!document.hidden) pull(); }, 60000);
+}
+
+// ---- Kick: is he on? ----
+// The channel's public record says whether a stream is up and how many
+// are watching. Read from a browser that may or may not be let through;
+// when it is, the pill in the hero goes red with the number watching and
+// the regimen strip says so, and when it is not, the page keeps its word
+// that he is on every day.
+function metaValue(name) {
+  const tag = document.querySelector('meta[name="' + name + '"]');
+  return tag && tag.content ? tag.content.trim() : '';
+}
+function countText(n, word) {
+  const v = Number(n);
+  if (!isFinite(v) || v <= 0) return '';
+  const s = v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : String(Math.round(v));
+  return s + ' ' + word;
+}
+function setCount(kind, text) {
+  const card = document.querySelector('.community-card[data-live="' + kind + '"]');
+  const el = card && card.querySelector('.community-count');
+  if (el && text) el.textContent = text;
+}
+const kickSlug = metaValue('boozebag-kick');
+const livePill = document.getElementById('live-pill');
+if (kickSlug && livePill) {
+  const onAir = document.getElementById('regimen-onair');
+  const num = document.getElementById('live-num');
+  const label = document.getElementById('live-label');
+  const check = () => {
+    fetch('https://kick.com/api/v2/channels/' + encodeURIComponent(kickSlug))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((ch) => {
+        if (!ch) return;
+        setCount('kick', countText(ch.followers_count || ch.followersCount, 'followers'));
+        const live = ch.livestream && (ch.livestream.is_live !== false);
+        livePill.classList.toggle('is-on', !!live);
+        if (live) {
+          const watching = Number(ch.livestream.viewer_count || ch.livestream.viewers || 0);
+          if (num) num.textContent = 'live now';
+          if (label) label.innerHTML = (watching > 0 ? watching + ' watching<br />on Kick' : 'on Kick<br />right now');
+          if (onAir) onAir.hidden = false;
+        } else {
+          if (num) num.textContent = 'live';
+          if (label) label.innerHTML = 'on Kick<br />every day';
+          if (onAir) onAir.hidden = true;
+        }
+      })
+      .catch(() => {});
+  };
+  check();
+  setInterval(() => { if (!document.hidden) check(); }, 120000);
+}
+
+// ---- Discord: how many are in ----
+const discordInvite = metaValue('boozebag-discord');
+if (discordInvite && document.querySelector('.community-card[data-live="discord"]')) {
+  fetch('https://discord.com/api/v10/invites/' + encodeURIComponent(discordInvite) + '?with_counts=true')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((inv) => { if (inv) setCount('discord', countText(inv.approximate_member_count, 'members')); })
+    .catch(() => {});
+}
+// The counts written by hand on the cards, for the places with no open door.
+document.querySelectorAll('.community-card[data-count]').forEach((card) => {
+  const el = card.querySelector('.community-count');
+  if (el && card.dataset.count) el.textContent = card.dataset.count;
+});
+
+// ---- The latest post ----
+// One address in the head names it; the X widget script dresses the
+// link when it arrives, and until then the link is a card of its own.
+const latestEl = document.getElementById('latest');
+const latestEmbed = document.getElementById('latest-embed');
+const latestUrl = metaValue('boozebag-latest');
+if (latestEl && latestEmbed && /^https:\/\/(twitter|x)\.com\//.test(latestUrl)) {
+  const q = document.createElement('blockquote');
+  q.className = 'twitter-tweet';
+  q.setAttribute('data-theme', 'dark');
+  const a = document.createElement('a');
+  a.href = latestUrl;
+  a.textContent = 'Open the latest post on X';
+  a.target = '_blank';
+  a.rel = 'noopener';
+  q.appendChild(a);
+  latestEmbed.appendChild(q);
+  latestEl.hidden = false;
+  if (window.twttr && window.twttr.widgets && window.twttr.widgets.load) window.twttr.widgets.load(latestEmbed);
+}
+
+// ---- The bar at the bottom of a phone ----
+// Up once the hero, with its own buttons, has gone off the top.
+const buybar = document.getElementById('buybar');
+const heroEl = document.querySelector('.hero');
+if (buybar && heroEl && window.IntersectionObserver) {
+  document.body.classList.add('has-buybar');
+  const io = new IntersectionObserver((entries) => {
+    const heroSeen = entries[0].isIntersecting;
+    buybar.classList.toggle('is-on', !heroSeen);
+    buybar.setAttribute('aria-hidden', heroSeen ? 'true' : 'false');
+  }, { threshold: 0 });
+  io.observe(heroEl);
+  const copyBar = document.getElementById('buybar-copy');
+  if (copyBar) {
+    copyBar.addEventListener('click', async () => {
+      if (!(await copyText(CA))) return;
+      buzz(14);
+      copyBar.textContent = 'Copied';
+      setTimeout(() => { copyBar.textContent = 'Copy CA'; }, 1600);
+    });
+  }
+}

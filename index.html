@@ -5,11 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>$BOOZEBAG: I'm Getting Jacked on 24 Drinks a Day</title>
 <meta name="description" content="$BOOZEBAG is my memecoin. I competed in a bodybuilding show after 5 months of blasting gear, drinking 24 drinks a day, and not lifting. Daily uploads. Daily trading streams." />
+<!-- What a pasted link shows in Telegram, X and Discord. The image has to
+     be an absolute address, so this is the site's own domain. -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="$BOOZEBAG" />
+<meta property="og:title" content="$BOOZEBAG: I'm Getting Jacked on 24 Drinks a Day" />
+<meta property="og:description" content="Five months of blasting gear, 24 drinks a day, zero lifting, one real bodybuilding stage. The coin is live. Nobody sells." />
+<meta property="og:url" content="https://boozebag.xyz/" />
+<meta property="og:image" content="https://boozebag.xyz/assets/img/hero-art.png" />
+<meta property="og:image:alt" content="Boozebag holding a Budweiser in front of the $BOOZEBAG logo" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content="@BoozebagFitness" />
+<meta name="twitter:title" content="$BOOZEBAG: I'm Getting Jacked on 24 Drinks a Day" />
+<meta name="twitter:description" content="Five months of blasting gear, 24 drinks a day, zero lifting, one real bodybuilding stage. The coin is live. Nobody sells." />
+<meta name="twitter:image" content="https://boozebag.xyz/assets/img/hero-art.png" />
+<!-- The live bits of the page, named once. Change a value here and the
+     page follows: the post shown as the latest, the Kick channel whose
+     live status lights the pill, the Discord invite whose member count
+     goes on its card. -->
+<meta name="boozebag-latest" content="https://twitter.com/BoozebagFitness/status/2086259308749017414" />
+<meta name="boozebag-kick" content="petermossfield" />
+<meta name="boozebag-discord" content="K6QfX6e7Yn" />
 <link rel="icon" type="image/png" href="assets/img/favicon.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=28" />
+<link rel="stylesheet" href="assets/css/style.css?v=29" />
 </head>
 <body>
 
@@ -182,10 +203,10 @@
         <b class="stat-tag-num">0</b>
         <span class="stat-tag-label">days<br />lifting</span>
       </span>
-      <a class="stat-tag stat-tag-live" href="https://kick.com/petermossfield" target="_blank" rel="noopener">
+      <a class="stat-tag stat-tag-live" id="live-pill" href="https://kick.com/petermossfield" target="_blank" rel="noopener">
         <span class="live-dot"><svg class="icon icon-live" aria-hidden="true"><use href="#i-dot"></use></svg></span>
-        <b class="stat-tag-num">live</b>
-        <span class="stat-tag-label">on Kick<br />every day</span>
+        <b class="stat-tag-num" id="live-num">live</b>
+        <span class="stat-tag-label" id="live-label">on Kick<br />every day</span>
       </a>
     </div>
 
@@ -195,7 +216,8 @@
     </picture>
 
     <h1 class="hero-title">I'M GETTING JACKED<br/>WHILE <span class="hl">DRINKING 24 DRINKS</span><br/>A DAY.</h1>
-    <p class="hero-sub">Zero fucking training. Five months of blasting gear and drinking like it was my job. Then I stepped on a real bodybuilding stage anyway. It's pulled 2M+ views across every platform, and that's just the start. The coin's already live. I'm not stopping.</p>
+    <p class="hero-sub hero-sub-long">Zero fucking training. Five months of blasting gear and drinking like it was my job. Then I stepped on a real bodybuilding stage anyway. It's pulled 2M+ views across every platform, and that's just the start. The coin's already live. I'm not stopping.</p>
+    <p class="hero-sub hero-sub-short">Zero training. Five months of gear and 24 drinks a day. Then a real bodybuilding stage. 2M+ views. The coin's live and I'm not stopping.</p>
     <div class="hero-ctas">
       <span class="scribble">trust the process<br/>(barely)</span>
       <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" class="btn btn-primary btn-lg">Buy $BOOZEBAG <svg class="icon" aria-hidden="true"><use href="#i-beer"></use></svg></a>
@@ -207,12 +229,20 @@
       <span class="ca-value ca-address" id="ca-value">3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump</span>
       <button class="btn btn-tiny" id="ca-copy" type="button">Copy</button>
       <span class="ca-stamp" aria-hidden="true">Copied</span>
+      <p class="quick-links">
+        <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">pump.fun <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
+        <a href="https://dexscreener.com/solana/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">DexScreener <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
+      </p>
     </div>
+    <!-- Live off DexScreener; stays hidden until it has answered. -->
+    <a class="market" id="market" href="https://dexscreener.com/solana/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" hidden>
+      <span class="market-tile"><span class="market-label">Price</span><b id="mk-price"></b></span>
+      <span class="market-tile"><span class="market-label">Market cap</span><b id="mk-mc"></b></span>
+      <span class="market-tile"><span class="market-label">24h</span><b id="mk-change"></b></span>
+      <span class="market-tile"><span class="market-label">Volume 24h</span><b id="mk-vol"></b></span>
+      <span class="market-src">live from DexScreener</span>
+    </a>
     <p class="ca-warning"><svg class="icon icon-warn" aria-hidden="true"><use href="#i-warning"></use></svg> Match every character before you buy, don't be an idiot about it. I only ever post it on <a href="https://x.com/BoozebagFitness" target="_blank" rel="noopener">@BoozebagFitness</a> or in the <a href="https://t.me/degenhorde" target="_blank" rel="noopener">Telegram</a> above. Anything else is a scam.</p>
-    <p class="quick-links">
-      <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">View on pump.fun <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
-      <a href="https://dexscreener.com/solana/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">Chart on DexScreener <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
-    </p>
   </div>
 </section>
 
@@ -248,6 +278,7 @@
       <span class="regimen-kicker"><span class="regimen-live"></span>today's regimen, live</span>
       <span class="regimen-mood" id="regimen-mood">peak form</span>
     </div>
+    <a class="regimen-onair" id="regimen-onair" href="https://kick.com/petermossfield" target="_blank" rel="noopener" hidden><span class="regimen-live"></span>He's live on Kick right now. Go watch.</a>
     <div class="regimen-cans" id="regimen-cans" aria-hidden="true"></div>
     <p class="regimen-line" id="regimen-line">One an hour, every hour. Drink 18 of 24 is down. Next one at 18:00.</p>
     <div class="regimen-act">
@@ -399,18 +430,15 @@
   </div>
 
   <div class="proof-grid">
-    <div class="proof-shot proof-embed">
-      <blockquote class="twitter-tweet" data-theme="dark">
-        <a href="https://twitter.com/BoozebagFitness/status/2086259308749017414"></a>
-      </blockquote>
-    </div>
+    <figure class="proof-shot">
+      <img src="assets/img/proof-stage.jpg" alt="Boozebag on the NPC East Coast Mecca Classic stage, in a lineup, under the lights" loading="lazy" width="800" height="1550" />
+      <figcaption>NPC East Coast Mecca Classic. Five months in. Not one workout.</figcaption>
+    </figure>
 
     <div class="proof-stats">
+      <p class="proof-lead">Not a bit, not a filter, not a stunt for one video. He walked out under the lights in a real lineup in front of real judges, and the internet watched.</p>
       <div class="stat"><span class="stat-num" data-target="2M+">0</span><span class="stat-label">Views, All Platforms</span></div>
       <div class="stat"><span class="stat-num" data-target="5.1K">0</span><span class="stat-label">Followers</span></div>
-      <div class="stat"><span class="stat-num" data-target="24">0</span><span class="stat-label">Drinks / Day</span></div>
-      <div class="stat"><span class="stat-num" data-target="0">0</span><span class="stat-label">Days Trained</span></div>
-      <div class="stat"><span class="stat-num" data-target="5">0</span><span class="stat-label">Months On Gear</span></div>
       <div class="stat"><span class="stat-num" data-target="1">0</span><span class="stat-label">Stage Walked</span></div>
 
       <div class="proof-links">
@@ -430,6 +458,14 @@
   <div class="section-head">
     <h2 class="section-title">The Content Never Stops</h2>
     <p class="section-kicker">new clips every day, live on Kick, giveaways</p>
+  </div>
+
+  <div class="latest" id="latest" hidden>
+    <div class="latest-head">
+      <span class="latest-kicker"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg> latest from the bag</span>
+      <a class="latest-more" href="https://x.com/BoozebagFitness" target="_blank" rel="noopener">all of it on X <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
+    </div>
+    <div class="latest-embed" id="latest-embed"></div>
   </div>
 
   <div class="content-grid">
@@ -584,29 +620,34 @@
   </div>
 
   <div class="community-grid">
-    <a href="https://x.com/BoozebagFitness" target="_blank" rel="noopener" class="community-card">
+    <a href="https://x.com/BoozebagFitness" target="_blank" rel="noopener" class="community-card" data-count="5.1K followers">
       <div class="community-icon"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></div>
       <h3>@BoozebagFitness</h3>
+      <span class="community-count"></span>
       <p>My daily uploads, live streams, and whatever dumb shit I pull next.</p>
     </a>
-    <a href="https://t.me/degenhorde" target="_blank" rel="noopener" class="community-card">
+    <a href="https://t.me/degenhorde" target="_blank" rel="noopener" class="community-card" data-count="">
       <div class="community-icon"><svg class="icon" aria-hidden="true"><use href="#i-telegram"></use></svg></div>
       <h3>Telegram</h3>
+      <span class="community-count"></span>
       <p>Degen Horde. Where the CA lives, the chart gets watched, and the trading talk happens.</p>
     </a>
-    <a href="https://kick.com/petermossfield" target="_blank" rel="noopener" class="community-card">
+    <a href="https://kick.com/petermossfield" target="_blank" rel="noopener" class="community-card" data-count="" data-live="kick">
       <div class="community-icon"><svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg></div>
       <h3>Kick</h3>
+      <span class="community-count"></span>
       <p>I'm live daily: trading, giveaways, and the plan for the coin as it happens.</p>
     </a>
-    <a href="https://fomo.family/r/Boozebag" target="_blank" rel="noopener" class="community-card">
+    <a href="https://fomo.family/r/Boozebag" target="_blank" rel="noopener" class="community-card" data-count="">
       <div class="community-icon"><svg class="icon" aria-hidden="true"><use href="#i-bars"></use></svg></div>
       <h3>Fomo</h3>
+      <span class="community-count"></span>
       <p>My public, verifiable trading positions. Follow along and see exactly what I'm holding.</p>
     </a>
-    <a href="https://discord.gg/K6QfX6e7Yn" target="_blank" rel="noopener" class="community-card">
+    <a href="https://discord.gg/K6QfX6e7Yn" target="_blank" rel="noopener" class="community-card" data-count="" data-live="discord">
       <div class="community-icon"><svg class="icon" aria-hidden="true"><use href="#i-discord"></use></svg></div>
       <h3>Discord</h3>
+      <span class="community-count"></span>
       <p>The original fitness and beer marathon crowd. Still me, still drunk, just a different couch.</p>
     </a>
   </div>
@@ -626,9 +667,16 @@
   </div>
 </footer>
 
+<!-- On a phone, once the hero has scrolled away: the two things the page
+     is for, within a thumb's reach the whole way down. -->
+<div class="buybar" id="buybar" aria-hidden="true">
+  <button class="btn btn-outline btn-small buybar-copy" id="buybar-copy" type="button">Copy CA</button>
+  <a class="btn btn-primary btn-small buybar-buy" href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">Buy $BOOZEBAG</a>
+</div>
+
 <script src="assets/js/wallet.js?v=3"></script>
 <script src="assets/js/leaderboard.js?v=2"></script>
-<script src="assets/js/main.js?v=5"></script>
+<script src="assets/js/main.js?v=6"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>
