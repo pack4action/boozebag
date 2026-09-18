@@ -819,7 +819,7 @@ if (buybar && heroEl && window.IntersectionObserver) {
       // Bubbles that float up through the beer, wobbling as they go, and
       // pop when they reach the surface, leaving a ring that spreads and
       // fades. The bubble and its ring share one clock.
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 4; i++) {
         const bx = x + (rand() - 0.5) * PERIOD * 0.95;
         const depth = 12 + rand() * 28;
         const clock = (3 + rand() * 2.4).toFixed(2) + 's linear ' + (-rand() * 6).toFixed(2) + 's infinite';
@@ -885,12 +885,10 @@ if (buybar && heroEl && window.IntersectionObserver) {
   // The words are measured in the page's font, which may land later.
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(build);
 
-  // Still under the pointer, and while it is off the screen.
-  let hovered = false, seen = true;
-  const settle = () => { if (hovered || !seen) svg.pauseAnimations(); else svg.unpauseAnimations(); };
-  svg.addEventListener('mouseenter', () => { hovered = true; settle(); });
-  svg.addEventListener('mouseleave', () => { hovered = false; settle(); });
+  // Still while it is off the screen, so it costs nothing there.
   if ('IntersectionObserver' in window) {
-    new IntersectionObserver((es) => { seen = es[0].isIntersecting; settle(); }).observe(svg);
+    new IntersectionObserver((es) => {
+      if (es[0].isIntersecting) svg.unpauseAnimations(); else svg.pauseAnimations();
+    }).observe(svg);
   }
 })();
