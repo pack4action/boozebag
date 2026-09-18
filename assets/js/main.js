@@ -572,27 +572,6 @@ document.querySelectorAll('.community-card[data-count]').forEach((card) => {
   if (el && card.dataset.count) el.textContent = card.dataset.count;
 });
 
-// ---- The latest post ----
-// One address in the head names it; the X widget script dresses the
-// link when it arrives, and until then the link is a card of its own.
-const latestEl = document.getElementById('latest');
-const latestEmbed = document.getElementById('latest-embed');
-const latestUrl = metaValue('boozebag-latest');
-if (latestEl && latestEmbed && /^https:\/\/(twitter|x)\.com\//.test(latestUrl)) {
-  const q = document.createElement('blockquote');
-  q.className = 'twitter-tweet';
-  q.setAttribute('data-theme', 'dark');
-  const a = document.createElement('a');
-  a.href = latestUrl;
-  a.textContent = 'Open the latest post on X';
-  a.target = '_blank';
-  a.rel = 'noopener';
-  q.appendChild(a);
-  latestEmbed.appendChild(q);
-  latestEl.hidden = false;
-  if (window.twttr && window.twttr.widgets && window.twttr.widgets.load) window.twttr.widgets.load(latestEmbed);
-}
-
 // ---- The bar at the bottom of a phone ----
 // Up once the hero, with its own buttons, has gone off the top.
 const buybar = document.getElementById('buybar');
