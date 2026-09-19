@@ -572,8 +572,9 @@ if (chartToggle && chartFrame) {
       findPair().then((pair) => {
         asking = false;
         if (!pair) {
+          // DexScreener has no pair for it; pump.fun's own page has the chart.
           chartToggle.textContent = 'Show the chart';
-          window.open('https://dexscreener.com/solana/' + CA, '_blank', 'noopener');
+          window.open('https://pump.fun/coin/' + CA, '_blank', 'noopener');
           return;
         }
         const iframe = document.createElement('iframe');
