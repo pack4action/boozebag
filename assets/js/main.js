@@ -500,7 +500,6 @@ if (marketEl) {
         if (p.url) marketEl.href = p.url;
         if (p.pairAddress) pairAddress = p.pairAddress;
         marketEl.hidden = false;
-        if (chartEl) chartEl.hidden = false;
       })
       .catch(() => {});
   };
@@ -510,11 +509,10 @@ if (marketEl) {
 
 // ---- The chart, on request ----
 // DexScreener's own chart, put on the page the first time the button is
-// pressed and left there after. It wants the pair rather than the coin;
-// the market call above knows which pair, and the coin does when it has
-// not answered yet.
+// pressed and left there after. It is best given the pair, which the
+// market call above learns; until then the coin's own page shows the
+// same chart.
 let pairAddress = '';
-const chartEl = document.getElementById('chart');
 const chartToggle = document.getElementById('chart-toggle');
 const chartFrame = document.getElementById('chart-frame');
 if (chartToggle && chartFrame) {
