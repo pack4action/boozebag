@@ -1411,31 +1411,70 @@ html { scroll-padding-top: 84px; }
 }
 .ca-box:hover { border-color: var(--amber); }
 .ca-box:active { transform: scale(0.995); }
+/* Copied: the box goes solid green and rings once, the button turns
+   green and draws its tick, a marker sweep runs across the address, and
+   a few bubbles pop off the button. One moment, several parts. */
 .ca-box.is-copied {
   border-style: solid;
-  border-color: var(--amber);
-  box-shadow: 0 0 0 4px rgba(255, 183, 3, 0.16);
+  border-color: var(--green);
+  animation: ca-ring 0.7s ease-out;
 }
-.ca-box.is-copied .ca-address { color: var(--amber); }
-.ca-stamp {
+@keyframes ca-ring {
+  0% { box-shadow: 0 0 0 0 rgba(53, 224, 138, 0.55); }
+  100% { box-shadow: 0 0 0 22px rgba(53, 224, 138, 0); }
+}
+.ca-box.is-copied .ca-address {
+  background: linear-gradient(90deg, var(--text) 0 38%, var(--amber) 48%, #fff3d2 52%, var(--amber) 56%, var(--text) 66% 100%);
+  background-size: 320% 100%;
+  background-position: 0% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ca-sweep 0.9s cubic-bezier(0.3, 0.7, 0.2, 1) forwards;
+}
+@keyframes ca-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
+}
+#ca-copy { display: inline-flex; align-items: center; gap: 6px; transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease, box-shadow 0.15s ease; }
+#ca-copy.is-done { background: var(--green); color: #06130b; }
+.ca-check {
+  width: 1.1em;
+  height: 1.1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 26;
+  stroke-dashoffset: 26;
+  animation: ca-tick 0.35s ease-out 0.05s forwards;
+}
+@keyframes ca-tick { to { stroke-dashoffset: 0; } }
+.ca-bub {
   position: absolute;
-  top: -13px;
-  right: 16px;
-  font-family: 'Anton', sans-serif;
-  font-size: 12px;
-  letter-spacing: 1.6px;
-  text-transform: uppercase;
-  color: #06130b;
-  background: var(--green);
-  border: 2px solid #000;
-  border-radius: 6px;
-  padding: 4px 10px;
-  box-shadow: 2px 2px 0 #000;
-  transform: rotate(-8deg) scale(0);
-  transition: transform 0.28s cubic-bezier(0.2, 1.6, 0.4, 1);
+  left: 0;
+  top: 0;
+  width: var(--s);
+  height: var(--s);
+  border-radius: 50%;
+  background: var(--c);
+  border: 1.5px solid #000;
   pointer-events: none;
+  z-index: 3;
+  animation: ca-bub 0.85s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
 }
-.ca-box.is-copied .ca-stamp { transform: rotate(-8deg) scale(1); }
+@keyframes ca-bub {
+  0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ca-box.is-copied { animation: none; }
+  .ca-box.is-copied .ca-address { animation: none; background: none; color: var(--amber); -webkit-text-fill-color: currentColor; }
+  .ca-check { animation: none; stroke-dashoffset: 0; }
+  .ca-bub { display: none; }
+}
 /* The address in step three copies too, and flashes to say so. */
 .copy-code { cursor: pointer; transition: background 0.2s ease, color 0.2s ease; }
 .copy-code:hover { border-color: var(--amber); }

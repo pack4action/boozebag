@@ -70,6 +70,30 @@ function buzz(ms) {
   try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* fine */ }
 }
 
+// A few bubbles of beer, popped off the button and gone in under a
+// second. Each gets its own direction, size and colour.
+function popBubbles(from) {
+  if (reduceMotion || !caBox) return;
+  const box = caBox.getBoundingClientRect();
+  const at = from.getBoundingClientRect();
+  const x = at.left + at.width / 2 - box.left;
+  const y = at.top + at.height / 2 - box.top;
+  for (let i = 0; i < 12; i++) {
+    const b = document.createElement('span');
+    b.className = 'ca-bub';
+    const angle = (Math.PI * 2 * i) / 12 + (Math.random() - 0.5) * 0.6;
+    const reach = 46 + Math.random() * 44;
+    b.style.left = x + 'px';
+    b.style.top = y + 'px';
+    b.style.setProperty('--dx', (Math.cos(angle) * reach).toFixed(1) + 'px');
+    b.style.setProperty('--dy', (Math.sin(angle) * reach - 14).toFixed(1) + 'px');
+    b.style.setProperty('--s', (5 + Math.random() * 7).toFixed(1) + 'px');
+    b.style.setProperty('--c', i % 3 === 0 ? '#fff3d2' : i % 3 === 1 ? 'var(--amber)' : 'var(--green)');
+    caBox.appendChild(b);
+    b.addEventListener('animationend', () => b.remove());
+  }
+}
+
 if (copyBtn && caValue) {
   let stampTimer = 0;
   const copyAddress = async () => {
@@ -79,11 +103,19 @@ if (copyBtn && caValue) {
       return;
     }
     buzz(14);
-    copyBtn.textContent = 'Copied';
-    if (caBox) caBox.classList.add('is-copied');
+    copyBtn.innerHTML = '<svg class="ca-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Copied';
+    copyBtn.classList.add('is-done');
+    if (caBox) {
+      // Restarted from the top when pressed again mid-effect.
+      caBox.classList.remove('is-copied');
+      void caBox.offsetWidth;
+      caBox.classList.add('is-copied');
+    }
+    popBubbles(copyBtn);
     clearTimeout(stampTimer);
     stampTimer = setTimeout(() => {
       copyBtn.textContent = 'Copy';
+      copyBtn.classList.remove('is-done');
       if (caBox) caBox.classList.remove('is-copied');
     }, 1700);
   };
