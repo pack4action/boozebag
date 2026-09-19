@@ -624,28 +624,32 @@ if (buybar && heroEl && window.IntersectionObserver) {
 }
 
 // ---- The wave of beer under the hero ----
-// The stats ride a wave: a band of beer with a foam edge, drawn wide
-// enough to be cropped on any screen. Each word is bent along the wave,
-// the icons sit between the words, and the whole wave runs across the
-// page as one piece, driven by the browser's own SVG animation with
-// nothing to do per frame. It stops under the pointer, off screen, and
-// for anyone who has asked for less motion.
+// The stats ride a wave: a band of beer with a foam edge, the words bent
+// along it and foam on every crest. One run of the words is drawn as a
+// strip, a whole number of waves wide, and a few copies of the strip sit
+// side by side and slide across as one piece on the graphics chip: the
+// browser paints them once and only moves them, which is what keeps a
+// phone smooth. The beer's own life, streaks sliding along it and
+// bubbles rising to pop, is drawn on a small canvas over the top.
 (function () {
-  const svg = document.getElementById('wave');
+  const wave = document.getElementById('wave');
+  const track = document.getElementById('wave-track');
+  const live = document.getElementById('wave-live');
   const words = document.querySelector('.wave-words');
-  if (!svg || !words) return;
+  if (!wave || !track || !live || !words) return;
   const NS = 'http://www.w3.org/2000/svg';
   const XLINK = 'http://www.w3.org/1999/xlink';
   const PERIOD = 640;   // one crest to the next
   const AMP = 24;       // how high the crests rise
   const MID = 64;       // the middle of the band, in the drawing
   const THICK = 23;     // half the band's height
-  const X0 = -2800;     // the drawing runs well past any screen
-  const X1 = 6800;
+  const TOP = -36;      // headroom above the band for the foam
+  const HEIGHT = 164;
   const GAP = 34;       // between a word and its icon, at least
   const ICON = 24;
   const SPEED = 62;     // drawing units a second
   const stillness = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
   const el = (name, attrs, parent) => {
     const e = document.createElementNS(NS, name);
@@ -654,6 +658,7 @@ if (buybar && heroEl && window.IntersectionObserver) {
     return e;
   };
   const r = (n) => Math.round(n * 10) / 10;
+  const topY = (x) => MID - THICK + AMP * Math.sin(x / PERIOD * Math.PI * 2);
   // A smooth curve through points, as cubic pieces.
   function curve(pts, first) {
     let d = first + r(pts[0][0]) + ' ' + r(pts[0][1]);
@@ -665,37 +670,13 @@ if (buybar && heroEl && window.IntersectionObserver) {
     }
     return d;
   }
-  function wavePoints(y0) {
+  function wavePoints(y0, x0, x1) {
     const pts = [];
-    for (let x = X0; x <= X1; x += PERIOD / 8) {
-      pts.push([x, y0 + AMP * Math.sin((x - X0) / PERIOD * Math.PI * 2)]);
-    }
+    for (let x = x0; x <= x1; x += PERIOD / 8) pts.push([x, y0 + AMP * Math.sin(x / PERIOD * Math.PI * 2)]);
     return pts;
   }
-  const top = wavePoints(MID - THICK);
-  const bottom = wavePoints(MID + THICK).reverse();
-  const band = curve(top, 'M') + curve(bottom, ' L') + ' Z';
-
-  const defs = el('defs', {}, svg);
-  const grad = el('linearGradient', { id: 'wave-beer', x1: '0', y1: '0', x2: '0', y2: '1' }, defs);
-  el('stop', { offset: '0', 'stop-color': '#ffc632' }, grad);
-  el('stop', { offset: '1', 'stop-color': '#ff9a12' }, grad);
-  const line = el('path', { id: 'wave-line', d: curve(wavePoints(MID), 'M'), fill: 'none' }, defs);
-
-  // Rocked gently up and down as a whole, on top of the run across.
-  const sway = el('g', { class: 'wave-sway' }, svg);
-  const drift = el('g', {}, sway);
-  el('path', { class: 'wave-shadow', d: band, transform: 'translate(0 7)' }, drift);
-  el('path', { class: 'wave-band', d: band }, drift);
-  const flow = el('g', {}, drift);
-  el('path', { class: 'wave-foam', d: curve(wavePoints(MID - THICK + 2.5), 'M') }, drift);
-  const dress = el('g', {}, drift);
-  const riders = el('g', {}, drift);
-  let run = null;
-
-  const topY = (x) => MID - THICK + AMP * Math.sin((x - X0) / PERIOD * Math.PI * 2);
   // The same numbers every time for a given seed, so a crest looks the
-  // same on every visit and its twin one run along matches it.
+  // same on every strip and every visit.
   function rng(seed) {
     let a = (seed * 2654435761) >>> 0;
     return () => {
@@ -706,140 +687,36 @@ if (buybar && heroEl && window.IntersectionObserver) {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  // The beer flows: streaks of light and shade slide along the band
-  // faster than the band itself moves, and bits of foam drift along the
-  // surface. Each is a dashed line along the wave with its dashes on the
-  // move, and every dash pattern fits a whole number of times into one
-  // run, so the drawing still lands on itself when it wraps.
-  function flowing(cycleLen) {
-    while (flow.firstChild) flow.removeChild(flow.firstChild);
-    const lines = [
-      // offset from the middle, width, colour, dash share, repeats per run, speed
-      [-15, 5, 'rgba(255, 250, 220, 0.34)', 0.36, 14, 84],
-      [-8, 3, 'rgba(255, 250, 220, 0.26)', 0.22, 23, 118],
-      [0, 4, 'rgba(255, 244, 190, 0.18)', 0.3, 17, 62],
-      [8, 3, 'rgba(255, 250, 220, 0.2)', 0.18, 29, 96],
-      [15, 6, 'rgba(120, 45, 0, 0.16)', 0.42, 11, 48],
-      [19, 3, 'rgba(120, 45, 0, 0.2)', 0.2, 19, 70],
-    ];
-    lines.forEach((ln) => {
-      const sum = cycleLen / ln[4];
-      const path = el('path', { class: 'wave-streak', d: curve(wavePoints(MID + ln[0]), 'M'), stroke: ln[2], 'stroke-width': ln[1],
-        'stroke-dasharray': r(sum * ln[3]) + ' ' + r(sum * (1 - ln[3])) }, flow);
-      if (!stillness) {
-        el('animate', { attributeName: 'stroke-dashoffset', from: '0', to: String(r(sum)), dur: (sum / ln[5]).toFixed(2) + 's', begin: '0s', repeatCount: 'indefinite' }, path);
-      }
-    });
-    // Bits of foam riding the surface, a touch slower than the streaks.
-    const sum = cycleLen / 13;
-    const bits = el('path', { class: 'wave-bits', d: curve(wavePoints(MID - THICK + 1), 'M'),
-      'stroke-dasharray': [0.05, 0.22, 0.12, 0.31, 0.03, 0.27].map((f) => r(sum * f)).join(' ') }, flow);
-    if (!stillness) {
-      el('animate', { attributeName: 'stroke-dashoffset', from: '0', to: String(r(sum)), dur: (sum / 34).toFixed(2) + 's', begin: '0s', repeatCount: 'indefinite' }, bits);
-    }
-  }
+  const bell = (u) => { const v = Math.max(0, 1 - u * u); return v * v; };
 
-  // Foam on every crest, no two heads alike. A skirt of foam grows out
-  // of the surface either side of the crest, and a head of blobs rises
-  // from it, drawn twice, outlined and then filled, so only the outer
-  // edge keeps its line. Flecks hang in the air over a lively head,
-  // drops fall, bubbles rise and pop.
-  function dressUp(cycle) {
-    while (dress.firstChild) dress.removeChild(dress.firstChild);
-    const perCycle = Math.max(1, Math.round(cycle / PERIOD));
-    const bell = (u) => { const v = Math.max(0, 1 - u * u); return v * v; };
-    let k = 0;
-    for (let x = X0 + PERIOD * 3 / 4; x < X1; x += PERIOD, k++) {
-      const seed = (k % perCycle) + 1;
-      const rand = rng(seed);
-      const kind = (k % perCycle) % 3;
-      const reach = kind === 0 ? 150 : kind === 1 ? 95 : 120;
-      const rise = kind === 0 ? 9 : kind === 1 ? 6 : 8;
-      // The skirt, from the surface up, thickest under the crest, and
-      // the head of blobs rising from it. The outlines of all of it go
-      // down first and the fills over them, so only the outer edge of
-      // the whole head keeps its line, however the blobs move.
-      const over = [], under = [];
-      for (let u = -reach; u <= reach; u += 15) {
-        over.push([x + u, topY(x + u) - (rise + 1.5) * bell(u / reach)]);
-        under.push([x + u, topY(x + u) + 5]);
-      }
-      const n = kind === 0 ? 7 : kind === 1 ? 4 : 5;
-      const spread = kind === 0 ? 118 : kind === 1 ? 62 : 86;
-      const blobs = [];
-      for (let i = 0; i < n; i++) {
-        const mid = (n - 1) / 2;
-        const cx = x - spread / 2 + spread * (i / (n - 1)) + (rand() - 0.5) * 12;
-        const rad = (7.5 + rand() * 8) * (1 + 0.7 * (1 - Math.abs(i - mid) / (mid || 1)));
-        // Each blob swells, shrinks and shifts on its own beat.
-        const beat = stillness ? '' : 'wave-blob-' + (i % 2 ? 'a' : 'b') + ' ' + (1.8 + rand() * 1.4).toFixed(2) + 's ease-in-out ' + (-rand() * 3).toFixed(2) + 's infinite alternate';
-        blobs.push([cx, topY(cx) - rad * 0.8, rad, beat]);
-      }
-      const head = el('g', {}, dress);
-      const blob = (cls, b) => {
-        const c = el('circle', { class: cls, cx: r(b[0]), cy: r(b[1]), r: r(b[2]) }, head);
-        if (b[3]) c.style.animation = b[3];
-        return c;
-      };
-      el('path', { class: 'wave-skirt-edge', d: curve(over, 'M') }, head);
-      blobs.forEach((b) => blob('wave-head-line', b));
-      el('path', { class: 'wave-skirt', d: curve(over, 'M') + curve(under.slice().reverse(), ' L') + ' Z' }, head);
-      blobs.forEach((b) => blob('wave-head', b));
-      // Shade low on the bigger blobs, and a hole or two, so the foam
-      // has some body to it. They move with their blob.
-      blobs.forEach((b) => {
-        if (b[2] < 10) return;
-        blob('wave-head-shade', [b[0] + b[2] * 0.2, b[1] + b[2] * 0.3, b[2] * 0.6, b[3]]);
-        blob('wave-head-hole', [b[0] + (rand() - 0.5) * b[2], b[1] + (rand() - 0.5) * b[2] * 0.8, 1 + rand() * 1.2, b[3]]);
-      });
-      // Flecks thrown up off a lively head, hanging in the air.
-      if (kind === 2) {
-        for (let i = 0; i < 3; i++) {
-          const fx = x + (rand() - 0.5) * 90;
-          const f = el('circle', { class: 'wave-fleck', cx: r(fx), cy: r(topY(fx) - 18 - rand() * 12), r: r(1.8 + rand() * 1.8) }, dress);
-          f.style.animationDelay = (-rand() * 1.9).toFixed(2) + 's';
-        }
-      }
-      // A drop that falls off the foam, again and again.
-      if (kind !== 1) {
-        const dx = x + (rand() - 0.5) * 60;
-        const d = el('circle', { class: 'wave-drop', cx: r(dx), cy: r(topY(dx) + 5), r: 2.4 }, dress);
-        d.style.animationDelay = (-rand() * 2.6).toFixed(2) + 's';
-      }
-      // Bubbles that float up through the beer, wobbling as they go, and
-      // pop when they reach the surface, leaving a ring that spreads and
-      // fades. The bubble and its ring share one clock.
-      for (let i = 0; i < 4; i++) {
-        const bx = x + (rand() - 0.5) * PERIOD * 0.95;
-        const depth = 12 + rand() * 28;
-        const clock = (3 + rand() * 2.4).toFixed(2) + 's linear ' + (-rand() * 6).toFixed(2) + 's infinite';
-        const g = el('g', { class: 'wave-bub' }, dress);
-        g.style.setProperty('--rise', -depth.toFixed(1) + 'px');
-        const c = el('circle', { class: 'wave-bubble', cx: r(bx), cy: r(topY(bx) + 2 + depth), r: r(1.4 + rand() * 2) }, g);
-        const pop = el('circle', { class: 'wave-pop', cx: r(bx), cy: r(topY(bx) + 2), r: 3.5 }, g);
-        if (!stillness) {
-          c.style.animation = 'wave-rise ' + clock;
-          pop.style.animation = 'wave-burst ' + clock;
-        }
-      }
-    }
-  }
+  // The colour of the beer, once, for every strip to share.
+  const shared = el('svg', { width: 0, height: 0, style: 'position:absolute', 'aria-hidden': 'true' }, wave);
+  const grad = el('linearGradient', { id: 'wave-beer', x1: '0', y1: '0', x2: '0', y2: '1' }, el('defs', {}, shared));
+  el('stop', { offset: '0', 'stop-color': '#ffc632' }, grad);
+  el('stop', { offset: '1', 'stop-color': '#ff9a12' }, grad);
 
-  function build() {
-    while (riders.firstChild) riders.removeChild(riders.firstChild);
-    const pathLen = line.getTotalLength();
-    // Measure every word once, so the gaps between them are even.
-    const probe = el('text', { class: 'wave-text', x: 0, y: -100 }, svg);
-    const items = Array.from(words.querySelectorAll('li')).map((li) => {
+  let items = [];
+  let cycle = PERIOD;
+  let gap = GAP;
+  // The line the words follow is longer than the width it spans, since
+  // it goes up and down: this is how much longer, per unit of width.
+  let ratio = 1;
+  function measure() {
+    const probeSvg = el('svg', { width: 10, height: 10, style: 'position:absolute;visibility:hidden' }, wave);
+    const onePeriod = el('path', { d: curve(wavePoints(MID, 0, PERIOD), 'M'), fill: 'none' }, probeSvg);
+    ratio = onePeriod.getTotalLength() / PERIOD;
+    const probe = el('text', { class: 'wave-text', x: 0, y: 0 }, probeSvg);
+    items = Array.from(words.querySelectorAll('li')).map((li) => {
       probe.textContent = li.textContent.toUpperCase();
       return { text: li.textContent.toUpperCase(), icon: li.dataset.icon, len: probe.getComputedTextLength() };
     });
-    svg.removeChild(probe);
-    // One run of the words is stretched to a whole number of waves, so
-    // the whole drawing can slide by one run and land on itself.
+    wave.removeChild(probeSvg);
+    // One run of the words is stretched to a whole number of waves, so a
+    // strip ends where the next one begins. The words are measured along
+    // the line, so the run has to fill the line's length over the strip.
     const bare = items.reduce((n, it) => n + it.len + ICON + GAP * 2, 0);
-    const cycle = Math.ceil(bare / PERIOD) * PERIOD;
-    const gap = GAP + (cycle - bare) / (items.length * 2);
+    cycle = Math.ceil(bare / (PERIOD * ratio)) * PERIOD;
+    gap = GAP + (cycle * ratio - bare) / (items.length * 2);
     let at = 0;
     items.forEach((it) => {
       it.at = at;
@@ -847,38 +724,247 @@ if (buybar && heroEl && window.IntersectionObserver) {
       it.iconAt = at + ICON / 2;
       at += ICON + gap;
     });
-    flowing(pathLen * cycle / (X1 - X0));
-    dressUp(cycle);
-    const copies = Math.ceil(pathLen / cycle) + 1;
-    for (let k = 0; k < copies; k++) {
+  }
+
+  // One strip: a run of the words on a whole number of waves. It is drawn
+  // a wave past each end and cut off at its edges, so whatever crosses
+  // the edge carries on, identically, on the copy beside it.
+  function makeStrip(svg, defs) {
+    const x0 = -PERIOD, x1 = cycle + PERIOD;
+    const top = wavePoints(MID - THICK, x0, x1);
+    const bottom = wavePoints(MID + THICK, x0, x1).reverse();
+    const band = curve(top, 'M') + curve(bottom, ' L') + ' Z';
+    const lineId = 'wave-line';
+    el('path', { id: lineId, d: curve(wavePoints(MID, x0, x1), 'M'), fill: 'none' }, defs);
+    // Cut two units past its end, under the next copy, so the two edges
+    // never meet on the same pixel and let the dark through.
+    el('rect', { x: 0, y: TOP, width: cycle + 2, height: HEIGHT }, el('clipPath', { id: 'wave-clip' }, defs));
+    // Drawn in layers, each its own group: every copy's shadow goes
+    // down before any copy's beer, and so on up. Where two copies meet,
+    // an edge then only ever lands on its own colour, and the join is
+    // invisible.
+    const layers = ['shadow', 'beer', 'froth', 'top'].map((name) => el('g', { id: 'wave-layer-' + name, 'clip-path': 'url(#wave-clip)' }));
+    el('path', { class: 'wave-shadow', d: band, transform: 'translate(0 7)' }, layers[0]);
+    el('path', { class: 'wave-band', d: band }, layers[1]);
+    el('path', { class: 'wave-foam', d: curve(wavePoints(MID - THICK + 2.5, x0, x1), 'M') }, layers[2]);
+    const strip = layers[3];
+    // Foam on every crest, no two heads alike: a skirt that rises from
+    // the surface, and a head of blobs drawn twice, outlined and then
+    // filled, so only the outer edge keeps its line.
+    const perCycle = Math.round(cycle / PERIOD);
+    for (let k = -1; k <= perCycle; k++) {
+      const x = PERIOD * 3 / 4 + k * PERIOD;
+      const seed = ((k % perCycle) + perCycle) % perCycle;
+      const rand = rng(seed + 1);
+      const kind = seed % 3;
+      const reach = kind === 0 ? 150 : kind === 1 ? 95 : 120;
+      const rise = kind === 0 ? 9 : kind === 1 ? 6 : 8;
+      const over = [], under = [];
+      for (let u = -reach; u <= reach; u += 15) {
+        over.push([x + u, topY(x + u) - (rise + 1.5) * bell(u / reach)]);
+        under.push([x + u, topY(x + u) + 5]);
+      }
+      const count = kind === 0 ? 7 : kind === 1 ? 4 : 5;
+      const spread = kind === 0 ? 118 : kind === 1 ? 62 : 86;
+      const blobs = [];
+      for (let i = 0; i < count; i++) {
+        const mid = (count - 1) / 2;
+        const cx = x - spread / 2 + spread * (i / (count - 1)) + (rand() - 0.5) * 12;
+        const rad = (7.5 + rand() * 8) * (1 + 0.7 * (1 - Math.abs(i - mid) / (mid || 1)));
+        blobs.push([cx, topY(cx) - rad * 0.8, rad]);
+      }
+      const head = el('g', {}, strip);
+      el('path', { class: 'wave-skirt-edge', d: curve(over, 'M') }, head);
+      blobs.forEach((b) => el('circle', { class: 'wave-head-line', cx: r(b[0]), cy: r(b[1]), r: r(b[2]) }, head));
+      el('path', { class: 'wave-skirt', d: curve(over, 'M') + curve(under.slice().reverse(), ' L') + ' Z' }, head);
+      blobs.forEach((b) => el('circle', { class: 'wave-head', cx: r(b[0]), cy: r(b[1]), r: r(b[2]) }, head));
+      blobs.forEach((b) => {
+        if (b[2] < 10) return;
+        el('circle', { class: 'wave-head-shade', cx: r(b[0] + b[2] * 0.2), cy: r(b[1] + b[2] * 0.3), r: r(b[2] * 0.6) }, head);
+        el('circle', { class: 'wave-head-hole', cx: r(b[0] + (rand() - 0.5) * b[2]), cy: r(b[1] + (rand() - 0.5) * b[2] * 0.8), r: r(1 + rand() * 1.2) }, head);
+      });
+      if (kind === 2) {
+        for (let i = 0; i < 3; i++) {
+          const fx = x + (rand() - 0.5) * 90;
+          el('circle', { class: 'wave-fleck', cx: r(fx), cy: r(topY(fx) - 18 - rand() * 12), r: r(1.8 + rand() * 1.8) }, strip);
+        }
+      }
+    }
+    // The words, bent along the wave, with the icons between them. The
+    // run either side is drawn too, for the words that cross an edge.
+    const line = defs.querySelector('#' + lineId);
+    const pathLen = line.getTotalLength ? line.getTotalLength() : 0;
+    // Where a point along the line is, by distance from its start: the
+    // line starts a wave before the strip, so the first run is offset.
+    const lead = PERIOD * ratio;
+    const cycleLen = cycle * ratio;
+    for (let k = -1; k <= 1; k++) {
       items.forEach((it) => {
-        const t = el('text', { class: 'wave-text' }, riders);
-        const tp = el('textPath', { startOffset: String(r(it.at + k * cycle)) }, t);
-        tp.setAttributeNS(XLINK, 'xlink:href', '#wave-line');
-        tp.setAttribute('href', '#wave-line');
+        const s = lead + it.at + k * cycleLen;
+        if (s + it.len < 0 || s > pathLen) return;
+        const t = el('text', { class: 'wave-text' }, strip);
+        const tp = el('textPath', { startOffset: String(r(s)) }, t);
+        tp.setAttributeNS(XLINK, 'xlink:href', '#' + lineId);
+        tp.setAttribute('href', '#' + lineId);
         tp.textContent = it.text;
-        const s = it.iconAt + k * cycle;
-        if (s > pathLen) return;
-        const p = line.getPointAtLength(s);
-        const use = el('use', { class: 'wave-icon', x: r(p.x - ICON / 2), y: r(p.y - ICON / 2), width: ICON, height: ICON }, riders);
+        const si = lead + it.iconAt + k * cycleLen;
+        if (si < 0 || si > pathLen) return;
+        const p = line.getPointAtLength(si);
+        const use = el('use', { class: 'wave-icon', x: r(p.x - ICON / 2), y: r(p.y - ICON / 2), width: ICON, height: ICON }, strip);
         use.setAttributeNS(XLINK, 'xlink:href', '#' + it.icon);
         use.setAttribute('href', '#' + it.icon);
       });
     }
-    if (run) drift.removeChild(run);
+    return layers;
+  }
+
+  let run = null;
+  let width = 0;
+  function build() {
+    measure();
+    while (track.firstChild) track.removeChild(track.firstChild);
+    width = wave.clientWidth || window.innerWidth;
+    // Enough copies of the strip to cover the screen with one more to
+    // slide in, all in one drawing, so there is no edge between them.
+    const copies = Math.ceil(width * 1.1 / cycle) + 1;
+    const svg = el('svg', { viewBox: '0 ' + TOP + ' ' + (cycle * copies) + ' ' + HEIGHT, width: cycle * copies, height: HEIGHT, focusable: 'false' }, track);
+    const defs = el('defs', {}, svg);
+    makeStrip(svg, defs).forEach((layer) => {
+      svg.appendChild(layer);
+      for (let i = 1; i < copies; i++) {
+        const copy = el('use', { x: cycle * i, y: 0 }, svg);
+        copy.setAttributeNS(XLINK, 'xlink:href', '#' + layer.id);
+        copy.setAttribute('href', '#' + layer.id);
+      }
+    });
+    if (run) run.cancel();
     run = null;
-    if (!stillness) {
-      run = el('animateTransform', { attributeName: 'transform', type: 'translate', from: '0 0', to: -cycle + ' 0', dur: (cycle / SPEED).toFixed(2) + 's', begin: '0s', repeatCount: 'indefinite' }, drift);
+    if (!stillness && track.animate) {
+      run = track.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-' + cycle + 'px)' }],
+        { duration: cycle / SPEED * 1000, iterations: Infinity });
+    }
+    seedBubbles();
+  }
+
+  // ---- The life in the beer, on the canvas ----
+  const ctx = live.getContext('2d');
+  const streaks = [
+    // offset from the middle, width, colour, dash, gap, extra speed
+    [-15, 5, 'rgba(255, 250, 220, 0.34)', 70, 120, 84],
+    [-8, 3, 'rgba(255, 250, 220, 0.26)', 30, 100, 118],
+    [0, 4, 'rgba(255, 244, 190, 0.18)', 46, 110, 62],
+    [8, 3, 'rgba(255, 250, 220, 0.2)', 24, 105, 96],
+    [15, 6, 'rgba(120, 45, 0, 0.16)', 96, 130, 48],
+    [19, 3, 'rgba(120, 45, 0, 0.2)', 28, 110, 70],
+  ].slice(0, coarse ? 4 : 6);
+  let bubbles = [];
+  function seedBubbles() {
+    bubbles = [];
+    const rand = rng(99);
+    const per = coarse ? 3 : 4;
+    for (let k = 0; k < Math.round(cycle / PERIOD); k++) {
+      for (let i = 0; i < per; i++) {
+        bubbles.push({ x: k * PERIOD + rand() * PERIOD, depth: 12 + rand() * 28, r: 1.4 + rand() * 2,
+          period: 3000 + rand() * 2400, phase: rand() });
+      }
     }
   }
-  build();
-  // The words are measured in the page's font, which may land later.
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(build);
+  let dpr = 1;
+  function sizeCanvas() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = wave.clientWidth, h = wave.clientHeight;
+    if (live.width !== Math.round(w * dpr) || live.height !== Math.round(h * dpr)) {
+      live.width = Math.round(w * dpr);
+      live.height = Math.round(h * dpr);
+    }
+  }
+  function offsetNow() {
+    if (!run || run.currentTime === null) return 0;
+    const dur = cycle / SPEED * 1000;
+    return ((run.currentTime % dur) + dur) % dur / dur * cycle;
+  }
+  let lastDraw = 0;
+  function draw(now) {
+    const w = wave.clientWidth, h = wave.clientHeight;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const off = offsetNow();
+    const t = now / 1000;
+    ctx.lineCap = 'round';
+    streaks.forEach((ln) => {
+      ctx.beginPath();
+      for (let x = -20; x <= w + 20; x += 12) {
+        const y = MID + ln[0] + AMP * Math.sin((x + off) / PERIOD * Math.PI * 2) - TOP;
+        if (x === -20) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.setLineDash([ln[3], ln[4]]);
+      ctx.lineDashOffset = -(off + t * ln[5]) % (ln[3] + ln[4]);
+      ctx.strokeStyle = ln[2];
+      ctx.lineWidth = ln[1];
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    // Bubbles float up from their own depth, wobbling, and pop at the top.
+    bubbles.forEach((b) => {
+      const p = ((now / b.period) + b.phase) % 1;
+      for (let k = -1; k <= Math.ceil(w / cycle); k++) {
+        const sx = b.x - off + k * cycle;
+        if (sx < -10 || sx > w + 10) continue;
+        const surface = topY(b.x) - TOP + 2;
+        if (p < 0.88) {
+          const climb = Math.min(1, p / 0.88);
+          const y = surface + b.depth * (1 - climb);
+          const wob = Math.sin(p * Math.PI * 6) * 2;
+          const size = b.r * (0.6 + 0.4 * climb);
+          ctx.globalAlpha = Math.min(1, p / 0.08);
+          ctx.fillStyle = 'rgba(255, 248, 222, 0.8)';
+          ctx.beginPath();
+          ctx.arc(sx + wob, y, size, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          const q = (p - 0.88) / 0.12;
+          ctx.globalAlpha = 0.95 * (1 - q);
+          ctx.strokeStyle = 'rgba(255, 246, 214, 0.9)';
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.arc(sx, surface, 2 + q * 6, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+    });
+    ctx.globalAlpha = 1;
+  }
+  let seen = true;
+  let raf = 0;
+  function loop(now) {
+    raf = 0;
+    if (!seen || stillness) return;
+    // A phone draws every other frame; nothing in here needs more.
+    if (!coarse || now - lastDraw >= 30) {
+      lastDraw = now;
+      sizeCanvas();
+      draw(now);
+    }
+    raf = requestAnimationFrame(loop);
+  }
+  function settle() {
+    if (run) { if (seen) run.play(); else run.pause(); }
+    if (seen && !raf && !stillness) raf = requestAnimationFrame(loop);
+  }
 
+  build();
+  sizeCanvas();
+  if (stillness) { draw(0); }
+  settle();
+  // The words are measured in the page's font, which may land later.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { build(); settle(); });
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (Math.abs(wave.clientWidth - width) > 40) { build(); settle(); } }, 200);
+  });
   // Still while it is off the screen, so it costs nothing there.
   if ('IntersectionObserver' in window) {
-    new IntersectionObserver((es) => {
-      if (es[0].isIntersecting) svg.unpauseAnimations(); else svg.pauseAnimations();
-    }).observe(svg);
+    new IntersectionObserver((es) => { seen = es[0].isIntersecting; settle(); }).observe(wave);
   }
 })();

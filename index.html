@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=41" />
+<link rel="stylesheet" href="assets/css/style.css?v=42" />
 </head>
 <body>
 
@@ -259,7 +259,10 @@
     <li data-icon="i-lock">nobody sells</li>
     <li data-icon="i-beer">$BOOZEBAG</li>
   </ul>
-  <svg class="wave" id="wave" viewBox="0 -36 3000 164" preserveAspectRatio="xMidYMid slice" focusable="false"></svg>
+  <div class="wave" id="wave">
+    <div class="wave-track" id="wave-track"></div>
+    <canvas class="wave-live" id="wave-live"></canvas>
+  </div>
 </div>
 
 <!-- TODAY'S REGIMEN: one drink an hour, on the visitor's own clock -->
@@ -604,7 +607,7 @@
 
 <script src="assets/js/wallet.js?v=5"></script>
 <script src="assets/js/leaderboard.js?v=3"></script>
-<script src="assets/js/main.js?v=18"></script>
+<script src="assets/js/main.js?v=19"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>
