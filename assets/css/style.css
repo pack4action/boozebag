@@ -1889,7 +1889,7 @@ html { scroll-padding-top: 84px; }
 .supply-drop {
   position: absolute;
   inset: 0 auto 0 0;
-  width: 13%;
+  width: 6%;
   background: #fff3d2;
   border-right: 3px solid #000;
   transition: width 1.1s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -1904,7 +1904,17 @@ html { scroll-padding-top: 84px; }
     radial-gradient(circle at 80% 30%, rgba(150, 110, 40, 0.16) 0 2.5px, transparent 3.5px),
     radial-gradient(circle at 40% 78%, rgba(150, 110, 40, 0.14) 0 2px, transparent 3px);
 }
+/* The part still to go out: foam not yet settled, drawn as stripes. */
+.supply-next {
+  position: absolute;
+  inset: 0 auto 0 6%;
+  width: 7%;
+  background: repeating-linear-gradient(135deg, #fff3d2 0 6px, rgba(255, 243, 210, 0.35) 6px 12px);
+  border-right: 3px solid #000;
+  transition: width 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s;
+}
 .js .supply:not(.in) .supply-drop { width: 0; }
+.js .supply:not(.in) .supply-next { width: 0; }
 .supply-legend {
   display: flex;
   flex-wrap: wrap;
@@ -1916,6 +1926,7 @@ html { scroll-padding-top: 84px; }
 .supply-key { display: inline-flex; align-items: center; gap: 8px; }
 .supply-key i { width: 14px; height: 14px; border-radius: 4px; border: 2px solid #000; box-sizing: border-box; }
 .supply-key-drop i { background: #fff3d2; }
+.supply-key-next i { background: repeating-linear-gradient(135deg, #fff3d2 0 3px, rgba(255, 243, 210, 0.35) 3px 6px); }
 .supply-key-market i { background: linear-gradient(180deg, #ffc632, #ff9a12); }
 .supply-key b { color: var(--text); font-weight: 800; }
 .supply-key em {
