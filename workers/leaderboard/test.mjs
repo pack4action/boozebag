@@ -50,6 +50,17 @@ const ok = (name, cond, saw) => {
   if (body && body.kick) ok('a live answer says whether', typeof body.kick.live === 'boolean', body.kick);
 }
 
+// The token's numbers. The chain may or may not answer from where this
+// runs; the shape is what is checked.
+{
+  const r = await fetch(BASE + '/api/token', { headers: { Origin: 'https://boozebag.xyz' } });
+  const body = await r.json().catch(() => null);
+  ok('token answers', r.status === 200, r.status);
+  ok('token has its fields', body && 'supply' in body && 'holders' in body && typeof body.mint === 'string', body);
+  ok('token is allowed on the site', r.headers.get('access-control-allow-origin') === 'https://boozebag.xyz');
+  ok('token is held a while', /max-age=\d+/.test(r.headers.get('cache-control') || ''));
+}
+
 const good = await post({ game: 'gym-tycoon', address: W[0], score: 500, meta: 2, name: 'Sweatbox' });
 ok('a score is taken', good.status === 200, good.status);
 ok('and comes back on the board',

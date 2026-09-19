@@ -13,13 +13,15 @@
 <meta property="og:title" content="$BOOZEBAG: I'm Getting Jacked on 24 Drinks a Day" />
 <meta property="og:description" content="Five months of blasting gear, 24 drinks a day, zero lifting, one real bodybuilding stage. The coin is live. Nobody sells." />
 <meta property="og:url" content="https://pack4action.github.io/boozebag/" />
-<meta property="og:image" content="https://pack4action.github.io/boozebag/assets/img/hero-art.png" />
+<meta property="og:image" content="https://pack4action.github.io/boozebag/assets/img/share.jpg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
 <meta property="og:image:alt" content="Boozebag holding a Budweiser in front of the $BOOZEBAG logo" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:site" content="@BoozebagFitness" />
 <meta name="twitter:title" content="$BOOZEBAG: I'm Getting Jacked on 24 Drinks a Day" />
 <meta name="twitter:description" content="Five months of blasting gear, 24 drinks a day, zero lifting, one real bodybuilding stage. The coin is live. Nobody sells." />
-<meta name="twitter:image" content="https://pack4action.github.io/boozebag/assets/img/hero-art.png" />
+<meta name="twitter:image" content="https://pack4action.github.io/boozebag/assets/img/share.jpg" />
 <!-- The live bits of the page, named once. Change a value here and the
      page follows: the Kick channel whose live status lights the pill, the
      Discord invite whose member count goes on its card. -->
@@ -29,10 +31,17 @@
 <meta name="boozebag-kick" content="petermossfield" />
 <meta name="boozebag-discord" content="K6QfX6e7Yn" />
 <link rel="icon" type="image/png" href="assets/img/favicon.png" />
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png" />
+<link rel="manifest" href="site.webmanifest" />
+<meta name="theme-color" content="#0a0a0d" />
+<link rel="canonical" href="https://pack4action.github.io/boozebag/" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=42" />
+<link rel="stylesheet" href="assets/css/style.css?v=43" />
+<!-- Visits, counted without cookies. Numbers at plausible.io once the
+     site is registered there under this domain. -->
+<script defer data-domain="pack4action.github.io" src="https://plausible.io/js/script.js"></script>
 </head>
 <body>
 
@@ -233,6 +242,8 @@
       <p class="quick-links">
         <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">pump.fun <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
         <a href="https://dexscreener.com/solana/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">DexScreener <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
+        <a href="https://jup.ag/swap/SOL-3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">Jupiter <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
+        <a href="https://solscan.io/token/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">Solscan <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
       </p>
     </div>
     <!-- Live off DexScreener; stays hidden until it has answered. -->
@@ -241,8 +252,14 @@
       <span class="market-tile"><span class="market-label">Market cap</span><b id="mk-mc"></b></span>
       <span class="market-tile"><span class="market-label">24h</span><b id="mk-change"></b></span>
       <span class="market-tile"><span class="market-label">Volume 24h</span><b id="mk-vol"></b></span>
+      <span class="market-tile" id="mk-holders-tile" hidden><span class="market-label">Holders</span><b id="mk-holders"></b></span>
       <span class="market-src">live from DexScreener</span>
     </a>
+    <!-- The chart itself, loaded only when asked for: it is heavy on a phone. -->
+    <div class="chart" id="chart" hidden>
+      <button class="btn btn-outline btn-small chart-toggle" id="chart-toggle" type="button" aria-expanded="false">Show the chart</button>
+      <div class="chart-frame" id="chart-frame" hidden></div>
+    </div>
     <p class="ca-warning"><svg class="icon icon-warn" aria-hidden="true"><use href="#i-warning"></use></svg> Only the CA I post on <a href="https://x.com/BoozebagFitness" target="_blank" rel="noopener">@BoozebagFitness</a> or in the <a href="https://t.me/degenhorde" target="_blank" rel="noopener">Telegram</a> is real. Match every character.</p>
   </div>
 </section>
@@ -481,6 +498,13 @@
     <p class="section-kicker">simple, like the training plan</p>
   </div>
 
+  <div class="token-stats">
+    <div class="token-stat"><b id="tk-supply">1B</b><span>total supply</span></div>
+    <div class="token-stat"><b>130M</b><span>13% airdropped to holders</span></div>
+    <div class="token-stat" id="tk-holders-stat" hidden><b id="tk-holders"></b><span>holders</span></div>
+    <div class="token-stat"><b>0%</b><span>buy and sell tax</span></div>
+  </div>
+
   <div class="token-grid">
     <div class="token-card">
       <div class="token-icon"><svg class="icon" aria-hidden="true"><use href="#i-beer"></use></svg></div>
@@ -494,8 +518,8 @@
     </div>
     <div class="token-card">
       <div class="token-icon"><svg class="icon" aria-hidden="true"><use href="#i-no-entry"></use></svg></div>
-      <h3>No Team Tax</h3>
-      <p>What you see is what you trade.</p>
+      <h3>No Mint, No Freeze</h3>
+      <p>pump.fun closes both at launch. Nobody can print more or lock yours.</p>
     </div>
     <div class="token-card">
       <div class="token-icon"><svg class="icon" aria-hidden="true"><use href="#i-broadcast"></use></svg></div>
@@ -540,12 +564,50 @@
       <source srcset="assets/img/another-one.webp" type="image/webp" />
       <img src="assets/img/another-one.png" alt="" aria-hidden="true" class="sticker sticker-another" />
     </picture>
-    <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" class="btn btn-primary btn-lg">Buy on pump.fun</a>
+    <div class="buy-btns">
+      <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" class="btn btn-primary btn-lg">Buy on pump.fun</a>
+      <a href="https://jup.ag/swap/SOL-3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" class="btn btn-outline btn-lg">Buy on Jupiter</a>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" class="section">
+  <div class="section-head">
+    <h2 class="section-title">Questions</h2>
+    <p class="section-kicker">the ones the Telegram asks every day</p>
+  </div>
+
+  <div class="faq">
+    <details class="faq-item">
+      <summary>Who is behind this?</summary>
+      <p>Me. <a href="https://x.com/BoozebagFitness" target="_blank" rel="noopener">@BoozebagFitness</a>. No team, no agency. Everything on this site is my own clips and my own words.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Is the liquidity locked?</summary>
+      <p>It sits on pump.fun's bonding curve. I never held it, so there is nothing for me to pull. Check the contract on <a href="https://solscan.io/token/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">Solscan</a> any time.</p>
+    </details>
+    <details class="faq-item">
+      <summary>How do I get the airdrop?</summary>
+      <p>13% of supply, 130M tokens, went to everyone holding the old coin on September 5th. More is still going out to new holders. Hold, and the <a href="https://t.me/degenhorde" target="_blank" rel="noopener">Telegram</a> says when.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Why was the coin relaunched?</summary>
+      <p>The first version had two wallets holding 15% between them. After the stage video I launched it fresh with the supply spread wide, so nobody can sit on it.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Which address is real?</summary>
+      <p>Only the one at the top of this page, which I also pin on <a href="https://x.com/BoozebagFitness" target="_blank" rel="noopener">@BoozebagFitness</a>. Anything else, in any reply or DM, is a scam.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Is this financial advice?</summary>
+      <p>No. It is a memecoin. Only put in what you can afford to lose.</p>
+    </details>
   </div>
 </section>
 
 <!-- COMMUNITY -->
-<section id="community" class="section">
+<section id="community" class="section section-alt">
   <div class="section-head">
     <h2 class="section-title">Join the Bag</h2>
     <p class="section-kicker">everything drops here first</p>
@@ -608,7 +670,7 @@
 
 <script src="assets/js/wallet.js?v=5"></script>
 <script src="assets/js/leaderboard.js?v=3"></script>
-<script src="assets/js/main.js?v=19"></script>
+<script src="assets/js/main.js?v=20"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>

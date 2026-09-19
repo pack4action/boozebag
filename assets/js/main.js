@@ -498,12 +498,40 @@ if (marketEl) {
           chEl.classList.toggle('is-down', ch < 0);
         }
         if (p.url) marketEl.href = p.url;
+        if (p.pairAddress) pairAddress = p.pairAddress;
         marketEl.hidden = false;
+        if (chartEl) chartEl.hidden = false;
       })
       .catch(() => {});
   };
   pull();
   setInterval(() => { if (!document.hidden) pull(); }, 60000);
+}
+
+// ---- The chart, on request ----
+// DexScreener's own chart, put on the page the first time the button is
+// pressed and left there after. It wants the pair rather than the coin;
+// the market call above knows which pair, and the coin does when it has
+// not answered yet.
+let pairAddress = '';
+const chartEl = document.getElementById('chart');
+const chartToggle = document.getElementById('chart-toggle');
+const chartFrame = document.getElementById('chart-frame');
+if (chartToggle && chartFrame) {
+  chartToggle.addEventListener('click', () => {
+    const open = chartFrame.hidden;
+    if (open && !chartFrame.firstChild) {
+      const iframe = document.createElement('iframe');
+      iframe.src = 'https://dexscreener.com/solana/' + (pairAddress || CA) + '?embed=1&theme=dark&trades=0&info=0';
+      iframe.title = '$BOOZEBAG price chart';
+      iframe.loading = 'lazy';
+      iframe.setAttribute('allow', 'clipboard-write');
+      chartFrame.appendChild(iframe);
+    }
+    chartFrame.hidden = !open;
+    chartToggle.textContent = open ? 'Hide the chart' : 'Show the chart';
+    chartToggle.setAttribute('aria-expanded', String(open));
+  });
 }
 
 // ---- Kick: is he on? ----
@@ -594,6 +622,36 @@ function askDiscordDirect() {
     .catch(() => {});
 }
 if (!siteApi) askDiscordDirect();
+// ---- The coin's own numbers ----
+// Supply and holders, from the Worker, which reads them off the chain.
+// Holders shows only when there is a count; the Worker cannot always
+// get one (workers/leaderboard/README.md).
+function askToken() {
+  if (!siteApi) return;
+  fetch(siteApi + '/token')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((t) => {
+      if (!t) return;
+      const holders = Number(t.holders);
+      if (holders > 0) {
+        const tile = document.getElementById('mk-holders-tile');
+        const stat = document.getElementById('tk-holders-stat');
+        setFresh(document.getElementById('mk-holders'), shortNum(holders));
+        if (tile) tile.hidden = false;
+        const tk = document.getElementById('tk-holders');
+        if (tk) tk.textContent = holders.toLocaleString('en-US');
+        if (stat) stat.hidden = false;
+      }
+      const supply = Number(t.supply);
+      const sup = document.getElementById('tk-supply');
+      // A round billion reads as 1B, anything else as the short form.
+      if (sup && supply > 0) sup.textContent = supply % 1e9 === 0 ? (supply / 1e9) + 'B' : shortNum(supply);
+    })
+    .catch(() => {});
+}
+askToken();
+setInterval(() => { if (!document.hidden) askToken(); }, 600000);
+
 // The counts written by hand on the cards, for the places with no open door.
 document.querySelectorAll('.community-card[data-count]').forEach((card) => {
   const el = card.querySelector('.community-count');

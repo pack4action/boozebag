@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pack4action.github.io/boozebag/sitemap.xml

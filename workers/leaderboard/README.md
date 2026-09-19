@@ -73,6 +73,28 @@ When boozebag.xyz is bought and its DNS is on Cloudflare, uncomment the
 at `boozebag.xyz/api/`, the same origin as the page, and the page finds it
 there by itself; the tag can stay or go.
 
+## The token's numbers
+
+`GET /api/token` says how much of the coin there is and how many wallets
+hold it, read from the chain and held for ten minutes:
+
+```json
+{"mint":"3kxCh…pump","supply":1000000000,"decimals":6,"holders":1234,"at":1726660000000}
+```
+
+Supply is one cheap call and always answers. Counting holders asks the
+RPC for every token account of the mint, which the public Solana RPC
+allows only sometimes; when it refuses, `holders` is the last good count
+for up to a day, or `null` if there never was one, and the page hides the
+figure. For a count every time, set a private RPC (Helius, QuickNode and
+the like all have a free tier) on the Worker under Settings, Variables:
+
+```
+SOLANA_RPC = https://mainnet.helius-rpc.com/?api-key=...
+```
+
+`TOKEN_MINT` can be set the same way if the coin ever changes.
+
 ## Is he live
 
 `GET /api/live` says whether the Kick channel is streaming, how many are

@@ -222,11 +222,97 @@ async function liveAnswer(env) {
   return body;
 }
 
+// ---- The token's own numbers ----
+// How much of it there is and how many wallets hold it, read from the
+// chain. Supply is one cheap call. Counting holders means asking for
+// every token account of the mint, which the public RPC allows only
+// sometimes; a private RPC (Helius, QuickNode, any of them) set as
+// SOLANA_RPC answers every time. Either way the answer is held for ten
+// minutes, and the last good count is kept for a day so a refused call
+// does not blank the page.
+const TOKEN_MINT = '3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump';
+const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const TOKEN_HOLD_MS = 10 * 60 * 1000;
+const TOKEN_KEEP_MS = 24 * 60 * 60 * 1000;
+let tokenHeld = null;
+let lastHolders = null;
+
+async function rpc(env, method, params) {
+  const r = await fetch(env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+  });
+  if (!r.ok) return null;
+  const body = await r.json().catch(() => null);
+  return body && body.result !== undefined ? body.result : null;
+}
+
+async function tokenSupply(env, mint) {
+  try {
+    const res = await rpc(env, 'getTokenSupply', [mint]);
+    const v = res && res.value;
+    if (!v) return null;
+    return { supply: Number(v.uiAmount), decimals: v.decimals };
+  } catch (e) {
+    return null;
+  }
+}
+
+// Every token account of the mint, with only its balance asked for, and
+// the ones with something in them counted.
+async function tokenHolders(env, mint) {
+  try {
+    const res = await rpc(env, 'getProgramAccounts', [TOKEN_PROGRAM, {
+      encoding: 'base64',
+      dataSlice: { offset: 64, length: 8 },
+      filters: [{ dataSize: 165 }, { memcmp: { offset: 0, bytes: mint } }],
+    }]);
+    if (!Array.isArray(res)) return null;
+    let n = 0;
+    res.forEach((acc) => {
+      const raw = acc && acc.account && acc.account.data && acc.account.data[0];
+      if (!raw) return;
+      const bytes = atob(raw);
+      let amount = 0;
+      for (let i = 7; i >= 0; i--) amount = amount * 256 + bytes.charCodeAt(i);
+      if (amount > 0) n += 1;
+    });
+    return n;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function tokenAnswer(env) {
+  const now = Date.now();
+  if (tokenHeld && now - tokenHeld.at < TOKEN_HOLD_MS) return tokenHeld.body;
+  const mint = env.TOKEN_MINT || TOKEN_MINT;
+  const [supply, counted] = await Promise.all([tokenSupply(env, mint), tokenHolders(env, mint)]);
+  let holders = counted;
+  if (holders !== null) lastHolders = { at: now, holders };
+  else if (lastHolders && now - lastHolders.at < TOKEN_KEEP_MS) holders = lastHolders.holders;
+  const body = { mint, supply: supply ? supply.supply : null, decimals: supply ? supply.decimals : null, holders, at: now };
+  tokenHeld = { at: now, body };
+  return body;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsFor(request) });
+    }
+    if (url.pathname === '/api/token') {
+      if (request.method !== 'GET') return json(request, { error: 'GET' }, 405);
+      const body = await tokenAnswer(env);
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: Object.assign({
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=300',
+        }, corsFor(request)),
+      });
     }
     if (url.pathname === '/api/live') {
       if (request.method !== 'GET') return json(request, { error: 'GET' }, 405);
