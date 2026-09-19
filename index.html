@@ -38,7 +38,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=43" />
+<link rel="stylesheet" href="assets/css/style.css?v=44" />
 <!-- Visits, counted without cookies. Numbers at plausible.io once the
      site is registered there under this domain. -->
 <script defer data-domain="pack4action.github.io" src="https://plausible.io/js/script.js"></script>
@@ -498,35 +498,44 @@
     <p class="section-kicker">simple, like the training plan</p>
   </div>
 
-  <div class="token-stats">
-    <div class="token-stat"><b id="tk-supply">1B</b><span>total supply</span></div>
-    <div class="token-stat"><b>130M</b><span>13% airdropped to holders</span></div>
-    <div class="token-stat" id="tk-holders-stat" hidden><b id="tk-holders"></b><span>holders</span></div>
-    <div class="token-stat"><b>0%</b><span>buy and sell tax</span></div>
+  <!-- The supply as a glass of beer: the whole of it, the foam on top is
+       the part airdropped to holders. -->
+  <div class="supply">
+    <div class="supply-head">
+      <span class="supply-total"><b id="tk-supply">1,000,000,000</b><span>total supply</span></span>
+      <span class="supply-holders" id="tk-holders-stat" hidden><b id="tk-holders"></b><span>holders</span></span>
+    </div>
+    <div class="supply-bar" role="img" aria-label="13% of the supply was airdropped to holders. The rest is on the open market.">
+      <span class="supply-drop"><i></i></span>
+    </div>
+    <div class="supply-legend">
+      <span class="supply-key supply-key-drop"><i></i><b>130M</b> airdropped to holders <em>13%</em></span>
+      <span class="supply-key supply-key-market"><i></i><b>870M</b> on the open market <em>87%</em></span>
+    </div>
   </div>
 
-  <div class="token-grid">
-    <div class="token-card">
-      <div class="token-icon"><svg class="icon" aria-hidden="true"><use href="#i-beer"></use></svg></div>
-      <h3>100% Community</h3>
-      <p>No presale. Unlocked supply goes to holders.</p>
-    </div>
-    <div class="token-card">
-      <div class="token-icon"><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg></div>
-      <h3>Liquidity Isn't Mine</h3>
-      <p>It sits on pump.fun's curve, not in my wallet.</p>
-    </div>
-    <div class="token-card">
-      <div class="token-icon"><svg class="icon" aria-hidden="true"><use href="#i-no-entry"></use></svg></div>
-      <h3>No Mint, No Freeze</h3>
-      <p>pump.fun closes both at launch. Nobody can print more or lock yours.</p>
-    </div>
-    <div class="token-card">
-      <div class="token-icon"><svg class="icon" aria-hidden="true"><use href="#i-broadcast"></use></svg></div>
-      <h3>Solana</h3>
-      <p>Launched on pump.fun. One CA, posted by me.</p>
-    </div>
-  </div>
+  <ul class="facts">
+    <li>
+      <span class="fact-icon"><svg class="icon" aria-hidden="true"><use href="#i-beer"></use></svg></span>
+      <span class="fact-text"><b>100% community</b><span>No presale. Unlocked supply goes to holders.</span></span>
+    </li>
+    <li>
+      <span class="fact-icon"><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg></span>
+      <span class="fact-text"><b>Liquidity isn't mine</b><span>It sits on pump.fun's curve, not in my wallet.</span></span>
+    </li>
+    <li>
+      <span class="fact-icon"><svg class="icon" aria-hidden="true"><use href="#i-no-entry"></use></svg></span>
+      <span class="fact-text"><b>No mint, no freeze</b><span>pump.fun closes both at launch. Nobody can print more or lock yours.</span></span>
+    </li>
+    <li>
+      <span class="fact-icon"><svg class="icon" aria-hidden="true"><use href="#i-dot"></use></svg></span>
+      <span class="fact-text"><b>0% tax</b><span>What you see is what you trade.</span></span>
+    </li>
+    <li>
+      <span class="fact-icon"><svg class="icon" aria-hidden="true"><use href="#i-broadcast"></use></svg></span>
+      <span class="fact-text"><b>Solana</b><span>Launched on pump.fun. One CA, posted by me.</span></span>
+    </li>
+  </ul>
 </section>
 
 <!-- HOW TO BUY -->
@@ -670,7 +679,7 @@
 
 <script src="assets/js/wallet.js?v=5"></script>
 <script src="assets/js/leaderboard.js?v=3"></script>
-<script src="assets/js/main.js?v=20"></script>
+<script src="assets/js/main.js?v=21"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>

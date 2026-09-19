@@ -179,7 +179,7 @@ if (titles.length) {
 }
 
 // ---- The roadmap stops, the ledger rows and the stamp, one at a time ----
-const stops = document.querySelectorAll('.road-item, .ledger-row, .proof-stamp');
+const stops = document.querySelectorAll('.road-item, .ledger-row, .proof-stamp, .supply');
 if (stops.length) {
   let pending = 0;
   const arrive = new IntersectionObserver((entries) => {
@@ -644,8 +644,7 @@ function askToken() {
       }
       const supply = Number(t.supply);
       const sup = document.getElementById('tk-supply');
-      // A round billion reads as 1B, anything else as the short form.
-      if (sup && supply > 0) sup.textContent = supply % 1e9 === 0 ? (supply / 1e9) + 'B' : shortNum(supply);
+      if (sup && supply > 0) sup.textContent = Math.round(supply).toLocaleString('en-US');
     })
     .catch(() => {});
 }
