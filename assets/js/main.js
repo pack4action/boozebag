@@ -509,22 +509,52 @@ if (marketEl) {
 
 // ---- The chart, on request ----
 // DexScreener's own chart, put on the page the first time the button is
-// pressed and left there after. It is best given the pair, which the
-// market call above learns; until then the coin's own page shows the
-// same chart.
+// pressed and left there after. The embed only works for a trading pair,
+// not the coin itself, so the button waits for the pair: the market call
+// above learns it, and failing that the button asks once more. If
+// DexScreener will not say, the chart opens in a new tab instead of an
+// empty frame.
 let pairAddress = '';
+function findPair() {
+  if (pairAddress) return Promise.resolve(pairAddress);
+  return fetch('https://api.dexscreener.com/latest/dex/tokens/' + CA)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      const pairs = data && Array.isArray(data.pairs) ? data.pairs.filter((p) => p && p.pairAddress) : [];
+      pairs.sort((a, b) => ((b.liquidity && b.liquidity.usd) || 0) - ((a.liquidity && a.liquidity.usd) || 0));
+      if (pairs.length) pairAddress = pairs[0].pairAddress;
+      return pairAddress;
+    })
+    .catch(() => '');
+}
 const chartToggle = document.getElementById('chart-toggle');
 const chartFrame = document.getElementById('chart-frame');
 if (chartToggle && chartFrame) {
+  let asking = false;
   chartToggle.addEventListener('click', () => {
+    if (asking) return;
     const open = chartFrame.hidden;
     if (open && !chartFrame.firstChild) {
-      const iframe = document.createElement('iframe');
-      iframe.src = 'https://dexscreener.com/solana/' + (pairAddress || CA) + '?embed=1&theme=dark&trades=0&info=0';
-      iframe.title = '$BOOZEBAG price chart';
-      iframe.loading = 'lazy';
-      iframe.setAttribute('allow', 'clipboard-write');
-      chartFrame.appendChild(iframe);
+      asking = true;
+      chartToggle.textContent = 'Finding the pair…';
+      findPair().then((pair) => {
+        asking = false;
+        if (!pair) {
+          chartToggle.textContent = 'Show the chart';
+          window.open('https://dexscreener.com/solana/' + CA, '_blank', 'noopener');
+          return;
+        }
+        const iframe = document.createElement('iframe');
+        iframe.src = 'https://dexscreener.com/solana/' + pair + '?embed=1&theme=dark&trades=0&info=0';
+        iframe.title = '$BOOZEBAG price chart';
+        iframe.loading = 'lazy';
+        iframe.setAttribute('allow', 'clipboard-write');
+        chartFrame.appendChild(iframe);
+        chartFrame.hidden = false;
+        chartToggle.textContent = 'Hide the chart';
+        chartToggle.setAttribute('aria-expanded', 'true');
+      });
+      return;
     }
     chartFrame.hidden = !open;
     chartToggle.textContent = open ? 'Hide the chart' : 'Show the chart';
