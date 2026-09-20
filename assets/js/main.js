@@ -343,7 +343,7 @@ function crackLine() {
   return CRACK_LINES[i];
 }
 let audio = null;
-let crackNoise = null;   // the burst, built once and played again and again
+let crackNoise = null;   // plain noise, made once and shaped on each press
 let lastSound = 0;       // so a fast run of presses does not stack into mush
 function crackSound() {
   try { if (localStorage.getItem('boozebagGameSound') === 'off') return; } catch (e) { /* fine */ }
@@ -358,44 +358,55 @@ function crackSound() {
     lastSound = performance.now();
     // Quieter when they come quickly, so spamming it is a run of cracks
     // rather than a wall of noise.
-    const loud = since < 260 ? 0.45 : 1;
-    // The crack: a burst of noise, sharp at the front, through a high pass,
-    // trailing off into the hiss. Built once; rebuilding it every press is
-    // twenty thousand random numbers a tap.
+    const loud = since < 260 ? 0.5 : 1;
+    // Flat noise, made once and shaped differently for each part below.
+    // Rebuilding it every press is a lot of random numbers a tap.
     if (!crackNoise || crackNoise.sampleRate !== audio.sampleRate) {
-      const len = Math.floor(audio.sampleRate * 0.42);
+      const len = Math.floor(audio.sampleRate * 0.35);
       crackNoise = audio.createBuffer(1, len, audio.sampleRate);
       const d = crackNoise.getChannelData(0);
-      for (let i = 0; i < len; i++) {
-        const p = i / len;
-        d[i] = (Math.random() * 2 - 1) * (p < 0.025 ? 1 : Math.pow(1 - p, 2.4) * 0.3);
-      }
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     }
-    const src = audio.createBufferSource();
-    src.buffer = crackNoise;
-    // A little off each time so the repeat does not sound like a loop.
-    src.playbackRate.value = 0.92 + Math.random() * 0.16;
-    const hp = audio.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.value = 1600;
-    const g = audio.createGain();
-    g.gain.value = 0.45 * loud;
-    src.connect(hp);
-    hp.connect(g);
-    g.connect(audio.destination);
-    src.start(t);
-    // And the pop under it.
+    const noise = (from, filter, freq, q, peak, hold, fall) => {
+      const src = audio.createBufferSource();
+      src.buffer = crackNoise;
+      src.playbackRate.value = 0.9 + Math.random() * 0.2;
+      const f = audio.createBiquadFilter();
+      f.type = filter;
+      f.frequency.setValueAtTime(freq[0], t + from);
+      if (freq[1] !== freq[0]) f.frequency.exponentialRampToValueAtTime(freq[1], t + from + hold + fall);
+      f.Q.value = q;
+      const g = audio.createGain();
+      g.gain.setValueAtTime(0.0001, t + from);
+      g.gain.exponentialRampToValueAtTime(peak * loud, t + from + 0.004);
+      g.gain.setValueAtTime(peak * loud, t + from + hold);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + from + hold + fall);
+      src.connect(f);
+      f.connect(g);
+      g.connect(audio.destination);
+      src.start(t + from, Math.random() * 0.2);
+      src.stop(t + from + hold + fall + 0.02);
+      return src;
+    };
+    // The tab going: short, dry and bright, and over before you notice it.
+    noise(0, 'bandpass', [2400, 2400], 1.1, 0.26, 0.004, 0.026);
+    // Then the pressure letting go, which is the part that sounds like a
+    // can. A soft breath that darkens as it dies away rather than a hiss
+    // that stays bright all the way out.
+    noise(0.012, 'lowpass', [5200, 900], 0.7, 0.085, 0.02, 0.19);
+    // And the body of the can under both, for weight rather than volume.
     const osc = audio.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(300, t);
-    osc.frequency.exponentialRampToValueAtTime(80, t + 0.09);
+    osc.frequency.setValueAtTime(190, t);
+    osc.frequency.exponentialRampToValueAtTime(120, t + 0.07);
     const og = audio.createGain();
-    og.gain.setValueAtTime(0.3 * loud, t);
-    og.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+    og.gain.setValueAtTime(0.0001, t);
+    og.gain.exponentialRampToValueAtTime(0.11 * loud, t + 0.006);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.085);
     osc.connect(og);
     og.connect(audio.destination);
     osc.start(t);
-    osc.stop(t + 0.14);
+    osc.stop(t + 0.1);
   } catch (e) { /* no sound is fine */ }
 }
 let foamLive = 0;      // bubbles in the air right now
@@ -1445,6 +1456,7 @@ if (buybar && heroEl && window.IntersectionObserver) {
   if (reduceMotion) return;
   const WAITS = [
     ['a.btn-outline', 580, 'is-pouring'],
+    ['a.community-card', 580, 'is-pouring'],
     ['a.btn-primary, a.btn-tiny', 430, 'is-shine'],
     ['a.game-switch-tab', 260, 'is-going'],
   ];
@@ -1455,30 +1467,58 @@ if (buybar && heroEl && window.IntersectionObserver) {
     }
     return null;
   }
+  // The animation starts on the way down rather than on the way up, so a
+  // press has already begun to show before the finger has even lifted.
+  document.addEventListener('pointerdown', (e) => {
+    if (going || e.button !== 0) return;
+    const a = e.target.closest && e.target.closest('a.btn, a.game-switch-tab, a.community-card');
+    const how = a && held(a);
+    if (how) a.classList.add(how.mark);
+  }, { passive: true });
+
   document.addEventListener('click', (e) => {
     if (going || e.defaultPrevented) return;
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    const a = e.target.closest && e.target.closest('a.btn, a.game-switch-tab');
+    const a = e.target.closest && e.target.closest('a.btn, a.game-switch-tab, a.community-card');
     if (!a) return;
-    if (a.target && a.target !== '_self') return;
     if (a.hasAttribute('download')) return;
     const href = a.getAttribute('href');
-    if (!href || href.charAt(0) === '#' || /^[a-z]+:/i.test(href)) return;
-    // A link to a part of the page it is already on does not go anywhere.
-    const to = new URL(a.href, location.href);
-    if (to.pathname === location.pathname && to.hash) return;
+    if (!href || href.charAt(0) === '#') return;
+    const away = !!a.target && a.target !== '_self';
+    if (!away) {
+      // In this tab. A link to a part of the page it is already on does
+      // not go anywhere, so it is not held.
+      if (/^[a-z]+:/i.test(href)) return;
+      const to = new URL(a.href, location.href);
+      if (to.pathname === location.pathname && to.hash) return;
+    }
     const how = held(a);
     if (!how) return;
     e.preventDefault();
     going = true;
     a.classList.add(how.mark);
-    setTimeout(() => { window.location.href = a.href; }, how.wait);
-    // If the page is still here well after that, something went wrong
-    // with the navigation and the button should not stay stuck.
+    setTimeout(() => {
+      if (!away) { window.location.href = a.href; return; }
+      // A new tab, opened from a timer. Browsers allow that for a few
+      // seconds after a press, which this is well inside.
+      //
+      // Nothing is read back from window.open: asked for noopener, which
+      // is what keeps the page that opens from reaching back into this
+      // one, it answers null whether it worked or not. Treating that null
+      // as a refusal sent this page to the same address as well, so a
+      // press opened the tab and abandoned the site behind it.
+      try {
+        window.open(a.href, '_blank', 'noopener');
+      } catch (err) {
+        window.location.href = a.href;
+      }
+    }, how.wait);
+    // The tab that opened is on top of this one, so the button here has
+    // to let go by itself: there is no navigation to clear it.
     setTimeout(() => {
       going = false;
       WAITS.forEach(([, , mark]) => a.classList.remove(mark));
-    }, 4000);
+    }, away ? how.wait + 400 : 4000);
   });
   // Coming back through the history leaves the button as it was left.
   window.addEventListener('pageshow', () => {

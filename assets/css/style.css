@@ -2896,3 +2896,43 @@ html { scroll-padding-top: 84px; }
   .chart-toggle, .chart-toggle .icon, .nav-toggle, .wallet-picker button,
   .wallet-disconnect, .faq-item summary { transition: none; }
 }
+
+/* ---- The cards in the community fill up too ----
+   They are links out, the same as the buttons, so they behave the same
+   way: the beer comes up, everything on them goes dark against it, and
+   the tab opens once it is full. */
+.community-card { position: relative; overflow: hidden; isolation: isolate; }
+.community-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, #fff3d2 0 5px, #ffd34d 5px, var(--amber) 55%, #ff9a12 100%);
+  transform: translateY(101%);
+  transition: transform 0.55s cubic-bezier(0.42, 0, 0.58, 1);
+  pointer-events: none;
+}
+.community-card:hover::after, .community-card:focus-visible::after,
+.community-card.is-pouring::after { transform: translateY(0); }
+.community-card:hover, .community-card:focus-visible, .community-card.is-pouring {
+  color: #1a1200;
+  transition-duration: 0.18s, 0.18s, 0.1s;
+}
+.community-card:hover h3, .community-card:focus-visible h3, .community-card.is-pouring h3,
+.community-card:hover p, .community-card:focus-visible p, .community-card.is-pouring p,
+.community-card:hover .community-count, .community-card:focus-visible .community-count,
+.community-card.is-pouring .community-count {
+  color: #1a1200;
+  transition: color 0.1s ease;
+}
+/* The disc behind the mark turns to foam so it still reads on the beer. */
+.community-card .community-icon { transition: background 0.18s ease, box-shadow 0.18s ease; }
+.community-card:hover .community-icon, .community-card:focus-visible .community-icon,
+.community-card.is-pouring .community-icon {
+  background: rgba(26, 18, 0, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+@media (prefers-reduced-motion: reduce) {
+  .community-card::after { transition: none; }
+  .community-card .community-icon { transition: none; }
+}
