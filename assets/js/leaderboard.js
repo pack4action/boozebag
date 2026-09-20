@@ -27,6 +27,142 @@
   // And the list is re-read about this often while a page is open.
   const PULL_EVERY = 60000;
 
+  // ---- Proving a score came from the wallet it names ----
+  // Signing every score with the wallet itself would be a wallet prompt
+  // every thirty seconds. Instead the browser makes a key of its own and
+  // the wallet signs one short note handing that key the right to post
+  // for a day. The key signs each score after that. One approval at the
+  // door instead of one per drink.
+  const GRANT_KEY = 'boozebagPostKey';
+  const GRANT_HOURS = 24;
+  const ALPHA58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  function b58(bytes) {
+    let n = 0n;
+    for (const b of bytes) n = (n << 8n) | BigInt(b);
+    let out = '';
+    while (n > 0n) { out = ALPHA58[Number(n % 58n)] + out; n /= 58n; }
+    for (const b of bytes) { if (b === 0) out = '1' + out; else break; }
+    return out;
+  }
+  function un58(str) {
+    let n = 0n;
+    for (const c of str) {
+      const i = ALPHA58.indexOf(c);
+      if (i < 0) throw new Error('not base58');
+      n = n * 58n + BigInt(i);
+    }
+    const out = [];
+    while (n > 0n) { out.unshift(Number(n & 255n)); n >>= 8n; }
+    for (const c of str) { if (c === '1') out.unshift(0); else break; }
+    return Uint8Array.from(out);
+  }
+  // The two notes, written exactly as the board writes them. A single
+  // character out of place and the signature does not check out.
+  const grantText = (address, key, until) => '$BOOZEBAG leaderboard\n'
+    + 'wallet: ' + address + '\nkey: ' + key + '\nuntil: ' + until;
+  const postText = (game, address, subject, ts) => '$BOOZEBAG score\n'
+    + 'game: ' + game + '\nwallet: ' + address + '\nscore: ' + subject + '\nat: ' + ts;
+
+  function savedGrant(address) {
+    let g = null;
+    try { g = JSON.parse(localStorage.getItem(GRANT_KEY)); } catch (e) { g = null; }
+    if (!g || g.address !== address) return null;
+    if (!g.until || g.until <= Math.floor(Date.now() / 1000) + 60) return null;
+    return g;
+  }
+  // The note, made if there is not one. This is the only moment the wallet
+  // is asked for anything, and on a phone it leaves the page and comes
+  // back, so it is done when somebody connects rather than mid game.
+  const PENDING_KEY = 'boozebagPostKeyAsking';
+  function keep(where, value) {
+    try { localStorage.setItem(where, JSON.stringify(value)); } catch (e) { /* this session only */ }
+  }
+  let asking = null;
+  function grantFor(address) {
+    const have = savedGrant(address);
+    if (have) return Promise.resolve(have);
+    if (asking) return asking;
+    const W = window.BoozebagWallet;
+    if (!W || !W.signMessage || !W.canSign || !W.canSign()) return Promise.resolve(null);
+    asking = loadNacl().then((nacl) => {
+      // A key the wallet went off to sign for, on a phone, before the
+      // page was taken away. If the app has answered, finish it here.
+      let waiting = null;
+      try { waiting = JSON.parse(localStorage.getItem(PENDING_KEY)); } catch (e) { waiting = null; }
+      const back = W.signBack ? W.signBack() : Promise.resolve(null);
+      return back.then((answer) => {
+        if (answer && waiting && waiting.address === address
+          && answer.text === grantText(address, waiting.key, waiting.until)) {
+          localStorage.removeItem(PENDING_KEY);
+          const done = { address, key: waiting.key, secret: waiting.secret,
+            until: waiting.until, grant: answer.signature };
+          keep(GRANT_KEY, done);
+          return done;
+        }
+        // Nothing waiting, so ask. On a phone this leaves the page and
+        // comes back through the branch above.
+        const kp = nacl.sign.keyPair();
+        const key = b58(kp.publicKey);
+        const until = Math.floor(Date.now() / 1000) + GRANT_HOURS * 3600;
+        keep(PENDING_KEY, { address, key, secret: b58(kp.secretKey), until });
+        return W.signMessage(grantText(address, key, until)).then((grant) => {
+          localStorage.removeItem(PENDING_KEY);
+          const done = { address, key, secret: b58(kp.secretKey), until, grant };
+          keep(GRANT_KEY, done);
+          return done;
+        });
+      });
+    }).catch(() => null).then((g) => { asking = null; return g; });
+    return asking;
+  }
+
+  // A wallet arriving is the moment to get the note signed: somebody who
+  // has just approved a connection is expecting to be asked, where
+  // somebody mid game is not.
+  window.addEventListener('boozebag:wallet', (e) => {
+    const address = e && e.detail && e.detail.address;
+    if (address) grantFor(address);
+  });
+  // And on the way back from a phone's wallet app, where the answer to a
+  // note asked for earlier is sitting in the address bar.
+  window.addEventListener('load', () => {
+    const W = window.BoozebagWallet;
+    const saved = W && W.getSaved ? W.getSaved() : null;
+    let waiting = null;
+    try { waiting = JSON.parse(localStorage.getItem(PENDING_KEY)); } catch (e2) { waiting = null; }
+    if (saved && saved.address && waiting) grantFor(saved.address);
+  });
+  // tweetnacl again, the same copy the wallet link uses.
+  let naclWait = null;
+  function loadNacl() {
+    if (window.nacl) return Promise.resolve(window.nacl);
+    if (!naclWait) {
+      naclWait = new Promise((resolve, reject) => {
+        const el = document.createElement('script');
+        el.src = 'assets/js/vendor/nacl-fast.min.js';
+        el.onload = () => resolve(window.nacl);
+        el.onerror = () => reject(new Error('Could not load the signer'));
+        document.head.appendChild(el);
+      });
+    }
+    return naclWait;
+  }
+  // What goes on a post. Null when there is nothing to sign with, and the
+  // board will say so rather than the score quietly going nowhere.
+  function authFor(game, address, subject) {
+    return grantFor(address).then((g) => {
+      if (!g) return null;
+      return loadNacl().then((nacl) => {
+        const ts = Math.floor(Date.now() / 1000);
+        const sig = nacl.sign.detached(
+          new TextEncoder().encode(postText(game, address, subject, ts)),
+          un58(g.secret),
+        );
+        return { key: g.key, until: g.until, grant: g.grant, ts, sig: b58(sig) };
+      });
+    }).catch(() => null);
+  }
+
   function makeLeaderboard(gameId, storageKey) {
     const key = storageKey || ('bbLb:' + gameId);
     // Who has taken themselves off this board, in this browser. Kept here
@@ -99,13 +235,16 @@
 
     function send(entry) {
       if (!API) return Promise.resolve(null);
-      return fetch(API + '/scores', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ game: gameId, address: entry.address, score: entry.score,
-          meta: entry.meta, name: entry.name || undefined }),
-        keepalive: true,
-      }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      return authFor(gameId, entry.address, entry.score).then((auth) => {
+        if (!auth) return null;
+        return fetch(API + '/scores', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ game: gameId, address: entry.address, score: entry.score,
+            meta: entry.meta, name: entry.name || undefined, auth }),
+          keepalive: true,
+        }).then((r) => (r.ok ? r.json() : null));
+      }).catch(() => null);
     }
 
     function tookTheBoard(reply) {
@@ -156,10 +295,12 @@
     function claim(address, score, meta, name) {
       if (!API) return Promise.resolve('offline');
       if (isOff(address)) return Promise.resolve('off');
-      return fetch(API + '/scores', {
+      return authFor(gameId, address, score).then((auth) => {
+        if (!auth) return { unsigned: true };
+        return fetch(API + '/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ game: gameId, address, score, meta, name, claim: true }),
+        body: JSON.stringify({ game: gameId, address, score, meta, name, claim: true, auth }),
       }).then((r) => r.json().then((reply) => {
         if (r.status === 409) return 'taken';
         if (r.status === 429) return 'slow';
@@ -167,7 +308,8 @@
         writeLocal(address, score, meta, name);
         tookTheBoard(reply);
         return 'yours';
-      })).catch(() => 'offline');
+      }));
+      }).then((out) => (out && out.unsigned ? 'offline' : out)).catch(() => 'offline');
     }
 
     // Off the board: the row goes, the game stops posting, and the entry
@@ -182,16 +324,19 @@
       store(list);
       draw();
       if (!API) return Promise.resolve('offline');
-      return fetch(API + '/scores', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ game: gameId, address, remove: true }),
-      }).then((r) => r.json().then((reply) => {
-        if (r.status === 429) return 'slow';
-        if (!r.ok) return 'offline';
-        tookTheBoard(reply);
-        return 'gone';
-      })).catch(() => 'offline');
+      return authFor(gameId, address, 'remove').then((auth) => {
+        if (!auth) return 'offline';
+        return fetch(API + '/scores', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ game: gameId, address, remove: true, auth }),
+        }).then((r) => r.json().then((reply) => {
+          if (r.status === 429) return 'slow';
+          if (!r.ok) return 'offline';
+          tookTheBoard(reply);
+          return 'gone';
+        }));
+      }).catch(() => 'offline');
     }
     // And back on. Nothing is posted here: the next score the game hands
     // over goes up the way it always did.

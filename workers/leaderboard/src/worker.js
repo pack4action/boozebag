@@ -78,6 +78,79 @@ function json(request, body, status) {
   });
 }
 
+// ---- Proving a post came from the wallet it names ----
+// The games work out their own numbers, so a score is a claim. This does
+// not make the claim true; it makes it yours. Nobody else can post as you,
+// and nobody can quietly put a number under somebody else's name.
+//
+// Signing every post with the wallet itself would mean a wallet prompt
+// every thirty seconds, which nobody would put up with. So the wallet
+// signs one short note when it connects, handing a key the browser made
+// the right to post for a while, and that key signs each score. One
+// approval at the door instead of one per drink.
+const GRANT_HOURS = 24;         // the longest a note is good for
+const POST_WINDOW = 600;        // how far off a post's own clock may be
+const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function b58decode(str) {
+  if (typeof str !== 'string' || !str) return null;
+  let n = 0n;
+  for (const c of str) {
+    const i = B58.indexOf(c);
+    if (i < 0) return null;
+    n = n * 58n + BigInt(i);
+  }
+  const out = [];
+  while (n > 0n) { out.unshift(Number(n & 255n)); n >>= 8n; }
+  for (const c of str) { if (c === '1') out.unshift(0); else break; }
+  return Uint8Array.from(out);
+}
+async function signedBy(publicKeyB58, signatureB58, text) {
+  const pub = b58decode(publicKeyB58);
+  const sig = b58decode(signatureB58);
+  if (!pub || pub.length !== 32 || !sig || sig.length !== 64) return false;
+  try {
+    const key = await crypto.subtle.importKey('raw', pub, { name: 'Ed25519' }, false, ['verify']);
+    return await crypto.subtle.verify('Ed25519', key, sig, new TextEncoder().encode(text));
+  } catch (e) {
+    return false;
+  }
+}
+// The two notes, written the same way on both sides. Any difference at
+// all, down to a space, and the signature does not check out.
+const grantText = (address, key, until) => '$BOOZEBAG leaderboard\n'
+  + 'wallet: ' + address + '\n'
+  + 'key: ' + key + '\n'
+  + 'until: ' + until;
+const postText = (game, address, score, ts) => '$BOOZEBAG score\n'
+  + 'game: ' + game + '\n'
+  + 'wallet: ' + address + '\n'
+  + 'score: ' + score + '\n'
+  + 'at: ' + ts;
+
+// Answers null when the post is properly signed, or what is wrong with it.
+async function badSignature(body, game, address, now, subject) {
+  const auth = body && body.auth;
+  if (!auth || typeof auth !== 'object') return 'sign in to post a score';
+  const { key, until, grant, sig, ts } = auth;
+  if (typeof key !== 'string' || typeof grant !== 'string' || typeof sig !== 'string') {
+    return 'that is not a signature';
+  }
+  const good = Math.floor(Number(until));
+  if (!isFinite(good) || good <= now) return 'sign in again';
+  if (good > now + GRANT_HOURS * 3600 + 300) return 'that lasts too long';
+  if (!await signedBy(address, grant, grantText(address, key, good))) {
+    return 'the wallet did not sign that';
+  }
+  const at = Math.floor(Number(ts));
+  if (!isFinite(at) || Math.abs(now - at) > POST_WINDOW) return 'check your clock';
+  // The score is in what was signed, so the number cannot be changed on
+  // the way here without the signature falling apart.
+  if (!await signedBy(key, sig, postText(game, address, subject, at))) {
+    return 'that score was not signed';
+  }
+  return null;
+}
+
 // A Solana address as it is written: base58, and never the characters that
 // look like other characters.
 const ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -562,6 +635,14 @@ export default {
       return json(request, { error: 'that is not a wallet' }, 400);
     }
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const now = Math.floor(Date.now() / 1000);
+
+    // Nothing is written without the wallet's say so. A removal is signed
+    // as well as a score, because taking somebody off is destructive where
+    // a score only ever goes up.
+    const wrong = await badSignature(body, game, address, now,
+      body.remove === true ? 'remove' : body.score);
+    if (wrong) return json(request, { error: wrong, signIn: true }, 401);
 
     // Taking yourself off the board. It carries no score, so it is handled
     // before one is asked for. A post from the game puts the wallet
@@ -606,8 +687,6 @@ export default {
         name = null;
       }
     }
-
-    const now = Math.floor(Date.now() / 1000);
 
     // A speed limit, for the games whose scores climb rather than being
     // set fresh by each run. The board already remembers what it last saw

@@ -1,11 +1,16 @@
 // What the board will and will not believe: the ceiling on each game, and
 // the speed limit on the one whose score climbs.
+import { signer } from './test-sign.mjs';
 const WORKER = new URL('./src/worker.js', import.meta.url).href;
 const fails = [];
 const ok = (n, c, saw) => { if (!c) fails.push(n + (saw !== undefined ? ' saw ' + JSON.stringify(saw) : '')); };
 
-const W1 = '7cVfgArCheMR6Cs4t6vz5rfnqd56vZq4ndaBrY5xkxXy';
-const W2 = '9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin';
+// Two stand-in players, each with a wallet that can sign.
+const P1 = await signer();
+const P2 = await signer();
+const W1 = P1.address;
+const W2 = P2.address;
+const who = { [W1]: P1, [W2]: P2 };
 
 // A stand-in for the scores table, enough of it for these.
 function fakeDb(rows) {
@@ -79,6 +84,12 @@ async function fresh(rows) {
   // here is what the board believes, not how fast it is asked.
   let ip = 0;
   const post = async (body) => {
+    // Everything the board is asked to write has to be signed, so the
+    // tests sign it the way the site does.
+    if (!body.auth && who[body.address]) {
+      body = { ...body, auth: await who[body.address].auth(body.game,
+        body.remove === true ? 'remove' : body.score) };
+    }
     const req = new Request('https://x/api/scores', {
       method: 'POST',
       body: JSON.stringify(body),

@@ -44,6 +44,41 @@ reach and climbs from there.
 A patient cheat can still walk a number up over hours. The jump straight
 to a silly figure, which is what makes a board look fake, is gone.
 
+**A signature on every post.** A score is written only if it is signed by
+the wallet it names, so nobody can put a number under somebody else's
+name. Signing each post with the wallet itself would mean a prompt every
+thirty seconds, so instead the browser makes a key of its own and the
+wallet signs one short note handing that key the right to post for a day:
+
+```
+$BOOZEBAG leaderboard
+wallet: <address>
+key: <the browser's key>
+until: <unix seconds>
+```
+
+and that key signs each score:
+
+```
+$BOOZEBAG score
+game: <game>
+wallet: <address>
+score: <the number, or the word remove>
+at: <unix seconds>
+```
+
+The Worker rebuilds both notes from what it was sent and checks them with
+ed25519, refuses a note that has run out or that claims to last more than
+a day, and refuses a post whose own clock is more than ten minutes off.
+Because the score is inside what was signed, changing the number on the
+way makes the signature fall apart. Removals are signed too, since taking
+somebody off is destructive where a score only ever goes up.
+
+The note is asked for when a wallet connects, which is when somebody is
+already expecting the wallet to ask them something. On a phone that goes
+out to the wallet app and back once a day; in an extension it is a single
+approval that never leaves the page.
+
 ## Deploying it
 
 No domain needed. A free Cloudflare account and `npx wrangler` are all it

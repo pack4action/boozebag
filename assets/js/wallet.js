@@ -92,7 +92,8 @@
   async function linkOut(name) {
     const nacl = await loadNacl();
     const kp = nacl.box.keyPair();
-    localStorage.setItem(LINK_KEY, JSON.stringify({ wallet: name, secret: b58encode(kp.secretKey), at: Date.now() }));
+    localStorage.setItem(LINK_KEY, JSON.stringify({ wallet: name, secret: b58encode(kp.secretKey),
+      dappKey: b58encode(kp.publicKey), at: Date.now() }));
     const q = new URLSearchParams({
       app_url: location.origin,
       dapp_encryption_public_key: b58encode(kp.publicKey),
@@ -127,8 +128,96 @@
     if (!opened) throw new Error('The wallet’s answer did not open');
     const answer = JSON.parse(new TextDecoder().decode(opened));
     if (!answer.public_key) throw new Error('The wallet sent no address');
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ wallet: pending.wallet, address: answer.public_key, linked: true }));
+    // The session token and the shared secret are what a later signMessage
+    // over the same link has to carry, so they are kept with the address.
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      wallet: pending.wallet,
+      address: answer.public_key,
+      linked: true,
+      session: answer.session || null,
+      shared: b58encode(shared),
+      dappKey: pending.dappKey || null,
+    }));
+    told(answer.public_key);
     return answer.public_key;
+  }
+
+  // ---- Asking the wallet to sign something ----
+  // An extension answers in the page. A wallet linked from a phone's own
+  // browser answers the way it connected: out to the app and back, with
+  // the note sealed to the same key pair the connection used. Either way
+  // the answer is the signature, base58, the way Solana writes them.
+  const SIGN_KEY = 'boozebagWalletSign';
+  // Whether a signature can be asked for at all: an extension has to be
+  // there and able to sign, and a linked wallet has to have kept its
+  // session from the connection.
+  function canSign() {
+    const saved = getSaved();
+    if (!saved) return false;
+    if (saved.linked) return !!(saved.session && saved.shared && saved.dappKey);
+    const provider = getProvider(saved.wallet);
+    return !!(provider && provider.signMessage);
+  }
+  async function signMessage(text) {
+    const saved = getSaved();
+    if (!saved) throw new Error('No wallet connected');
+    if (!saved.linked) {
+      const provider = getProvider(saved.wallet);
+      if (!provider || !provider.signMessage) throw new Error('This wallet cannot sign');
+      const out = await provider.signMessage(new TextEncoder().encode(text), 'utf8');
+      const sig = out && (out.signature || out);
+      return b58encode(sig instanceof Uint8Array ? sig : new Uint8Array(sig));
+    }
+    // Out to the app. This leaves the page, so what is being signed is put
+    // down first and picked up on the way back in.
+    if (!saved.session || !saved.shared) throw new Error('Connect the wallet again');
+    const nacl = await loadNacl();
+    const shared = b58decode(saved.shared);
+    const nonce = nacl.randomBytes(24);
+    const payload = new TextEncoder().encode(JSON.stringify({
+      session: saved.session,
+      message: b58encode(new TextEncoder().encode(text)),
+      display: 'utf8',
+    }));
+    const sealed = nacl.box.after(payload, nonce, shared);
+    localStorage.setItem(SIGN_KEY, JSON.stringify({ wallet: saved.wallet, text, at: Date.now() }));
+    const q = new URLSearchParams({
+      dapp_encryption_public_key: saved.dappKey || '',
+      nonce: b58encode(nonce),
+      redirect_link: hereWithoutLinkParams().href,
+      payload: b58encode(sealed),
+    });
+    location.href = (saved.wallet === 'phantom'
+      ? 'https://phantom.app/ul/v1/signMessage'
+      : 'https://solflare.com/ul/v1/signMessage') + '?' + q.toString();
+    // The page is going away; nothing after this runs.
+    return new Promise(() => {});
+  }
+  // Back from the app with a signature. Returns { text, signature } once,
+  // or null when there is nothing to pick up.
+  async function signBack() {
+    let pending = null;
+    try { pending = JSON.parse(localStorage.getItem(SIGN_KEY)); } catch (e) { pending = null; }
+    if (!pending) return null;
+    const p = new URL(location.href).searchParams;
+    const nonce = p.get('nonce');
+    const data = p.get('data');
+    const errorCode = p.get('errorCode');
+    if (!data && !errorCode) {
+      if (Date.now() - (pending.at || 0) > 600000) localStorage.removeItem(SIGN_KEY);
+      return null;
+    }
+    localStorage.removeItem(SIGN_KEY);
+    history.replaceState(null, '', hereWithoutLinkParams().href);
+    if (errorCode) throw new Error('The wallet did not sign it');
+    const saved = getSaved();
+    if (!saved || !saved.shared) throw new Error('Connect the wallet again');
+    const nacl = await loadNacl();
+    const opened = nacl.box.open.after(b58decode(data), b58decode(nonce), b58decode(saved.shared));
+    if (!opened) throw new Error('The wallet\u2019s answer did not open');
+    const answer = JSON.parse(new TextDecoder().decode(opened));
+    if (!answer.signature) throw new Error('The wallet sent no signature');
+    return { text: pending.text, signature: answer.signature };
   }
 
   async function connect(name) {
@@ -150,7 +239,16 @@
       await provider.signMessage(msg, 'utf8');
     }
     save(name, address);
+    told(address);
     return address;
+  }
+
+  // Everything that wants to know when a wallet arrives hears about it
+  // here, rather than each page watching the button itself.
+  function told(address) {
+    try {
+      window.dispatchEvent(new CustomEvent('boozebag:wallet', { detail: { address } }));
+    } catch (e) { /* an old browser simply does not get the nudge */ }
   }
 
   async function tryReconnect() {
@@ -260,7 +358,8 @@
     });
   }
 
-  window.BoozebagWallet = { connect, tryReconnect, disconnect, getSaved, short, attachUI };
+  window.BoozebagWallet = { connect, tryReconnect, disconnect, getSaved, short, attachUI,
+    signMessage, signBack, canSign };
 
   // Pages with no game still have the button in the bar, so wire it up once
   // everything else has had its chance to claim it.
