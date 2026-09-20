@@ -1430,3 +1430,37 @@ if (buybar && heroEl && window.IntersectionObserver) {
     document.title = away[i];
   });
 })();
+
+// ---- Let the glass fill before the page goes ----
+// The Play Now buttons are links, so a tap used to take the page away
+// before the beer had got anywhere. Anything that pours and then leaves
+// this page waits for the pour to finish first. Only those: a link that
+// opens in a new tab leaves this page where it is, so it goes at once.
+(function () {
+  const POUR = 300;   // a touch past the fill, so it is full when it goes
+  if (reduceMotion) return;
+  let going = false;
+  document.addEventListener('click', (e) => {
+    if (going || e.defaultPrevented) return;
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target.closest && e.target.closest('a.btn-outline');
+    if (!a) return;
+    if (a.target && a.target !== '_self') return;
+    if (a.hasAttribute('download')) return;
+    const href = a.getAttribute('href');
+    if (!href || href.charAt(0) === '#' || /^[a-z]+:/i.test(href)) return;
+    // Somewhere else on this site, in this tab: worth watching first.
+    e.preventDefault();
+    going = true;
+    a.classList.add('is-pouring');
+    setTimeout(() => { window.location.href = a.href; }, POUR);
+    // If the page is still here well after that, something went wrong
+    // with the navigation and the button should not stay stuck full.
+    setTimeout(() => { going = false; a.classList.remove('is-pouring'); }, 4000);
+  });
+  // Coming back through the history leaves the button as it was left.
+  window.addEventListener('pageshow', () => {
+    going = false;
+    document.querySelectorAll('.is-pouring').forEach((el) => el.classList.remove('is-pouring'));
+  });
+})();

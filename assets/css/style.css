@@ -2310,13 +2310,14 @@ html { scroll-padding-top: 84px; }
   transition: transform 0.28s cubic-bezier(0.3, 0.8, 0.3, 1);
 }
 .btn-outline:hover::before, .btn-outline:focus-visible::before,
-.btn-outline:active::before { transform: translateY(0); }
+.btn-outline:active::before, .btn-outline.is-pouring::before { transform: translateY(0); }
 /* Black the moment the beer starts coming up, not over the same quarter
    second it takes to fill: at the same speed the words spend the whole
    pour half way between white and black, which is legible against
    neither. :active is in there for a finger, which has no hover to give
    and would otherwise hold a filled button with pale words on it. */
-.btn-outline:hover, .btn-outline:focus-visible, .btn-outline:active {
+.btn-outline:hover, .btn-outline:focus-visible, .btn-outline:active,
+.btn-outline.is-pouring {
   color: #1a1200;
   transition-duration: 0.28s, 0.28s, 0.28s, 0.06s;
 }
