@@ -2307,7 +2307,8 @@ html { scroll-padding-top: 84px; }
      up the glass rather than a colour swap. */
   background: linear-gradient(180deg, #fff3d2 0 5px, #ffd34d 5px, var(--amber) 55%, #ff9a12 100%);
   transform: translateY(101%);
-  transition: transform 0.28s cubic-bezier(0.3, 0.8, 0.3, 1);
+  /* Poured, not snapped: it leans in, runs, and settles at the top. */
+  transition: transform 0.55s cubic-bezier(0.42, 0, 0.58, 1);
 }
 .btn-outline:hover::before, .btn-outline:focus-visible::before,
 .btn-outline:active::before, .btn-outline.is-pouring::before { transform: translateY(0); }
@@ -2319,7 +2320,7 @@ html { scroll-padding-top: 84px; }
 .btn-outline:hover, .btn-outline:focus-visible, .btn-outline:active,
 .btn-outline.is-pouring {
   color: #1a1200;
-  transition-duration: 0.28s, 0.28s, 0.28s, 0.06s;
+  transition-duration: 0.28s, 0.28s, 0.28s, 0.1s;
 }
 
 /* An answer drops open rather than appearing. */

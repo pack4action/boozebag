@@ -1437,7 +1437,7 @@ if (buybar && heroEl && window.IntersectionObserver) {
 // this page waits for the pour to finish first. Only those: a link that
 // opens in a new tab leaves this page where it is, so it goes at once.
 (function () {
-  const POUR = 300;   // a touch past the fill, so it is full when it goes
+  const POUR = 580;   // a touch past the fill, so it is full when it goes
   if (reduceMotion) return;
   let going = false;
   document.addEventListener('click', (e) => {
