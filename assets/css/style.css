@@ -482,6 +482,21 @@ body.nav-open { overflow: hidden; }
 .badge-row .stat-tag:nth-child(1) { --tilt: -2.2deg; }
 .badge-row .stat-tag:nth-child(2) { --tilt: 1.6deg; }
 .badge-row .stat-tag:nth-child(3) { --tilt: -1deg; }
+/* On a phone the three will not sit on one line, and left to wrap the live
+   tag drops underneath on its own looking like it fell off. So put them on
+   a grid instead: the two facts share the top line, and the live tag takes
+   the whole line under them, which is where the eye should land anyway. */
+@media (max-width: 560px) {
+  .badge-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+    margin-bottom: 20px;
+  }
+  .badge-row .stat-tag { justify-content: center; padding: 9px 12px; gap: 8px; }
+  .badge-row .stat-tag-live { grid-column: 1 / -1; --tilt: -0.8deg; }
+  .badge-row .stat-tag-label { font-size: 9.5px; letter-spacing: 0.5px; }
+}
 
 .stat-tag .icon { color: var(--amber); width: 1.55em; height: 1.55em; }
 .stat-tag .icon-live { color: var(--red); }
