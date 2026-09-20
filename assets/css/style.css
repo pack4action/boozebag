@@ -1870,9 +1870,17 @@ html { scroll-padding-top: 84px; }
 }
 .coin-links a:hover { border-color: var(--amber); color: var(--text); background: rgba(255, 183, 3, 0.08); }
 .coin-links .icon { width: 0.8em; height: 0.8em; opacity: 0.55; }
-/* The service's own mark leads each button, at a size that reads. */
-.coin-links .brand-mark { width: 17px; height: 17px; opacity: 1; }
-.coin-links a:hover .brand-mark { color: var(--amber); }
+/* Each service's own mark leads its button, all four squared to the same
+   box so the row reads evenly whatever shape the mark is. */
+.coin-links .brand-mark {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  object-fit: contain;
+  opacity: 0.92;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.coin-links a:hover .brand-mark { opacity: 1; transform: scale(1.06); }
 .chart-toggle {
   width: 100%;
   display: flex;
