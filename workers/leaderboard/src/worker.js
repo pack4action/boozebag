@@ -417,11 +417,74 @@ async function tokenAnswer(env) {
   return Object.assign({ mint }, tokenHeld.body, { marketCap: cap, at: now });
 }
 
+// ---- Cracked together ----
+// The button on the front page is the one thing on this site everybody
+// can press at once, so the count belongs to the site rather than to a
+// browser: press it and the figure everyone is looking at goes up. The
+// table is made on first use, so nothing has to be run by hand for it.
+const CRACK_MAX = 12;        // the most one run of presses can add
+const CRACK_EVERY = 2;       // seconds between posts from one place
+const CRACK_HOLD_MS = 5000;  // how long a read is reused
+let crackTableReady = false;
+let crackHeld = null;
+
+async function crackTable(env) {
+  if (crackTableReady) return;
+  await env.DB.prepare(
+    'CREATE TABLE IF NOT EXISTS cracks (day TEXT PRIMARY KEY, n INTEGER NOT NULL)',
+  ).run();
+  crackTableReady = true;
+}
+
+const crackDay = () => new Date().toISOString().slice(0, 10);
+
+async function crackCounts(env, fresh) {
+  const now = Date.now();
+  if (!fresh && crackHeld && now - crackHeld.at < CRACK_HOLD_MS) return crackHeld.body;
+  await crackTable(env);
+  const day = await env.DB.prepare('SELECT n FROM cracks WHERE day = ?1').bind(crackDay()).first();
+  const all = await env.DB.prepare('SELECT SUM(n) AS n FROM cracks').first();
+  const body = { today: (day && day.n) || 0, total: (all && all.n) || 0, at: now };
+  crackHeld = { at: now, body };
+  return body;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsFor(request) });
+    }
+    if (url.pathname === '/api/cracks') {
+      if (request.method === 'GET') {
+        return new Response(JSON.stringify(await crackCounts(env)), {
+          status: 200,
+          headers: Object.assign({
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=5',
+          }, corsFor(request)),
+        });
+      }
+      if (request.method !== 'POST') return json(request, { error: 'GET or POST' }, 405);
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      if (await tooSoon(env, 'crack:' + ip, CRACK_EVERY, 0)) {
+        return json(request, Object.assign({ error: 'slow down' }, await crackCounts(env)), 429);
+      }
+      const raw = await request.text();
+      if (raw.length > BODY_MAX) return json(request, { error: 'too much' }, 413);
+      let asked = 1;
+      try {
+        asked = Number(JSON.parse(raw || '{}').n) || 1;
+      } catch (e) {
+        asked = 1;
+      }
+      const n = Math.max(1, Math.min(CRACK_MAX, Math.round(asked)));
+      await crackTable(env);
+      await env.DB.prepare(
+        'INSERT INTO cracks (day, n) VALUES (?1, ?2)'
+        + ' ON CONFLICT (day) DO UPDATE SET n = cracks.n + excluded.n',
+      ).bind(crackDay(), n).run();
+      return json(request, await crackCounts(env, true));
     }
     if (url.pathname === '/api/token') {
       if (request.method !== 'GET') return json(request, { error: 'GET' }, 405);

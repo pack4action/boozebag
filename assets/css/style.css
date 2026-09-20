@@ -2118,3 +2118,87 @@ html { scroll-padding-top: 84px; }
 }
 .lost-title { font-size: clamp(2rem, 6vw, 3.2rem); margin: 10px 0 0; }
 .lost-sub { color: var(--muted); margin: 0 0 22px; }
+
+/* ---- Cracked together ----
+   Everybody pressing the button on any screen anywhere adds to the one
+   figure. It is the loudest number in the section, because it is the
+   only one that is not about him: it is about whoever turned up. */
+.cracked {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.12);
+}
+.cracked[hidden] { display: none; }
+.cracked-n {
+  position: relative;
+  font-family: 'Anton', sans-serif;
+  font-size: clamp(30px, 5vw, 44px);
+  line-height: 1;
+  letter-spacing: 1px;
+  color: var(--amber);
+  text-shadow: 3px 3px 0 #000;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.cracked.is-up .cracked-n { transform: translateY(-3px) scale(1.06); }
+.cracked-say {
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+}
+.cracked-say em { display: block; font-style: normal; letter-spacing: 1px; opacity: 0.75; }
+/* Somebody else, somewhere, just pressed it. */
+.cracked-ping {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  transform: translate(-50%, 0);
+  font-family: 'Anton', sans-serif;
+  font-size: 15px;
+  color: #8be0a4;
+  text-shadow: 2px 2px 0 #000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ---- The pour ----
+   How far down the page you have got, along the very top, with a head of
+   foam riding the leading edge. */
+.pour {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 0;
+  z-index: 60;
+  background: linear-gradient(90deg, #ff9a12, var(--amber));
+  box-shadow: 0 0 12px rgba(255, 183, 3, 0.45);
+  pointer-events: none;
+  will-change: width;
+}
+.pour-head {
+  position: absolute;
+  right: -3px;
+  top: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff3d2;
+  box-shadow: 0 0 8px rgba(255, 243, 210, 0.8);
+}
+.js .pour-head { animation: pour-bob 1.4s ease-in-out infinite alternate; }
+@keyframes pour-bob {
+  from { transform: translateY(-0.5px) scale(0.92); }
+  to { transform: translateY(0.5px) scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .js .pour-head { animation: none; }
+  .cracked-n { transition: none; }
+}

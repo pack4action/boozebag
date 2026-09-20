@@ -18,3 +18,11 @@ CREATE TABLE IF NOT EXISTS hits (
   key TEXT PRIMARY KEY,
   at  INTEGER NOT NULL
 );
+
+-- Every beer cracked on the front page, a row per day. The Worker makes
+-- this table on first use, so an existing database does not have to be
+-- touched; it is here so a fresh one starts with it.
+CREATE TABLE IF NOT EXISTS cracks (
+  day TEXT PRIMARY KEY,
+  n   INTEGER NOT NULL
+);

@@ -1168,3 +1168,175 @@ if (buybar && heroEl && window.IntersectionObserver) {
     new IntersectionObserver((es) => { seen = es[0].isIntersecting; settle(); }).observe(wave);
   }
 })();
+
+// ---- Cracked together ----
+// The button above is the one thing on this site everybody can press at
+// once, so the tally under it is the site's own rather than this
+// browser's: press it anywhere and the figure everyone is looking at
+// goes up. Presses are gathered for a moment and sent as one, the number
+// rolls rather than jumps, and a press that arrives from somebody else
+// floats up as a "+1" so the room is visibly not empty.
+(function () {
+  const wrap = document.getElementById('cracked');
+  const numEl = document.getElementById('cracked-n');
+  const totalEl = document.getElementById('cracked-total');
+  const btn = document.getElementById('btn-crack');
+  if (!wrap || !numEl || !btn || !siteApi) return;
+
+  let serverToday = 0;     // the last count the site itself gave us
+  let mine = 0;            // presses made here and not yet sent
+  let shown = 0;           // what the number on screen says
+  let target = 0;          // where it is rolling to
+  let rolling = 0;
+  let sendTimer = 0;
+  let sending = false;
+  let started = false;
+
+  const fmt = (n) => n.toLocaleString('en-US');
+
+  function roll() {
+    cancelAnimationFrame(rolling);
+    const from = shown;
+    const to = target;
+    if (from === to) return;
+    if (reduceMotion || Math.abs(to - from) > 400) {
+      shown = to;
+      numEl.textContent = fmt(to);
+      return;
+    }
+    const t0 = performance.now();
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / 520);
+      const eased = 1 - Math.pow(1 - p, 3);
+      shown = Math.round(from + (to - from) * eased);
+      numEl.textContent = fmt(shown);
+      if (p < 1) rolling = requestAnimationFrame(step);
+      else shown = to;
+    };
+    rolling = requestAnimationFrame(step);
+  }
+
+  function retarget() {
+    target = serverToday + mine;
+    if (!started) {
+      started = true;
+      shown = target;
+      numEl.textContent = fmt(target);
+      wrap.hidden = false;
+      return;
+    }
+    wrap.hidden = false;
+    roll();
+  }
+
+  // Somebody else's press, landing.
+  function ping(n) {
+    if (reduceMotion || n <= 0) return;
+    const s = document.createElement('span');
+    s.className = 'cracked-ping';
+    s.textContent = '+' + n;
+    numEl.appendChild(s);
+    s.animate([
+      { transform: 'translate(-50%, 6px)', opacity: 0 },
+      { transform: 'translate(-50%, -14px)', opacity: 1, offset: 0.3 },
+      { transform: 'translate(-50%, -36px)', opacity: 0 },
+    ], { duration: 1300, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' }).onfinish = () => s.remove();
+  }
+
+  function took(counts, theirs) {
+    if (!counts || !isFinite(Number(counts.today))) return;
+    const now = Number(counts.today);
+    if (theirs && started && now > serverToday) ping(now - serverToday);
+    serverToday = now;
+    if (totalEl && Number(counts.total) > 0) totalEl.textContent = fmt(Number(counts.total)) + ' all time';
+    retarget();
+  }
+
+  function read() {
+    if (sending) return;
+    fetch(siteApi + '/cracks')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c) => took(c, true))
+      .catch(() => {});
+  }
+
+  function send() {
+    if (sending || mine <= 0) return;
+    const n = Math.min(mine, 12);
+    sending = true;
+    fetch(siteApi + '/cracks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ n }),
+      keepalive: true,
+    })
+      .then((r) => r.json().then((c) => ({ ok: r.ok, c })))
+      .then((res) => {
+        sending = false;
+        if (res.ok) {
+          mine = Math.max(0, mine - n);
+          took(res.c, false);
+        } else {
+          // Told to wait: keep what was pressed and try again shortly.
+          clearTimeout(sendTimer);
+          sendTimer = setTimeout(send, 2500);
+        }
+      })
+      .catch(() => { sending = false; });
+  }
+
+  btn.addEventListener('click', () => {
+    mine += 1;
+    retarget();
+    wrap.classList.add('is-up');
+    setTimeout(() => wrap.classList.remove('is-up'), 200);
+    clearTimeout(sendTimer);
+    sendTimer = setTimeout(send, 700);
+  });
+
+  read();
+  setInterval(() => { if (!document.hidden) read(); }, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) read(); });
+  // A press still waiting when the tab goes away still counts.
+  window.addEventListener('pagehide', () => { if (mine > 0) send(); });
+})();
+
+// ---- The pour ----
+// How far down the page you have got, along the very top.
+(function () {
+  const pour = document.getElementById('pour');
+  if (!pour) return;
+  let waiting = false;
+  function draw() {
+    waiting = false;
+    const runway = document.documentElement.scrollHeight - window.innerHeight;
+    if (runway <= 0) { pour.style.width = '0%'; return; }
+    // The furthest a browser will actually scroll can sit a few pixels
+    // short of that, so the last few count as the end and the pour fills.
+    const left = runway - window.scrollY;
+    const done = left <= 8 ? 1 : Math.min(1, Math.max(0, window.scrollY / runway));
+    pour.style.width = (done * 100).toFixed(2) + '%';
+  }
+  window.addEventListener('scroll', () => {
+    if (waiting) return;
+    waiting = true;
+    requestAnimationFrame(draw);
+  }, { passive: true });
+  window.addEventListener('resize', draw);
+  draw();
+})();
+
+// ---- The tab, while you are somewhere else ----
+(function () {
+  const here = document.title;
+  const away = ['your beer is getting warm', 'he is still drinking',
+    '24 a day does not do itself', 'come back, it is your round'];
+  let last = -1;
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { document.title = here; return; }
+    let i = Math.floor(Math.random() * away.length);
+    if (i === last) i = (i + 1) % away.length;
+    last = i;
+    document.title = away[i];
+  });
+})();

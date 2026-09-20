@@ -38,7 +38,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=49" />
+<link rel="stylesheet" href="assets/css/style.css?v=51" />
 <!-- Visits, counted without cookies. Numbers at plausible.io once the
      site is registered there under this domain. -->
 <script defer data-domain="pack4action.github.io" src="https://plausible.io/js/script.js"></script>
@@ -139,6 +139,9 @@
 </svg>
 
 <div class="grain"></div>
+
+<!-- How far down the page you are, poured along the top. -->
+<div class="pour" id="pour" aria-hidden="true"><span class="pour-head"></span></div>
 
 <!-- NAV -->
 <header class="nav">
@@ -296,6 +299,12 @@
     <div class="regimen-act">
       <button class="btn btn-primary btn-small regimen-crack" id="btn-crack" type="button">Crack one with him <svg class="icon" aria-hidden="true"><use href="#i-beer"></use></svg></button>
       <span class="regimen-say" id="regimen-say" aria-live="polite"></span>
+    </div>
+    <!-- The one figure on this site that belongs to everyone looking at
+         it: every press of the button above, from anywhere, lands here. -->
+    <div class="cracked" id="cracked" hidden>
+      <span class="cracked-n" id="cracked-n">0</span>
+      <span class="cracked-say">cracked with him today<em id="cracked-total"></em></span>
     </div>
   </div>
 </section>
@@ -680,7 +689,7 @@
 
 <script src="assets/js/wallet.js?v=5"></script>
 <script src="assets/js/leaderboard.js?v=3"></script>
-<script src="assets/js/main.js?v=29"></script>
+<script src="assets/js/main.js?v=30"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>
