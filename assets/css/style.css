@@ -1595,12 +1595,18 @@ html { scroll-padding-top: 84px; }
 }
 .regimen-crack { position: relative; }
 .regimen-crack:active { transform: translate(2px, 2px) scale(0.98); }
+/* What he says back. It used to sit beside the button when the line was
+   short and drop under it when it was long, so it hopped about from one
+   press to the next. It gets its own line now, every time, and holds the
+   height of it so nothing below moves either. */
 .regimen-say {
+  flex: 1 0 100%;
   font-family: 'Caveat', 'Comic Sans MS', cursive;
   font-size: 19px;
-  line-height: 1.1;
+  line-height: 1.15;
   color: var(--amber);
-  min-height: 1em;
+  min-height: 1.15em;
+  margin-top: -2px;
 }
 .regimen-say.is-in { animation: say-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
 @keyframes say-in {
@@ -2192,7 +2198,9 @@ html { scroll-padding-top: 84px; }
   left: 0;
   height: 3px;
   width: 0;
-  z-index: 60;
+  /* Above the sticky nav, which is 100, or it pours along behind it and
+     nobody ever sees it. Under the wallet menu, which is 120. */
+  z-index: 110;
   background: linear-gradient(90deg, #ff9a12, var(--amber));
   box-shadow: 0 0 12px rgba(255, 183, 3, 0.45);
   pointer-events: none;

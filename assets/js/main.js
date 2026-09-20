@@ -1098,7 +1098,10 @@ if (buybar && heroEl && window.IntersectionObserver) {
         if (x === -20) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
       ctx.setLineDash([ln[3], ln[4]]);
-      ctx.lineDashOffset = -(off + t * ln[5]) % (ln[3] + ln[4]);
+      // The dash pattern runs from the start of the path, so a rising
+      // offset walks the streaks left, the way the banner itself travels.
+      // Negative sent them the other way, against it.
+      ctx.lineDashOffset = (off + t * ln[5]) % (ln[3] + ln[4]);
       ctx.strokeStyle = ln[2];
       ctx.lineWidth = ln[1];
       ctx.stroke();
@@ -1184,6 +1187,7 @@ if (buybar && heroEl && window.IntersectionObserver) {
   if (!wrap || !numEl || !btn || !siteApi) return;
 
   let serverToday = 0;     // the last count the site itself gave us
+  let serverTotal = 0;     // and the all time figure that came with it
   let mine = 0;            // presses made here and not yet sent
   let shown = 0;           // what the number on screen says
   let target = 0;          // where it is rolling to
@@ -1216,8 +1220,18 @@ if (buybar && heroEl && window.IntersectionObserver) {
     rolling = requestAnimationFrame(step);
   }
 
+  // The all time figure only says something once there is a day behind
+  // today. On day one it is the same number twice, and while presses are
+  // still waiting to be sent it sits one behind, which reads as broken.
+  function paintTotal() {
+    if (!totalEl) return;
+    const tot = serverTotal + mine;
+    totalEl.textContent = tot > target ? fmt(tot) + ' all time' : '';
+  }
+
   function retarget() {
     target = serverToday + mine;
+    paintTotal();
     if (!started) {
       started = true;
       shown = target;
@@ -1248,7 +1262,7 @@ if (buybar && heroEl && window.IntersectionObserver) {
     const now = Number(counts.today);
     if (theirs && started && now > serverToday) ping(now - serverToday);
     serverToday = now;
-    if (totalEl && Number(counts.total) > 0) totalEl.textContent = fmt(Number(counts.total)) + ' all time';
+    if (Number(counts.total) >= 0) serverTotal = Number(counts.total);
     retarget();
   }
 
