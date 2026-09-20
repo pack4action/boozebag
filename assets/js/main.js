@@ -162,8 +162,9 @@ function animateCount(el) {
     const p = Math.min((now - start) / duration, 1);
     const eased = 1 - Math.pow(1 - p, 3);
     el.textContent = (value * eased).toFixed(decimals) + suffix;
-    if (p < 1) requestAnimationFrame(tick);
-    else el.textContent = value.toFixed(decimals) + suffix;
+    if (p < 1) { requestAnimationFrame(tick); return; }
+    el.textContent = value.toFixed(decimals) + suffix;
+    el.classList.add('is-landed');
   }
   requestAnimationFrame(tick);
 }
@@ -211,7 +212,9 @@ if (titles.length) {
 }
 
 // ---- The roadmap stops, the ledger rows and the stamp, one at a time ----
-const stops = document.querySelectorAll('.road-item, .ledger-row, .proof-stamp, .supply');
+const stops = document.querySelectorAll(
+  '.road-item, .ledger-row, .proof-stamp, .supply, .step, .game-card,'
+  + ' .community-card, .faq-item, .facts li, .game-featured');
 if (stops.length) {
   let pending = 0;
   const arrive = new IntersectionObserver((entries) => {

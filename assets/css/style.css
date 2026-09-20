@@ -2241,3 +2241,131 @@ html { scroll-padding-top: 84px; }
   .js .pour-head { animation: none; }
   .cracked-n { transition: none; }
 }
+
+/* ---- More of the feel ----
+   The same language as the rest of the page: things get slapped down
+   rather than faded in, beer fills things rather than colours changing,
+   and nothing moves unless there is a reason for it to. Everything here
+   is off under prefers-reduced-motion, at the bottom of the block. */
+
+/* Kick's own mark on its card, where the others use the sprite. */
+.community-mark { width: 30px; height: 30px; object-fit: contain; }
+
+/* Everything that was not already arriving, arrives. Slapped down: up a
+   little, turned a degree or two, and straight. */
+.js .step:not(.in),
+.js .game-card:not(.in),
+.js .community-card:not(.in),
+.js .faq-item:not(.in),
+.js .facts li:not(.in),
+.js .game-featured:not(.in) {
+  opacity: 0;
+  transform: translateY(16px) rotate(var(--land, -1deg));
+}
+.js .step, .js .game-card, .js .community-card,
+.js .faq-item, .js .facts li, .js .game-featured {
+  transition: opacity 0.34s ease, transform 0.42s cubic-bezier(0.2, 1.35, 0.4, 1);
+}
+/* Alternating tilt, so a row of them does not land in lockstep. */
+.js .step:nth-child(even), .js .game-card:nth-child(even),
+.js .community-card:nth-child(even), .js .facts li:nth-child(even) { --land: 1.4deg; }
+/* Hover already lifts these, and the transition above would fight it. */
+.game-card.in, .community-card.in, .step.in, .game-featured.in { transition: transform 0.16s ease, box-shadow 0.16s ease; }
+
+/* The roadmap pours: the line between one stop and the next fills with
+   beer as you reach it, top to bottom, instead of sitting there grey. */
+.road-item { --pour: rgba(255, 183, 3, 0.55); }
+.road-item.is-done { --pour: rgba(53, 224, 138, 0.5); }
+.road-item.is-next, .road-item.is-goal { --pour: rgba(61, 220, 255, 0.5); }
+.road-item::after {
+  content: "";
+  position: absolute;
+  left: 21px;
+  top: 22px;
+  bottom: -22px;
+  width: 2px;
+  background: var(--pour);
+  transform-origin: 50% 0;
+  transform: scaleY(0);
+  pointer-events: none;
+}
+.road-item:last-child::after { display: none; }
+.js .road-item.in::after { transform: scaleY(1); transition: transform 0.75s cubic-bezier(0.3, 0.7, 0.3, 1) 0.15s; }
+.road-item:not(.in)::after { transform: scaleY(0); }
+
+/* An outline button fills like a glass when you point at it. */
+.btn-outline { position: relative; overflow: hidden; isolation: isolate; }
+.btn-outline::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  /* A head of foam rides the top of the pour, so it reads as beer coming
+     up the glass rather than a colour swap. */
+  background: linear-gradient(180deg, #fff3d2 0 5px, #ffd34d 5px, var(--amber) 55%, #ff9a12 100%);
+  transform: translateY(101%);
+  transition: transform 0.28s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+.btn-outline:hover::before, .btn-outline:focus-visible::before { transform: translateY(0); }
+.btn-outline:hover, .btn-outline:focus-visible { color: #1a1200; }
+
+/* An answer drops open rather than appearing. */
+.faq-item[open] > p { animation: faq-drop 0.26s cubic-bezier(0.2, 0.9, 0.3, 1); }
+@keyframes faq-drop {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+.faq-item summary::after { transition: transform 0.22s cubic-bezier(0.2, 1.4, 0.4, 1), background 0.2s ease, color 0.2s ease; }
+
+/* The stickers are stuck on paper, and paper moves. Each on its own
+   clock so they never sway together. */
+.js .sticker { animation: sticker-sway 7s ease-in-out infinite alternate; }
+.js .sticker-shades { animation-duration: 8.5s; animation-delay: -2s; }
+.js .sticker-another { animation-duration: 6.2s; animation-delay: -4s; }
+@keyframes sticker-sway {
+  from { transform: rotate(-1.2deg) translateY(0); }
+  to { transform: rotate(1.4deg) translateY(-5px); }
+}
+
+/* The hero art lands once, on load, and settles. */
+.js .hero-art { animation: art-land 0.75s cubic-bezier(0.2, 1.1, 0.35, 1) both; }
+@keyframes art-land {
+  0% { opacity: 0; transform: translateY(-26px) scale(1.04); }
+  62% { opacity: 1; transform: translateY(0) scale(1); }
+  78% { transform: translateY(0) scaleX(1.03) scaleY(0.97); }
+  100% { transform: none; }
+}
+
+/* A number that has finished counting lands on the table. */
+.stat-num.is-landed { animation: num-slam 0.36s cubic-bezier(0.2, 1.5, 0.4, 1); }
+@keyframes num-slam {
+  0% { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+
+/* The foam in the supply bar keeps settling while you are looking at it. */
+.js .supply.in .supply-drop i { animation: foam-drift 9s linear infinite; }
+@keyframes foam-drift {
+  from { background-position: 0 0, 0 0, 0 0, 0 0; }
+  to { background-position: 0 -40px, 0 -52px, 0 -34px, 0 -46px; }
+}
+
+/* His face tips when you go for the logo. */
+.brand-avatar { transition: transform 0.22s cubic-bezier(0.2, 1.5, 0.4, 1); }
+.brand:hover .brand-avatar { transform: rotate(-9deg) scale(1.08); }
+
+@media (prefers-reduced-motion: reduce) {
+  .js .step:not(.in), .js .game-card:not(.in), .js .community-card:not(.in),
+  .js .faq-item:not(.in), .js .facts li:not(.in), .js .game-featured:not(.in) {
+    opacity: 1;
+    transform: none;
+  }
+  .js .road-item.in::after, .road-item:not(.in)::after { transform: scaleY(1); transition: none; }
+  .btn-outline::before { transition: none; }
+  .faq-item[open] > p { animation: none; }
+  .js .sticker { animation: none; }
+  .js .hero-art { animation: none; }
+  .stat-num.is-landed { animation: none; }
+  .js .supply.in .supply-drop i { animation: none; }
+  .brand-avatar { transition: none; }
+}
