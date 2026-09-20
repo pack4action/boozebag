@@ -2620,3 +2620,59 @@ html { scroll-padding-top: 84px; }
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
 }
 @media (max-width: 560px) { .live-mark { width: 24px; height: 24px; } }
+
+/* ---- Room to breathe ----
+   The beer ran straight into the card under it and the card's own edges
+   were tight to its contents. The wave keeps riding up into the hero,
+   because that overlap is the point of it, but it lands with space under
+   it now, and the cards it lands between are not packed to their walls. */
+.wave-wrap { margin-bottom: 30px; padding: 2.2vw 0; }
+.regimen { padding: 22px 16px 46px; }
+.regimen-inner { padding: 22px 24px 24px; }
+.regimen-cans { margin-bottom: 4px; }
+.regimen-line { margin-bottom: 4px; }
+.ca-warning { margin-top: 6px; }
+.coin { padding: 18px; gap: 13px; }
+@media (max-width: 640px) {
+  .wave-wrap { margin-bottom: 22px; }
+  .regimen { padding: 16px 14px 36px; }
+  .regimen-inner { padding: 18px 16px 20px; }
+  .coin { padding: 15px; gap: 12px; }
+}
+
+/* Kick's green, thrown off the mark, so it reads as a screen that is on
+   rather than a flat sticker. A touch brighter when you go for it. */
+.live-mark, .community-mark {
+  filter:
+    drop-shadow(0 0 5px rgba(81, 251, 24, 0.55))
+    drop-shadow(0 0 14px rgba(81, 251, 24, 0.3))
+    drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+  transition: filter 0.22s ease, transform 0.22s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.stat-tag-live:hover .live-mark, .community-card:hover .community-mark {
+  transform: scale(1.08);
+  filter:
+    drop-shadow(0 0 7px rgba(81, 251, 24, 0.8))
+    drop-shadow(0 0 20px rgba(81, 251, 24, 0.45))
+    drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+}
+/* While he is actually on, it breathes. */
+.js .stat-tag-live.is-on .live-mark { animation: kick-glow 2.4s ease-in-out infinite alternate; }
+@keyframes kick-glow {
+  from {
+    filter:
+      drop-shadow(0 0 4px rgba(81, 251, 24, 0.4))
+      drop-shadow(0 0 10px rgba(81, 251, 24, 0.2))
+      drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+  }
+  to {
+    filter:
+      drop-shadow(0 0 8px rgba(81, 251, 24, 0.9))
+      drop-shadow(0 0 22px rgba(81, 251, 24, 0.5))
+      drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-mark, .community-mark { transition: none; }
+  .js .stat-tag-live.is-on .live-mark { animation: none; }
+}

@@ -941,11 +941,22 @@ if (buybar && heroEl && window.IntersectionObserver) {
   // The line the words follow is longer than the width it spans, since
   // it goes up and down: this is how much longer, per unit of width.
   let ratio = 1;
+  // Two reasons the words sat high in the beer. dominant-baseline: middle
+  // centres a line on its x-height, and these are all caps, so half the
+  // difference between cap height and x height has to come back; that
+  // part is measured once, below. And the lip of froth is painted over
+  // the top of the band, so the beer you can actually see starts below
+  // the band does: half of what the lip covers is the rest of it.
+  const FROTH = 2.25;   // half the height of the band the froth lip covers
+  let textDrop = 0;
   function measure() {
     const probeSvg = el('svg', { width: 10, height: 10, style: 'position:absolute;visibility:hidden' }, wave);
     const onePeriod = el('path', { d: curve(wavePoints(MID, 0, PERIOD), 'M'), fill: 'none' }, probeSvg);
     ratio = onePeriod.getTotalLength() / PERIOD;
     const probe = el('text', { class: 'wave-text', x: 0, y: 0 }, probeSvg);
+    probe.textContent = 'HOXW';
+    const box = probe.getBBox();
+    textDrop = r(-(box.y + box.height / 2));
     items = Array.from(words.querySelectorAll('li')).map((li) => {
       probe.textContent = li.textContent.toUpperCase();
       return { text: li.textContent.toUpperCase(), icon: li.dataset.icon, len: probe.getComputedTextLength() };
@@ -975,7 +986,9 @@ if (buybar && heroEl && window.IntersectionObserver) {
     const bottom = wavePoints(MID + THICK, x0, x1).reverse();
     const band = curve(top, 'M') + curve(bottom, ' L') + ' Z';
     const lineId = 'wave-line';
+    const textLineId = 'wave-line-text';
     el('path', { id: lineId, d: curve(wavePoints(MID, x0, x1), 'M'), fill: 'none' }, defs);
+    el('path', { id: textLineId, d: curve(wavePoints(MID + FROTH + textDrop, x0, x1), 'M'), fill: 'none' }, defs);
     // Cut two units past its end, under the next copy, so the two edges
     // never meet on the same pixel and let the dark through.
     el('rect', { x: 0, y: TOP, width: cycle + 2, height: HEIGHT }, el('clipPath', { id: 'wave-clip' }, defs));
@@ -1044,13 +1057,13 @@ if (buybar && heroEl && window.IntersectionObserver) {
         if (s + it.len < 0 || s > pathLen) return;
         const t = el('text', { class: 'wave-text' }, strip);
         const tp = el('textPath', { startOffset: String(r(s)) }, t);
-        tp.setAttributeNS(XLINK, 'xlink:href', '#' + lineId);
-        tp.setAttribute('href', '#' + lineId);
+        tp.setAttributeNS(XLINK, 'xlink:href', '#' + textLineId);
+        tp.setAttribute('href', '#' + textLineId);
         tp.textContent = it.text;
         const si = lead + it.iconAt + k * cycleLen;
         if (si < 0 || si > pathLen) return;
         const p = line.getPointAtLength(si);
-        const use = el('use', { class: 'wave-icon', x: r(p.x - ICON / 2), y: r(p.y - ICON / 2), width: ICON, height: ICON }, strip);
+        const use = el('use', { class: 'wave-icon', x: r(p.x - ICON / 2), y: r(p.y + FROTH - ICON / 2), width: ICON, height: ICON }, strip);
         use.setAttributeNS(XLINK, 'xlink:href', '#' + it.icon);
         use.setAttribute('href', '#' + it.icon);
       });
