@@ -1431,37 +1431,60 @@ if (buybar && heroEl && window.IntersectionObserver) {
   });
 })();
 
-// ---- Let the glass fill before the page goes ----
-// The Play Now buttons are links, so a tap used to take the page away
-// before the beer had got anywhere. Anything that pours and then leaves
-// this page waits for the pour to finish first. Only those: a link that
-// opens in a new tab leaves this page where it is, so it goes at once.
+// ---- Let a button finish before the page goes ----
+// Every one of these is a link, so pressing one used to take the page
+// away before its own animation had got anywhere: the whole point of the
+// button was never seen. Anything that leads somewhere else on this site
+// now plays out first and leaves when it is done.
+//
+// Each waits for its own thing rather than a number picked once: the
+// outline one has to fill to the top, so it waits for the whole pour; the
+// amber one only has to let the light cross its face, which is the middle
+// of its sweep; a switcher tab has a colour to change and little else.
 (function () {
-  const POUR = 580;   // a touch past the fill, so it is full when it goes
   if (reduceMotion) return;
+  const WAITS = [
+    ['a.btn-outline', 580, 'is-pouring'],
+    ['a.btn-primary, a.btn-tiny', 430, 'is-shine'],
+    ['a.game-switch-tab', 260, 'is-going'],
+  ];
   let going = false;
+  function held(el) {
+    for (const [sel, wait, mark] of WAITS) {
+      if (el.matches(sel)) return { wait, mark };
+    }
+    return null;
+  }
   document.addEventListener('click', (e) => {
     if (going || e.defaultPrevented) return;
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    const a = e.target.closest && e.target.closest('a.btn-outline');
+    const a = e.target.closest && e.target.closest('a.btn, a.game-switch-tab');
     if (!a) return;
     if (a.target && a.target !== '_self') return;
     if (a.hasAttribute('download')) return;
     const href = a.getAttribute('href');
     if (!href || href.charAt(0) === '#' || /^[a-z]+:/i.test(href)) return;
-    // Somewhere else on this site, in this tab: worth watching first.
+    // A link to a part of the page it is already on does not go anywhere.
+    const to = new URL(a.href, location.href);
+    if (to.pathname === location.pathname && to.hash) return;
+    const how = held(a);
+    if (!how) return;
     e.preventDefault();
     going = true;
-    a.classList.add('is-pouring');
-    setTimeout(() => { window.location.href = a.href; }, POUR);
+    a.classList.add(how.mark);
+    setTimeout(() => { window.location.href = a.href; }, how.wait);
     // If the page is still here well after that, something went wrong
-    // with the navigation and the button should not stay stuck full.
-    setTimeout(() => { going = false; a.classList.remove('is-pouring'); }, 4000);
+    // with the navigation and the button should not stay stuck.
+    setTimeout(() => {
+      going = false;
+      WAITS.forEach(([, , mark]) => a.classList.remove(mark));
+    }, 4000);
   });
   // Coming back through the history leaves the button as it was left.
   window.addEventListener('pageshow', () => {
     going = false;
-    document.querySelectorAll('.is-pouring').forEach((el) => el.classList.remove('is-pouring'));
+    document.querySelectorAll('.is-pouring, .is-shine, .is-going')
+      .forEach((el) => el.classList.remove('is-pouring', 'is-shine', 'is-going'));
   });
 })();
 
