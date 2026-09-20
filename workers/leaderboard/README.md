@@ -75,21 +75,37 @@ there by itself; the tag can stay or go.
 
 ## The token's numbers
 
-`GET /api/token` says how much of the coin there is, how many wallets
-hold it, and what it is worth: supply and holders read from the chain
-and held for ten minutes, the market cap from pump.fun's own record of
-the coin and held for one minute:
+`GET /api/token` says how much of the coin there is, what it is worth,
+and how many wallets hold it:
 
 ```json
-{"mint":"3kxCh…pump","supply":1000000000,"decimals":6,"holders":1234,"marketCap":42100,"at":1726660000000}
+{"mint":"3kxCh…pump","supply":1000000000,"decimals":6,"holders":1234,"holdersFrom":"solscan","marketCap":3800,"at":1726660000000}
 ```
 
-Supply is one cheap call and always answers. Counting holders asks the
-RPC for every token account of the mint, which the public Solana RPC
-allows only sometimes; when it refuses, `holders` is the last good count
-for up to a day, or `null` if there never was one, and the page hides the
-figure. For a count every time, set a private RPC (Helius, QuickNode and
-the like all have a free tier) on the Worker under Settings, Variables:
+Supply is one cheap call to the chain. The market cap comes from
+pump.fun's own record of the coin, which knows it from the first trade
+while the chart sites are still catching up, and is held for a minute.
+
+The holder count is the awkward one. Counting it on the chain means
+asking for every token account of the mint, and the free public Solana
+RPC refuses that call. So four places are tried in turn and the first
+that answers wins:
+
+1. Solscan's record of the token
+2. GeckoTerminal's token info
+3. pump.fun's coin record
+4. the chain itself, which really only answers through a private RPC
+
+`holdersFrom` in the answer says which one it was, so opening
+`/api/token` in a browser shows where the figure came from. The count is
+held for ten minutes, and the last good one is kept for a day after
+that, marked `"… (held)"`, so a refusal never blanks the figure on the
+page. If every source is out, `holders` is `null` and the page simply
+leaves the tile off.
+
+To count on the chain every time rather than relying on the three
+indexers, set a private RPC (Helius, QuickNode and the like all have a
+free tier) on the Worker under Settings, Variables:
 
 ```
 SOLANA_RPC = https://mainnet.helius-rpc.com/?api-key=...

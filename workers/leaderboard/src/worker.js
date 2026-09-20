@@ -223,103 +223,180 @@ async function liveAnswer(env) {
 }
 
 // ---- The token's own numbers ----
-// How much of it there is and how many wallets hold it, read from the
-// chain. Supply is one cheap call. Counting holders means asking for
-// every token account of the mint, which the public RPC allows only
-// sometimes; a private RPC (Helius, QuickNode, any of them) set as
-// SOLANA_RPC answers every time. Either way the answer is held for ten
-// minutes, and the last good count is kept for a day so a refused call
-// does not blank the page.
+// How much of the coin there is, what it is worth, and how many wallets
+// hold it. Supply is one cheap call to the chain. The market cap comes
+// from pump.fun, which knows it from the first trade. The holder count
+// is the awkward one: counting it on the chain means asking for every
+// token account of the mint, which the free public RPC refuses, so four
+// places are tried in turn and the first that answers wins. Supply and
+// holders are held ten minutes and the market cap one, and the last good
+// holder count is kept for a day so a refusal never blanks the figure.
 const TOKEN_MINT = '3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump';
 const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_HOLD_MS = 10 * 60 * 1000;
 const TOKEN_KEEP_MS = 24 * 60 * 60 * 1000;
+const CAP_HOLD_MS = 60 * 1000;
+const ASK_MS = 6000;
 let tokenHeld = null;
 let lastHolders = null;
+let coinHeld = null;
 
-async function rpc(env, method, params) {
-  const r = await fetch(env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-  });
-  if (!r.ok) return null;
-  const body = await r.json().catch(() => null);
-  return body && body.result !== undefined ? body.result : null;
+// A whole number of holders, or null for anything that is not one.
+function countOf(v) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 && n < 1e9 ? Math.round(n) : null;
 }
 
-async function tokenSupply(env, mint) {
+// Nothing here is worth holding the answer up for, so every call out has
+// a short leash.
+async function getJson(url, headers) {
   try {
-    const res = await rpc(env, 'getTokenSupply', [mint]);
-    const v = res && res.value;
-    if (!v) return null;
-    return { supply: Number(v.uiAmount), decimals: v.decimals };
+    const r = await fetch(url, {
+      headers: Object.assign({ Accept: 'application/json' }, headers || {}),
+      signal: AbortSignal.timeout(ASK_MS),
+    });
+    if (!r.ok) return null;
+    return await r.json();
   } catch (e) {
     return null;
   }
 }
 
-// Every token account of the mint, with only its balance asked for, and
-// the ones with something in them counted.
-async function tokenHolders(env, mint) {
+async function rpcAt(url, method, params) {
   try {
-    const res = await rpc(env, 'getProgramAccounts', [TOKEN_PROGRAM, {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+      signal: AbortSignal.timeout(ASK_MS * 3),
+    });
+    if (!r.ok) return null;
+    const body = await r.json().catch(() => null);
+    return body && body.result !== undefined ? body.result : null;
+  } catch (e) {
+    return null;
+  }
+}
+const rpcUrl = (env) => env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com';
+
+async function tokenSupply(env, mint) {
+  const res = await rpcAt(rpcUrl(env), 'getTokenSupply', [mint]);
+  const v = res && res.value;
+  if (!v) return null;
+  return { supply: Number(v.uiAmount), decimals: v.decimals };
+}
+
+// pump.fun's record of the coin, which carries the market cap and, on the
+// newer address, the holder count too. Fetched once and shared.
+async function pumpCoin(mint) {
+  const now = Date.now();
+  if (coinHeld && now - coinHeld.at < CAP_HOLD_MS) return coinHeld.coin;
+  let coin = null;
+  for (const base of ['https://frontend-api-v3.pump.fun/coins/', 'https://frontend-api.pump.fun/coins/']) {
+    coin = await getJson(base + mint);
+    if (coin && typeof coin === 'object') break;
+    coin = null;
+  }
+  coinHeld = { at: now, coin: coin || (coinHeld ? coinHeld.coin : null) };
+  return coinHeld.coin;
+}
+
+// ---- Where a holder count can come from ----
+// Solscan's own record of the token.
+async function holdersSolscan(mint) {
+  for (const url of ['https://public-api.solscan.io/token/meta?tokenAddress=' + mint,
+    'https://api.solscan.io/token/meta?token=' + mint]) {
+    const j = await getJson(url);
+    if (!j) continue;
+    const d = j.data && typeof j.data === 'object' ? j.data : j;
+    const n = countOf(d.holder !== undefined ? d.holder : d.holderCount);
+    if (n) return n;
+  }
+  return null;
+}
+
+// GeckoTerminal keeps a holder count alongside the rest of a token's info.
+async function holdersGecko(mint) {
+  const j = await getJson('https://api.geckoterminal.com/api/v2/networks/solana/tokens/' + mint + '/info',
+    { Accept: 'application/json;version=20230302' });
+  const a = j && j.data && j.data.attributes;
+  if (!a) return null;
+  const h = a.holders;
+  return countOf(h && typeof h === 'object' ? h.count : h);
+}
+
+// pump.fun, from the record already fetched for the market cap.
+async function holdersPump(mint) {
+  const c = await pumpCoin(mint);
+  if (!c) return null;
+  return countOf(c.holder_count !== undefined ? c.holder_count : c.holders);
+}
+
+// Straight off the chain: every token account of the mint, asking for
+// only its balance, counting the ones with something in them. Heavy, and
+// the free public RPC refuses it, so this runs last and only really
+// answers when SOLANA_RPC names a private one.
+async function holdersChain(env, mint) {
+  const urls = [rpcUrl(env)];
+  if (!env.SOLANA_RPC) urls.push('https://solana-rpc.publicnode.com');
+  for (const url of urls) {
+    const res = await rpcAt(url, 'getProgramAccounts', [TOKEN_PROGRAM, {
       encoding: 'base64',
       dataSlice: { offset: 64, length: 8 },
       filters: [{ dataSize: 165 }, { memcmp: { offset: 0, bytes: mint } }],
     }]);
-    if (!Array.isArray(res)) return null;
+    if (!Array.isArray(res)) continue;
     let n = 0;
-    res.forEach((acc) => {
+    for (const acc of res) {
       const raw = acc && acc.account && acc.account.data && acc.account.data[0];
-      if (!raw) return;
+      if (!raw) continue;
       const bytes = atob(raw);
       let amount = 0;
       for (let i = 7; i >= 0; i--) amount = amount * 256 + bytes.charCodeAt(i);
       if (amount > 0) n += 1;
-    });
-    return n;
-  } catch (e) {
-    return null;
-  }
-}
-
-// The market cap, from pump.fun's own record of the coin, which knows it
-// from the first trade while the chart sites are still catching up.
-// Tried at the newer address first and the older one after.
-async function pumpCap(mint) {
-  for (const base of ['https://frontend-api-v3.pump.fun/coins/', 'https://frontend-api.pump.fun/coins/']) {
-    try {
-      const r = await fetch(base + mint, { headers: { Accept: 'application/json' } });
-      if (!r.ok) continue;
-      const c = await r.json();
-      const cap = Number(c && c.usd_market_cap);
-      if (cap > 0) return cap;
-    } catch (e) {
-      // the next address, then
     }
+    if (n > 0) return n;
   }
   return null;
 }
-const CAP_HOLD_MS = 60 * 1000;
-let capHeld = null;
+
+// The four in turn, stopping at the first that answers, and saying which
+// one it was so a look at /api/token shows where the figure came from.
+async function tokenHolders(env, mint) {
+  const tries = [['solscan', holdersSolscan], ['geckoterminal', holdersGecko],
+    ['pump.fun', holdersPump], ['chain', (m) => holdersChain(env, m)]];
+  for (const [from, ask] of tries) {
+    const n = await ask(mint);
+    if (n) return { holders: n, from };
+  }
+  return null;
+}
 
 async function tokenAnswer(env) {
   const now = Date.now();
   const mint = env.TOKEN_MINT || TOKEN_MINT;
-  // Supply and holders are held ten minutes; the market cap one.
   if (!tokenHeld || now - tokenHeld.at >= TOKEN_HOLD_MS) {
     const [supply, counted] = await Promise.all([tokenSupply(env, mint), tokenHolders(env, mint)]);
-    let holders = counted;
-    if (holders !== null) lastHolders = { at: now, holders };
-    else if (lastHolders && now - lastHolders.at < TOKEN_KEEP_MS) holders = lastHolders.holders;
-    tokenHeld = { at: now, body: { supply: supply ? supply.supply : null, decimals: supply ? supply.decimals : null, holders } };
+    let holders = counted ? counted.holders : null;
+    let holdersFrom = counted ? counted.from : null;
+    if (holders !== null) lastHolders = { at: now, holders, from: holdersFrom };
+    else if (lastHolders && now - lastHolders.at < TOKEN_KEEP_MS) {
+      holders = lastHolders.holders;
+      holdersFrom = lastHolders.from + ' (held)';
+    }
+    tokenHeld = {
+      at: now,
+      body: {
+        supply: supply ? supply.supply : null,
+        decimals: supply ? supply.decimals : null,
+        holders,
+        holdersFrom,
+      },
+    };
   }
-  if (!capHeld || now - capHeld.at >= CAP_HOLD_MS) {
-    const cap = await pumpCap(mint);
-    capHeld = { at: now, cap: cap !== null ? cap : (capHeld ? capHeld.cap : null) };
-  }
-  return Object.assign({ mint }, tokenHeld.body, { marketCap: capHeld.cap, at: now });
+  const coin = await pumpCoin(mint);
+  const cap = coin ? countOf(coin.usd_market_cap) : null;
+  return Object.assign({ mint }, tokenHeld.body, { marketCap: cap, at: now });
 }
 
 export default {

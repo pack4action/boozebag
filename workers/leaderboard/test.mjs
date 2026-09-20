@@ -56,7 +56,12 @@ const ok = (name, cond, saw) => {
   const r = await fetch(BASE + '/api/token', { headers: { Origin: 'https://boozebag.xyz' } });
   const body = await r.json().catch(() => null);
   ok('token answers', r.status === 200, r.status);
-  ok('token has its fields', body && 'supply' in body && 'holders' in body && typeof body.mint === 'string', body);
+  ok('token has its fields', body && 'supply' in body && 'holders' in body
+    && 'marketCap' in body && 'holdersFrom' in body && typeof body.mint === 'string', body);
+  if (body && body.holders !== null) {
+    ok('a holder count is a whole number', Number.isInteger(body.holders) && body.holders > 0, body.holders);
+    ok('and says where it came from', typeof body.holdersFrom === 'string' && body.holdersFrom.length > 0, body.holdersFrom);
+  }
   ok('token is allowed on the site', r.headers.get('access-control-allow-origin') === 'https://boozebag.xyz');
   ok('token is held a while', /max-age=\d+/.test(r.headers.get('cache-control') || ''));
 }
