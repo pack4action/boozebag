@@ -422,7 +422,7 @@ async function tokenAnswer(env) {
 // can press at once, so the count belongs to the site rather than to a
 // browser: press it and the figure everyone is looking at goes up. The
 // table is made on first use, so nothing has to be run by hand for it.
-const CRACK_MAX = 12;        // the most one run of presses can add
+const CRACK_MAX = 25;        // the most one run of presses can add
 const CRACK_EVERY = 2;       // seconds between posts from one place
 const CRACK_HOLD_MS = 5000;  // how long a read is reused
 let crackTableReady = false;

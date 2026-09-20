@@ -42,7 +42,10 @@ h1, h2, h3 {
 }
 
 a { color: inherit; text-decoration: none; }
-img { max-width: 100%; display: block; }
+/* height: auto is the other half of max-width: 100%. Without it an image
+   that is narrowed to fit keeps the height off its width attribute and
+   comes out stretched. */
+img { max-width: 100%; height: auto; display: block; }
 
 /* ---- Icons ----
    Inline SVG rather than emoji throughout. Emoji are drawn by the platform,
@@ -1593,8 +1596,21 @@ html { scroll-padding-top: 84px; }
   gap: 14px;
   flex-wrap: wrap;
 }
-.regimen-crack { position: relative; }
+/* Made to be hammered. manipulation kills the double tap zoom wait on a
+   phone so the press lands on the finger going down, not 300ms later, and
+   nothing here can be selected or long pressed into a menu by accident. */
+.regimen-crack {
+  position: relative;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 .regimen-crack:active { transform: translate(2px, 2px) scale(0.98); }
+/* The lift and drop has to finish inside a fast run of taps, or the button
+   reads as stuck down while somebody is hammering it. */
+.regimen-crack { transition-duration: 0.07s; }
 /* What he says back. It used to sit beside the button when the line was
    short and drop under it when it was long, so it hopped about from one
    press to the next. It gets its own line now, every time, and holds the

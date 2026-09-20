@@ -340,30 +340,43 @@ function crackLine() {
   return CRACK_LINES[i];
 }
 let audio = null;
+let crackNoise = null;   // the burst, built once and played again and again
+let lastSound = 0;       // so a fast run of presses does not stack into mush
 function crackSound() {
   try { if (localStorage.getItem('boozebagGameSound') === 'off') return; } catch (e) { /* fine */ }
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
+  const since = performance.now() - lastSound;
+  if (since < 55) return;
   try {
     if (!audio) audio = new AC();
     if (audio.state === 'suspended') audio.resume();
     const t = audio.currentTime;
+    lastSound = performance.now();
+    // Quieter when they come quickly, so spamming it is a run of cracks
+    // rather than a wall of noise.
+    const loud = since < 260 ? 0.45 : 1;
     // The crack: a burst of noise, sharp at the front, through a high pass,
-    // trailing off into the hiss.
-    const len = Math.floor(audio.sampleRate * 0.42);
-    const buf = audio.createBuffer(1, len, audio.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) {
-      const p = i / len;
-      d[i] = (Math.random() * 2 - 1) * (p < 0.025 ? 1 : Math.pow(1 - p, 2.4) * 0.3);
+    // trailing off into the hiss. Built once; rebuilding it every press is
+    // twenty thousand random numbers a tap.
+    if (!crackNoise || crackNoise.sampleRate !== audio.sampleRate) {
+      const len = Math.floor(audio.sampleRate * 0.42);
+      crackNoise = audio.createBuffer(1, len, audio.sampleRate);
+      const d = crackNoise.getChannelData(0);
+      for (let i = 0; i < len; i++) {
+        const p = i / len;
+        d[i] = (Math.random() * 2 - 1) * (p < 0.025 ? 1 : Math.pow(1 - p, 2.4) * 0.3);
+      }
     }
     const src = audio.createBufferSource();
-    src.buffer = buf;
+    src.buffer = crackNoise;
+    // A little off each time so the repeat does not sound like a loop.
+    src.playbackRate.value = 0.92 + Math.random() * 0.16;
     const hp = audio.createBiquadFilter();
     hp.type = 'highpass';
     hp.frequency.value = 1600;
     const g = audio.createGain();
-    g.gain.value = 0.45;
+    g.gain.value = 0.45 * loud;
     src.connect(hp);
     hp.connect(g);
     g.connect(audio.destination);
@@ -374,7 +387,7 @@ function crackSound() {
     osc.frequency.setValueAtTime(300, t);
     osc.frequency.exponentialRampToValueAtTime(80, t + 0.09);
     const og = audio.createGain();
-    og.gain.setValueAtTime(0.3, t);
+    og.gain.setValueAtTime(0.3 * loud, t);
     og.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
     osc.connect(og);
     og.connect(audio.destination);
@@ -382,12 +395,21 @@ function crackSound() {
     osc.stop(t + 0.14);
   } catch (e) { /* no sound is fine */ }
 }
+let foamLive = 0;      // bubbles in the air right now
+let lastFoam = 0;
 function foam(fromEl) {
   if (reduceMotion) return;
   const r = fromEl.getBoundingClientRect();
   const cx = r.left + r.width * (0.35 + Math.random() * 0.3);
   const cy = r.top + 4;
-  for (let i = 0; i < 18; i++) {
+  // One press gets the full head of foam. A run of them gets a smaller
+  // one each, with a ceiling on what can be in the air at once, so
+  // holding the button down still runs at frame rate.
+  const since = performance.now() - lastFoam;
+  lastFoam = performance.now();
+  const want = since < 140 ? 5 : since < 320 ? 10 : 18;
+  const n = Math.max(0, Math.min(want, 90 - foamLive));
+  for (let i = 0; i < n; i++) {
     const b = document.createElement('span');
     b.className = 'foam';
     const size = 4 + Math.random() * 10;
@@ -405,7 +427,11 @@ function foam(fromEl) {
       { transform: 'translate(-50%, -50%) scale(0.6)', opacity: 1 },
       { transform: 'translate(calc(-50% + ' + dx.toFixed(0) + 'px), calc(-50% + ' + (dy * 0.55).toFixed(0) + 'px)) scale(1.1)', opacity: 1, offset: 0.35 },
       { transform: 'translate(calc(-50% + ' + (dx * 1.2).toFixed(0) + 'px), calc(-50% + ' + (dy * 0.2 + 140).toFixed(0) + 'px)) scale(0.5)', opacity: 0 },
-    ], { duration: 650 + Math.random() * 450, easing: 'cubic-bezier(0.2, 0.7, 0.4, 1)' }).onfinish = () => b.remove();
+    ], { duration: 650 + Math.random() * 450, easing: 'cubic-bezier(0.2, 0.7, 0.4, 1)' }).onfinish = () => {
+      foamLive--;
+      b.remove();
+    };
+    foamLive++;
   }
 }
 if (crackBtn) {
@@ -425,13 +451,17 @@ if (crackBtn) {
   };
   showTally();
   let sayTimer = 0;
+  let lastSay = 0;
+  let lastPop = 0;
   crackBtn.addEventListener('click', () => {
+    const now = performance.now();
     cracks = (cracks || 0) + 1;
     try { localStorage.setItem(dayKey(), String(cracks)); } catch (e) { /* fine */ }
     crackSound();
-    buzz(18);
+    buzz(now - lastPop < 140 ? 8 : 18);
     foam(crackBtn);
-    if (regimenCans) {
+    // The can only wobbles when there is time to see it wobble.
+    if (regimenCans && now - lastPop > 110) {
       const lit = regimenCans.querySelectorAll('.regimen-can.is-down');
       const can = lit[Math.floor(Math.random() * lit.length)] || regimenCans.firstChild;
       if (can) {
@@ -440,7 +470,11 @@ if (crackBtn) {
         can.classList.add('is-wobble');
       }
     }
-    if (regimenSay) {
+    lastPop = now;
+    // He gets a beat to finish a line before starting the next one, or a
+    // fast run is just a flicker of half-read words.
+    if (regimenSay && now - lastSay > 650) {
+      lastSay = now;
       regimenSay.textContent = crackLine();
       regimenSay.classList.remove('is-in');
       void regimenSay.offsetWidth;
@@ -450,6 +484,9 @@ if (crackBtn) {
     }
     showTally();
   });
+  // A press must land the moment the finger does, and a run of them must
+  // not turn into a text selection or a double tap zoom.
+  crackBtn.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 // ---- Top bags ----
@@ -1193,6 +1230,9 @@ if (buybar && heroEl && window.IntersectionObserver) {
   let target = 0;          // where it is rolling to
   let rolling = 0;
   let sendTimer = 0;
+  let holdTimer = 0;
+  // What one post carries. The board takes the same number at the far end.
+  const CRACK_POST_MAX = 25;
   let sending = false;
   let started = false;
 
@@ -1209,8 +1249,12 @@ if (buybar && heroEl && window.IntersectionObserver) {
       return;
     }
     const t0 = performance.now();
+    // A big jump from somebody else's run is worth watching roll. Your own
+    // press is one, and it should land on your finger, not half a second
+    // behind it, or hammering the button feels like it is not listening.
+    const dur = Math.min(520, 110 + Math.abs(to - from) * 34);
     const step = (now) => {
-      const p = Math.min(1, (now - t0) / 520);
+      const p = Math.min(1, (now - t0) / dur);
       const eased = 1 - Math.pow(1 - p, 3);
       shown = Math.round(from + (to - from) * eased);
       numEl.textContent = fmt(shown);
@@ -1276,8 +1320,10 @@ if (buybar && heroEl && window.IntersectionObserver) {
 
   function send() {
     if (sending || mine <= 0) return;
-    const n = Math.min(mine, 12);
+    const n = Math.min(mine, CRACK_POST_MAX);
     sending = true;
+    clearTimeout(holdTimer);
+    holdTimer = 0;
     fetch(siteApi + '/cracks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1290,6 +1336,12 @@ if (buybar && heroEl && window.IntersectionObserver) {
         if (res.ok) {
           mine = Math.max(0, mine - n);
           took(res.c, false);
+          // Somebody hammering it can press more than one post carries.
+          // Keep going until the backlog is gone.
+          if (mine > 0) {
+            clearTimeout(sendTimer);
+            sendTimer = setTimeout(send, 900);
+          }
         } else {
           // Told to wait: keep what was pressed and try again shortly.
           clearTimeout(sendTimer);
@@ -1299,13 +1351,21 @@ if (buybar && heroEl && window.IntersectionObserver) {
       .catch(() => { sending = false; });
   }
 
+  let upTimer = 0;
   btn.addEventListener('click', () => {
     mine += 1;
     retarget();
     wrap.classList.add('is-up');
-    setTimeout(() => wrap.classList.remove('is-up'), 200);
+    // One timer, restarted, or the first press to land clears the class
+    // out from under every press after it and the number stops jumping.
+    clearTimeout(upTimer);
+    upTimer = setTimeout(() => wrap.classList.remove('is-up'), 180);
+    // Wait for the tapping to stop, but never longer than a couple of
+    // seconds, so a long run still shows up for everyone else while it
+    // is happening rather than only at the end.
     clearTimeout(sendTimer);
     sendTimer = setTimeout(send, 700);
+    if (!holdTimer) holdTimer = setTimeout(() => { holdTimer = 0; send(); }, 2000);
   });
 
   read();

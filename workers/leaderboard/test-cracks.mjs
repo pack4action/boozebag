@@ -84,12 +84,12 @@ async function fresh() {
 {
   const { call } = await fresh();
   let r = await call('POST', { n: 9999 }, '5.5.5.5');
-  ok('a silly number is capped', r.body.today === 12, r.body);
+  ok('a silly number is capped', r.body.today === 25, r.body);
   r = await call('POST', { n: 1 }, '5.5.5.5');
   ok('the same place is told to wait', r.status === 429, r.status);
-  ok('and still gets the count', r.body.today === 12, r.body);
+  ok('and still gets the count', r.body.today === 25, r.body);
   r = await call('POST', { n: 1 }, '6.6.6.6');
-  ok('but somewhere else is fine', r.status === 200 && r.body.today === 13, r.body);
+  ok('but somewhere else is fine', r.status === 200 && r.body.today === 26, r.body);
 }
 
 // Rubbish in the body.
