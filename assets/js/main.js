@@ -510,31 +510,64 @@ function setFresh(el, text) {
   void el.offsetWidth;
   el.classList.add('is-fresh');
 }
+// Two places know the price. DexScreener is asked first; when it has no
+// pair for the coin, GeckoTerminal (CoinGecko's on-chain side, which
+// indexes pump.fun pools on its own) is asked instead, and the tiles say
+// which one answered. Whichever it was also names the pool the chart
+// button embeds.
+let geckoPool = '';
+function showMarket(m) {
+  setFresh(document.getElementById('mk-price'), price(m.price));
+  setFresh(document.getElementById('mk-mc'), money(m.marketCap));
+  setFresh(document.getElementById('mk-vol'), money(m.volume));
+  const chEl = document.getElementById('mk-change');
+  if (chEl && isFinite(m.change)) {
+    setFresh(chEl, (m.change > 0 ? '+' : '') + m.change.toFixed(1) + '%');
+    chEl.classList.toggle('is-up', m.change > 0);
+    chEl.classList.toggle('is-down', m.change < 0);
+  }
+  if (m.url) marketEl.href = m.url;
+  const src = marketEl.querySelector('.market-src');
+  if (src) src.textContent = 'live from ' + m.source;
+  marketEl.hidden = false;
+}
+function pullDex() {
+  return fetch('https://api.dexscreener.com/latest/dex/tokens/' + CA)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      const pairs = data && Array.isArray(data.pairs) ? data.pairs.filter((p) => p && p.priceUsd) : [];
+      if (!pairs.length) return false;
+      pairs.sort((a, b) => ((b.liquidity && b.liquidity.usd) || 0) - ((a.liquidity && a.liquidity.usd) || 0));
+      const p = pairs[0];
+      if (p.pairAddress) pairAddress = p.pairAddress;
+      showMarket({ price: p.priceUsd, marketCap: p.marketCap || p.fdv, volume: p.volume && p.volume.h24,
+        change: p.priceChange && Number(p.priceChange.h24), url: p.url, source: 'DexScreener' });
+      return true;
+    })
+    .catch(() => false);
+}
+function pullGecko() {
+  return fetch('https://api.geckoterminal.com/api/v2/networks/solana/tokens/' + CA + '?include=top_pools', {
+    headers: { Accept: 'application/json;version=20230302' },
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      const t = data && data.data && data.data.attributes;
+      if (!t || !t.price_usd) return false;
+      const pool = data.included && data.included.find((x) => x && x.type === 'pool');
+      const pa = pool && pool.attributes;
+      if (pa && pa.address) geckoPool = pa.address;
+      showMarket({ price: t.price_usd, marketCap: t.market_cap_usd || t.fdv_usd,
+        volume: (pa && pa.volume_usd && pa.volume_usd.h24) || (t.volume_usd && t.volume_usd.h24),
+        change: pa && pa.price_change_percentage && Number(pa.price_change_percentage.h24),
+        url: geckoPool ? 'https://www.geckoterminal.com/solana/pools/' + geckoPool : 'https://www.geckoterminal.com/solana/tokens/' + CA,
+        source: 'GeckoTerminal' });
+      return true;
+    })
+    .catch(() => false);
+}
 if (marketEl) {
-  const pull = () => {
-    fetch('https://api.dexscreener.com/latest/dex/tokens/' + CA)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        const pairs = data && Array.isArray(data.pairs) ? data.pairs.filter((p) => p && p.priceUsd) : [];
-        if (!pairs.length) return;
-        pairs.sort((a, b) => ((b.liquidity && b.liquidity.usd) || 0) - ((a.liquidity && a.liquidity.usd) || 0));
-        const p = pairs[0];
-        setFresh(document.getElementById('mk-price'), price(p.priceUsd));
-        setFresh(document.getElementById('mk-mc'), money(p.marketCap || p.fdv));
-        setFresh(document.getElementById('mk-vol'), money(p.volume && p.volume.h24));
-        const ch = p.priceChange && Number(p.priceChange.h24);
-        const chEl = document.getElementById('mk-change');
-        if (chEl && isFinite(ch)) {
-          setFresh(chEl, (ch > 0 ? '+' : '') + ch.toFixed(1) + '%');
-          chEl.classList.toggle('is-up', ch > 0);
-          chEl.classList.toggle('is-down', ch < 0);
-        }
-        if (p.url) marketEl.href = p.url;
-        if (p.pairAddress) pairAddress = p.pairAddress;
-        marketEl.hidden = false;
-      })
-      .catch(() => {});
-  };
+  const pull = () => { pullDex().then((got) => { if (!got) return pullGecko(); return true; }); };
   pull();
   setInterval(() => { if (!document.hidden) pull(); }, 60000);
 }
@@ -547,17 +580,16 @@ if (marketEl) {
 // DexScreener will not say, the chart opens in a new tab instead of an
 // empty frame.
 let pairAddress = '';
+// Where the chart can be embedded from, in order of preference: the
+// DexScreener pair, the GeckoTerminal pool, or nowhere.
+function chartSource() {
+  if (pairAddress) return 'https://dexscreener.com/solana/' + pairAddress + '?embed=1&theme=dark&trades=0&info=0';
+  if (geckoPool) return 'https://www.geckoterminal.com/solana/pools/' + geckoPool + '?embed=1&info=0&swaps=0&grayscale=0&light_chart=0';
+  return '';
+}
 function findPair() {
-  if (pairAddress) return Promise.resolve(pairAddress);
-  return fetch('https://api.dexscreener.com/latest/dex/tokens/' + CA)
-    .then((r) => (r.ok ? r.json() : null))
-    .then((data) => {
-      const pairs = data && Array.isArray(data.pairs) ? data.pairs.filter((p) => p && p.pairAddress) : [];
-      pairs.sort((a, b) => ((b.liquidity && b.liquidity.usd) || 0) - ((a.liquidity && a.liquidity.usd) || 0));
-      if (pairs.length) pairAddress = pairs[0].pairAddress;
-      return pairAddress;
-    })
-    .catch(() => '');
+  if (chartSource()) return Promise.resolve(chartSource());
+  return pullDex().then((got) => (got ? true : pullGecko())).then(() => chartSource()).catch(() => '');
 }
 const chartToggle = document.getElementById('chart-toggle');
 const chartFrame = document.getElementById('chart-frame');
@@ -569,16 +601,16 @@ if (chartToggle && chartFrame) {
     if (open && !chartFrame.firstChild) {
       asking = true;
       chartToggle.textContent = 'Finding the pair…';
-      findPair().then((pair) => {
+      findPair().then((src) => {
         asking = false;
-        if (!pair) {
-          // DexScreener has no pair for it; pump.fun's own page has the chart.
+        if (!src) {
+          // Nobody has a pool for it yet; pump.fun's own page has the chart.
           chartToggle.textContent = 'Show the chart';
           window.open('https://pump.fun/coin/' + CA, '_blank', 'noopener');
           return;
         }
         const iframe = document.createElement('iframe');
-        iframe.src = 'https://dexscreener.com/solana/' + pair + '?embed=1&theme=dark&trades=0&info=0';
+        iframe.src = src;
         iframe.title = '$BOOZEBAG price chart';
         iframe.loading = 'lazy';
         iframe.setAttribute('allow', 'clipboard-write');
