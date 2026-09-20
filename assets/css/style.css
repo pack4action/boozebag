@@ -1083,7 +1083,7 @@ body.nav-open { overflow: hidden; }
 .road-item::before {
   content: "";
   position: absolute;
-  left: 21px;
+  left: var(--spine, 21px);
   top: 22px;
   bottom: -22px;
   width: 2px;
@@ -1164,8 +1164,7 @@ body.nav-open { overflow: hidden; }
 }
 
 @media (max-width: 560px) {
-  .road-item::before { left: 17px; }
-  .road-item { gap: 12px; }
+  .road-item { --spine: 17px; gap: 12px; }
   .road-dot { width: 36px; height: 36px; font-size: 16px; }
   .road-body { padding: 15px 16px; }
   .road-head h3 { font-size: 17px; }
@@ -2284,7 +2283,7 @@ html { scroll-padding-top: 84px; }
 .road-item::after {
   content: "";
   position: absolute;
-  left: 21px;
+  left: var(--spine, 21px);
   top: 22px;
   bottom: -22px;
   width: 2px;
