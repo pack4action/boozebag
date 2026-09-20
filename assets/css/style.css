@@ -2609,3 +2609,14 @@ html { scroll-padding-top: 84px; }
   .brand-avatar { width: 32px; height: 32px; }
   .nav-links { gap: 18px; font-size: 13.5px; }
 }
+
+/* Kick's own mark on the end of the live pill in the hero, so what the
+   pill is a link to is obvious before the words are read. */
+.live-mark {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  margin-left: 2px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+}
+@media (max-width: 560px) { .live-mark { width: 24px; height: 24px; } }
