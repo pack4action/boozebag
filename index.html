@@ -38,7 +38,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=46" />
+<link rel="stylesheet" href="assets/css/style.css?v=47" />
 <!-- Visits, counted without cookies. Numbers at plausible.io once the
      site is registered there under this domain. -->
 <script defer data-domain="pack4action.github.io" src="https://plausible.io/js/script.js"></script>
@@ -234,29 +234,31 @@
       <a href="https://t.me/degenhorde" target="_blank" rel="noopener" class="btn btn-outline btn-lg">Join the Telegram</a>
     </div>
 
-    <div class="ca-box">
-      <span class="ca-label">CA (Solana)</span>
-      <span class="ca-value ca-address" id="ca-value">3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump</span>
-      <button class="btn btn-tiny" id="ca-copy" type="button">Copy</button>
-      <p class="quick-links">
+    <!-- The coin, in one card: the address with its copy button, the two
+         live figures, the four places to see it, and the chart on request. -->
+    <div class="coin" id="coin">
+      <div class="ca-box" id="ca-box">
+        <span class="ca-label">Contract address on Solana</span>
+        <div class="ca-row">
+          <span class="ca-value ca-address" id="ca-value">3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump</span>
+          <button class="btn btn-tiny" id="ca-copy" type="button">Copy</button>
+        </div>
+      </div>
+      <a class="market" id="market" href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" hidden>
+        <span class="market-tile" id="mk-mc-tile" hidden><span class="market-label">Market cap</span><b id="mk-mc"></b></span>
+        <span class="market-tile" id="mk-holders-tile" hidden><span class="market-label">Holders</span><b id="mk-holders"></b></span>
+      </a>
+      <p class="coin-src" id="mk-src"></p>
+      <div class="coin-links">
         <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">pump.fun <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
         <a href="https://dexscreener.com/solana/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">DexScreener <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
         <a href="https://jup.ag/swap/SOL-3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">Jupiter <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
         <a href="https://solscan.io/token/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">Solscan <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
-      </p>
-    </div>
-    <!-- Live off DexScreener; stays hidden until it has answered. -->
-    <!-- Two figures, live: the market cap from wherever knows it first,
-         and the holder count off the chain through the Worker. -->
-    <a class="market" id="market" href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" hidden>
-      <span class="market-tile" id="mk-mc-tile" hidden><span class="market-label">Market cap</span><b id="mk-mc"></b></span>
-      <span class="market-tile" id="mk-holders-tile" hidden><span class="market-label">Holders</span><b id="mk-holders"></b></span>
-      <span class="market-src" id="mk-src"></span>
-    </a>
-    <!-- The chart itself, loaded only when asked for: it is heavy on a phone. -->
-    <div class="chart" id="chart">
-      <button class="btn btn-outline btn-small chart-toggle" id="chart-toggle" type="button" aria-expanded="false">Show the chart</button>
-      <div class="chart-frame" id="chart-frame" hidden></div>
+      </div>
+      <div class="chart" id="chart">
+        <button class="chart-toggle" id="chart-toggle" type="button" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-chart-up"></use></svg><span id="chart-label">Show the chart</span></button>
+        <div class="chart-frame" id="chart-frame" hidden></div>
+      </div>
     </div>
     <p class="ca-warning"><svg class="icon icon-warn" aria-hidden="true"><use href="#i-warning"></use></svg> Only the CA I post on <a href="https://x.com/BoozebagFitness" target="_blank" rel="noopener">@BoozebagFitness</a> or in the <a href="https://t.me/degenhorde" target="_blank" rel="noopener">Telegram</a> is real. Match every character.</p>
   </div>
@@ -678,7 +680,7 @@
 
 <script src="assets/js/wallet.js?v=5"></script>
 <script src="assets/js/leaderboard.js?v=3"></script>
-<script src="assets/js/main.js?v=27"></script>
+<script src="assets/js/main.js?v=28"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>

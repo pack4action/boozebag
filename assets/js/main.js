@@ -516,12 +516,17 @@ function setFresh(el, text) {
 // which one answered. Whichever it was also names the pool the chart
 // button embeds.
 let geckoPool = '';
-// Which places have answered, so the line under the tiles can say.
-const marketSources = [];
-function noteSource(name) {
-  if (marketSources.indexOf(name) === -1) marketSources.push(name);
+// The line under the figures says where each one is from.
+let holdersShown = false;
+function noteSource() {
   const src = document.getElementById('mk-src');
-  if (src) src.textContent = 'live from ' + marketSources.join(' and ');
+  if (!src) return;
+  const parts = [];
+  if (capFrom) parts.push('market cap via ' + capFrom);
+  if (holdersShown) parts.push('holders on chain');
+  src.textContent = parts.join(' \u00b7 ');
+  // A lone figure takes the whole row rather than half of it.
+  if (marketEl) marketEl.classList.toggle('is-one', parts.length === 1);
 }
 // A market cap can come from a chart site or from pump.fun through the
 // Worker; the chart sites are believed first when they have one.
@@ -534,7 +539,7 @@ function showCap(cap, source, url, strong) {
   const tile = document.getElementById('mk-mc-tile');
   if (tile) tile.hidden = false;
   if (url) marketEl.href = url;
-  noteSource(source);
+  noteSource();
   marketEl.hidden = false;
 }
 function showMarket(m) {
@@ -602,6 +607,8 @@ function findPair() {
 }
 const chartToggle = document.getElementById('chart-toggle');
 const chartFrame = document.getElementById('chart-frame');
+const chartLabel = document.getElementById('chart-label');
+const sayChart = (t) => { if (chartLabel) chartLabel.textContent = t; };
 if (chartToggle && chartFrame) {
   let asking = false;
   chartToggle.addEventListener('click', () => {
@@ -609,12 +616,12 @@ if (chartToggle && chartFrame) {
     const open = chartFrame.hidden;
     if (open && !chartFrame.firstChild) {
       asking = true;
-      chartToggle.textContent = 'Finding the pair…';
+      sayChart('Finding the pair…');
       findPair().then((src) => {
         asking = false;
         if (!src) {
           // Nobody has a pool for it yet; pump.fun's own page has the chart.
-          chartToggle.textContent = 'Show the chart';
+          sayChart('Show the chart');
           window.open('https://pump.fun/coin/' + CA, '_blank', 'noopener');
           return;
         }
@@ -625,13 +632,13 @@ if (chartToggle && chartFrame) {
         iframe.setAttribute('allow', 'clipboard-write');
         chartFrame.appendChild(iframe);
         chartFrame.hidden = false;
-        chartToggle.textContent = 'Hide the chart';
+        sayChart('Hide the chart');
         chartToggle.setAttribute('aria-expanded', 'true');
       });
       return;
     }
     chartFrame.hidden = !open;
-    chartToggle.textContent = open ? 'Hide the chart' : 'Show the chart';
+    sayChart(open ? 'Hide the chart' : 'Show the chart');
     chartToggle.setAttribute('aria-expanded', String(open));
   });
 }
@@ -743,7 +750,7 @@ function askToken() {
         const tk = document.getElementById('tk-holders');
         if (tk) tk.textContent = holders.toLocaleString('en-US');
         if (stat) stat.hidden = false;
-        if (marketEl) { noteSource('the chain'); marketEl.hidden = false; }
+        if (marketEl) { holdersShown = true; noteSource(); marketEl.hidden = false; }
       }
       if (marketEl && Number(t.marketCap) > 0) showCap(t.marketCap, 'pump.fun', 'https://pump.fun/coin/' + CA, false);
       const supply = Number(t.supply);
