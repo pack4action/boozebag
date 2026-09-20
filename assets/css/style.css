@@ -2645,46 +2645,42 @@ html { scroll-padding-top: 84px; }
 }
 
 /* ---- Kick, as a neon sign ----
-   The mark itself is burned out to white, the way the middle of a lit
-   tube looks, and its own green is thrown around it in three layers:
-   a tight one that reads as the glass, a wider one for the spill, and a
-   soft far one for the room. */
+   The mark is burned out to white, the way the middle of a lit tube
+   looks, with its own green around it: a tight layer that reads as the
+   glass and a wider one for the spill. Kept close in, so it lights the
+   mark rather than the whole pill. */
 .live-mark, .community-mark {
   filter:
     brightness(0) invert(1)
-    drop-shadow(0 0 2px rgba(120, 255, 70, 0.95))
-    drop-shadow(0 0 6px rgba(81, 251, 24, 0.85))
-    drop-shadow(0 0 16px rgba(81, 251, 24, 0.55))
-    drop-shadow(0 0 34px rgba(81, 251, 24, 0.3));
+    drop-shadow(0 0 1.5px rgba(120, 255, 70, 0.7))
+    drop-shadow(0 0 5px rgba(81, 251, 24, 0.45))
+    drop-shadow(0 0 11px rgba(81, 251, 24, 0.2));
   transition: filter 0.22s ease, transform 0.22s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
 .stat-tag-live:hover .live-mark, .community-card:hover .community-mark {
-  transform: scale(1.08);
+  transform: scale(1.06);
   filter:
     brightness(0) invert(1)
-    drop-shadow(0 0 3px rgba(150, 255, 110, 1))
-    drop-shadow(0 0 9px rgba(81, 251, 24, 0.95))
-    drop-shadow(0 0 24px rgba(81, 251, 24, 0.7))
-    drop-shadow(0 0 48px rgba(81, 251, 24, 0.4));
+    drop-shadow(0 0 2px rgba(140, 255, 95, 0.85))
+    drop-shadow(0 0 7px rgba(81, 251, 24, 0.6))
+    drop-shadow(0 0 16px rgba(81, 251, 24, 0.3));
 }
-/* While he is actually on, the tube breathes the way a real one does. */
+/* While he is actually on, the tube breathes a little. */
 .js .stat-tag-live.is-on .live-mark { animation: kick-neon 2.6s ease-in-out infinite alternate; }
 @keyframes kick-neon {
   from {
     filter:
       brightness(0) invert(1)
-      drop-shadow(0 0 2px rgba(120, 255, 70, 0.8))
-      drop-shadow(0 0 5px rgba(81, 251, 24, 0.6))
-      drop-shadow(0 0 12px rgba(81, 251, 24, 0.35))
-      drop-shadow(0 0 26px rgba(81, 251, 24, 0.18));
+      drop-shadow(0 0 1.5px rgba(120, 255, 70, 0.55))
+      drop-shadow(0 0 4px rgba(81, 251, 24, 0.3))
+      drop-shadow(0 0 9px rgba(81, 251, 24, 0.14));
   }
   to {
     filter:
       brightness(0) invert(1)
-      drop-shadow(0 0 3px rgba(150, 255, 110, 1))
-      drop-shadow(0 0 10px rgba(81, 251, 24, 1))
-      drop-shadow(0 0 26px rgba(81, 251, 24, 0.75))
-      drop-shadow(0 0 52px rgba(81, 251, 24, 0.45));
+      drop-shadow(0 0 2px rgba(140, 255, 95, 0.85))
+      drop-shadow(0 0 7px rgba(81, 251, 24, 0.6))
+      drop-shadow(0 0 17px rgba(81, 251, 24, 0.3));
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2720,3 +2716,15 @@ html { scroll-padding-top: 84px; }
       radial-gradient(560px 520px at 92% 1420px, rgba(255, 59, 59, 0.16), rgba(255, 59, 59, 0) 74%);
   }
 }
+
+/* The warning about fake addresses now lives in the card, right under
+   the address it is about, instead of floating loose underneath it. */
+.ca-warning {
+  max-width: none;
+  margin: -1px 4px 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.ca-warning .icon { vertical-align: -2px; margin-right: 2px; }
