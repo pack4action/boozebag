@@ -8,15 +8,33 @@
 // poking at it -- a number no play could reach is refused, and one wallet
 // cannot post faster than somebody playing would.
 
+// What each game can plausibly produce.
+//
+//   ceiling  the most a score may ever be. Set well above the best run
+//            anybody has had, because clipping a real player is worse
+//            than letting a cheat through; raise it if somebody ever
+//            reaches it honestly.
+//   climb    the most a wallet's score may multiply by in an hour, and
+//            floor, a flat amount per hour on top, so a small early score
+//            can still move. Both are only checked against what the board
+//            itself last saw and when, so they cost nothing to keep.
+//            null means the game's scores are per run, not cumulative,
+//            and only the ceiling applies.
 const GAMES = {
-  // An idle game's takings run away with themselves by design, so the
-  // ceiling is only there to refuse a number that means nothing.
-  'gym-tycoon': { ceiling: 1e18, metaCeiling: 1e15 },
-  'degen-pong': { ceiling: 1e7, metaCeiling: 1e5 },
-  'gains-stacker': { ceiling: 1e7, metaCeiling: 1e5 },
+  // An idle game's takings run away with themselves by design, so this is
+  // the one where the speed limit does the work rather than the ceiling.
+  // A gym can multiply its money many times over in an hour of real play,
+  // so the limit is generous; what it refuses is the jump from a million
+  // to a trillion between one post and the next.
+  'gym-tycoon': { ceiling: 1e18, metaCeiling: 1e15, climb: 64, floor: 5e6 },
+  // The three below are played in runs: you start at nothing every time,
+  // so a score is not something that climbs and only the ceiling applies.
+  // A strong run is a few thousand in each, and these sit far above that.
+  'degen-pong': { ceiling: 2e5, metaCeiling: 1e4, climb: null },
+  'gains-stacker': { ceiling: 2e5, metaCeiling: 1e4, climb: null },
   // A perfect run is 26 miles at 100, 26 drinks at 120 and the 2600 for
-  // finishing, so about 8300. The ceiling is well clear of that.
-  'beer-mile': { ceiling: 1e6, metaCeiling: 100 },
+  // finishing, so about 8300, plus what is picked up along the way.
+  'beer-mile': { ceiling: 3e4, metaCeiling: 100, climb: null },
 };
 
 // One post per wallet in this many seconds, and one per address of origin
@@ -590,6 +608,29 @@ export default {
     }
 
     const now = Math.floor(Date.now() / 1000);
+
+    // A speed limit, for the games whose scores climb rather than being
+    // set fresh by each run. The board already remembers what it last saw
+    // and when, so it can work out the most that could honestly have been
+    // earned since, and refuse anything past it. A patient cheat can still
+    // walk a number up over hours, but the jump straight to a silly figure
+    // is what makes a board look fake, and that is gone.
+    let capped = score;
+    if (rules.climb) {
+      const seen = await env.DB.prepare(
+        'SELECT score, updated_at FROM scores WHERE game = ?1 AND address = ?2',
+      ).bind(game, address).first();
+      if (seen) {
+        const hours = Math.max(0, now - (seen.updated_at || now)) / 3600;
+        const most = seen.score * Math.pow(rules.climb, hours) + rules.floor * (hours + 1);
+        capped = Math.min(score, Math.max(seen.score, most));
+      } else {
+        // Nothing to measure against yet, so a first post starts at what
+        // an hour of honest play could reach. The next one climbs from it.
+        capped = Math.min(score, rules.floor * rules.climb);
+      }
+    }
+
     // Only ever upwards: a wallet's row is its best, so a later smaller
     // score leaves the board as it was. The name follows the newest post,
     // because that is somebody changing what they are called.
@@ -601,7 +642,7 @@ export default {
       + '   meta = CASE WHEN excluded.score >= scores.score THEN excluded.meta ELSE scores.meta END,'
       + '   score = MAX(scores.score, excluded.score),'
       + '   updated_at = excluded.updated_at',
-    ).bind(game, address, name, score, meta, now).run();
+    ).bind(game, address, name, capped, meta, now).run();
 
     // Old marks are worth nothing; sweeping them here keeps the table from
     // growing for ever without anything having to run on a timer.

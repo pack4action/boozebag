@@ -19,6 +19,31 @@ score (money per second, the rack, the height), and when it last posted.
 `hits` — what has posted recently, so a script cannot sit there hammering
 it. Swept on write; nothing in it is worth keeping.
 
+## What it will not believe
+
+The games run in the player's browser and work out their own numbers, so
+a post is only ever a claim. Nothing short of running the games on the
+server makes that untrue. What the board can do is refuse a claim that
+could not have happened, and it does two things towards that.
+
+**A ceiling per game.** The most a score may ever be. Set well above the
+best run anybody has had, because clipping a real player is worse than
+letting a cheat through. A perfect Beer Mile is about 8,300 and the
+ceiling is 30,000; Pong and Stacker are a few thousand in a strong run
+and sit at 200,000. Raise one if somebody ever reaches it honestly.
+
+**A speed limit, on Gym Tycoon.** Its takings climb rather than being set
+fresh by each run, so the board remembers what it last saw and when, and
+works out the most that could honestly have been earned since: the score
+may multiply by up to 64 an hour, plus five million an hour flat so a
+small early score can still move. Anything past that is cut back to it
+rather than refused, so an honest player never sees an error. A first
+post, with nothing to measure against, is held to what an hour could
+reach and climbs from there.
+
+A patient cheat can still walk a number up over hours. The jump straight
+to a silly figure, which is what makes a board look fake, is gone.
+
 ## Deploying it
 
 No domain needed. A free Cloudflare account and `npx wrangler` are all it
