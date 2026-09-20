@@ -517,16 +517,43 @@ function setFresh(el, text) {
 // button embeds.
 let geckoPool = '';
 // The line under the figures says where each one is from.
-let holdersShown = false;
+let holdersFrom = '';
 function noteSource() {
   const src = document.getElementById('mk-src');
   if (!src) return;
-  const parts = [];
-  if (capFrom) parts.push('market cap via ' + capFrom);
-  if (holdersShown) parts.push('holders on chain');
-  src.textContent = parts.join(' \u00b7 ');
+  let line = '';
+  if (capFrom && capFrom === holdersFrom) {
+    line = 'market cap and holders via ' + capFrom;
+  } else {
+    const parts = [];
+    if (capFrom) parts.push('market cap via ' + capFrom);
+    if (holdersFrom) parts.push('holders via ' + holdersFrom);
+    line = parts.join(' \u00b7 ');
+  }
+  src.textContent = line;
   // A lone figure takes the whole row rather than half of it.
-  if (marketEl) marketEl.classList.toggle('is-one', parts.length === 1);
+  if (marketEl) {
+    const showing = marketEl.querySelectorAll('.market-tile:not([hidden])').length;
+    marketEl.classList.toggle('is-one', showing === 1);
+  }
+}
+
+// The holder count, from whoever answered. The Worker is asked first and
+// GeckoTerminal after it, and the first real figure is the one that
+// stays: a later empty answer never wipes a figure already up.
+function showHolders(n, source) {
+  const count = Number(n);
+  if (!(count > 0) || holdersFrom) return;
+  holdersFrom = source;
+  setFresh(document.getElementById('mk-holders'), shortNum(count));
+  const tile = document.getElementById('mk-holders-tile');
+  if (tile) tile.hidden = false;
+  const tk = document.getElementById('tk-holders');
+  if (tk) tk.textContent = count.toLocaleString('en-US');
+  const stat = document.getElementById('tk-holders-stat');
+  if (stat) stat.hidden = false;
+  if (marketEl) marketEl.hidden = false;
+  noteSource();
 }
 // A market cap can come from a chart site or from pump.fun through the
 // Worker; the chart sites are believed first when they have one.
@@ -732,26 +759,17 @@ function askDiscordDirect() {
 }
 if (!siteApi) askDiscordDirect();
 // ---- The coin's own numbers ----
-// Supply and holders, from the Worker, which reads them off the chain.
-// Holders shows only when there is a count; the Worker cannot always
-// get one (workers/leaderboard/README.md).
+// The Worker knows the supply, the holder count and a market cap from
+// pump.fun (workers/leaderboard/README.md). It cannot always get a
+// holder count, so GeckoTerminal is asked for one as well, straight from
+// here: it is already answering this page for the market cap.
 function askToken() {
   if (!siteApi) return;
   fetch(siteApi + '/token')
     .then((r) => (r.ok ? r.json() : null))
     .then((t) => {
       if (!t) return;
-      const holders = Number(t.holders);
-      if (holders > 0) {
-        const tile = document.getElementById('mk-holders-tile');
-        const stat = document.getElementById('tk-holders-stat');
-        setFresh(document.getElementById('mk-holders'), shortNum(holders));
-        if (tile) tile.hidden = false;
-        const tk = document.getElementById('tk-holders');
-        if (tk) tk.textContent = holders.toLocaleString('en-US');
-        if (stat) stat.hidden = false;
-        if (marketEl) { holdersShown = true; noteSource(); marketEl.hidden = false; }
-      }
+      showHolders(t.holders, 'the chain');
       if (marketEl && Number(t.marketCap) > 0) showCap(t.marketCap, 'pump.fun', 'https://pump.fun/coin/' + CA, false);
       const supply = Number(t.supply);
       const sup = document.getElementById('tk-supply');
@@ -759,8 +777,22 @@ function askToken() {
     })
     .catch(() => {});
 }
-askToken();
-setInterval(() => { if (!document.hidden) askToken(); }, 60000);
+function askGeckoHolders() {
+  if (holdersFrom) return;
+  fetch('https://api.geckoterminal.com/api/v2/networks/solana/tokens/' + CA + '/info', {
+    headers: { Accept: 'application/json;version=20230302' },
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      const a = j && j.data && j.data.attributes;
+      const h = a && a.holders;
+      showHolders(h && typeof h === 'object' ? h.count : h, 'GeckoTerminal');
+    })
+    .catch(() => {});
+}
+function askNumbers() { askToken(); askGeckoHolders(); }
+askNumbers();
+setInterval(() => { if (!document.hidden) askNumbers(); }, 60000);
 
 // The counts written by hand on the cards, for the places with no open door.
 document.querySelectorAll('.community-card[data-count]').forEach((card) => {

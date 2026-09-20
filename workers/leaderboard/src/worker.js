@@ -248,12 +248,21 @@ function countOf(v) {
 }
 
 // Nothing here is worth holding the answer up for, so every call out has
-// a short leash.
+// a short leash -- where the runtime offers one. An older runtime without
+// AbortSignal.timeout gets no leash rather than no answer.
+function leash(ms) {
+  try {
+    return AbortSignal.timeout(ms);
+  } catch (e) {
+    return undefined;
+  }
+}
+
 async function getJson(url, headers) {
   try {
     const r = await fetch(url, {
       headers: Object.assign({ Accept: 'application/json' }, headers || {}),
-      signal: AbortSignal.timeout(ASK_MS),
+      signal: leash(ASK_MS),
     });
     if (!r.ok) return null;
     return await r.json();
@@ -268,7 +277,7 @@ async function rpcAt(url, method, params) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-      signal: AbortSignal.timeout(ASK_MS * 3),
+      signal: leash(ASK_MS * 3),
     });
     if (!r.ok) return null;
     const body = await r.json().catch(() => null);
@@ -363,13 +372,21 @@ async function holdersChain(env, mint) {
 // The four in turn, stopping at the first that answers, and saying which
 // one it was so a look at /api/token shows where the figure came from.
 async function tokenHolders(env, mint) {
-  const tries = [['solscan', holdersSolscan], ['geckoterminal', holdersGecko],
+  const sources = [['solscan', holdersSolscan], ['geckoterminal', holdersGecko],
     ['pump.fun', holdersPump], ['chain', (m) => holdersChain(env, m)]];
-  for (const [from, ask] of tries) {
-    const n = await ask(mint);
-    if (n) return { holders: n, from };
+  const tried = [];
+  for (const [from, ask] of sources) {
+    let n = null;
+    let why = 'nothing';
+    try {
+      n = await ask(mint);
+    } catch (e) {
+      why = 'threw: ' + (e && e.message ? e.message : e);
+    }
+    tried.push(from + ': ' + (n ? n : why));
+    if (n) return { holders: n, from, tried };
   }
-  return null;
+  return { holders: null, from: null, tried };
 }
 
 async function tokenAnswer(env) {
@@ -377,8 +394,8 @@ async function tokenAnswer(env) {
   const mint = env.TOKEN_MINT || TOKEN_MINT;
   if (!tokenHeld || now - tokenHeld.at >= TOKEN_HOLD_MS) {
     const [supply, counted] = await Promise.all([tokenSupply(env, mint), tokenHolders(env, mint)]);
-    let holders = counted ? counted.holders : null;
-    let holdersFrom = counted ? counted.from : null;
+    let holders = counted.holders;
+    let holdersFrom = counted.from;
     if (holders !== null) lastHolders = { at: now, holders, from: holdersFrom };
     else if (lastHolders && now - lastHolders.at < TOKEN_KEEP_MS) {
       holders = lastHolders.holders;
@@ -391,6 +408,7 @@ async function tokenAnswer(env) {
         decimals: supply ? supply.decimals : null,
         holders,
         holdersFrom,
+        tried: counted.tried,
       },
     };
   }
