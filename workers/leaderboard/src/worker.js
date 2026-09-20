@@ -23,6 +23,9 @@ const GAMES = {
 // in this many. A person playing trips neither.
 const WALLET_EVERY = 20;
 const ORIGIN_EVERY = 3;
+// Taking yourself off is rarer than posting, and destructive, so it gets a
+// window of its own rather than sharing the posting one.
+const REMOVE_EVERY = 10;
 const ORIGIN_PER_HOUR = 240;
 const BOARD_SIZE = 25;
 const BODY_MAX = 2048;
@@ -540,6 +543,22 @@ export default {
     if (typeof address !== 'string' || !ADDRESS.test(address)) {
       return json(request, { error: 'that is not a wallet' }, 400);
     }
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+
+    // Taking yourself off the board. It carries no score, so it is handled
+    // before one is asked for. A post from the game puts the wallet
+    // straight back, so the game stops posting when somebody leaves; that
+    // switch lives in their browser, which also means a removal somebody
+    // else sent on your behalf undoes itself the next time you play.
+    if (body.remove === true) {
+      if (await tooSoon(env, 'rm:' + ip, REMOVE_EVERY, 0)) {
+        return json(request, { error: 'slow down' }, 429);
+      }
+      await env.DB.prepare('DELETE FROM scores WHERE game = ?1 AND address = ?2')
+        .bind(game, address).run();
+      return json(request, { game, removed: true, board: await board(env, game, BOARD_SIZE) });
+    }
+
     const score = number(body.score, rules.ceiling);
     if (score === null) return json(request, { error: 'that is not a score' }, 400);
     const meta = body.meta === undefined || body.meta === null
@@ -550,7 +569,6 @@ export default {
     // not held to the wallet's posting window, since a person pressed it.
     const claim = body.claim === true && name !== null;
 
-    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
     if (await tooSoon(env, 'ip:' + ip, ORIGIN_EVERY, ORIGIN_PER_HOUR)) {
       return json(request, { error: 'slow down' }, 429);
     }

@@ -2727,3 +2727,48 @@ html { scroll-padding-top: 84px; }
   color: var(--muted);
 }
 .ca-warning .icon { vertical-align: -2px; margin-right: 2px; }
+
+/* ---- Taking yourself off the board ----
+   Sits under the list, quiet until it is needed, and asks before it does
+   anything. Hidden entirely for somebody who is not on the board. */
+.lb-leave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+.lb-leave[hidden] { display: none; }
+.lb-leave-say {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.lb-leave-btn {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: linear-gradient(180deg, #211e2a 0%, #16141c 100%);
+  border: 1px solid var(--edge-lit);
+  color: var(--muted);
+  box-shadow: var(--top-lit), 0 1px 2px rgba(0, 0, 0, 0.5);
+  transition: color 0.16s ease, border-color 0.16s ease, transform 0.14s ease;
+}
+.lb-leave-btn:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.24); transform: translateY(-1px); }
+.lb-leave-btn:active { transform: translateY(1px); }
+.lb-leave-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
+/* The one that actually does it wears the warning colour. */
+.lb-leave-btn.is-go {
+  color: #ffd7d7;
+  border-color: rgba(255, 59, 59, 0.55);
+  background: linear-gradient(180deg, #2e1922 0%, #1a1117 100%);
+}
+.lb-leave-btn.is-go:hover { color: #fff; border-color: var(--red); }
+@media (prefers-reduced-motion: reduce) {
+  .lb-leave-btn { transition: none; }
+}
