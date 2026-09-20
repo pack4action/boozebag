@@ -75,11 +75,13 @@ there by itself; the tag can stay or go.
 
 ## The token's numbers
 
-`GET /api/token` says how much of the coin there is and how many wallets
-hold it, read from the chain and held for ten minutes:
+`GET /api/token` says how much of the coin there is, how many wallets
+hold it, and what it is worth: supply and holders read from the chain
+and held for ten minutes, the market cap from pump.fun's own record of
+the coin and held for one minute:
 
 ```json
-{"mint":"3kxCh…pump","supply":1000000000,"decimals":6,"holders":1234,"at":1726660000000}
+{"mint":"3kxCh…pump","supply":1000000000,"decimals":6,"holders":1234,"marketCap":42100,"at":1726660000000}
 ```
 
 Supply is one cheap call and always answers. Counting holders asks the

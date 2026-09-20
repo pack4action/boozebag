@@ -516,20 +516,29 @@ function setFresh(el, text) {
 // which one answered. Whichever it was also names the pool the chart
 // button embeds.
 let geckoPool = '';
-function showMarket(m) {
-  setFresh(document.getElementById('mk-price'), price(m.price));
-  setFresh(document.getElementById('mk-mc'), money(m.marketCap));
-  setFresh(document.getElementById('mk-vol'), money(m.volume));
-  const chEl = document.getElementById('mk-change');
-  if (chEl && isFinite(m.change)) {
-    setFresh(chEl, (m.change > 0 ? '+' : '') + m.change.toFixed(1) + '%');
-    chEl.classList.toggle('is-up', m.change > 0);
-    chEl.classList.toggle('is-down', m.change < 0);
-  }
-  if (m.url) marketEl.href = m.url;
-  const src = marketEl.querySelector('.market-src');
-  if (src) src.textContent = 'live from ' + m.source;
+// Which places have answered, so the line under the tiles can say.
+const marketSources = [];
+function noteSource(name) {
+  if (marketSources.indexOf(name) === -1) marketSources.push(name);
+  const src = document.getElementById('mk-src');
+  if (src) src.textContent = 'live from ' + marketSources.join(' and ');
+}
+// A market cap can come from a chart site or from pump.fun through the
+// Worker; the chart sites are believed first when they have one.
+let capFrom = '';
+function showCap(cap, source, url, strong) {
+  if (!(Number(cap) > 0)) return;
+  if (capFrom && capFrom !== source && !strong) return;
+  capFrom = source;
+  setFresh(document.getElementById('mk-mc'), money(cap));
+  const tile = document.getElementById('mk-mc-tile');
+  if (tile) tile.hidden = false;
+  if (url) marketEl.href = url;
+  noteSource(source);
   marketEl.hidden = false;
+}
+function showMarket(m) {
+  showCap(m.marketCap, m.source, m.url, true);
 }
 function pullDex() {
   return fetch('https://api.dexscreener.com/latest/dex/tokens/' + CA)
@@ -734,7 +743,9 @@ function askToken() {
         const tk = document.getElementById('tk-holders');
         if (tk) tk.textContent = holders.toLocaleString('en-US');
         if (stat) stat.hidden = false;
+        if (marketEl) { noteSource('the chain'); marketEl.hidden = false; }
       }
+      if (marketEl && Number(t.marketCap) > 0) showCap(t.marketCap, 'pump.fun', 'https://pump.fun/coin/' + CA, false);
       const supply = Number(t.supply);
       const sup = document.getElementById('tk-supply');
       if (sup && supply > 0) sup.textContent = Math.round(supply).toLocaleString('en-US');
@@ -742,7 +753,7 @@ function askToken() {
     .catch(() => {});
 }
 askToken();
-setInterval(() => { if (!document.hidden) askToken(); }, 600000);
+setInterval(() => { if (!document.hidden) askToken(); }, 60000);
 
 // The counts written by hand on the cards, for the places with no open door.
 document.querySelectorAll('.community-card[data-count]').forEach((card) => {

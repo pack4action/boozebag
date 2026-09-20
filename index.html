@@ -246,13 +246,12 @@
       </p>
     </div>
     <!-- Live off DexScreener; stays hidden until it has answered. -->
-    <a class="market" id="market" href="https://dexscreener.com/solana/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" hidden>
-      <span class="market-tile"><span class="market-label">Price</span><b id="mk-price"></b></span>
-      <span class="market-tile"><span class="market-label">Market cap</span><b id="mk-mc"></b></span>
-      <span class="market-tile"><span class="market-label">24h</span><b id="mk-change"></b></span>
-      <span class="market-tile"><span class="market-label">Volume 24h</span><b id="mk-vol"></b></span>
+    <!-- Two figures, live: the market cap from wherever knows it first,
+         and the holder count off the chain through the Worker. -->
+    <a class="market" id="market" href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" hidden>
+      <span class="market-tile" id="mk-mc-tile" hidden><span class="market-label">Market cap</span><b id="mk-mc"></b></span>
       <span class="market-tile" id="mk-holders-tile" hidden><span class="market-label">Holders</span><b id="mk-holders"></b></span>
-      <span class="market-src">live from DexScreener</span>
+      <span class="market-src" id="mk-src"></span>
     </a>
     <!-- The chart itself, loaded only when asked for: it is heavy on a phone. -->
     <div class="chart" id="chart">
@@ -679,7 +678,7 @@
 
 <script src="assets/js/wallet.js?v=5"></script>
 <script src="assets/js/leaderboard.js?v=3"></script>
-<script src="assets/js/main.js?v=26"></script>
+<script src="assets/js/main.js?v=27"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>

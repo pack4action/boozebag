@@ -284,17 +284,42 @@ async function tokenHolders(env, mint) {
   }
 }
 
+// The market cap, from pump.fun's own record of the coin, which knows it
+// from the first trade while the chart sites are still catching up.
+// Tried at the newer address first and the older one after.
+async function pumpCap(mint) {
+  for (const base of ['https://frontend-api-v3.pump.fun/coins/', 'https://frontend-api.pump.fun/coins/']) {
+    try {
+      const r = await fetch(base + mint, { headers: { Accept: 'application/json' } });
+      if (!r.ok) continue;
+      const c = await r.json();
+      const cap = Number(c && c.usd_market_cap);
+      if (cap > 0) return cap;
+    } catch (e) {
+      // the next address, then
+    }
+  }
+  return null;
+}
+const CAP_HOLD_MS = 60 * 1000;
+let capHeld = null;
+
 async function tokenAnswer(env) {
   const now = Date.now();
-  if (tokenHeld && now - tokenHeld.at < TOKEN_HOLD_MS) return tokenHeld.body;
   const mint = env.TOKEN_MINT || TOKEN_MINT;
-  const [supply, counted] = await Promise.all([tokenSupply(env, mint), tokenHolders(env, mint)]);
-  let holders = counted;
-  if (holders !== null) lastHolders = { at: now, holders };
-  else if (lastHolders && now - lastHolders.at < TOKEN_KEEP_MS) holders = lastHolders.holders;
-  const body = { mint, supply: supply ? supply.supply : null, decimals: supply ? supply.decimals : null, holders, at: now };
-  tokenHeld = { at: now, body };
-  return body;
+  // Supply and holders are held ten minutes; the market cap one.
+  if (!tokenHeld || now - tokenHeld.at >= TOKEN_HOLD_MS) {
+    const [supply, counted] = await Promise.all([tokenSupply(env, mint), tokenHolders(env, mint)]);
+    let holders = counted;
+    if (holders !== null) lastHolders = { at: now, holders };
+    else if (lastHolders && now - lastHolders.at < TOKEN_KEEP_MS) holders = lastHolders.holders;
+    tokenHeld = { at: now, body: { supply: supply ? supply.supply : null, decimals: supply ? supply.decimals : null, holders } };
+  }
+  if (!capHeld || now - capHeld.at >= CAP_HOLD_MS) {
+    const cap = await pumpCap(mint);
+    capHeld = { at: now, cap: cap !== null ? cap : (capHeld ? capHeld.cap : null) };
+  }
+  return Object.assign({ mint }, tokenHeld.body, { marketCap: capHeld.cap, at: now });
 }
 
 export default {
@@ -310,7 +335,7 @@ export default {
         status: 200,
         headers: Object.assign({
           'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=300',
+          'Cache-Control': 'public, max-age=60',
         }, corsFor(request)),
       });
     }
