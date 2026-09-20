@@ -947,7 +947,7 @@ if (buybar && heroEl && window.IntersectionObserver) {
   // part is measured once, below. And the lip of froth is painted over
   // the top of the band, so the beer you can actually see starts below
   // the band does: half of what the lip covers is the rest of it.
-  const FROTH = 2.25;   // half the height of the band the froth lip covers
+  const FROTH = 5.25;   // how far below the middle of the band to sit
   let textDrop = 0;
   function measure() {
     const probeSvg = el('svg', { width: 10, height: 10, style: 'position:absolute;visibility:hidden' }, wave);

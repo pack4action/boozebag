@@ -25,9 +25,13 @@
 
 html { scroll-behavior: smooth; }
 
+/* The page colour sits on the root, not on body, so a layer behind
+   body's own content (the red glow near the top) has something to be in
+   front of. On body it would paint straight over it. */
+html { background: var(--bg); }
 body {
   margin: 0;
-  background: var(--bg);
+  background: transparent;
   color: var(--text);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
@@ -2640,39 +2644,79 @@ html { scroll-padding-top: 84px; }
   .coin { padding: 15px; gap: 12px; }
 }
 
-/* Kick's green, thrown off the mark, so it reads as a screen that is on
-   rather than a flat sticker. A touch brighter when you go for it. */
+/* ---- Kick, as a neon sign ----
+   The mark itself is burned out to white, the way the middle of a lit
+   tube looks, and its own green is thrown around it in three layers:
+   a tight one that reads as the glass, a wider one for the spill, and a
+   soft far one for the room. */
 .live-mark, .community-mark {
   filter:
-    drop-shadow(0 0 5px rgba(81, 251, 24, 0.55))
-    drop-shadow(0 0 14px rgba(81, 251, 24, 0.3))
-    drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+    brightness(0) invert(1)
+    drop-shadow(0 0 2px rgba(120, 255, 70, 0.95))
+    drop-shadow(0 0 6px rgba(81, 251, 24, 0.85))
+    drop-shadow(0 0 16px rgba(81, 251, 24, 0.55))
+    drop-shadow(0 0 34px rgba(81, 251, 24, 0.3));
   transition: filter 0.22s ease, transform 0.22s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
 .stat-tag-live:hover .live-mark, .community-card:hover .community-mark {
   transform: scale(1.08);
   filter:
-    drop-shadow(0 0 7px rgba(81, 251, 24, 0.8))
-    drop-shadow(0 0 20px rgba(81, 251, 24, 0.45))
-    drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+    brightness(0) invert(1)
+    drop-shadow(0 0 3px rgba(150, 255, 110, 1))
+    drop-shadow(0 0 9px rgba(81, 251, 24, 0.95))
+    drop-shadow(0 0 24px rgba(81, 251, 24, 0.7))
+    drop-shadow(0 0 48px rgba(81, 251, 24, 0.4));
 }
-/* While he is actually on, it breathes. */
-.js .stat-tag-live.is-on .live-mark { animation: kick-glow 2.4s ease-in-out infinite alternate; }
-@keyframes kick-glow {
+/* While he is actually on, the tube breathes the way a real one does. */
+.js .stat-tag-live.is-on .live-mark { animation: kick-neon 2.6s ease-in-out infinite alternate; }
+@keyframes kick-neon {
   from {
     filter:
-      drop-shadow(0 0 4px rgba(81, 251, 24, 0.4))
-      drop-shadow(0 0 10px rgba(81, 251, 24, 0.2))
-      drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+      brightness(0) invert(1)
+      drop-shadow(0 0 2px rgba(120, 255, 70, 0.8))
+      drop-shadow(0 0 5px rgba(81, 251, 24, 0.6))
+      drop-shadow(0 0 12px rgba(81, 251, 24, 0.35))
+      drop-shadow(0 0 26px rgba(81, 251, 24, 0.18));
   }
   to {
     filter:
-      drop-shadow(0 0 8px rgba(81, 251, 24, 0.9))
-      drop-shadow(0 0 22px rgba(81, 251, 24, 0.5))
-      drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+      brightness(0) invert(1)
+      drop-shadow(0 0 3px rgba(150, 255, 110, 1))
+      drop-shadow(0 0 10px rgba(81, 251, 24, 1))
+      drop-shadow(0 0 26px rgba(81, 251, 24, 0.75))
+      drop-shadow(0 0 52px rgba(81, 251, 24, 0.45));
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .live-mark, .community-mark { transition: none; }
   .js .stat-tag-live.is-on .live-mark { animation: none; }
+}
+
+/* ---- The red glow behind the top of the page ----
+   It used to be a blurred circle inside the hero, and the hero clips what
+   runs past its edge, so it stopped dead in a straight line right where
+   the beer starts. It sits on its own layer now, outside anything that
+   clips, and fades out on its own terms instead. */
+.page-glow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(820px, 96vw);
+  height: 2100px;
+  z-index: -1;
+  pointer-events: none;
+  /* Sat over the bottom corner of the hero, where the old circle was,
+     and carries on down through the beer before it runs out. The stops
+     end on the same colour at zero alpha rather than on transparent, so
+     it does not wash grey on the way out. */
+  background:
+    radial-gradient(430px 370px at 86% 1330px, rgba(255, 59, 59, 0.32), rgba(255, 59, 59, 0) 70%),
+    radial-gradient(760px 620px at 94% 1460px, rgba(255, 59, 59, 0.15), rgba(255, 59, 59, 0) 74%);
+}
+@media (max-width: 640px) {
+  .page-glow {
+    background:
+      radial-gradient(330px 320px at 82% 1290px, rgba(255, 59, 59, 0.34), rgba(255, 59, 59, 0) 70%),
+      radial-gradient(560px 520px at 92% 1420px, rgba(255, 59, 59, 0.16), rgba(255, 59, 59, 0) 74%);
+  }
 }
