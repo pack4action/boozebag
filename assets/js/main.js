@@ -1464,3 +1464,19 @@ if (buybar && heroEl && window.IntersectionObserver) {
     document.querySelectorAll('.is-pouring').forEach((el) => el.classList.remove('is-pouring'));
   });
 })();
+
+// ---- The light across the amber buttons, for a finger ----
+// A mouse gets it on hover. A phone has no hover to give, so the same
+// sweep is put on at the moment of the press and taken off when it has
+// run. Nothing waits on it: the button does whatever it was going to do.
+(function () {
+  if (reduceMotion) return;
+  const SWEEP = 640;
+  document.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;   // hover has it covered
+    const b = e.target.closest && e.target.closest('.btn-primary, .btn-tiny');
+    if (!b || b.classList.contains('is-shine')) return;
+    b.classList.add('is-shine');
+    setTimeout(() => b.classList.remove('is-shine'), SWEEP);
+  }, { passive: true });
+})();

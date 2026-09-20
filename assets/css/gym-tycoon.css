@@ -3908,3 +3908,36 @@ body.is-photo .tycoon-room-stage {
   margin-top: 8px;
   color: var(--muted, #8b8b93);
 }
+
+/* ---- The buttons in the gym ----
+   Every one of these already changed colour when pointed at, but with
+   nothing to carry it, so the change landed in one frame and a press did
+   nothing at all. They ease now, and they take the press. */
+.tycoon-add-room,
+.tycoon-theme-btn,
+.tycoon-inv-arm,
+.tycoon-inv-sell,
+.tycoon-reset-link,
+.tycoon-pad-btn,
+.tycoon-place-btn,
+.tycoon-job-claim {
+  transition: background-color 0.18s ease, border-color 0.18s ease,
+              color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+}
+.tycoon-add-room:active,
+.tycoon-theme-btn:active,
+.tycoon-inv-arm:active,
+.tycoon-inv-sell:active,
+.tycoon-reset-link:active,
+.tycoon-place-btn:active,
+.tycoon-job-claim:active { transform: scale(0.96); }
+/* The pad is held down rather than tapped, so it dips instead. */
+.tycoon-pad-btn:active { transform: scale(0.92); }
+/* The one that takes your money is the one worth lighting up. */
+.tycoon-job-claim:hover { box-shadow: 0 0 0 2px rgba(255, 183, 3, 0.25); }
+@media (prefers-reduced-motion: reduce) {
+  .tycoon-add-room, .tycoon-theme-btn, .tycoon-inv-arm, .tycoon-inv-sell,
+  .tycoon-reset-link, .tycoon-pad-btn, .tycoon-place-btn, .tycoon-job-claim {
+    transition: none;
+  }
+}

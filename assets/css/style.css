@@ -2784,3 +2784,115 @@ html { scroll-padding-top: 84px; }
 @media (prefers-reduced-motion: reduce) {
   .lb-leave-btn { transition: none; }
 }
+
+/* ---- The rest of the buttons ----
+   The amber and outline ones have had their moment for a while; these had
+   a colour that changed and nothing else. Same language: they take a
+   press, they ease rather than snap, and the loud one catches the light. */
+
+/* The amber button catches a band of light across its face. On a mouse
+   that happens when you point at it; a finger has no hover to give, so
+   main.js puts the class on at the moment of the press instead. */
+.btn-primary { position: relative; overflow: hidden; isolation: isolate; }
+.btn-primary::after {
+  content: "";
+  position: absolute;
+  inset: -50% -70%;
+  z-index: -1;
+  background: linear-gradient(105deg,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0) 62%);
+  transform: translateX(-120%);
+  transition: transform 0.62s cubic-bezier(0.42, 0, 0.58, 1);
+  pointer-events: none;
+}
+.btn-primary:hover::after, .btn-primary:focus-visible::after { transform: translateX(120%); }
+.btn-primary.is-shine::after { animation: btn-shine 0.62s cubic-bezier(0.42, 0, 0.58, 1); }
+@keyframes btn-shine {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(120%); }
+}
+.btn-tiny { position: relative; overflow: hidden; isolation: isolate; }
+.btn-tiny::after {
+  content: "";
+  position: absolute;
+  inset: -50% -70%;
+  z-index: -1;
+  background: linear-gradient(105deg,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0) 62%);
+  transform: translateX(-120%);
+  transition: transform 0.5s cubic-bezier(0.42, 0, 0.58, 1);
+  pointer-events: none;
+}
+.btn-tiny:hover::after, .btn-tiny:focus-visible::after { transform: translateX(120%); }
+.btn-tiny.is-shine::after { animation: btn-shine 0.5s cubic-bezier(0.42, 0, 0.58, 1); }
+
+/* Show the chart: the amber wash comes up from the bottom, a small
+   cousin of the pour, and the dashes close into a solid line. */
+.chart-toggle {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition: border-color 0.24s ease, color 0.24s ease, transform 0.14s ease;
+}
+.chart-toggle::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(255, 183, 3, 0.12);
+  transform: translateY(101%);
+  transition: transform 0.4s cubic-bezier(0.42, 0, 0.58, 1);
+}
+.chart-toggle:hover::before, .chart-toggle:focus-visible::before, .chart-toggle:active::before {
+  transform: translateY(0);
+}
+.chart-toggle:hover, .chart-toggle:focus-visible { background: transparent; border-style: solid; }
+.chart-toggle:active { transform: translateY(1px); }
+.chart-toggle .icon { transition: transform 0.24s cubic-bezier(0.2, 1.4, 0.4, 1); }
+.chart-toggle:hover .icon { transform: translateY(-2px) rotate(-6deg); }
+
+/* The menu button, the wallet list and the small print under it. */
+.nav-toggle { transition: border-color 0.18s ease, transform 0.14s ease; }
+.nav-toggle:hover { border-color: rgba(255, 183, 3, 0.45); }
+.nav-toggle:active { transform: scale(0.94); }
+.wallet-picker button {
+  position: relative;
+  transition: background 0.18s ease, color 0.18s ease, padding-left 0.18s ease;
+}
+/* A thin amber marker slides in on the left, the way the bar's links
+   underline themselves. */
+.wallet-picker button::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  width: 2px;
+  height: 0;
+  border-radius: 2px;
+  background: var(--amber);
+  transform: translateY(-50%);
+  transition: height 0.2s cubic-bezier(0.2, 1.3, 0.4, 1);
+}
+.wallet-picker button:hover::before, .wallet-picker button:focus-visible::before { height: 60%; }
+.wallet-picker button:hover, .wallet-picker button:focus-visible { padding-left: 16px; }
+.wallet-picker button:active { transform: scale(0.98); }
+.wallet-disconnect { transition: color 0.18s ease, text-underline-offset 0.18s ease; text-underline-offset: 2px; }
+.wallet-disconnect:hover { text-underline-offset: 4px; }
+
+/* A question opens with a press behind it, and the plus leans over on
+   the way to becoming a cross. */
+.faq-item summary { transition: color 0.18s ease, padding-left 0.2s ease; }
+.faq-item summary:hover { color: var(--amber); padding-left: 4px; }
+.faq-item summary:active { color: var(--amber-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary::after, .btn-tiny::after, .chart-toggle::before,
+  .wallet-picker button::before { transition: none; }
+  .btn-primary.is-shine::after, .btn-tiny.is-shine::after { animation: none; }
+  .chart-toggle, .chart-toggle .icon, .nav-toggle, .wallet-picker button,
+  .wallet-disconnect, .faq-item summary { transition: none; }
+}
