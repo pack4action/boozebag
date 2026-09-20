@@ -1869,7 +1869,10 @@ html { scroll-padding-top: 84px; }
   transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 .coin-links a:hover { border-color: var(--amber); color: var(--text); background: rgba(255, 183, 3, 0.08); }
-.coin-links .icon { width: 0.8em; height: 0.8em; opacity: 0.8; }
+.coin-links .icon { width: 0.8em; height: 0.8em; opacity: 0.55; }
+/* The service's own mark leads each button, at a size that reads. */
+.coin-links .brand-mark { width: 17px; height: 17px; opacity: 1; }
+.coin-links a:hover .brand-mark { color: var(--amber); }
 .chart-toggle {
   width: 100%;
   display: flex;

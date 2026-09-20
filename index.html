@@ -38,7 +38,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=47" />
+<link rel="stylesheet" href="assets/css/style.css?v=48" />
 <!-- Visits, counted without cookies. Numbers at plausible.io once the
      site is registered there under this domain. -->
 <script defer data-domain="pack4action.github.io" src="https://plausible.io/js/script.js"></script>
@@ -132,6 +132,42 @@
   </symbol>
   <symbol id="i-discord" viewBox="0 0 24 24">
     <path d="M19.3 5.6A16.3 16.3 0 0 0 15.2 4.3l-.25.5a12.3 12.3 0 0 1 3.6 1.85 17.2 17.2 0 0 0-13.1 0A12.3 12.3 0 0 1 9.05 4.8L8.8 4.3A16.3 16.3 0 0 0 4.7 5.6C2.15 9.35 1.45 13 1.85 16.55a16.5 16.5 0 0 0 5.05 2.55l1.1-1.5a10.7 10.7 0 0 1-1.7-.82l.42-.32a11.8 11.8 0 0 0 10.56 0l.42.32a10.7 10.7 0 0 1-1.7.82l1.1 1.5a16.5 16.5 0 0 0 5.05-2.55c.47-4.13-.72-7.75-2.85-10.95ZM8.6 14.3c-1 0-1.82-.9-1.82-2s.8-2 1.82-2 1.83.9 1.81 2c0 1.1-.8 2-1.81 2Zm6.8 0c-1 0-1.82-.9-1.82-2s.8-2 1.82-2 1.83.9 1.81 2c0 1.1-.8 2-1.81 2Z"/>
+  </symbol>
+  <!-- The four places the coin can be seen. Drawn here in the site's own
+       style rather than pulled from each service: a pill for pump.fun,
+       candles for DexScreener, the planet for Jupiter, a glass for the
+       Solscan explorer. -->
+  <symbol id="i-pumpfun" viewBox="0 0 24 24">
+    <g transform="rotate(45 12 12)" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round">
+      <rect x="7.4" y="2.6" width="9.2" height="18.8" rx="4.6"/>
+      <path d="M7.4 12h9.2" stroke-linecap="round"/>
+    </g>
+  </symbol>
+  <symbol id="i-dexscreener" viewBox="0 0 24 24">
+    <g fill="currentColor">
+      <rect x="3.4" y="9.2" width="4.2" height="7.6" rx="1.3"/>
+      <rect x="9.9" y="5.4" width="4.2" height="12.4" rx="1.3"/>
+      <rect x="16.4" y="8.2" width="4.2" height="8.6" rx="1.3"/>
+    </g>
+    <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+      <path d="M5.5 6.4v2.8M5.5 16.8v2.6"/>
+      <path d="M12 2.8v2.6M12 17.8v2.8"/>
+      <path d="M18.5 5.2v3M18.5 16.8v2.6"/>
+    </g>
+  </symbol>
+  <symbol id="i-jupiter" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="5.9" fill="currentColor"/>
+    <ellipse cx="12" cy="12" rx="10.3" ry="3.5" transform="rotate(-22 12 12)" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  </symbol>
+  <symbol id="i-solscan" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+      <circle cx="10.4" cy="10.4" r="6.3"/>
+      <path d="M15.1 15.1 20.6 20.6"/>
+    </g>
+    <g fill="currentColor">
+      <path d="M8.1 8.1h5.4l-1.5 1.7H6.6Z"/>
+      <path d="M6.9 11.3h5.4l-1.5 1.7H5.4Z" transform="translate(1.2 0)"/>
+    </g>
   </symbol>
   <symbol id="i-external" viewBox="0 0 24 24">
     <path d="M8.4 15.6 15.6 8.4M9.8 8.4h5.8v5.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -250,10 +286,10 @@
       </a>
       <p class="coin-src" id="mk-src"></p>
       <div class="coin-links">
-        <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">pump.fun <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
-        <a href="https://dexscreener.com/solana/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">DexScreener <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
-        <a href="https://jup.ag/swap/SOL-3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">Jupiter <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
-        <a href="https://solscan.io/token/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">Solscan <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
+        <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener"><svg class="icon brand-mark" aria-hidden="true"><use href="#i-pumpfun"></use></svg>pump.fun <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
+        <a href="https://dexscreener.com/solana/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener"><svg class="icon brand-mark" aria-hidden="true"><use href="#i-dexscreener"></use></svg>DexScreener <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
+        <a href="https://jup.ag/swap/SOL-3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener"><svg class="icon brand-mark" aria-hidden="true"><use href="#i-jupiter"></use></svg>Jupiter <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
+        <a href="https://solscan.io/token/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener"><svg class="icon brand-mark" aria-hidden="true"><use href="#i-solscan"></use></svg>Solscan <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
       </div>
       <div class="chart" id="chart">
         <button class="chart-toggle" id="chart-toggle" type="button" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-chart-up"></use></svg><span id="chart-label">Show the chart</span></button>
