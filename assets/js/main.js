@@ -565,11 +565,11 @@ function noteSource() {
   if (!src) return;
   let line = '';
   if (capFrom && capFrom === holdersFrom) {
-    line = 'market cap and holders via ' + capFrom;
+    line = 'market cap and beer holders via ' + capFrom;
   } else {
     const parts = [];
     if (capFrom) parts.push('market cap via ' + capFrom);
-    if (holdersFrom) parts.push('holders via ' + holdersFrom);
+    if (holdersFrom) parts.push('beer holders via ' + holdersFrom);
     line = parts.join(' \u00b7 ');
   }
   src.textContent = line;
