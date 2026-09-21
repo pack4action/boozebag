@@ -2947,3 +2947,109 @@ html { scroll-padding-top: 84px; }
   text-align: center;
 }
 .lb-note[hidden] { display: none; }
+
+/* ---- The menu on a phone ----
+   It was six lines of type between hairlines, running the full width of
+   the screen with nothing on them. It is a stack of rows now, each one a
+   thing you can touch rather than a line of a list: a mark for where it
+   goes, the name, and an arrow. The one you are on wears the amber. */
+@media (max-width: 1040px) {
+  .nav-links {
+    gap: 7px;
+    padding: 10px 4vw 16px;
+    background: linear-gradient(180deg, #17151e 0%, #0d0c11 100%);
+    border-bottom: 1px solid var(--edge);
+    box-shadow: 0 26px 44px -22px rgba(0, 0, 0, 1);
+  }
+  .nav-links a {
+    justify-content: flex-start;
+    gap: 13px;
+    padding: 13px 15px;
+    border-top: 0;
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.022);
+    font-size: 17px;
+    letter-spacing: 0.9px;
+    transition: background 0.16s ease, border-color 0.16s ease, transform 0.12s ease;
+  }
+  .nav-links a:active {
+    background: rgba(255, 255, 255, 0.06);
+    transform: scale(0.985);
+  }
+  /* The mark for where the row goes, drawn by main.js. */
+  .nav-ico {
+    width: 19px;
+    height: 19px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    color: var(--amber);
+    opacity: 0.85;
+  }
+  /* The dot at the end becomes an arrow, because a row that goes
+     somewhere should look like it goes somewhere. */
+  .nav-links a::after {
+    content: "";
+    /* The wide bar draws this as an underline pinned under the link, so
+       it has to be let go of here or the arrow lands under the row
+       instead of in it. */
+    position: static;
+    margin-left: auto;
+    width: 7px;
+    height: 7px;
+    border: 2px solid rgba(255, 255, 255, 0.28);
+    border-left: 0;
+    border-bottom: 0;
+    border-radius: 1px;
+    background: none;
+    box-shadow: none;
+    transform: rotate(45deg);
+    transition: border-color 0.16s ease, transform 0.16s ease;
+  }
+  .nav-links a:active::after { transform: rotate(45deg) translate(1px, -1px); }
+  /* Where you are: amber through the whole row, and a rail down its edge
+     rather than a dot at the end of it. */
+  .nav-links a.is-here {
+    color: var(--amber);
+    background: rgba(255, 183, 3, 0.09);
+    border-color: rgba(255, 183, 3, 0.3);
+    box-shadow: inset 3px 0 0 var(--amber);
+  }
+  .nav-links a.is-here::after { border-color: rgba(255, 183, 3, 0.7); }
+  .nav-links a.is-here .nav-ico { opacity: 1; }
+  /* Play is a game rather than a part of the page, so it keeps its own
+     colour and sits apart from the list above it. */
+  .nav-links .nav-play {
+    margin-top: 3px;
+    color: var(--amber);
+    border-color: rgba(255, 183, 3, 0.28);
+    background: rgba(255, 183, 3, 0.06);
+  }
+  .nav-links .nav-play-icon { width: 15px; height: 15px; margin-left: 2px; }
+  .nav-links .nav-menu-buy {
+    margin: 11px 0 0;
+    padding: 15px 22px;
+    border-radius: 999px;
+    font-size: 16px;
+    justify-content: center;
+    color: #1a1200;
+    border-color: rgba(120, 72, 0, 0.55);
+    background: linear-gradient(180deg, #ffd44e 0%, var(--amber) 46%, #f39200 100%);
+  }
+  .nav-links .nav-menu-buy::after { display: none; }
+  /* Each row lands a beat after the one above it, coming up rather than
+     in from the side: the sheet itself is already coming down. */
+  @keyframes nav-row {
+    from { opacity: 0; transform: translateY(-7px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+@media (max-width: 1040px) and (prefers-reduced-motion: reduce) {
+  .nav-links a, .nav-links a::after { transition: none; }
+}
+/* The marks belong to the sheet; the wide bar is text on its own. */
+@media (min-width: 1041px) { .nav-ico { display: none; } }

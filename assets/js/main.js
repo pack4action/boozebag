@@ -1569,3 +1569,37 @@ if (buybar && heroEl && window.IntersectionObserver) {
     setTimeout(() => b.classList.remove('is-shine'), SWEEP);
   }, { passive: true });
 })();
+
+// ---- A mark against each thing in the menu ----
+// The sheet on a phone was six lines of type and nothing else, which is
+// a long way to read for a list of six. Each row gets a small drawing of
+// what it leads to. They are drawn here rather than taken from the icon
+// sheet in the markup, because that sheet is only on the front page and
+// these rows are on every one.
+(function () {
+  const nav = document.getElementById('nav-links');
+  if (!nav) return;
+  const MARKS = {
+    proof: 'M7 4h7l4 4v12H7z|M14 4v4h4',
+    roadmap: 'M7 20V4|M7 5h10l-2.6 3.4L17 12H7',
+    tokenomics: 'M12 5a7 7 0 1 0 7 7|M12 5v7h7',
+    buy: 'M5 8h14v11H5z|M8.5 8V6a3.5 3.5 0 0 1 7 0v2',
+    community: 'M5 6h14v9h-9l-4 4z',
+  };
+  nav.querySelectorAll('a').forEach((a) => {
+    if (a.classList.contains('nav-play') || a.classList.contains('nav-menu-buy')) return;
+    const to = (a.getAttribute('href') || '').split('#')[1];
+    const d = MARKS[to];
+    if (!d) return;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'nav-ico');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    d.split('|').forEach((bit) => {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', bit);
+      svg.appendChild(path);
+    });
+    a.insertBefore(svg, a.firstChild);
+  });
+})();
