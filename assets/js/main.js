@@ -362,51 +362,42 @@ function crackSound() {
     // Flat noise, made once and shaped differently for each part below.
     // Rebuilding it every press is a lot of random numbers a tap.
     if (!crackNoise || crackNoise.sampleRate !== audio.sampleRate) {
-      const len = Math.floor(audio.sampleRate * 0.35);
+      const len = Math.floor(audio.sampleRate * 0.5);
       crackNoise = audio.createBuffer(1, len, audio.sampleRate);
       const d = crackNoise.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     }
-    const noise = (from, filter, freq, q, peak, hold, fall) => {
+    // Everything here is noise through a filter. There is no tone under
+    // it: a sine down at a hundred and something hertz is a drum, and a
+    // can is not a drum.
+    const part = (from, kind, hz, q, peak, hold, fall) => {
       const src = audio.createBufferSource();
       src.buffer = crackNoise;
       src.playbackRate.value = 0.9 + Math.random() * 0.2;
       const f = audio.createBiquadFilter();
-      f.type = filter;
-      f.frequency.setValueAtTime(freq[0], t + from);
-      if (freq[1] !== freq[0]) f.frequency.exponentialRampToValueAtTime(freq[1], t + from + hold + fall);
+      f.type = kind;
+      f.frequency.setValueAtTime(hz[0], t + from);
+      if (hz[1] !== hz[0]) f.frequency.exponentialRampToValueAtTime(hz[1], t + from + hold + fall);
       f.Q.value = q;
       const g = audio.createGain();
       g.gain.setValueAtTime(0.0001, t + from);
-      g.gain.exponentialRampToValueAtTime(peak * loud, t + from + 0.004);
+      g.gain.exponentialRampToValueAtTime(peak * loud, t + from + 0.003);
       g.gain.setValueAtTime(peak * loud, t + from + hold);
       g.gain.exponentialRampToValueAtTime(0.0001, t + from + hold + fall);
       src.connect(f);
       f.connect(g);
       g.connect(audio.destination);
-      src.start(t + from, Math.random() * 0.2);
+      src.start(t + from, Math.random() * 0.3);
       src.stop(t + from + hold + fall + 0.02);
-      return src;
     };
-    // The tab going: short, dry and bright, and over before you notice it.
-    noise(0, 'bandpass', [2400, 2400], 1.1, 0.26, 0.004, 0.026);
-    // Then the pressure letting go, which is the part that sounds like a
-    // can. A soft breath that darkens as it dies away rather than a hiss
-    // that stays bright all the way out.
-    noise(0.012, 'lowpass', [5200, 900], 0.7, 0.085, 0.02, 0.19);
-    // And the body of the can under both, for weight rather than volume.
-    const osc = audio.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(190, t);
-    osc.frequency.exponentialRampToValueAtTime(120, t + 0.07);
-    const og = audio.createGain();
-    og.gain.setValueAtTime(0.0001, t);
-    og.gain.exponentialRampToValueAtTime(0.11 * loud, t + 0.006);
-    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.085);
-    osc.connect(og);
-    og.connect(audio.destination);
-    osc.start(t);
-    osc.stop(t + 0.1);
+    // The snap of the tab: high, dry, and gone in a blink.
+    part(0, 'highpass', [4200, 4200], 0.7, 0.3, 0.002, 0.014);
+    // The aluminium giving, right behind it. Narrow enough to ring a
+    // little, which is the part that makes it feel like metal.
+    part(0.004, 'bandpass', [1700, 1700], 5.5, 0.2, 0.004, 0.05);
+    // And the pressure going, the long part: a breath that opens bright
+    // and darkens as it empties.
+    part(0.014, 'lowpass', [7000, 1500], 0.6, 0.075, 0.03, 0.3);
   } catch (e) { /* no sound is fine */ }
 }
 let foamLive = 0;      // bubbles in the air right now
@@ -608,17 +599,37 @@ function showHolders(n, source) {
 }
 // A market cap can come from a chart site or from pump.fun through the
 // Worker; the chart sites are believed first when they have one.
-let capFrom = '';
+//
+// Below a floor the figure says more about how early it is than about the
+// coin, and it is the first number a stranger reads, so it waits until
+// there is something worth reading. Nothing has to be changed for it to
+// appear: the page checks the live figure every time it comes in. The
+// floor is in the markup so it is one number to move.
+const CAP_FLOOR = (function () {
+  const tag = document.querySelector('meta[name="boozebag-cap-floor"]');
+  const n = tag && Number(tag.content);
+  return n > 0 ? n : 10000;
+})();
+let capFrom = '';   // the source of the figure actually on screen
+let capBid = '';    // the source whose figure is being believed
 function showCap(cap, source, url, strong) {
-  if (!(Number(cap) > 0)) return;
-  if (capFrom && capFrom !== source && !strong) return;
-  capFrom = source;
-  setFresh(document.getElementById('mk-mc'), money(cap));
-  const tile = document.getElementById('mk-mc-tile');
-  if (tile) tile.hidden = false;
+  const n = Number(cap);
+  if (!(n > 0)) return;
+  if (capBid && capBid !== source && !strong) return;
+  capBid = source;
   if (url) marketEl.href = url;
+  const tile = document.getElementById('mk-mc-tile');
+  if (n < CAP_FLOOR) {
+    capFrom = '';
+    if (tile) tile.hidden = true;
+  } else {
+    capFrom = source;
+    setFresh(document.getElementById('mk-mc'), money(n));
+    if (tile) tile.hidden = false;
+  }
   noteSource();
-  marketEl.hidden = false;
+  // The row is only worth a place if there is something on it.
+  marketEl.hidden = !marketEl.querySelector('.market-tile:not([hidden])');
 }
 function showMarket(m) {
   showCap(m.marketCap, m.source, m.url, true);
@@ -1057,6 +1068,7 @@ if (buybar && heroEl && window.IntersectionObserver) {
     // The words, bent along the wave, with the icons between them. The
     // run either side is drawn too, for the words that cross an edge.
     const line = defs.querySelector('#' + lineId);
+    const textLine = defs.querySelector('#' + textLineId);
     const pathLen = line.getTotalLength ? line.getTotalLength() : 0;
     // Where a point along the line is, by distance from its start: the
     // line starts a wave before the strip, so the first run is offset.
@@ -1073,8 +1085,22 @@ if (buybar && heroEl && window.IntersectionObserver) {
         tp.textContent = it.text;
         const si = lead + it.iconAt + k * cycleLen;
         if (si < 0 || si > pathLen) return;
-        const p = line.getPointAtLength(si);
-        const use = el('use', { class: 'wave-icon', x: r(p.x - ICON / 2), y: r(p.y + FROTH - ICON / 2), width: ICON, height: ICON }, strip);
+        // An icon sits on the same line as the words and leans the same
+        // way they do. Left upright it stood straight while the letters
+        // either side of it tipped with the wave, which is the one thing
+        // on the band that looked stuck on rather than printed.
+        const p = textLine.getPointAtLength(si);
+        const back = textLine.getPointAtLength(Math.max(0, si - 6));
+        const on = textLine.getPointAtLength(Math.min(pathLen, si + 6));
+        const lean = Math.atan2(on.y - back.y, on.x - back.x) * 180 / Math.PI;
+        const use = el('use', {
+          class: 'wave-icon',
+          x: r(-ICON / 2),
+          y: r(-ICON / 2),
+          width: ICON,
+          height: ICON,
+          transform: 'translate(' + r(p.x) + ' ' + r(p.y) + ') rotate(' + r(lean) + ')',
+        }, strip);
         use.setAttributeNS(XLINK, 'xlink:href', '#' + it.icon);
         use.setAttribute('href', '#' + it.icon);
       });

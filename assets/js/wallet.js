@@ -256,7 +256,16 @@
     if (!saved) return null;
     // A wallet linked from the app stays connected until it is
     // disconnected here; there is no extension to ask again.
-    if (saved.linked && saved.address) return saved.address;
+    //
+    // Unless it was linked before the board started asking for
+    // signatures, in which case it kept no session and cannot sign
+    // anything. Left alone it looks connected and quietly posts nothing,
+    // so it is let go of here and the bar asks to connect again; the new
+    // connection keeps what it needs.
+    if (saved.linked && saved.address) {
+      if (!saved.session || !saved.shared || !saved.dappKey) { clearSaved(); return null; }
+      return saved.address;
+    }
     const provider = getProvider(saved.wallet);
     if (!provider) { clearSaved(); return null; }
     try {

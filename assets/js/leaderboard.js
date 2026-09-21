@@ -236,7 +236,8 @@
     function send(entry) {
       if (!API) return Promise.resolve(null);
       return authFor(gameId, entry.address, entry.score).then((auth) => {
-        if (!auth) return null;
+        if (!auth) { cannotSign(); return null; }
+        saySigned();
         return fetch(API + '/scores', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -296,7 +297,8 @@
       if (!API) return Promise.resolve('offline');
       if (isOff(address)) return Promise.resolve('off');
       return authFor(gameId, address, score).then((auth) => {
-        if (!auth) return { unsigned: true };
+        if (!auth) { cannotSign(); return { unsigned: true }; }
+        saySigned();
         return fetch(API + '/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -325,7 +327,7 @@
       draw();
       if (!API) return Promise.resolve('offline');
       return authFor(gameId, address, 'remove').then((auth) => {
-        if (!auth) return 'offline';
+        if (!auth) { cannotSign(); return 'offline'; }
         return fetch(API + '/scores', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -383,6 +385,33 @@
       });
       drawLeave();
     }
+
+    // ---- When nothing can be signed ----
+    // A score that cannot be signed is refused by the board, and saying
+    // nothing about it is how a wallet linked before any of this existed
+    // sat there looking connected and posting nothing for days.
+    let noteEl = null;
+    function note(text) {
+      if (!shown) return;
+      if (!noteEl) {
+        const panel = shown.listEl.closest('.leaderboard') || shown.listEl.parentNode;
+        if (!panel) return;
+        noteEl = document.createElement('p');
+        noteEl.className = 'lb-note';
+        noteEl.hidden = true;
+        panel.appendChild(noteEl);
+      }
+      noteEl.textContent = text || '';
+      noteEl.hidden = !text;
+    }
+    function cannotSign() {
+      const W = window.BoozebagWallet;
+      const saved = W && W.getSaved ? W.getSaved() : null;
+      note(saved
+        ? 'Connect your wallet again to post scores. It was linked before the board started checking signatures.'
+        : 'Connect a wallet to get on the board.');
+    }
+    function saySigned() { note(''); }
 
     // ---- Taking yourself off, under the board ----
     // One line: a button that asks first. Nothing destructive happens on
