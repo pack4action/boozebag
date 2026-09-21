@@ -3053,3 +3053,60 @@ html { scroll-padding-top: 84px; }
 }
 /* The marks belong to the sheet; the wide bar is text on its own. */
 @media (min-width: 1041px) { .nav-ico { display: none; } }
+
+/* ---- The roadmap, read rather than looked at ----
+   The stops arrive as you reach them already. What follows is what the
+   section does while you are in it: the beer runs down the spine with
+   your reading, a stop answers when you point at it, and the rest of the
+   list stands back while you do. */
+
+/* The level in the spine is set by the script, from how far down the
+   page you have got. The class stays as the fallback: if the script
+   never runs, an arrived stop simply has its line full. */
+.js .road-item.in::after {
+  transform: scaleY(var(--fill, 1));
+  transition: transform 0.12s linear;
+}
+/* Pointing at a stop. The card comes forward and takes that stage's own
+   colour, the dot grows into its ring, and what it says lifts a touch. */
+.road-body { transition: transform 0.2s cubic-bezier(0.2, 1.2, 0.4, 1), border-color 0.2s ease, box-shadow 0.2s ease; }
+.road-dot { transition: transform 0.24s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.24s ease, border-color 0.2s ease; }
+.road-status { transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease; }
+.road-item:hover .road-body {
+  transform: translateX(4px);
+  border-color: var(--pour);
+  box-shadow: var(--top-lit), var(--lift-2), 0 0 0 1px var(--pour);
+}
+.road-item:hover .road-dot {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.04), 0 0 18px -2px var(--pour);
+  border-color: var(--pour);
+}
+.road-item:hover .road-status { transform: translateY(-1px); }
+.road-item:hover .road-head h3 { color: var(--text); }
+/* And the rest of the list stands back, so the one being read is the one
+   being looked at. Only where there is a pointer to do the asking. */
+@media (hover: hover) {
+  .road-item { transition: opacity 0.22s ease; }
+  .roadmap:hover .road-item:not(:hover) { opacity: 0.55; }
+}
+/* On a phone there is no pointing, so a press does the same job. */
+.road-item:active .road-body { transform: translateX(3px); border-color: var(--pour); }
+.road-item:active .road-dot { transform: scale(1.1); }
+
+/* The stop that is running now breathes rather than just sitting there
+   with a ring around it: the icon in its dot rocks, slowly. */
+.js .road-item.is-now .road-dot .icon { animation: road-rock 3.2s ease-in-out infinite; }
+@keyframes road-rock {
+  0%, 72%, 100% { transform: rotate(0deg); }
+  78% { transform: rotate(-11deg); }
+  84% { transform: rotate(9deg); }
+  90% { transform: rotate(-4deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js .road-item.in::after { transform: scaleY(1); transition: none; }
+  .road-body, .road-dot, .road-status, .road-item { transition: none; }
+  .roadmap:hover .road-item:not(:hover) { opacity: 1; }
+  .js .road-item.is-now .road-dot .icon { animation: none; }
+}

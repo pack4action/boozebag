@@ -1603,3 +1603,36 @@ if (buybar && heroEl && window.IntersectionObserver) {
     a.insertBefore(svg, a.firstChild);
   });
 })();
+
+// ---- The beer runs down the roadmap as you read it ----
+// Each stop already arrived on its own; the line between them filled in
+// one go with it. It follows the reading instead now: the level in the
+// spine is however far down the page you have got, so the beer runs
+// ahead of you as you scroll and stops where you stop.
+(function () {
+  const items = Array.from(document.querySelectorAll('.road-item'));
+  if (!items.length || reduceMotion) return;
+  let waiting = false;
+  function pour() {
+    waiting = false;
+    // The line the eye reads on, a little above the middle of the screen.
+    const at = window.innerHeight * 0.58;
+    items.forEach((item) => {
+      const box = item.getBoundingClientRect();
+      // The spine runs from this stop's dot to the next one's, which is
+      // this row's own height less the dot at the top of it.
+      const from = box.top + 24;
+      const span = box.height;
+      if (span <= 0) return;
+      const done = Math.max(0, Math.min(1, (at - from) / span));
+      item.style.setProperty('--fill', done.toFixed(3));
+    });
+  }
+  window.addEventListener('scroll', () => {
+    if (waiting) return;
+    waiting = true;
+    requestAnimationFrame(pour);
+  }, { passive: true });
+  window.addEventListener('resize', pour);
+  pour();
+})();
