@@ -5272,8 +5272,21 @@
       nameSubmitEl.disabled = false;
       if (answer === 'taken') { nameNote('That name is taken.', 'bad'); return; }
       if (answer === 'slow') { nameNote('Try again in a moment.', 'bad'); return; }
+      // It is this gym's name either way, so it is kept here. But the
+      // board can refuse it, and saying nothing about that is how a name
+      // changed here and stayed the old one on the board.
       keep();
       renderLeaderboard();
+      if (answer === 'off') {
+        nameNote('Saved here. You have taken yourself off the board, so put yourself back on for it to show there.', 'bad');
+        return;
+      }
+      if (answer !== 'yours') {
+        nameNote(leaderboard.remote
+          ? 'Saved here, but the board did not take it. Connect your wallet again and try once more.'
+          : 'Saved here. This board is only in your browser.', 'bad');
+        return;
+      }
       nameNote('');
     });
   }
