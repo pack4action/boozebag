@@ -5250,8 +5250,22 @@
     setText(nameSubmitEl, 'Confirm');
     if (formOpen) gymNameEl.value = editing ? named : gymNameEl.value;
   }
+  // One space, no more. Two words are a name; a row of them pushes
+  // everything else off the line.
+  function oneSpace(raw) {
+    let seen = false;
+    let out = '';
+    String(raw || '').replace(/\s/g, ' ').split('').forEach((ch) => {
+      if (ch === ' ') {
+        if (seen) return;
+        seen = true;
+      }
+      out += ch;
+    });
+    return out;
+  }
   function claimGymName() {
-    const wanted = (gymNameEl.value || '').replace(/\s+/g, ' ').trim().slice(0, 20);
+    const wanted = oneSpace(gymNameEl.value).trim().slice(0, 20).trim();
     if (!wanted) { nameNote('Type a name first.', 'bad'); return; }
     const before = (state.gymName || '').trim();
     if (wanted === before) { nameNote(''); showNamer(false); return; }
@@ -5271,6 +5285,7 @@
     leaderboard.claim(connectedWallet, Math.floor(state.lifetime), Math.round(gps * 10) / 10, wanted).then((answer) => {
       nameSubmitEl.disabled = false;
       if (answer === 'taken') { nameNote('That name is taken.', 'bad'); return; }
+      if (answer === 'spaces') { nameNote('One space at most in a name.', 'bad'); return; }
       if (answer === 'slow') { nameNote('Try again in a moment.', 'bad'); return; }
       // It is this gym's name either way, so it is kept here. But the
       // board can refuse it, and saying nothing about that is how a name
@@ -5294,6 +5309,17 @@
     gymNameEl.value = state.gymName || '';
     showNamer(false);
     nameFormEl.addEventListener('submit', (e) => { e.preventDefault(); claimGymName(); });
+    // The second space never lands, so what is typed is what goes up.
+    gymNameEl.addEventListener('input', () => {
+      const trimmed = oneSpace(gymNameEl.value);
+      if (trimmed === gymNameEl.value) return;
+      const at = gymNameEl.selectionStart;
+      const lost = gymNameEl.value.length - trimmed.length;
+      gymNameEl.value = trimmed;
+      const put = Math.max(0, (at === null ? trimmed.length : at) - lost);
+      try { gymNameEl.setSelectionRange(put, put); } catch (err) { /* older browsers */ }
+      nameNote('One space at most in a name.', 'bad');
+    });
     nameEditEl.addEventListener('click', () => { nameNote(''); showNamer(true); gymNameEl.focus(); gymNameEl.select(); });
     nameCancelEl.addEventListener('click', () => { nameNote(''); showNamer(false); });
   }

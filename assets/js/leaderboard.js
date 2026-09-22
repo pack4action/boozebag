@@ -290,9 +290,10 @@
     }
 
     // The name, put up right now, from the button in the game. Answers
-    // 'yours' when it went up, 'taken' when somebody else has it, 'slow'
-    // when the board asked for a moment, and 'offline' when there is no
-    // shared board or it did not answer.
+    // 'yours' when it went up, 'taken' when somebody else has it,
+    // 'spaces' when it holds more than one space, 'slow' when the board
+    // asked for a moment, and 'offline' when there is no shared board or
+    // it did not answer.
     function claim(address, score, meta, name) {
       if (!API) return Promise.resolve('offline');
       if (isOff(address)) return Promise.resolve('off');
@@ -306,6 +307,7 @@
       }).then((r) => r.json().then((reply) => {
         if (r.status === 409) return 'taken';
         if (r.status === 429) return 'slow';
+        if (r.status === 400 && reply && reply.error === 'one space') return 'spaces';
         if (!r.ok) return 'offline';
         writeLocal(address, score, meta, name);
         tookTheBoard(reply);

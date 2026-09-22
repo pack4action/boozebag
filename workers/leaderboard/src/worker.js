@@ -163,8 +163,14 @@ const UNPRINTABLE = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\
 // on one line and be made of things that show up.
 function cleanName(raw) {
   if (typeof raw !== 'string') return null;
-  const name = raw.replace(UNPRINTABLE, '').replace(/\s+/g, ' ').trim().slice(0, 20);
+  const name = raw.replace(UNPRINTABLE, '').replace(/\s+/g, ' ').trim().slice(0, 20).trim();
   return name || null;
+}
+
+// Two words at most. A name padded out with spaces pushes the rest of a
+// row off the line, and reads as one name here and another there.
+function tooManySpaces(name) {
+  return name.indexOf(' ') !== name.lastIndexOf(' ');
 }
 
 function number(v, ceiling) {
@@ -663,6 +669,13 @@ export default {
     const meta = body.meta === undefined || body.meta === null
       ? null : number(body.meta, rules.metaCeiling);
     let name = cleanName(body.name);
+    // One space is all a name gets. Asked for straight out, it is refused
+    // and said so; carried along by a score going up, the score goes up
+    // without it.
+    if (name !== null && tooManySpaces(name)) {
+      if (body.claim === true) return json(request, { error: 'one space', name }, 400);
+      name = null;
+    }
     // A post that is about the name, from the button in the game, rather
     // than a score going up in passing: it answers straight away and is
     // not held to the wallet's posting window, since a person pressed it.

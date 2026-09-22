@@ -159,5 +159,22 @@ const nowS = () => Math.floor(Date.now() / 1000);
   ok('gym: but it does buy thirty seconds of earning', got > 2e6, got);
 }
 
+// A name holds one space at most.
+{
+  const { post, db } = await fresh();
+  const nameOf = (g, a) => (db.scores.get(g + '|' + a) || {}).name;
+  let r = await post({ game: 'beer-mile', address: W1, score: 5000, name: 'Booze Bag', claim: true });
+  ok('one space is a name', r.status === 200 && nameOf('beer-mile', W1) === 'Booze Bag', r.body);
+  r = await post({ game: 'beer-mile', address: W1, score: 5100, name: 'Booze Bag Gym', claim: true });
+  ok('two spaces are refused', r.status === 400 && r.body.error === 'one space', r.body);
+  ok('and the old name stands', nameOf('beer-mile', W1) === 'Booze Bag', nameOf('beer-mile', W1));
+  r = await post({ game: 'beer-mile', address: W2, score: 5200, name: 'a  b  c' });
+  ok('a score carrying one goes up without the name',
+    r.status === 200 && !nameOf('beer-mile', W2), r.body);
+  r = await post({ game: 'beer-mile', address: W2, score: 5300, name: '  padded  name  ', claim: true });
+  ok('padding is squeezed out before the count',
+    r.status === 200 && nameOf('beer-mile', W2) === 'padded name', r.body);
+}
+
 console.log(fails.length ? 'FAIL\n' + fails.join('\n') : 'PASS');
 process.exit(fails.length ? 1 : 0);
