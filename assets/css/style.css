@@ -1719,6 +1719,13 @@ html { scroll-padding-top: 84px; }
 .topbags-list .lb-addr { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbags-list .lb-meta { font-size: 12px; color: var(--muted); }
 .topbags-list .lb-score { font-weight: 800; color: var(--amber); font-variant-numeric: tabular-nums; }
+.topbags-list .lb-wallet {
+  margin-left: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
 .topbags-list li.is-you .lb-addr { color: var(--amber); }
 .topbags-empty { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); }
 .topbags-empty[hidden] { display: none; }
@@ -1726,6 +1733,7 @@ html { scroll-padding-top: 84px; }
   .topbags { padding: 14px 14px 12px; }
   .topbags-list li { grid-template-columns: 22px 1fr auto; }
   .topbags-list .lb-meta { display: none; }
+  .topbags-list .lb-wallet { display: none; }
 }
 
 

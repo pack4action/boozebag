@@ -370,8 +370,20 @@
         if (me && entry.address === me) li.className = 'is-you';
         const who = document.createElement('span');
         who.className = 'lb-addr';
-        who.textContent = entry.name || (window.BoozebagWallet
-          ? window.BoozebagWallet.short(entry.address) : entry.address);
+        const short = window.BoozebagWallet
+          ? window.BoozebagWallet.short(entry.address) : entry.address;
+        // A name is anyone's to pick, so the wallet rides along beside it
+        // as the part of a row nobody else can take.
+        if (entry.name) {
+          who.textContent = entry.name;
+          const tag = document.createElement('span');
+          tag.className = 'lb-wallet';
+          tag.textContent = short;
+          tag.title = entry.address;
+          who.appendChild(tag);
+        } else {
+          who.textContent = short;
+        }
         const meta = document.createElement('span');
         meta.className = 'lb-meta';
         meta.textContent = shown.formatMeta && entry.meta !== null && entry.meta !== undefined

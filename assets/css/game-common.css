@@ -258,6 +258,15 @@
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+/* The wallet beside a name, quiet enough that the name still leads. */
+.leaderboard-list .lb-wallet {
+  margin-left: 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
 .leaderboard-list .lb-score {
   font-family: 'Anton', sans-serif;
   color: var(--amber);
