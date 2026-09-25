@@ -582,6 +582,40 @@ function shortNum(n) {
   if (v >= 1e3) return (v / 1e3).toFixed(v >= 1e4 ? 0 : 1) + 'K';
   return String(Math.round(v));
 }
+// ---- The supply bar ----
+// Three parts of one number, which means they have to add up to the
+// number written above them and every token has to sit in exactly one of
+// them. What tells them apart is how a token got where it is: handed out,
+// waiting to be handed out, or bought. The part still waiting is read
+// from the wallet it waits in when the Worker can see it, and taken from
+// the markup when it cannot.
+const supplyEl = document.querySelector('.supply');
+function paintSupply(supply, waiting) {
+  if (!supplyEl || !(supply > 0)) return;
+  const unlock = Number(supplyEl.dataset.unlock) || 0;
+  const said = Number(waiting);
+  const left = Math.max(0, Math.min(unlock,
+    said >= 0 && isFinite(said) ? said : Number(supplyEl.dataset.left) || 0));
+  const given = Math.max(0, unlock - left);
+  const bought = Math.max(0, supply - given - left);
+  const pc = (n) => (n / supply) * 100;
+  const say = (n) => Math.round(pc(n)) + '%';
+  supplyEl.style.setProperty('--drop', pc(given).toFixed(2) + '%');
+  supplyEl.style.setProperty('--next', pc(left).toFixed(2) + '%');
+  const put = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  put('sk-drop', shortNum(given));
+  put('sk-drop-pc', say(given));
+  put('sk-next', shortNum(left));
+  put('sk-next-pc', say(left));
+  put('sk-market', shortNum(bought));
+  put('sk-market-pc', say(bought));
+  const bar = document.getElementById('tk-bar');
+  if (bar) {
+    bar.setAttribute('aria-label', 'Of the supply, ' + say(given) + ' has been airdropped, '
+      + say(left) + ' is still to go out, and ' + say(bought) + ' was bought on the open market.');
+  }
+}
+
 const topbagsList = document.getElementById('topbags-list');
 const topbagsEmpty = document.getElementById('topbags-empty');
 if (topbagsList && topbagsEmpty) {
@@ -906,6 +940,7 @@ function askToken() {
       const supply = Number(t.supply);
       const sup = document.getElementById('tk-supply');
       if (sup && supply > 0) sup.textContent = Math.round(supply).toLocaleString('en-US');
+      paintSupply(supply, t.heldBack);
     })
     .catch(() => {});
 }

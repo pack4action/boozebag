@@ -41,7 +41,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=85" />
+<link rel="stylesheet" href="assets/css/style.css?v=86" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -525,20 +525,28 @@
   </div>
 
   <!-- The supply as a glass of beer: the whole of it, the foam on top is
-       the part airdropped to holders. -->
-  <div class="supply">
+       the part airdropped to holders.
+
+       The three parts are one number cut three ways, so they have to add
+       up to the supply above them, and every token has to sit in exactly
+       one of them. What separates them is how a token got where it is:
+       given out, waiting to be given out, or bought. `data-unlock` is the
+       size of the unlock and `data-left` is what is still to go out,
+       which the page works out for itself once the Worker can see the
+       wallet it waits in. -->
+  <div class="supply" data-unlock="130000000" data-left="70000000">
     <div class="supply-head">
-      <span class="supply-total"><b id="tk-supply">1,000,000,000</b><span>total supply</span></span>
+      <span class="supply-total"><b id="tk-supply">953,882,392</b><span>total supply</span></span>
       <span class="supply-holders" id="tk-holders-stat" hidden><b id="tk-holders"></b><span>beer holders</span></span>
     </div>
-    <div class="supply-bar" role="img" aria-label="13% of the supply is unlocked for holders: 6% airdropped so far and 7% still to go. The rest is on the open market.">
+    <div class="supply-bar" id="tk-bar" role="img" aria-label="Of the supply, 6% has been airdropped, 7% is still to go out, and the rest was bought on the open market.">
       <span class="supply-drop"><i></i></span>
       <span class="supply-next"></span>
     </div>
     <div class="supply-legend">
-      <span class="supply-key supply-key-drop"><i></i><b>60M</b> airdropped to holders <em>6%</em></span>
-      <span class="supply-key supply-key-next"><i></i><b>70M</b> still going out <em>7%</em></span>
-      <span class="supply-key supply-key-market"><i></i><b>870M</b> on the open market <em>87%</em></span>
+      <span class="supply-key supply-key-drop"><i></i><b id="sk-drop">60M</b> airdropped so far <em id="sk-drop-pc">6%</em></span>
+      <span class="supply-key supply-key-next"><i></i><b id="sk-next">70M</b> still to go out <em id="sk-next-pc">7%</em></span>
+      <span class="supply-key supply-key-market"><i></i><b id="sk-market">824M</b> bought and traded <em id="sk-market-pc">87%</em></span>
     </div>
   </div>
 
@@ -706,7 +714,7 @@
 
 <script src="assets/js/wallet.js?v=7"></script>
 <script src="assets/js/leaderboard.js?v=9"></script>
-<script src="assets/js/main.js?v=54"></script>
+<script src="assets/js/main.js?v=55"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>

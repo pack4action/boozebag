@@ -175,6 +175,14 @@ SOLANA_RPC = https://mainnet.helius-rpc.com/?api-key=...
 
 `TOKEN_MINT` can be set the same way if the coin ever changes.
 
+`AIRDROP_WALLET` is the other one worth setting. Name the wallet the
+unlocked supply is handed out from and the answer carries `heldBack`,
+what is still sitting in it, read every ten minutes with the rest. The
+page turns that into the supply bar: what is left to go out, what has
+gone out already, and what was bought rather than given. Without it
+`heldBack` is `null` and the page uses the figure written into its own
+markup instead.
+
 ## Is he live
 
 `GET /api/live` says whether the Kick channel is streaming, how many are

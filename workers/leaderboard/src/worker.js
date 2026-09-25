@@ -396,6 +396,26 @@ async function rpcAt(url, method, params) {
 }
 const rpcUrl = (env) => env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com';
 
+// What is still waiting to go out, read from the wallet it waits in.
+// Only asked for when AIRDROP_WALLET names one, and null otherwise, so
+// the page falls back to the figure written into it.
+async function heldBack(env, mint) {
+  const owner = env.AIRDROP_WALLET;
+  if (!owner) return null;
+  const r = await rpcAsk(rpcUrl(env), 'getTokenAccountsByOwner',
+    [owner, { mint }, { encoding: 'jsonParsed' }]);
+  const list = r.result && r.result.value;
+  if (!Array.isArray(list)) return null;
+  let n = 0;
+  for (const acc of list) {
+    const info = acc && acc.account && acc.account.data && acc.account.data.parsed
+      && acc.account.data.parsed.info;
+    const ui = info && info.tokenAmount && Number(info.tokenAmount.uiAmount);
+    if (ui > 0) n += ui;
+  }
+  return n;
+}
+
 async function tokenSupply(env, mint) {
   const res = await rpcAt(rpcUrl(env), 'getTokenSupply', [mint]);
   const v = res && res.value;
@@ -557,7 +577,8 @@ async function tokenAnswer(env) {
   const now = Date.now();
   const mint = env.TOKEN_MINT || TOKEN_MINT;
   if (!tokenHeld || now - tokenHeld.at >= TOKEN_HOLD_MS) {
-    const [supply, counted] = await Promise.all([tokenSupply(env, mint), tokenHolders(env, mint)]);
+    const [supply, counted, waiting] = await Promise.all([tokenSupply(env, mint),
+      tokenHolders(env, mint), heldBack(env, mint)]);
     let holders = counted.holders;
     let holdersFrom = counted.from;
     if (holders !== null) lastHolders = { at: now, holders, from: holdersFrom };
@@ -570,6 +591,7 @@ async function tokenAnswer(env) {
       body: {
         supply: supply ? supply.supply : null,
         decimals: supply ? supply.decimals : null,
+        heldBack: waiting,
         holders,
         holdersFrom,
         tried: counted.tried,

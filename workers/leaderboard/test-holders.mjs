@@ -16,6 +16,11 @@ function stubFetch(plan) {
     // an RPC POST
     const body = JSON.parse(opts.body);
     if (body.method === 'getTokenSupply') return J({ result: { value: { uiAmount: 1e9, decimals: 6 } } });
+    if (body.method === 'getTokenAccountsByOwner') {
+      if (!plan.wallet) return J({ result: { value: [] } });
+      return J({ result: { value: plan.wallet.map((ui) => ({
+        account: { data: { parsed: { info: { tokenAmount: { uiAmount: ui } } } } } })) } });
+    }
     if (body.method === 'getTokenAccounts') {
       // The indexed way, which only some RPCs answer. This one wants its
       // arguments as a bare object, the way Helius does, and says so in
@@ -122,6 +127,20 @@ await run('zero ignored', { solscan: { data: { holder: 0 } }, gecko: GECKO, pump
   r2 = await run('a refusal says why', { chain: false }, null, null, RPC);
   ok('a refusal says why: the reason is passed on',
     r2.body.tried[0].includes('chain: ') && !r2.body.tried[0].endsWith('nothing'), r2.body.tried);
+}
+
+// What is still waiting to go out, read from the wallet holding it.
+{
+  const WALLET = { AIRDROP_WALLET: 'Wa11etAddre55' };
+  let r3 = await run('the airdrop wallet is read',
+    { solscan: SOLSCAN, wallet: [40000000, 30000000] }, 1234, 'solscan', WALLET);
+  ok('the airdrop wallet is read: every account of it counts',
+    r3.body.heldBack === 70000000, r3.body.heldBack);
+  r3 = await run('an empty wallet is nothing left',
+    { solscan: SOLSCAN }, 1234, 'solscan', WALLET);
+  ok('an empty wallet is nothing left', r3.body.heldBack === 0, r3.body.heldBack);
+  r3 = await run('no wallet named, nothing said', { solscan: SOLSCAN }, 1234, 'solscan');
+  ok('no wallet named, nothing said', r3.body.heldBack === null, r3.body.heldBack);
 }
 
 console.log(fails.length ? 'FAIL\n' + fails.join('\n') : 'PASS');
