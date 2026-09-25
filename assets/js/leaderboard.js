@@ -74,39 +74,72 @@
   // is asked for anything, and on a phone it leaves the page and comes
   // back, so it is done when somebody connects rather than mid game.
   const PENDING_KEY = 'boozebagPostKeyAsking';
+  const ASK_WINDOW = 600000;   // ten minutes is a long trip to an app and back
   function keep(where, value) {
     try { localStorage.setItem(where, JSON.stringify(value)); } catch (e) { /* this session only */ }
   }
+  function dropPending() {
+    try { localStorage.removeItem(PENDING_KEY); } catch (e) { /* nothing to drop */ }
+  }
+  // A key the wallet went off to sign for, before the page was taken
+  // away. One that nothing ever came back for is forgotten, so it cannot
+  // sit there forever asking to be finished.
+  function pendingNote() {
+    let waiting = null;
+    try { waiting = JSON.parse(localStorage.getItem(PENDING_KEY)); } catch (e) { waiting = null; }
+    if (!waiting) return null;
+    if (Date.now() - (waiting.at || 0) > ASK_WINDOW) { dropPending(); return null; }
+    return waiting;
+  }
+  // Whether the wallet app has answered: read once, as this file loads,
+  // because the answer is in the address bar and is taken out of it as
+  // soon as anything picks it up.
+  const walletAnswered = (function () {
+    try {
+      const p = new URL(location.href).searchParams;
+      return !!(p.get('data') || p.get('errorCode'));
+    } catch (e) { return false; }
+  }());
+  // Asking a wallet linked from a phone means leaving the page for the
+  // app. That is fine when somebody has just asked for something, and is
+  // not fine on its own: a page that walks out to Phantom the moment it
+  // opens is a page nobody can read.
+  function askingLeavesThePage() {
+    const W = window.BoozebagWallet;
+    const saved = W && W.getSaved ? W.getSaved() : null;
+    return !!(saved && saved.linked);
+  }
   let asking = null;
-  function grantFor(address) {
+  function grantFor(address, mayLeave) {
     const have = savedGrant(address);
     if (have) return Promise.resolve(have);
     if (asking) return asking;
     const W = window.BoozebagWallet;
     if (!W || !W.signMessage || !W.canSign || !W.canSign()) return Promise.resolve(null);
+    const waiting = pendingNote();
+    // Nothing to finish and nowhere to ask from: leave the page alone.
+    if (!mayLeave && !walletAnswered && askingLeavesThePage()) return Promise.resolve(null);
     asking = loadNacl().then((nacl) => {
-      // A key the wallet went off to sign for, on a phone, before the
-      // page was taken away. If the app has answered, finish it here.
-      let waiting = null;
-      try { waiting = JSON.parse(localStorage.getItem(PENDING_KEY)); } catch (e) { waiting = null; }
+      // If the app has answered, finish what it answered.
       const back = W.signBack ? W.signBack() : Promise.resolve(null);
       return back.then((answer) => {
         if (answer && waiting && waiting.address === address
           && answer.text === grantText(address, waiting.key, waiting.until)) {
-          localStorage.removeItem(PENDING_KEY);
+          dropPending();
           const done = { address, key: waiting.key, secret: waiting.secret,
             until: waiting.until, grant: answer.signature };
           keep(GRANT_KEY, done);
           return done;
         }
-        // Nothing waiting, so ask. On a phone this leaves the page and
-        // comes back through the branch above.
+        // Nothing came back. Asking again would leave the page, so it
+        // waits for somebody to ask for it.
+        if (!mayLeave && askingLeavesThePage()) { dropPending(); return null; }
         const kp = nacl.sign.keyPair();
         const key = b58(kp.publicKey);
         const until = Math.floor(Date.now() / 1000) + GRANT_HOURS * 3600;
-        keep(PENDING_KEY, { address, key, secret: b58(kp.secretKey), until });
+        keep(PENDING_KEY, { address, key, secret: b58(kp.secretKey), until, at: Date.now() });
         return W.signMessage(grantText(address, key, until)).then((grant) => {
-          localStorage.removeItem(PENDING_KEY);
+          dropPending();
           const done = { address, key, secret: b58(kp.secretKey), until, grant };
           keep(GRANT_KEY, done);
           return done;
@@ -121,16 +154,18 @@
   // somebody mid game is not.
   window.addEventListener('boozebag:wallet', (e) => {
     const address = e && e.detail && e.detail.address;
-    if (address) grantFor(address);
+    if (address) grantFor(address, true);
   });
   // And on the way back from a phone's wallet app, where the answer to a
-  // note asked for earlier is sitting in the address bar.
+  // note asked for earlier is sitting in the address bar. Only then: an
+  // ordinary visit finishes nothing and asks for nothing.
   window.addEventListener('load', () => {
     const W = window.BoozebagWallet;
     const saved = W && W.getSaved ? W.getSaved() : null;
-    let waiting = null;
-    try { waiting = JSON.parse(localStorage.getItem(PENDING_KEY)); } catch (e2) { waiting = null; }
-    if (saved && saved.address && waiting) grantFor(saved.address);
+    const waiting = pendingNote();
+    if (!saved || !saved.address || !waiting) return;
+    if (!walletAnswered) { dropPending(); return; }
+    grantFor(saved.address, false);
   });
   // tweetnacl again, the same copy the wallet link uses.
   let naclWait = null;
@@ -405,7 +440,7 @@
     // nothing about it is how a wallet linked before any of this existed
     // sat there looking connected and posting nothing for days.
     let noteEl = null;
-    function note(text) {
+    function note(text, action) {
       if (!shown) return;
       if (!noteEl) {
         const panel = shown.listEl.closest('.leaderboard') || shown.listEl.parentNode;
@@ -417,13 +452,37 @@
       }
       noteEl.textContent = text || '';
       noteEl.hidden = !text;
+      // Some of these are something somebody can put right from here, so
+      // the note carries the button for it rather than describing it.
+      if (text && action) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'lb-note-do';
+        btn.textContent = action.label;
+        btn.addEventListener('click', () => {
+          btn.disabled = true;
+          Promise.resolve(action.run()).then(() => { btn.disabled = false; });
+        });
+        noteEl.appendChild(document.createTextNode(' '));
+        noteEl.appendChild(btn);
+      }
     }
     function cannotSign() {
       const W = window.BoozebagWallet;
       const saved = W && W.getSaved ? W.getSaved() : null;
-      note(saved
-        ? 'Connect your wallet again to post scores. It was linked before the board started checking signatures.'
-        : 'Connect a wallet to get on the board.');
+      if (!saved) { note('Connect a wallet to get on the board.'); return; }
+      // Connected and able to sign, but the note that stands behind every
+      // post has not been signed yet. On a phone signing it means a trip
+      // to the wallet app, so it waits for a press here instead of taking
+      // the page away on its own.
+      if (W && W.canSign && W.canSign() && !savedGrant(saved.address)) {
+        note('Your wallet has not signed the board note yet, so scores are not posting.', {
+          label: 'Sign it',
+          run: () => grantFor(saved.address, true),
+        });
+        return;
+      }
+      note('Connect your wallet again to post scores. It was linked before the board started checking signatures.');
     }
     function saySigned() { note(''); }
 

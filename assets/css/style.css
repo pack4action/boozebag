@@ -2955,6 +2955,21 @@ html { scroll-padding-top: 84px; }
   text-align: center;
 }
 .lb-note[hidden] { display: none; }
+/* The one thing a note can offer to do about itself. */
+.lb-note-do {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 183, 3, 0.55);
+  border-radius: 999px;
+  background: rgba(255, 183, 3, 0.12);
+  color: var(--amber);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.lb-note-do:hover { background: rgba(255, 183, 3, 0.22); }
+.lb-note-do[disabled] { opacity: 0.6; cursor: wait; }
 
 /* ---- The menu on a phone ----
    It was six lines of type between hairlines, running the full width of
