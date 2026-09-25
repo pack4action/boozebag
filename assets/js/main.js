@@ -345,6 +345,63 @@ function crackLine() {
 let audio = null;
 let crackNoise = null;   // plain noise, made once and shaped on each press
 let lastSound = 0;       // so a fast run of presses does not stack into mush
+
+// ---- The crack itself ----
+// A recording of a can being opened, fetched once and kept decoded, so a
+// press starts it in the same frame the finger lands. The file opens with
+// a moment of silence and ends with a long one; where the sound really
+// starts is found in the decoded audio rather than assumed, because
+// browsers do not all put the first sample in the same place.
+const CRACK_SRC = 'assets/audio/crack.mp3';
+const CRACK_RUN = 0.34;   // as much of it as is worth playing
+let crackBytes = null;
+let crackFetch = null;
+let crackBuf = null;
+let crackFrom = 0;
+let crackDecode = null;
+function crackFile() {
+  if (!crackFetch) {
+    crackFetch = fetch(CRACK_SRC)
+      .then((r) => (r.ok ? r.arrayBuffer() : null))
+      .catch(() => null)
+      .then((raw) => { crackBytes = raw; return raw; });
+  }
+  return crackFetch;
+}
+function crackClip() {
+  if (crackBuf) return Promise.resolve(crackBuf);
+  if (!crackDecode) {
+    crackDecode = crackFile().then((raw) => {
+      if (!raw || !audio) return null;
+      // decodeAudioData eats the buffer it is given, so it gets a copy and
+      // the original stays for a second try.
+      return audio.decodeAudioData(raw.slice(0));
+    }).then((buf) => {
+      if (!buf) return null;
+      const d = buf.getChannelData(0);
+      let at = 0;
+      for (let i = 0; i < d.length; i++) { if (Math.abs(d[i]) > 0.01) { at = i; break; } }
+      crackFrom = Math.max(0, (at - Math.floor(buf.sampleRate * 0.004)) / buf.sampleRate);
+      crackBuf = buf;
+      return buf;
+    }).catch(() => null)
+      .then((buf) => { if (!buf) crackDecode = null; return buf; });
+  }
+  return crackDecode;
+}
+function playCrack(loud) {
+  const src = audio.createBufferSource();
+  src.buffer = crackBuf;
+  // A touch off pitch each time, so a run of them is a run of cans and
+  // not the same click over and over.
+  src.playbackRate.value = 0.94 + Math.random() * 0.13;
+  const g = audio.createGain();
+  g.gain.value = 0.5 * loud;
+  src.connect(g);
+  g.connect(audio.destination);
+  const run = Math.max(0.05, Math.min(CRACK_RUN, crackBuf.duration - crackFrom));
+  src.start(audio.currentTime, crackFrom, run);
+}
 function crackSound() {
   try { if (localStorage.getItem('boozebagGameSound') === 'off') return; } catch (e) { /* fine */ }
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -354,11 +411,24 @@ function crackSound() {
   try {
     if (!audio) audio = new AC();
     if (audio.state === 'suspended') audio.resume();
-    const t = audio.currentTime;
     lastSound = performance.now();
     // Quieter when they come quickly, so spamming it is a run of cracks
     // rather than a wall of noise.
     const loud = since < 260 ? 0.5 : 1;
+    if (crackBuf) { playCrack(loud); return; }
+    // Not decoded yet. It arrives in a few milliseconds, and if the file
+    // cannot be had at all the made-up one below stands in for it.
+    crackClip().then((buf) => {
+      if (buf) playCrack(loud);
+      else crackSynth(loud);
+    });
+  } catch (e) { /* no sound is fine */ }
+}
+// The fallback, made out of noise on the spot: no file to fetch, nothing
+// to decode, and near enough to keep the button feeling alive.
+function crackSynth(loud) {
+  try {
+    const t = audio.currentTime;
     // Flat noise, made once and shaped differently for each part below.
     // Rebuilding it every press is a lot of random numbers a tap.
     if (!crackNoise || crackNoise.sampleRate !== audio.sampleRate) {
@@ -441,6 +511,11 @@ function foam(fromEl) {
   }
 }
 if (crackBtn) {
+  // The sound is fetched while nothing else is going on, so the first
+  // press is as quick as the tenth. It is 29KB and it is only fetched on
+  // the page that has the button.
+  if (window.requestIdleCallback) requestIdleCallback(() => crackFile(), { timeout: 4000 });
+  else setTimeout(crackFile, 2500);
   const dayKey = () => 'boozebagCracks:' + new Date().toDateString();
   const tallyEl = document.createElement('span');
   tallyEl.className = 'regimen-tally';
