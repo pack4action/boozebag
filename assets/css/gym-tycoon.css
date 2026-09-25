@@ -3581,6 +3581,45 @@
   max-width: 100%;
   overflow-wrap: anywhere;
 }
+/* The one-space message: over the box when it is earned, gone again a
+   moment later, and taking up no room in between. */
+.tycoon-namer-form { position: relative; }
+.tycoon-namer-pop {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 7px);
+  transform: translate(-50%, 6px);
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: #2b1a1a;
+  border: 1px solid rgba(255, 138, 138, 0.55);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  color: #ff8a8a;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 3;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.tycoon-namer-pop::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 8px;
+  height: 8px;
+  margin: -5px 0 0 -4px;
+  transform: rotate(45deg);
+  background: #2b1a1a;
+  border-right: 1px solid rgba(255, 138, 138, 0.55);
+  border-bottom: 1px solid rgba(255, 138, 138, 0.55);
+}
+.tycoon-namer-pop.is-up { opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) {
+  .tycoon-namer-pop { transition: none; }
+}
 .tycoon-namer-note { margin: 8px 0 0; font-size: 12px; color: rgba(255, 255, 255, 0.6); text-align: center; min-height: 1em; }
 .tycoon-namer-note.is-good { color: #8be0a4; }
 .tycoon-namer-note.is-bad { color: #ff8a8a; }

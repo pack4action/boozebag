@@ -5249,7 +5249,33 @@
     nameCancelEl.hidden = !(editing && named);
     setText(nameSubmitEl, 'Confirm');
     if (formOpen) gymNameEl.value = editing ? named : gymNameEl.value;
+    if (!formOpen) hideSpacePop();
   }
+  // The message about spaces is not a standing line under the box. It
+  // shows up over the field when somebody tries a second one, and takes
+  // itself away again.
+  let spacePopEl = null;
+  let spacePopTimer = 0;
+  function hideSpacePop() {
+    if (spacePopTimer) { clearTimeout(spacePopTimer); spacePopTimer = 0; }
+    if (spacePopEl) spacePopEl.classList.remove('is-up');
+  }
+  function spacePop() {
+    if (!nameFormEl) return;
+    if (!spacePopEl) {
+      spacePopEl = document.createElement('div');
+      spacePopEl.className = 'tycoon-namer-pop';
+      spacePopEl.setAttribute('role', 'status');
+      setText(spacePopEl, 'One space at most in a name.');
+      nameFormEl.appendChild(spacePopEl);
+    }
+    hideSpacePop();
+    // A fresh run of the fade, even when it is already showing.
+    void spacePopEl.offsetWidth;
+    spacePopEl.classList.add('is-up');
+    spacePopTimer = setTimeout(hideSpacePop, 2400);
+  }
+
   // One space, no more. Two words are a name; a row of them pushes
   // everything else off the line.
   function oneSpace(raw) {
@@ -5285,7 +5311,7 @@
     leaderboard.claim(connectedWallet, Math.floor(state.lifetime), Math.round(gps * 10) / 10, wanted).then((answer) => {
       nameSubmitEl.disabled = false;
       if (answer === 'taken') { nameNote('That name is taken.', 'bad'); return; }
-      if (answer === 'spaces') { nameNote('One space at most in a name.', 'bad'); return; }
+      if (answer === 'spaces') { nameNote(''); spacePop(); return; }
       if (answer === 'slow') { nameNote('Try again in a moment.', 'bad'); return; }
       // It is this gym's name either way, so it is kept here. But the
       // board can refuse it, and saying nothing about that is how a name
@@ -5318,7 +5344,7 @@
       gymNameEl.value = trimmed;
       const put = Math.max(0, (at === null ? trimmed.length : at) - lost);
       try { gymNameEl.setSelectionRange(put, put); } catch (err) { /* older browsers */ }
-      nameNote('One space at most in a name.', 'bad');
+      spacePop();
     });
     nameEditEl.addEventListener('click', () => { nameNote(''); showNamer(true); gymNameEl.focus(); gymNameEl.select(); });
     nameCancelEl.addEventListener('click', () => { nameNote(''); showNamer(false); });
