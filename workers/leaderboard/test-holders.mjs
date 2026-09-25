@@ -16,6 +16,13 @@ function stubFetch(plan) {
     // an RPC POST
     const body = JSON.parse(opts.body);
     if (body.method === 'getTokenSupply') return J({ result: { value: { uiAmount: 1e9, decimals: 6 } } });
+    if (body.method === 'getTokenAccounts') {
+      // The indexed way, which only some RPCs answer.
+      if (!plan.paged) return J({ error: { message: 'Method not found' } });
+      const page = body.params[0].page;
+      const rows = page === 1 ? plan.paged.map((amt) => ({ amount: amt })) : [];
+      return J({ result: { token_accounts: rows } });
+    }
     if (body.method === 'getProgramAccounts') {
       if (!plan.chain) return new Response('no', { status: 410 });
       const acc = (amt) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(BigInt(amt)); return { account: { data: [b.toString('base64')] } }; };
@@ -96,6 +103,16 @@ await run('zero ignored', { solscan: { data: { holder: 0 } }, gecko: GECKO, pump
   // And when the chain refuses anyway, the indexers still answer.
   r2 = await run('a chain that refuses falls back',
     { solscan: SOLSCAN, gecko: GECKO, pump: PUMP, chain: false }, 1234, 'solscan', RPC);
+  // Where the RPC answers the indexed call, that is what is used, and
+  // the heavy scan is never sent.
+  r2 = await run('the indexed call is preferred',
+    { paged: [5, 9, 12], solscan: SOLSCAN, chain: true }, 3, 'chain', RPC);
+  ok('the indexed call is preferred: no heavy scan',
+    !r2.seen.some((u) => u.includes('publicnode')), r2.seen);
+  // A refusal of the chain says why, rather than "nothing".
+  r2 = await run('a refusal says why', { chain: false }, null, null, RPC);
+  ok('a refusal says why: the reason is passed on',
+    r2.body.tried[0].includes('chain: ') && !r2.body.tried[0].endsWith('nothing'), r2.body.tried);
 }
 
 console.log(fails.length ? 'FAIL\n' + fails.join('\n') : 'PASS');

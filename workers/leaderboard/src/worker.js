@@ -371,20 +371,28 @@ async function getJson(url, headers) {
   }
 }
 
-async function rpcAt(url, method, params) {
+// An RPC call that says why it failed, because "nothing" is no help when
+// a count stops arriving and the question is whose fault it is.
+async function rpcAsk(url, method, params, ms) {
   try {
     const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-      signal: leash(ASK_MS * 3),
+      signal: leash(ms || ASK_MS * 3),
     });
-    if (!r.ok) return null;
     const body = await r.json().catch(() => null);
-    return body && body.result !== undefined ? body.result : null;
+    const said = body && body.error && (body.error.message || JSON.stringify(body.error));
+    if (!r.ok) return { error: 'http ' + r.status + (said ? ': ' + said : '') };
+    if (said) return { error: said };
+    return { result: body ? body.result : null };
   } catch (e) {
-    return null;
+    return { error: e && e.message ? e.message : String(e) };
   }
+}
+async function rpcAt(url, method, params) {
+  const r = await rpcAsk(url, method, params);
+  return r.result === undefined ? null : r.result;
 }
 const rpcUrl = (env) => env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com';
 
@@ -441,32 +449,64 @@ async function holdersPump(mint) {
   return countOf(c.holder_count !== undefined ? c.holder_count : c.holders);
 }
 
-// Straight off the chain: every token account of the mint, asking for
-// only its balance, counting the ones with something in them. Heavy, and
-// the free public RPC refuses it, so this runs last and only really
-// answers when SOLANA_RPC names a private one.
+// ---- Straight off the chain ----
+// Every token account of the mint, counting the ones with something in
+// them. Two ways of asking, because the heavy one is not always allowed.
+const CHAIN_MS = 15000;   // it runs once every ten minutes, so it can take its time
+const PAGE = 1000;
+
+// The indexed way, which Helius and a few others answer: pages of the
+// mint's accounts, zero balances left out. Light enough that it works
+// where the raw scan below is refused.
+async function chainPaged(url, mint) {
+  let n = 0;
+  for (let page = 1; page <= 25; page++) {
+    const r = await rpcAsk(url, 'getTokenAccounts',
+      [{ mint, page, limit: PAGE, options: { showZeroBalance: false } }], CHAIN_MS);
+    if (r.error) return { why: r.error };
+    const list = r.result && r.result.token_accounts;
+    if (!Array.isArray(list)) return { why: 'no accounts in the answer' };
+    for (const acc of list) if (Number(acc.amount) > 0) n += 1;
+    if (list.length < PAGE) break;
+  }
+  return { n };
+}
+
+// The plain way, in the words every Solana RPC knows: ask the token
+// program for accounts of this mint and read the balance out of each.
+// Heavy, and the free public RPC refuses it.
+async function chainScan(url, mint) {
+  const r = await rpcAsk(url, 'getProgramAccounts', [TOKEN_PROGRAM, {
+    encoding: 'base64',
+    dataSlice: { offset: 64, length: 8 },
+    filters: [{ dataSize: 165 }, { memcmp: { offset: 0, bytes: mint } }],
+  }], CHAIN_MS);
+  if (r.error) return { why: r.error };
+  if (!Array.isArray(r.result)) return { why: 'no accounts in the answer' };
+  let n = 0;
+  for (const acc of r.result) {
+    const raw = acc && acc.account && acc.account.data && acc.account.data[0];
+    if (!raw) continue;
+    const bytes = atob(raw);
+    let amount = 0;
+    for (let i = 7; i >= 0; i--) amount = amount * 256 + bytes.charCodeAt(i);
+    if (amount > 0) n += 1;
+  }
+  return { n };
+}
+
 async function holdersChain(env, mint) {
   const urls = [rpcUrl(env)];
   if (!env.SOLANA_RPC) urls.push('https://solana-rpc.publicnode.com');
+  const why = [];
   for (const url of urls) {
-    const res = await rpcAt(url, 'getProgramAccounts', [TOKEN_PROGRAM, {
-      encoding: 'base64',
-      dataSlice: { offset: 64, length: 8 },
-      filters: [{ dataSize: 165 }, { memcmp: { offset: 0, bytes: mint } }],
-    }]);
-    if (!Array.isArray(res)) continue;
-    let n = 0;
-    for (const acc of res) {
-      const raw = acc && acc.account && acc.account.data && acc.account.data[0];
-      if (!raw) continue;
-      const bytes = atob(raw);
-      let amount = 0;
-      for (let i = 7; i >= 0; i--) amount = amount * 256 + bytes.charCodeAt(i);
-      if (amount > 0) n += 1;
+    for (const ask of [chainPaged, chainScan]) {
+      const got = await ask(url, mint);
+      if (got.n > 0) return got;
+      why.push(got.why || 'nothing');
     }
-    if (n > 0) return n;
   }
-  return null;
+  return { n: null, why: why.join(' / ') };
 }
 
 // The four in turn, stopping at the first that answers, and saying which
@@ -484,7 +524,15 @@ async function tokenHolders(env, mint) {
     let n = null;
     let why = 'nothing';
     try {
-      n = await ask(mint);
+      // A source can answer with a count, or with a count and the reason
+      // there isn't one, which is what /api/token shows under `tried`.
+      const got = await ask(mint);
+      if (got && typeof got === 'object') {
+        n = countOf(got.n);
+        if (!n && got.why) why = got.why;
+      } else {
+        n = countOf(got);
+      }
     } catch (e) {
       why = 'threw: ' + (e && e.message ? e.message : e);
     }
