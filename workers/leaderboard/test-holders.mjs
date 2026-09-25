@@ -27,11 +27,11 @@ function stubFetch(plan) {
 }
 
 let n = 0;
-async function run(name, plan, expectHolders, expectFrom) {
+async function run(name, plan, expectHolders, expectFrom, env) {
   const seen = stubFetch(plan);
   const mod = await import(WORKER + '?fresh=' + (++n));
   const req = new Request('https://x/api/token', { headers: { Origin: 'https://boozebag.xyz' } });
-  const res = await mod.default.fetch(req, {}, { waitUntil() {} });
+  const res = await mod.default.fetch(req, env || {}, { waitUntil() {} });
   const body = await res.json();
   ok(name + ': status', res.status === 200, res.status);
   ok(name + ': holders', body.holders === expectHolders, { got: body.holders, want: expectHolders });
@@ -83,6 +83,19 @@ await run('zero ignored', { solscan: { data: { holder: 0 } }, gecko: GECKO, pump
   const stale = await call();
   ok('held: after a day it lets go', stale.holders === null, stale.holders);
   Date.now = realNow;
+}
+
+// With a private RPC to ask through, the chain is asked first: that count
+// is the truth, where the other three are somebody's index of it.
+{
+  const RPC = { SOLANA_RPC: 'https://mainnet.example/?api-key=x' };
+  let r2 = await run('a key puts the chain first',
+    { solscan: SOLSCAN, gecko: GECKO, pump: PUMP, chain: true }, 3, 'chain', RPC);
+  ok('a key puts the chain first: nobody else is asked',
+    !r2.seen.some((u) => u.includes('solscan') || u.includes('geckoterminal')), r2.seen);
+  // And when the chain refuses anyway, the indexers still answer.
+  r2 = await run('a chain that refuses falls back',
+    { solscan: SOLSCAN, gecko: GECKO, pump: PUMP, chain: false }, 1234, 'solscan', RPC);
 }
 
 console.log(fails.length ? 'FAIL\n' + fails.join('\n') : 'PASS');

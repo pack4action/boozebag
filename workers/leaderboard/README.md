@@ -165,7 +165,9 @@ leaves the tile off.
 
 To count on the chain every time rather than relying on the three
 indexers, set a private RPC (Helius, QuickNode and the like all have a
-free tier) on the Worker under Settings, Variables:
+free tier) on the Worker under Settings, Variables. With one set the
+chain is asked first and the indexers only stand in for it; without one
+the chain goes last, where it will refuse anyway:
 
 ```
 SOLANA_RPC = https://mainnet.helius-rpc.com/?api-key=...

@@ -471,9 +471,14 @@ async function holdersChain(env, mint) {
 
 // The four in turn, stopping at the first that answers, and saying which
 // one it was so a look at /api/token shows where the figure came from.
+// The chain goes first where there is a private RPC to ask it through,
+// because that count is the truth and the other three are somebody's
+// index of it. Without one it goes last, where it will refuse anyway.
 async function tokenHolders(env, mint) {
-  const sources = [['solscan', holdersSolscan], ['geckoterminal', holdersGecko],
-    ['pump.fun', holdersPump], ['chain', (m) => holdersChain(env, m)]];
+  const chain = ['chain', (m) => holdersChain(env, m)];
+  const indexed = [['solscan', holdersSolscan], ['geckoterminal', holdersGecko],
+    ['pump.fun', holdersPump]];
+  const sources = env.SOLANA_RPC ? [chain].concat(indexed) : indexed.concat([chain]);
   const tried = [];
   for (const [from, ask] of sources) {
     let n = null;
