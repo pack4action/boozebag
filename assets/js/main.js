@@ -634,21 +634,15 @@ function setFresh(el, text) {
 // which one answered. Whichever it was also names the pool the chart
 // button embeds.
 let geckoPool = '';
-// The line under the figures says where each one is from.
+// The line under the figures says where the market cap is from. The
+// holder count is not named: it is counted straight off the chain, and
+// naming that says nothing to anybody reading the page. It is still
+// tracked, because the first real count to arrive is the one that stays.
 let holdersFrom = '';
 function noteSource() {
   const src = document.getElementById('mk-src');
   if (!src) return;
-  let line = '';
-  if (capFrom && capFrom === holdersFrom) {
-    line = 'market cap and beer holders via ' + capFrom;
-  } else {
-    const parts = [];
-    if (capFrom) parts.push('market cap via ' + capFrom);
-    if (holdersFrom) parts.push('beer holders via ' + holdersFrom);
-    line = parts.join(' \u00b7 ');
-  }
-  src.textContent = line;
+  src.textContent = capFrom ? 'market cap via ' + capFrom : '';
   // A lone figure takes the whole row rather than half of it.
   if (marketEl) {
     const showing = marketEl.querySelectorAll('.market-tile:not([hidden])').length;
