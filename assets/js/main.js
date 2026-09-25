@@ -593,9 +593,14 @@ const supplyEl = document.querySelector('.supply');
 function paintSupply(supply, waiting) {
   if (!supplyEl || !(supply > 0)) return;
   const unlock = Number(supplyEl.dataset.unlock) || 0;
+  // The wallet the unlock is handed out from holds other things too, so a
+  // balance bigger than the whole unlock is not an answer to this
+  // question. The figure written into the page stands in for it rather
+  // than the bar saying something plainly wrong.
   const said = Number(waiting);
+  const told = said >= 0 && said <= unlock && isFinite(said);
   const left = Math.max(0, Math.min(unlock,
-    said >= 0 && isFinite(said) ? said : Number(supplyEl.dataset.left) || 0));
+    told ? said : Number(supplyEl.dataset.left) || 0));
   const given = Math.max(0, unlock - left);
   const bought = Math.max(0, supply - given - left);
   const pc = (n) => (n / supply) * 100;
