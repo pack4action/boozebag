@@ -369,7 +369,8 @@ function crackSound() {
     }
     // Everything here is noise through a filter. There is no tone under
     // it: a sine down at a hundred and something hertz is a drum, and a
-    // can is not a drum.
+    // can is not a drum. Nothing is left down where a drum lives either,
+    // and none of it is loud. It is a tick and a fizz, not a hit.
     const part = (from, kind, hz, q, peak, hold, fall) => {
       const src = audio.createBufferSource();
       src.buffer = crackNoise;
@@ -391,13 +392,13 @@ function crackSound() {
       src.stop(t + from + hold + fall + 0.02);
     };
     // The snap of the tab: high, dry, and gone in a blink.
-    part(0, 'highpass', [4200, 4200], 0.7, 0.3, 0.002, 0.014);
+    part(0, 'bandpass', [6200, 6200], 1.1, 0.14, 0.001, 0.008);
     // The aluminium giving, right behind it. Narrow enough to ring a
     // little, which is the part that makes it feel like metal.
-    part(0.004, 'bandpass', [1700, 1700], 5.5, 0.2, 0.004, 0.05);
-    // And the pressure going, the long part: a breath that opens bright
-    // and darkens as it empties.
-    part(0.014, 'lowpass', [7000, 1500], 0.6, 0.075, 0.03, 0.3);
+    part(0.004, 'bandpass', [3400, 3400], 4, 0.062, 0.002, 0.032);
+    // And the pressure going, the long part. It thins as it empties:
+    // the filter climbs, so the last of it is all air and no body.
+    part(0.012, 'bandpass', [3000, 6200], 0.8, 0.04, 0.025, 0.28);
   } catch (e) { /* no sound is fine */ }
 }
 let foamLive = 0;      // bubbles in the air right now
