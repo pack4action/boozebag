@@ -17,10 +17,16 @@ function stubFetch(plan) {
     const body = JSON.parse(opts.body);
     if (body.method === 'getTokenSupply') return J({ result: { value: { uiAmount: 1e9, decimals: 6 } } });
     if (body.method === 'getTokenAccounts') {
-      // The indexed way, which only some RPCs answer.
+      // The indexed way, which only some RPCs answer. This one wants its
+      // arguments as a bare object, the way Helius does, and says so in
+      // the same words when they arrive wrapped in an array.
       if (!plan.paged) return J({ error: { message: 'Method not found' } });
-      const page = body.params[0].page;
-      const rows = page === 1 ? plan.paged.map((amt) => ({ amount: amt })) : [];
+      const args = body.params;
+      if (Array.isArray(args)) {
+        if (!plan.pagedWrapped) return J({ error: { message: 'invalid type: map, expected a string' } });
+        return J({ result: { token_accounts: args[0].page === 1 ? plan.paged.map((amt) => ({ amount: amt })) : [] } });
+      }
+      const rows = args.page === 1 ? plan.paged.map((amt) => ({ amount: amt })) : [];
       return J({ result: { token_accounts: rows } });
     }
     if (body.method === 'getProgramAccounts') {
@@ -109,6 +115,9 @@ await run('zero ignored', { solscan: { data: { holder: 0 } }, gecko: GECKO, pump
     { paged: [5, 9, 12], solscan: SOLSCAN, chain: true }, 3, 'chain', RPC);
   ok('the indexed call is preferred: no heavy scan',
     !r2.seen.some((u) => u.includes('publicnode')), r2.seen);
+  // An RPC that wants the arguments the other way round is answered too.
+  r2 = await run('the other way round is tried as well',
+    { paged: [5, 9], pagedWrapped: true, solscan: SOLSCAN, chain: true }, 2, 'chain', RPC);
   // A refusal of the chain says why, rather than "nothing".
   r2 = await run('a refusal says why', { chain: false }, null, null, RPC);
   ok('a refusal says why: the reason is passed on',

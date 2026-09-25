@@ -458,11 +458,21 @@ const PAGE = 1000;
 // The indexed way, which Helius and a few others answer: pages of the
 // mint's accounts, zero balances left out. Light enough that it works
 // where the raw scan below is refused.
+//
+// The arguments go as a bare object, which is how these indexed calls are
+// written, and as the usual array if that is refused. One of the two is
+// right depending on whose RPC it is, and trying both costs nothing but a
+// second call on an RPC that answers neither.
 async function chainPaged(url, mint) {
+  let wrap = false;
   let n = 0;
   for (let page = 1; page <= 25; page++) {
-    const r = await rpcAsk(url, 'getTokenAccounts',
-      [{ mint, page, limit: PAGE, options: { showZeroBalance: false } }], CHAIN_MS);
+    const args = { mint, page, limit: PAGE, options: { showZeroBalance: false } };
+    let r = await rpcAsk(url, 'getTokenAccounts', wrap ? [args] : args, CHAIN_MS);
+    if (r.error && page === 1 && !wrap) {
+      wrap = true;
+      r = await rpcAsk(url, 'getTokenAccounts', [args], CHAIN_MS);
+    }
     if (r.error) return { why: r.error };
     const list = r.result && r.result.token_accounts;
     if (!Array.isArray(list)) return { why: 'no accounts in the answer' };
@@ -483,6 +493,7 @@ async function chainScan(url, mint) {
   }], CHAIN_MS);
   if (r.error) return { why: r.error };
   if (!Array.isArray(r.result)) return { why: 'no accounts in the answer' };
+  if (!r.result.length) return { why: 'the scan came back empty, which is a refusal in all but name' };
   let n = 0;
   for (const acc of r.result) {
     const raw = acc && acc.account && acc.account.data && acc.account.data[0];
