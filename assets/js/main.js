@@ -266,9 +266,12 @@ onScroll();
 
 
 // ---- Today's regimen ----
-// One drink an hour, every hour, on whoever is looking's own clock. The
-// number is the hour plus one: the day's first goes down at midnight and
-// the twenty-fourth at eleven, and the strip says which one is next.
+// One drink an hour, every hour, on his clock rather than on whoever is
+// looking's. He is on the east coast, so the day being counted runs on
+// New York time and says so; otherwise somebody in Europe reads that he
+// is six drinks further into the day than he is. The number is the hour
+// plus one: the day's first goes down at midnight and the twenty-fourth
+// at eleven, and the strip says which one is next.
 const regimenCans = document.getElementById('regimen-cans');
 const regimenLine = document.getElementById('regimen-line');
 const regimenMood = document.getElementById('regimen-mood');
@@ -285,6 +288,29 @@ function moodAt(hour) {
 }
 function twoDigits(n) { return (n < 10 ? '0' : '') + n; }
 
+// His hour, and what that clock is called today: EST in the winter and
+// EDT through the summer, which the browser works out from the zone. An
+// old browser with no zone support falls back to the visitor's own
+// clock, which is what this did before.
+const HIS_ZONE = 'America/New_York';
+function hisClock(now) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: HIS_ZONE, hour: 'numeric', hour12: false, timeZoneName: 'short',
+    }).formatToParts(now);
+    let hour = null;
+    let zone = '';
+    parts.forEach((p) => {
+      if (p.type === 'hour') hour = Number(p.value) % 24;
+      if (p.type === 'timeZoneName') zone = p.value;
+    });
+    if (hour === null || !isFinite(hour)) throw new Error('no hour');
+    return { hour, zone: /^[A-Z]{2,5}$/.test(zone) ? zone : 'EST' };
+  } catch (e) {
+    return { hour: now.getHours(), zone: '' };
+  }
+}
+
 if (regimenCans && regimenLine) {
   const cans = [];
   for (let i = 0; i < 24; i++) {
@@ -296,8 +322,8 @@ if (regimenCans && regimenLine) {
   }
   let shownDown = -1;
   const tick = () => {
-    const now = new Date();
-    const hour = now.getHours();
+    const his = hisClock(new Date());
+    const hour = his.hour;
     const down = hour + 1;
     if (down !== shownDown) {
       shownDown = down;
@@ -305,9 +331,11 @@ if (regimenCans && regimenLine) {
         can.classList.toggle('is-down', i < down);
         can.classList.toggle('is-next', i === down);
       });
-      const next = down < 24 ? twoDigits(down) + ':00' : 'midnight, when it starts again';
+      const at = his.zone ? ' ' + his.zone : '';
+      const next = twoDigits(down) + ':00' + at;
       regimenLine.innerHTML = 'One an hour, every hour. Drink <b>' + down + ' of 24</b> is down. '
-        + (down < 24 ? 'Next one at <b>' + next + '</b>.' : 'That\'s the day. Next one at <b>midnight</b>.');
+        + (down < 24 ? 'Next one at <b>' + next + '</b>.'
+          : 'That\'s the day. Next one at <b>midnight' + at + '</b>.');
       if (regimenMood) regimenMood.textContent = moodAt(hour);
     }
   };
