@@ -997,11 +997,9 @@ function askNumbers() { askToken(); askGeckoHolders(); }
 askNumbers();
 setInterval(() => { if (!document.hidden) askNumbers(); }, 60000);
 
-// The counts written by hand on the cards, for the places with no open door.
-document.querySelectorAll('.community-card[data-count]').forEach((card) => {
-  const el = card.querySelector('.community-count');
-  if (el && card.dataset.count) el.textContent = card.dataset.count;
-});
+// Counts on the cards are live ones only, from Kick and Discord, written
+// by setCount above. A follower count typed into the markup goes stale
+// the day after it is typed, and a wrong number is worse than none.
 
 // ---- The bar at the bottom of a phone ----
 // Up once the hero, with its own buttons, has gone off the top.
