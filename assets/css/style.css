@@ -1002,6 +1002,11 @@ body.nav-open { overflow: hidden; }
   grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
   gap: 22px;
 }
+/* Six of them, so a wide screen gets two rows of three rather than five
+   across and one sitting on its own underneath. */
+@media (min-width: 880px) {
+  .community-grid { grid-template-columns: repeat(3, 1fr); }
+}
 .community-card {
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -2684,6 +2689,26 @@ html { scroll-padding-top: 84px; }
     drop-shadow(0 0 7px rgba(81, 251, 24, 0.6))
     drop-shadow(0 0 16px rgba(81, 251, 24, 0.3));
 }
+/* Instagram gets the same tube, in its own colours: white in the middle,
+   pink close in, and the purple and orange of the gradient spilling out
+   behind it. */
+.ig-mark {
+  color: #fff;
+  filter:
+    drop-shadow(0 0 1.5px rgba(255, 128, 181, 0.75))
+    drop-shadow(0 0 5px rgba(225, 48, 108, 0.5))
+    drop-shadow(0 0 11px rgba(147, 58, 185, 0.26));
+  transition: filter 0.22s ease, transform 0.22s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.community-card:hover .ig-mark, .community-card:focus-visible .ig-mark {
+  transform: scale(1.06);
+  filter:
+    drop-shadow(0 0 2px rgba(255, 160, 200, 0.9))
+    drop-shadow(0 0 7px rgba(225, 48, 108, 0.65))
+    drop-shadow(0 0 16px rgba(147, 58, 185, 0.38))
+    drop-shadow(0 0 22px rgba(247, 119, 55, 0.18));
+}
+
 /* While he is actually on, the tube breathes a little. */
 .js .stat-tag-live.is-on .live-mark { animation: kick-neon 2.6s ease-in-out infinite alternate; }
 @keyframes kick-neon {
@@ -2703,7 +2728,7 @@ html { scroll-padding-top: 84px; }
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .live-mark, .community-mark { transition: none; }
+  .live-mark, .community-mark, .ig-mark { transition: none; }
   .js .stat-tag-live.is-on .live-mark { animation: none; }
 }
 
