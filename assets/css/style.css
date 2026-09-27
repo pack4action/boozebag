@@ -1047,6 +1047,38 @@ body.nav-open { overflow: hidden; }
   font-size: 20px;
   margin-bottom: 20px;
 }
+/* Everywhere he is, in a row under the name: each one in its own colour
+   where it has one, the rest in the page's amber. */
+.footer-social {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0 0 22px;
+}
+.footer-social a {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--amber);
+  font-size: 20px;
+  transition: transform 0.18s cubic-bezier(0.2, 1.4, 0.4, 1), border-color 0.18s ease;
+}
+.footer-social a:hover, .footer-social a:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--amber);
+}
+.footer-social .community-mark { width: 20px; height: 20px; }
+@media (prefers-reduced-motion: reduce) {
+  .footer-social a { transition: none; }
+}
+
 .footer-disclaimer {
   color: var(--muted);
   font-size: 12px;
