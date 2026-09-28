@@ -31,7 +31,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css?v=92" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=15" />
-<link rel="stylesheet" href="assets/css/meme.css?v=1" />
+<link rel="stylesheet" href="assets/css/meme.css?v=2" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -95,20 +95,28 @@
     <!-- The picture. Drawn at full size and shown scaled, so what you see is
          exactly what you download. -->
     <div class="meme-stage">
+      <div class="meme-bar">
+        <button class="meme-mini" id="meme-undo" type="button" disabled><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7.5 4.5 12 9 16.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.8 12h9.4a5 5 0 0 1 0 10H12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Undo</button>
+        <button class="meme-mini" id="meme-redo" type="button" disabled><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7.5 19.5 12 15 16.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.2 12H9.8a5 5 0 0 0 0 10H12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Redo</button>
+        <span class="meme-bar-hint" id="meme-hint">Drag the picture to frame it.</span>
+        <button class="meme-mini" id="meme-reset" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 3.6V8h-4.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Start over</button>
+      </div>
       <div class="meme-canvas-wrap" id="meme-wrap">
         <canvas id="meme-canvas" width="1200" height="630" aria-label="Your meme"></canvas>
+        <div class="meme-drop" aria-hidden="true">Drop it here</div>
       </div>
-      <!-- Only there while a sticker is picked. -->
+      <!-- Only there while something on the picture is picked. -->
       <div class="meme-sel" id="meme-sel" hidden>
-        <span class="meme-sel-hint">Drag it. Pull the corner to size and turn it.</span>
+        <input class="meme-sel-text" id="sel-text" type="text" maxlength="60" aria-label="Edit this text" hidden />
         <div class="meme-sel-btns">
           <button class="meme-mini" id="sel-flip" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="2.4 2.4"/><path d="M9.4 6.4 3.6 17.6h5.8V6.4Z"/><path d="M14.6 6.4l5.8 11.2h-5.8V6.4Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>Flip</button>
+          <button class="meme-mini" id="sel-dup" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.4" y="3.4" width="12" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.6 9.4v11.2M9 15h11.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Copy</button>
           <button class="meme-mini" id="sel-front" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8.6" y="3.4" width="12" height="12" rx="2.4"/><path d="M5.4 8.6v9.4a2.4 2.4 0 0 0 2.4 2.4h9.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>To front</button>
           <button class="meme-mini is-bad" id="sel-remove" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.4 6.6h15.2M9.6 6.6V4.4h4.8v2.2M6.4 6.6l1 13h9.2l1-13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Remove</button>
         </div>
       </div>
       <div class="meme-out">
-        <button class="btn btn-primary btn-lg" id="meme-download" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6v11.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M7.6 10.6 12 15l4.4-4.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.4 17.4v1.4a1.8 1.8 0 0 0 1.8 1.8h11.6a1.8 1.8 0 0 0 1.8-1.8v-1.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span class="btn-label">Download</span></button>
+        <button class="btn btn-primary btn-lg" id="meme-download" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6v11.2M7.6 10.6 12 15l4.4-4.4M4.4 17.4v1.4a1.8 1.8 0 0 0 1.8 1.8h11.6a1.8 1.8 0 0 0 1.8-1.8v-1.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="btn-label">Download</span></button>
         <button class="btn btn-outline btn-lg" id="meme-share" type="button" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="17.6" cy="5.6" r="2.6"/><circle cx="6.4" cy="12" r="2.6"/><circle cx="17.6" cy="18.4" r="2.6"/><path d="M8.6 10.8 15.4 6.8M8.6 13.2l6.8 4" fill="none" stroke="currentColor" stroke-width="2"/></svg><span class="btn-label">Share</span></button>
         <button class="btn btn-outline btn-lg" id="meme-copy" type="button" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8.4" y="3.2" width="12.4" height="14.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.6 20.8H5.8a2.6 2.6 0 0 1-2.6-2.6V7.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="btn-label">Copy image</span></button>
         <a class="btn btn-outline btn-lg" id="meme-post" href="https://x.com/intent/post" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.8 3h3.1l-6.8 7.8 8 10.6h-6.3l-4.9-6.4-5.6 6.4H2.2l7.3-8.3L1.8 3h6.4l4.4 5.9L17.8 3Zm-1.1 16.5h1.7L7.4 4.8H5.6l11.1 14.7Z"/></svg>Post on X</a>
@@ -117,43 +125,85 @@
     </div>
 
     <div class="meme-tools">
-      <section class="meme-block meme-block-pic">
-        <h2 class="meme-h">The picture</h2>
-        <div class="meme-picks" id="meme-templates" role="radiogroup" aria-label="Picture"></div>
-        <input type="file" id="meme-file" accept="image/*" hidden />
-        <p class="meme-small">Your own picture stays on your phone. Nothing is uploaded anywhere.</p>
+      <section class="meme-block meme-block-words">
+        <div class="meme-h-row">
+          <h2 class="meme-h">The words</h2>
+          <button class="meme-mini is-lit" id="meme-roll" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.4" cy="8.4" r="1.6"/><circle cx="15.6" cy="8.4" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="8.4" cy="15.6" r="1.6"/><circle cx="15.6" cy="15.6" r="1.6"/></svg>Give me one</button>
+        </div>
+        <label class="meme-field">
+          <span id="lab-top">Top</span>
+          <input type="text" id="meme-top" maxlength="90" placeholder="Me after one drink" autocomplete="off" />
+        </label>
+        <label class="meme-field">
+          <span id="lab-bottom">Bottom</span>
+          <input type="text" id="meme-bottom" maxlength="90" placeholder="Me after 24" autocomplete="off" />
+        </label>
+        <div class="meme-row">
+          <div class="meme-chips" id="meme-styles" role="radiogroup" aria-label="Lettering">
+            <button class="meme-chip is-on" type="button" data-style="classic" role="radio" aria-checked="true"><span class="meme-swatch sw-classic">Aa</span>Classic</button>
+            <button class="meme-chip" type="button" data-style="amber" role="radio" aria-checked="false"><span class="meme-swatch sw-amber">Aa</span>Beer</button>
+            <button class="meme-chip" type="button" data-style="neon" role="radio" aria-checked="false"><span class="meme-swatch sw-neon">Aa</span>Neon</button>
+          </div>
+          <button class="meme-mini" id="meme-addtext" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 6.4V4.2h11v2.2M9.1 4.2v15.4M6.6 19.6h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.4 12.2v7.6M14.6 16h7.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Add text</button>
+        </div>
       </section>
 
-      <section class="meme-block meme-block-words">
-        <h2 class="meme-h">The words</h2>
-        <label class="meme-field">
-          <span>Top</span>
-          <input type="text" id="meme-top" maxlength="80" placeholder="Me after one drink" autocomplete="off" />
-        </label>
-        <label class="meme-field">
-          <span>Bottom</span>
-          <input type="text" id="meme-bottom" maxlength="80" placeholder="Me after 24" autocomplete="off" />
-        </label>
-        <div class="meme-styles" id="meme-styles" role="radiogroup" aria-label="Lettering">
-          <button class="meme-style is-on" type="button" data-style="classic" role="radio" aria-checked="true"><span class="meme-swatch sw-classic">Aa</span>Classic</button>
-          <button class="meme-style" type="button" data-style="amber" role="radio" aria-checked="false"><span class="meme-swatch sw-amber">Aa</span>Beer</button>
-          <button class="meme-style" type="button" data-style="neon" role="radio" aria-checked="false"><span class="meme-swatch sw-neon">Aa</span>Neon</button>
+      <section class="meme-block meme-block-format">
+        <h2 class="meme-h">Layout</h2>
+        <div class="meme-chips meme-lay" id="meme-layouts" role="radiogroup" aria-label="Layout">
+          <button class="meme-chip is-on" type="button" data-layout="classic" role="radio" aria-checked="true"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3" opacity=".28"/><rect x="5.4" y="5" width="13.2" height="3" rx="1.2"/><rect x="5.4" y="16" width="13.2" height="3" rx="1.2"/></svg>Classic</button>
+          <button class="meme-chip" type="button" data-layout="caption" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="6.4" rx="2" fill="#fff"/><rect x="5.6" y="5.2" width="12.8" height="2" rx="1" fill="#111"/><rect x="3" y="10.2" width="18" height="10.8" rx="2" opacity=".28"/></svg>Caption</button>
+          <button class="meme-chip" type="button" data-layout="news" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3" opacity=".28"/><rect x="3" y="13.4" width="6.6" height="3" fill="#e5202e"/><rect x="3" y="16.4" width="18" height="3" fill="#fff"/><rect x="3" y="19.4" width="18" height="1.6"/></svg>News</button>
+          <button class="meme-chip" type="button" data-layout="split" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="8.4" rx="2" opacity=".28"/><rect x="3" y="12.6" width="18" height="8.4" rx="2" opacity=".5"/><rect x="6" y="8.4" width="12" height="1.8" rx=".9"/><rect x="6" y="18" width="12" height="1.8" rx=".9"/></svg>Before / after</button>
         </div>
+        <h3 class="meme-sub">Shape</h3>
+        <div class="meme-chips" id="meme-shapes" role="radiogroup" aria-label="Shape">
+          <button class="meme-chip is-on" type="button" data-shape="auto" role="radio" aria-checked="true"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5.4A1.4 1.4 0 0 1 5.4 4H9M15 4h3.6A1.4 1.4 0 0 1 20 5.4V9M20 15v3.6a1.4 1.4 0 0 1-1.4 1.4H15M9 20H5.4A1.4 1.4 0 0 1 4 18.6V15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Fit</button>
+          <button class="meme-chip" type="button" data-shape="square" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="4.5" width="15.0" height="15.0" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/></svg>Square</button>
+          <button class="meme-chip" type="button" data-shape="portrait" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="3.9" width="13.0" height="16.2" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/></svg>Post</button>
+          <button class="meme-chip" type="button" data-shape="story" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="7.0" y="3.1" width="10.0" height="17.8" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/></svg>Story</button>
+          <button class="meme-chip" type="button" data-shape="wide" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.0" y="6.9" width="18.0" height="10.2" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/></svg>Wide</button>
+        </div>
+      </section>
+
+      <section class="meme-block meme-block-pic">
+        <h2 class="meme-h">The picture</h2>
+        <div class="meme-chips meme-panels" id="meme-panels" role="radiogroup" aria-label="Which picture" hidden>
+          <button class="meme-chip is-on" type="button" data-panel="0" role="radio" aria-checked="true"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="8.4" rx="2"/><rect x="3" y="12.6" width="18" height="8.4" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>Top picture</button>
+          <button class="meme-chip" type="button" data-panel="1" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="8.4" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="12.6" width="18" height="8.4" rx="2"/></svg>Bottom picture</button>
+        </div>
+        <div class="meme-picks" id="meme-templates" role="radiogroup" aria-label="Picture"></div>
+        <input type="file" id="meme-file" accept="image/*" hidden />
+        <div class="meme-zoom">
+          <label for="meme-zoom">Zoom</label>
+          <input type="range" id="meme-zoom" min="1" max="3" step="0.01" value="1" />
+          <button class="meme-mini" id="meme-reframe" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.6V5.4A1.4 1.4 0 0 1 5.4 4h3.2M15.4 4h3.2A1.4 1.4 0 0 1 20 5.4v3.2M20 15.4v3.2a1.4 1.4 0 0 1-1.4 1.4h-3.2M8.6 20H5.4A1.4 1.4 0 0 1 4 18.6v-3.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.4"/></svg>Reset</button>
+        </div>
+        <p class="meme-small">Your own picture stays on your phone. Nothing is uploaded anywhere. On a computer you can paste one in or drop it on the picture.</p>
       </section>
 
       <section class="meme-block meme-block-stick">
         <h2 class="meme-h">Stickers</h2>
         <div class="meme-picks meme-stickers" id="meme-stickers" aria-label="Stickers"></div>
-        <p class="meme-small">Tap one to drop it in. Tap it on the picture to move it.</p>
+        <div class="meme-emoji" id="meme-emoji" aria-label="Emoji"></div>
+        <p class="meme-small">Tap one to drop it in. Drag it, pull the corner to size and turn it, or pinch.</p>
       </section>
 
-      <button class="meme-reset" id="meme-reset" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M20 3.6V8h-4.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Start over</button>
+      <section class="meme-block meme-block-finish">
+        <h2 class="meme-h">Finish</h2>
+        <div class="meme-chips" id="meme-filters" role="radiogroup" aria-label="Filter">
+          <button class="meme-chip is-on" type="button" data-filter="none" role="radio" aria-checked="true"><span class="meme-fx fx-none"></span>Clean</button>
+          <button class="meme-chip" type="button" data-filter="fried" role="radio" aria-checked="false"><span class="meme-fx fx-fried"></span>Deep fried</button>
+          <button class="meme-chip" type="button" data-filter="noir" role="radio" aria-checked="false"><span class="meme-fx fx-noir"></span>Noir</button>
+          <button class="meme-chip" type="button" data-filter="gold" role="radio" aria-checked="false"><span class="meme-fx fx-gold"></span>Golden</button>
+        </div>
+      </section>
     </div>
   </div>
 </main>
 
 <script src="assets/js/main.js?v=62"></script>
 <script src="assets/js/wallet.js?v=7"></script>
-<script src="assets/js/meme.js?v=1"></script>
+<script src="assets/js/meme.js?v=2"></script>
 </body>
 </html>

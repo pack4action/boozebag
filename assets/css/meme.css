@@ -1,10 +1,11 @@
 /* ---- The meme maker ----
    The picture on the left and what goes into it on the right; on a phone,
-   the picture on top and the tools under it. */
+   the picture on top and the tools under it, words first. */
+
 /* Its own page frame rather than the games': the games lay out in three
    columns around a board on a desk, and this has two of its own. */
 .meme-page {
-  max-width: 1180px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 44px 5vw 90px;
 }
@@ -12,47 +13,41 @@
 .meme-page .game-sub { max-width: 560px; }
 .meme-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   gap: 28px;
   align-items: start;
   margin-top: 26px;
 }
-@media (max-width: 900px) {
-  .meme-layout { grid-template-columns: 1fr; gap: 14px; }
-  /* On a phone everything is one column, and the order is the order it is
-     used in: the picture, the words right under it so what is typed can be
-     seen going on, then the rest, and the way out at the bottom. */
-  .meme-layout > .meme-stage, .meme-layout > .meme-tools { display: contents; }
-  .meme-canvas-wrap { order: 1; }
-  .meme-sel { order: 2; margin-top: 0; }
-  .meme-block-words { order: 3; }
-  .meme-block-pic { order: 4; }
-  .meme-block-stick { order: 5; }
-  .meme-out { order: 6; margin-top: 4px; }
-  .meme-note { order: 7; margin-top: 0; }
-  .meme-reset { order: 8; }
-  .meme-canvas-wrap { padding: 10px; }
-  #meme-canvas { max-height: 56vh; }
-}
-@media (max-width: 560px) {
-  /* Download the width of the screen, the other two side by side under it. */
-  .meme-layout .meme-out { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .meme-layout .meme-out .btn { width: 100%; padding-left: 12px; padding-right: 12px; font-size: 14px; }
-  .meme-layout .meme-out #meme-download { grid-column: 1 / -1; }
-}
 
-/* The picture. Held still at the top of the screen on a desk, so the words
-   being typed on the right can be watched going on. */
+/* ---- The picture ----
+   Held still at the top of the screen on a desk, so the words being typed
+   on the right can be watched going on. */
 .meme-stage { position: sticky; top: 86px; }
-@media (max-width: 900px) { .meme-stage { position: static; } }
+.meme-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.meme-bar-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .meme-canvas-wrap {
+  position: relative;
   display: flex;
   justify-content: center;
   padding: 14px;
   border: 1px solid var(--panel-border);
   border-radius: var(--radius);
-  background:
-    repeating-conic-gradient(#15131a 0 25%, #111016 0 50%) 0 0 / 22px 22px;
+  background: repeating-conic-gradient(#15131a 0 25%, #111016 0 50%) 0 0 / 22px 22px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 #meme-canvas {
   display: block;
@@ -60,21 +55,40 @@
   width: auto;
   height: auto;
   /* Short enough that there is always page left to scroll by. */
-  max-height: 62vh;
+  max-height: 64vh;
   border-radius: 8px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
-  /* Dragging a sticker must not scroll the page. */
+  /* Dragging on it frames the picture or moves a sticker, never the page. */
   touch-action: none;
   cursor: grab;
 }
 #meme-canvas:active { cursor: grabbing; }
+/* A file held over the picture. */
+.meme-drop {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--amber);
+  border-radius: 12px;
+  background: rgba(10, 10, 13, 0.72);
+  color: var(--amber);
+  font-family: 'Anton', sans-serif;
+  font-size: 22px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.meme-canvas-wrap.is-dropping { border-color: var(--amber); box-shadow: 0 0 0 4px rgba(255, 198, 50, 0.16); }
+.meme-canvas-wrap.is-dropping .meme-drop { opacity: 1; }
 
-/* What can be done to the picked sticker. */
+/* What can be done to the picked thing. */
 .meme-sel {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   margin-top: 12px;
   padding: 10px 12px;
@@ -82,13 +96,29 @@
   border-radius: 12px;
   background: rgba(255, 198, 50, 0.06);
 }
-.meme-sel[hidden] { display: none; }
-.meme-sel-hint { font-size: 12.5px; color: var(--muted); }
+.meme-sel[hidden], .meme-sel-text[hidden] { display: none; }
+.meme-sel-text {
+  flex: 1 1 180px;
+  min-width: 0;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text);
+  padding: 8px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--amber);
+  background: rgba(0, 0, 0, 0.35);
+}
+.meme-sel-text:focus { outline: none; box-shadow: 0 0 0 3px rgba(255, 198, 50, 0.2); }
 .meme-sel-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* The small buttons, used everywhere on this page. */
 .meme-mini {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex: none;
   font: inherit;
   font-size: 12.5px;
   font-weight: 800;
@@ -97,12 +127,21 @@
   cursor: pointer;
   color: var(--text);
   background: linear-gradient(180deg, #211e2a 0%, #16141c 100%);
-  border: 1px solid var(--edge-lit);
-  transition: transform 0.14s ease, border-color 0.14s ease;
+  border: 1px solid var(--edge-lit, #3a3544);
+  transition: transform 0.14s ease, border-color 0.14s ease, opacity 0.14s ease;
 }
 .meme-mini:hover { border-color: var(--amber); }
 .meme-mini:active { transform: scale(0.96); }
+.meme-mini[disabled] { opacity: 0.4; cursor: default; transform: none; border-color: var(--edge-lit, #3a3544); }
 .meme-mini.is-bad:hover { border-color: #ff6b6b; color: #ffd7d7; }
+/* The one that does the thinking for you. */
+.meme-mini.is-lit {
+  color: #1a1200;
+  border-color: #000;
+  background: linear-gradient(180deg, #ffd35a 0%, #ffb31a 100%);
+  box-shadow: 0 2px 0 #000;
+}
+.meme-mini.is-lit:hover { border-color: #000; filter: brightness(1.06); }
 
 .meme-out {
   display: flex;
@@ -115,7 +154,7 @@
 .meme-note { min-height: 1.4em; margin: 10px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
 
 /* ---- The tools ---- */
-.meme-tools { display: grid; gap: 16px; }
+.meme-tools { display: grid; gap: 14px; }
 .meme-block {
   padding: 16px;
   border: 1px solid var(--panel-border);
@@ -125,15 +164,77 @@
 .meme-h {
   font-family: 'Anton', sans-serif;
   font-size: 15px;
+  font-weight: 400;
   letter-spacing: 0.6px;
   text-transform: uppercase;
   margin: 0 0 12px;
   color: var(--amber);
 }
+.meme-h-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.meme-h-row .meme-h { margin: 0; }
+.meme-sub {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 14px 0 8px;
+}
 .meme-small { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; line-height: 1.5; }
+.meme-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+
+/* Choices of one: layout, shape, lettering, finish, which picture. */
+.meme-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.meme-chips[hidden] { display: none; }
+.meme-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 6px 12px 6px 7px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--panel-border);
+  transition: border-color 0.14s ease, color 0.14s ease;
+}
+.meme-chip:hover { color: var(--text); }
+.meme-chip.is-on { color: var(--text); border-color: var(--amber); background: rgba(255, 198, 50, 0.08); }
+.meme-panels .meme-chip { padding-left: 9px; }
+.lay-mark { width: 20px; height: 20px; flex: none; }
+.meme-chip.is-on .lay-mark { color: var(--amber); }
+.meme-lay { display: grid; grid-template-columns: 1fr 1fr; }
+.meme-lay .meme-chip { padding: 8px 12px 8px 9px; }
+
+.meme-swatch {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 24px;
+  border-radius: 999px;
+  font-family: 'Anton', sans-serif;
+  font-size: 14px;
+  background: #2a2733;
+  -webkit-text-stroke: 1.2px #000;
+  paint-order: stroke fill;
+}
+.sw-classic { color: #fff; }
+.sw-amber { color: #ffc632; }
+.sw-neon { color: #fff; text-shadow: 0 0 6px #51fb18, 0 0 12px rgba(81, 251, 24, 0.6); }
+
+/* A little picture of each finish. */
+.meme-fx { width: 24px; height: 24px; border-radius: 50%; flex: none; border: 1px solid rgba(255, 255, 255, 0.18); }
+.fx-none { background: linear-gradient(135deg, #7ac4ff, #ffd35a 55%, #ff7a59); }
+.fx-fried { background: radial-gradient(circle at 35% 35%, #fff36b, #ff5a00 55%, #b30000); box-shadow: 0 0 8px rgba(255, 90, 0, 0.6); }
+.fx-noir { background: linear-gradient(135deg, #f2f2f2, #6a6a6a 55%, #111); }
+.fx-gold { background: radial-gradient(circle at 40% 40%, #ffe7a1, #d98b1f 60%, #5a3208); }
 
 /* Pictures to start from: little frames, the picked one lit. */
 .meme-picks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.meme-panels + .meme-picks { margin-top: 12px; }
 .meme-pick {
   display: grid;
   gap: 6px;
@@ -157,9 +258,7 @@
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
 .meme-pick-art img { width: 100%; height: 100%; object-fit: cover; }
-.meme-pick-art.is-dark {
-  background: radial-gradient(circle at 50% 65%, rgba(255, 170, 30, 0.35), transparent 70%), #0d0b10;
-}
+.meme-pick-art.is-dark { background: radial-gradient(circle at 50% 65%, rgba(255, 170, 30, 0.35), transparent 70%), #0d0b10; }
 .meme-pick-art.is-dark img { object-fit: contain; }
 .meme-pick-plus { color: var(--amber); }
 .meme-pick-plus svg { width: 42%; height: 42%; }
@@ -167,6 +266,10 @@
 .meme-pick:hover .meme-pick-art { border-color: rgba(255, 198, 50, 0.5); transform: translateY(-2px); }
 .meme-pick.is-on .meme-pick-art { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(255, 198, 50, 0.18); }
 .meme-pick.is-on .meme-pick-label { color: var(--text); }
+
+.meme-zoom { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.meme-zoom label { font-size: 11.5px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); }
+.meme-zoom input { flex: 1; min-width: 0; accent-color: var(--amber); height: 26px; }
 
 /* The words. */
 .meme-field { display: grid; gap: 6px; margin-bottom: 10px; }
@@ -188,40 +291,8 @@
   background: rgba(0, 0, 0, 0.3);
 }
 .meme-field input:focus { outline: none; border-color: var(--amber); }
-.meme-styles { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-.meme-style {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  padding: 6px 12px 6px 6px;
-  border-radius: 999px;
-  cursor: pointer;
-  color: var(--muted);
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid var(--panel-border);
-}
-.meme-style.is-on { color: var(--text); border-color: var(--amber); }
-.meme-swatch {
-  display: inline-grid;
-  place-items: center;
-  width: 30px;
-  height: 24px;
-  border-radius: 999px;
-  font-family: 'Anton', sans-serif;
-  font-size: 14px;
-  background: #2a2733;
-  -webkit-text-stroke: 1.2px #000;
-  paint-order: stroke fill;
-}
-.sw-classic { color: #fff; }
-.sw-amber { color: #ffc632; }
-.sw-neon { color: #fff; text-shadow: 0 0 6px #51fb18, 0 0 12px rgba(81, 251, 24, 0.6); }
 
 /* Stickers, on a dark tray so the ones with no background show. */
-.meme-stickers { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .meme-stick {
   display: flex;
   align-items: center;
@@ -238,24 +309,51 @@
 .meme-stick img.is-round { border-radius: 50%; box-shadow: 0 0 0 2px #ffc632; }
 .meme-stick:hover { border-color: var(--amber); transform: translateY(-2px) rotate(-2deg); }
 .meme-stick:active { transform: scale(0.94); }
-
-.meme-reset {
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  padding: 8px 14px;
-  border-radius: 999px;
+.meme-emoji { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.meme-emo {
+  aspect-ratio: 1;
+  font-size: 24px;
+  line-height: 1;
   cursor: pointer;
-  color: var(--muted);
-  background: none;
+  border-radius: 10px;
   border: 1px solid var(--panel-border);
+  background: #121016;
+  transition: transform 0.15s ease, border-color 0.15s ease;
 }
-.meme-reset:hover { color: var(--text); border-color: var(--amber); }
+.meme-emo:hover { border-color: var(--amber); transform: translateY(-2px) scale(1.06); }
+.meme-emo:active { transform: scale(0.9); }
+
+/* ---- On a phone ----
+   One column, in the order it is used in: the picture, the words right
+   under it so what is typed can be seen going on, then the rest, and the
+   way out at the bottom. */
+@media (max-width: 900px) {
+  .meme-layout { grid-template-columns: 1fr; gap: 12px; }
+  .meme-layout > .meme-stage, .meme-layout > .meme-tools { display: contents; }
+  .meme-bar { order: 1; margin: 0; }
+  .meme-canvas-wrap { order: 2; padding: 10px; }
+  .meme-sel { order: 3; margin-top: 0; }
+  .meme-block-words { order: 4; }
+  .meme-block-format { order: 5; }
+  .meme-block-pic { order: 6; }
+  .meme-block-stick { order: 7; }
+  .meme-block-finish { order: 8; }
+  .meme-out { order: 9; margin-top: 4px; }
+  .meme-note { order: 10; margin-top: 0; }
+  #meme-canvas { max-height: 56vh; }
+}
+@media (max-width: 560px) {
+  .meme-page { padding-top: 30px; }
+  .meme-bar-hint { display: none; }
+  .meme-bar { justify-content: space-between; }
+  #meme-reset { margin-left: auto; }
+  /* Download the width of the screen, the other two side by side under it. */
+  .meme-layout .meme-out { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .meme-layout .meme-out .btn { width: 100%; padding-left: 12px; padding-right: 12px; font-size: 14px; }
+  .meme-layout .meme-out #meme-download { grid-column: 1 / -1; }
+  .meme-emoji { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .meme-pick-art, .meme-stick, .meme-mini { transition: none; }
+  .meme-pick-art, .meme-stick, .meme-mini, .meme-emo, .meme-chip, .meme-drop { transition: none; }
 }
