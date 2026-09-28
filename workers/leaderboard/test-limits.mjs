@@ -93,7 +93,7 @@ async function fresh(rows) {
     const req = new Request('https://x/api/scores', {
       method: 'POST',
       body: JSON.stringify(body),
-      headers: { Origin: 'https://boozebag.xyz', 'CF-Connecting-IP': '10.0.0.' + (++ip) },
+      headers: { Origin: 'https://boozebag.us', 'CF-Connecting-IP': '10.0.0.' + (++ip) },
     });
     const res = await mod.default.fetch(req, { DB: db }, { waitUntil() {} });
     return { status: res.status, body: await res.json() };

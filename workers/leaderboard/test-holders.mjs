@@ -48,7 +48,7 @@ let n = 0;
 async function run(name, plan, expectHolders, expectFrom, env) {
   const seen = stubFetch(plan);
   const mod = await import(WORKER + '?fresh=' + (++n));
-  const req = new Request('https://x/api/token', { headers: { Origin: 'https://boozebag.xyz' } });
+  const req = new Request('https://x/api/token', { headers: { Origin: 'https://boozebag.us' } });
   const res = await mod.default.fetch(req, env || {}, { waitUntil() {} });
   const body = await res.json();
   ok(name + ': status', res.status === 200, res.status);

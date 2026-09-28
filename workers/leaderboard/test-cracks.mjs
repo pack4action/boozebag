@@ -51,7 +51,7 @@ async function fresh() {
     const req = new Request('https://x/api/cracks', {
       method,
       body: body === undefined ? undefined : JSON.stringify(body),
-      headers: { Origin: 'https://boozebag.xyz', 'CF-Connecting-IP': ip || '1.2.3.4' },
+      headers: { Origin: 'https://boozebag.us', 'CF-Connecting-IP': ip || '1.2.3.4' },
     });
     const res = await mod.default.fetch(req, { DB: db }, { waitUntil() {} });
     return { status: res.status, body: await res.json(), cors: res.headers.get('access-control-allow-origin') };
@@ -65,7 +65,7 @@ async function fresh() {
   const r = await call('GET');
   ok('empty: answers', r.status === 200, r.status);
   ok('empty: zeroes', r.body.today === 0 && r.body.total === 0, r.body);
-  ok('empty: allowed on the site', r.cors === 'https://boozebag.xyz', r.cors);
+  ok('empty: allowed on the site', r.cors === 'https://boozebag.us', r.cors);
   ok('empty: made its own table', db.made.includes('cracks'), db.made);
 }
 

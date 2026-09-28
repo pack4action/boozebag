@@ -4,13 +4,14 @@ compatibility_date = "2024-11-01"
 
 # Every Worker gets a free address at <name>.<account>.workers.dev, and
 # that is all the site needs: the page is told where it is with one tag in
-# its head (see README). Once boozebag.xyz is bought and on Cloudflare,
+# its head (see README). Once boozebag.us has its DNS on Cloudflare,
 # uncomment the routes below and the Worker answers on the domain too, at
-# /api/, the same origin as the page.
+# /api/, the same origin as the page. Not before: a route naming a zone
+# Cloudflare does not hold yet fails the deploy.
 workers_dev = true
 # routes = [
-#   { pattern = "boozebag.xyz/api/*", zone_name = "boozebag.xyz" },
-#   { pattern = "www.boozebag.xyz/api/*", zone_name = "boozebag.xyz" }
+#   { pattern = "boozebag.us/api/*", zone_name = "boozebag.us" },
+#   { pattern = "www.boozebag.us/api/*", zone_name = "boozebag.us" }
 # ]
 
 [[d1_databases]]

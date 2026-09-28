@@ -14,7 +14,7 @@
     const tag = document.querySelector('meta[name="boozebag-api"]');
     if (tag && tag.content) return tag.content.replace(/\/+$/, '');
     const host = location.hostname;
-    if (host === 'boozebag.xyz' || host === 'www.boozebag.xyz'
+    if (host === 'boozebag.us' || host === 'www.boozebag.us'
       || /\.pages\.dev$/.test(host)) return '/api';
     return null;
   }

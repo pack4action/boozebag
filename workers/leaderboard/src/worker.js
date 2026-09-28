@@ -49,8 +49,8 @@ const BOARD_SIZE = 25;
 const BODY_MAX = 2048;
 
 const ALLOWED_ORIGINS = [
-  'https://boozebag.xyz',
-  'https://www.boozebag.xyz',
+  'https://boozebag.us',
+  'https://www.boozebag.us',
   'https://pack4action.github.io',
   'http://localhost:8791',
   'http://127.0.0.1:8791',

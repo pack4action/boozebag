@@ -1,12 +1,12 @@
 # The leaderboard
 
 One board per game, shared by everybody playing. A Cloudflare Worker at
-`boozebag.xyz/api/scores` in front of a D1 database, and about a hundred
+`boozebag.us/api/scores` in front of a D1 database, and about a hundred
 lines of client in `assets/js/leaderboard.js`.
 
 Nothing needs deploying for the site to work. Off the real domain the games
 keep their board in the browser and the heading says `this browser only`;
-on `boozebag.xyz` (or a `*.pages.dev` preview) the same code finds `/api`
+on `boozebag.us` (or a `*.pages.dev` preview) the same code finds `/api`
 by itself and the heading says `everybody playing`. There is no key, no
 config file and nothing to paste into the markup.
 
@@ -128,9 +128,10 @@ red when he is on.
 
 ### Once there is a domain
 
-When boozebag.xyz is bought and its DNS is on Cloudflare, uncomment the
-`routes` in `wrangler.toml` and deploy again. The Worker then also answers
-at `boozebag.xyz/api/`, the same origin as the page, and the page finds it
+Once boozebag.us has its DNS on Cloudflare, uncomment the `routes` in
+`wrangler.toml` and deploy again. Not before: a route naming a zone
+Cloudflare does not hold yet fails the deploy. The Worker then also answers
+at `boozebag.us/api/`, the same origin as the page, and the page finds it
 there by itself; the tag can stay or go.
 
 ## The token's numbers
@@ -261,5 +262,5 @@ each one did. It talks to whatever is at `BASE` (default
 deploy:
 
 ```sh
-BASE=https://boozebag.xyz node test.mjs
+BASE=https://boozebag.us node test.mjs
 ```

@@ -41,11 +41,11 @@ const ok = (name, cond, saw) => {
 // this runs; what has to hold is the shape of the answer and that it is
 // served with the headers a page on the site needs.
 {
-  const r = await fetch(BASE + '/api/live', { headers: { Origin: 'https://boozebag.xyz' } });
+  const r = await fetch(BASE + '/api/live', { headers: { Origin: 'https://boozebag.us' } });
   const body = await r.json().catch(() => null);
   ok('live answers', r.status === 200, r.status);
   ok('live has the two sources', body && 'kick' in body && 'discord' in body, body);
-  ok('live is allowed on the site', r.headers.get('access-control-allow-origin') === 'https://boozebag.xyz');
+  ok('live is allowed on the site', r.headers.get('access-control-allow-origin') === 'https://boozebag.us');
   ok('live is held a moment', /max-age=\d+/.test(r.headers.get('cache-control') || ''));
   if (body && body.kick) ok('a live answer says whether', typeof body.kick.live === 'boolean', body.kick);
 }
@@ -53,7 +53,7 @@ const ok = (name, cond, saw) => {
 // The token's numbers. The chain may or may not answer from where this
 // runs; the shape is what is checked.
 {
-  const r = await fetch(BASE + '/api/token', { headers: { Origin: 'https://boozebag.xyz' } });
+  const r = await fetch(BASE + '/api/token', { headers: { Origin: 'https://boozebag.us' } });
   const body = await r.json().catch(() => null);
   ok('token answers', r.status === 200, r.status);
   ok('token has its fields', body && 'supply' in body && 'holders' in body
@@ -62,7 +62,7 @@ const ok = (name, cond, saw) => {
     ok('a holder count is a whole number', Number.isInteger(body.holders) && body.holders > 0, body.holders);
     ok('and says where it came from', typeof body.holdersFrom === 'string' && body.holdersFrom.length > 0, body.holdersFrom);
   }
-  ok('token is allowed on the site', r.headers.get('access-control-allow-origin') === 'https://boozebag.xyz');
+  ok('token is allowed on the site', r.headers.get('access-control-allow-origin') === 'https://boozebag.us');
   ok('token is held a while', /max-age=\d+/.test(r.headers.get('cache-control') || ''));
 }
 

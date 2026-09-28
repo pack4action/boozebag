@@ -50,7 +50,7 @@ async function fresh() {
   let ip = 0;
   const post = async (body) => {
     const req = new Request('https://x/api/scores', { method: 'POST', body: JSON.stringify(body),
-      headers: { Origin: 'https://boozebag.xyz', 'CF-Connecting-IP': '10.1.0.' + (++ip) } });
+      headers: { Origin: 'https://boozebag.us', 'CF-Connecting-IP': '10.1.0.' + (++ip) } });
     const res = await mod.default.fetch(req, { DB: db }, { waitUntil() {} });
     return { status: res.status, body: await res.json() };
   };
