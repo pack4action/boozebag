@@ -424,7 +424,7 @@
           <h3>Unlock the supply</h3>
           <span class="road-status">Sept 5</span>
         </div>
-        <p>13% of supply, 130M tokens, unlocked for holders. 60M airdropped to the OG holders so far, 70M still going out.</p>
+        <p>13% of supply, 130M tokens, unlocked for holders. 70M airdropped to the OG holders so far, 20M still going out.</p>
       </div>
     </li>
 
@@ -577,23 +577,24 @@
        The three parts are one number cut three ways, so they have to add
        up to the supply above them, and every token has to sit in exactly
        one of them. What separates them is how a token got where it is:
-       given out, waiting to be given out, or bought. `data-unlock` is the
-       size of the unlock and `data-left` is what is still to go out,
-       which the page works out for itself once the Worker can see the
-       wallet it waits in. -->
-  <div class="supply" data-unlock="130000000" data-left="70000000">
+       given out, waiting to be given out, or bought. `data-pool` is what
+       was set aside for holders in total and `data-left` is what is still
+       to go out of it, so what has gone is the difference. The page works
+       `data-left` out for itself once the Worker can see the wallet it
+       waits in. -->
+  <div class="supply" data-pool="90000000" data-left="20000000">
     <div class="supply-head">
       <span class="supply-total"><b id="tk-supply">953,882,392</b><span>total supply</span></span>
       <span class="supply-holders" id="tk-holders-stat" hidden><b id="tk-holders"></b><span>beer holders</span></span>
     </div>
-    <div class="supply-bar" id="tk-bar" role="img" aria-label="Of the supply, 6% has been airdropped, 7% is still to go out, and the rest was bought on the open market.">
+    <div class="supply-bar" id="tk-bar" role="img" aria-label="Of the supply, 7% has been airdropped, 2% is still to go out, and the rest was bought on the open market.">
       <span class="supply-drop"><i></i></span>
       <span class="supply-next"></span>
     </div>
     <div class="supply-legend">
-      <span class="supply-key supply-key-drop"><i></i><b id="sk-drop">60M</b> airdropped so far <em id="sk-drop-pc">6%</em></span>
-      <span class="supply-key supply-key-next"><i></i><b id="sk-next">70M</b> still to go out <em id="sk-next-pc">7%</em></span>
-      <span class="supply-key supply-key-market"><i></i><b id="sk-market">824M</b> bought and traded <em id="sk-market-pc">87%</em></span>
+      <span class="supply-key supply-key-drop"><i></i><b id="sk-drop">70M</b> airdropped so far <em id="sk-drop-pc">7%</em></span>
+      <span class="supply-key supply-key-next"><i></i><b id="sk-next">20M</b> still to go out <em id="sk-next-pc">2%</em></span>
+      <span class="supply-key supply-key-market"><i></i><b id="sk-market">864M</b> bought and traded <em id="sk-market-pc">91%</em></span>
     </div>
   </div>
 
@@ -681,7 +682,7 @@
     </details>
     <details class="faq-item">
       <summary>How does the airdrop work?</summary>
-      <p>On September 5th, 13% of the supply (130M tokens) was unlocked for holders. 60M of it has been airdropped so far to everyone who held the original coin, and the remaining 70M is going out to new holders over time, alongside regular giveaways on the live streams. Announcements are made in the <a href="https://t.me/degenhorde" target="_blank" rel="noopener">Telegram</a>.</p>
+      <p>On September 5th, 13% of the supply (130M tokens) was unlocked for holders. 70M of it has been airdropped so far to everyone who held the original coin, and 20M is still going out to new holders over time, alongside regular giveaways on the live streams. Announcements are made in the <a href="https://t.me/degenhorde" target="_blank" rel="noopener">Telegram</a>.</p>
     </details>
     <details class="faq-item">
       <summary>Why was the coin relaunched?</summary>
@@ -775,7 +776,7 @@
 
 <script src="assets/js/wallet.js?v=7"></script>
 <script src="assets/js/leaderboard.js?v=10"></script>
-<script src="assets/js/main.js?v=59"></script>
+<script src="assets/js/main.js?v=60"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>

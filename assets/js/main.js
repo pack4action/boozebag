@@ -620,19 +620,21 @@ function shortNum(n) {
 const supplyEl = document.querySelector('.supply');
 function paintSupply(supply, waiting) {
   if (!supplyEl || !(supply > 0)) return;
-  const unlock = Number(supplyEl.dataset.unlock) || 0;
-  // Two balances are not answers to this question. One bigger than the
-  // whole unlock, because the wallet it is handed out from holds other
+  // What was set aside for holders in total. What has gone out is that
+  // less what is left, so the two only ever move together.
+  const pool = Number(supplyEl.dataset.pool) || 0;
+  // Two balances are not answers to how much is left. One bigger than the
+  // whole pool, because the wallet it is handed out from holds other
   // things too. And nothing at all, because a wallet holding none of the
   // coin is the wrong wallet far more often than it is a finished
   // airdrop. Either way the figure written into the page stands in for
   // it rather than the bar saying something plainly wrong. When the
   // airdrop really is finished, data-left says 0 and that is that.
   const said = Number(waiting);
-  const told = said > 0 && said <= unlock && isFinite(said);
-  const left = Math.max(0, Math.min(unlock,
+  const told = said > 0 && said <= pool && isFinite(said);
+  const left = Math.max(0, Math.min(pool,
     told ? said : Number(supplyEl.dataset.left) || 0));
-  const given = Math.max(0, unlock - left);
+  const given = Math.max(0, pool - left);
   const bought = Math.max(0, supply - given - left);
   const pc = (n) => (n / supply) * 100;
   const say = (n) => Math.round(pc(n)) + '%';
