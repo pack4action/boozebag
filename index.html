@@ -41,7 +41,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=88" />
+<link rel="stylesheet" href="assets/css/style.css?v=89" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -652,6 +652,20 @@
     </div>
   </div>
 
+  <!-- Jupiter's own swap, run on this page rather than sending somebody
+       off to another site. The script is only fetched when the button is
+       pressed, so nobody who does not open it pays for it, and the
+       buttons below stay where they are either way. -->
+  <div class="swap" id="swap">
+    <div class="swap-head">
+      <h3>Swap it right here</h3>
+      <p>Jupiter's swap, running on this page. Your wallet, your keys. Nothing goes through me.</p>
+    </div>
+    <button class="btn btn-primary btn-lg" id="swap-open" type="button">Open the swap</button>
+    <div class="swap-box" id="swap-box" hidden></div>
+    <p class="swap-note" id="swap-note" hidden></p>
+  </div>
+
   <div class="buy-cta">
     <picture>
       <source srcset="assets/img/another-one.webp" type="image/webp" />
@@ -704,6 +718,16 @@
   <div class="section-head">
     <h2 class="section-title">Join the Bag</h2>
     <p class="section-kicker">everything drops here first</p>
+  </div>
+
+  <!-- One press to put it somewhere else. The links are built in the
+       script from wherever the page is actually served, so they are right
+       on any address it ends up on. -->
+  <div class="share-row" id="share-row" hidden>
+    <span class="share-lead">Send it to somebody</span>
+    <a class="btn btn-outline btn-small" id="share-x" href="#" target="_blank" rel="noopener">Post it on X</a>
+    <a class="btn btn-outline btn-small" id="share-tg" href="#" target="_blank" rel="noopener">Send on Telegram</a>
+    <button class="btn btn-outline btn-small" id="share-copy" type="button">Copy the link</button>
   </div>
 
   <div class="community-grid">
@@ -776,7 +800,7 @@
 
 <script src="assets/js/wallet.js?v=7"></script>
 <script src="assets/js/leaderboard.js?v=10"></script>
-<script src="assets/js/main.js?v=60"></script>
+<script src="assets/js/main.js?v=61"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>

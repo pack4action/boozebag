@@ -1003,6 +1003,102 @@ setInterval(() => { if (!document.hidden) askNumbers(); }, 60000);
 // by setCount above. A follower count typed into the markup goes stale
 // the day after it is typed, and a wrong number is worse than none.
 
+// ---- Swapping on the page ----
+// Jupiter's plugin, fetched the moment somebody asks for it and not
+// before: a third party's script on every visit is a cost paid by
+// everybody to serve the few who buy here rather than on pump.fun. The
+// output is pinned to this coin, so the widget cannot be pointed at
+// anything else, and if it does not come up the buttons underneath still
+// go where they always went.
+const swapOpen = document.getElementById('swap-open');
+if (swapOpen) {
+  const SOL = 'So11111111111111111111111111111111111111112';
+  const PLUGIN = 'https://plugin.jup.ag/plugin-v1.js';
+  const box = document.getElementById('swap-box');
+  const note = document.getElementById('swap-note');
+  const say = (text) => {
+    if (!note) return;
+    note.textContent = text || '';
+    note.hidden = !text;
+  };
+  const fellOver = () => {
+    say('The swap would not load. Use the buttons below instead.');
+    swapOpen.disabled = false;
+    swapOpen.textContent = 'Try the swap again';
+  };
+  let asked = false;
+  swapOpen.addEventListener('click', () => {
+    if (asked) return;
+    asked = true;
+    swapOpen.disabled = true;
+    swapOpen.textContent = 'Opening\u2026';
+    say('');
+    const start = () => {
+      try {
+        window.Jupiter.init({
+          displayMode: 'integrated',
+          integratedTargetId: 'swap-box',
+          formProps: {
+            initialInputMint: SOL,
+            initialOutputMint: CA,
+            // Nobody can steer it onto another coin.
+            fixedOutputMint: true,
+          },
+        });
+        box.hidden = false;
+        swapOpen.hidden = true;
+      } catch (e) {
+        asked = false;
+        fellOver();
+      }
+    };
+    if (window.Jupiter && window.Jupiter.init) { start(); return; }
+    const el = document.createElement('script');
+    el.src = PLUGIN;
+    el.async = true;
+    // A script that loads but never puts anything on the window is the
+    // same as one that failed, so it is given a few seconds either way.
+    const giveUp = setTimeout(() => { asked = false; fellOver(); }, 9000);
+    el.onload = () => {
+      clearTimeout(giveUp);
+      if (window.Jupiter && window.Jupiter.init) start();
+      else { asked = false; fellOver(); }
+    };
+    el.onerror = () => { clearTimeout(giveUp); asked = false; fellOver(); };
+    document.head.appendChild(el);
+  });
+}
+
+// ---- Sending it on ----
+// The links are built from wherever the page is actually being served, so
+// they stay right when the site moves to its own domain, and the row only
+// appears once they have been built.
+const shareRow = document.getElementById('share-row');
+if (shareRow) {
+  const here = location.origin + location.pathname.replace(/index\.html$/, '');
+  const line = '24 drinks a day, no lifting, one real bodybuilding stage. $BOOZEBAG is live.\n\nCA: ' + CA;
+  const x = document.getElementById('share-x');
+  const tg = document.getElementById('share-tg');
+  const copy = document.getElementById('share-copy');
+  if (x) {
+    x.href = 'https://x.com/intent/post?text=' + encodeURIComponent(line)
+      + '&url=' + encodeURIComponent(here);
+  }
+  if (tg) {
+    tg.href = 'https://t.me/share/url?url=' + encodeURIComponent(here)
+      + '&text=' + encodeURIComponent(line);
+  }
+  if (copy) {
+    copy.addEventListener('click', async () => {
+      if (!(await copyText(here))) return;
+      buzz(14);
+      copy.textContent = 'Copied';
+      setTimeout(() => { copy.textContent = 'Copy the link'; }, 1600);
+    });
+  }
+  shareRow.hidden = false;
+}
+
 // ---- The bar at the bottom of a phone ----
 // Up once the hero, with its own buttons, has gone off the top.
 const buybar = document.getElementById('buybar');
