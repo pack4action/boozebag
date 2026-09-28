@@ -2880,6 +2880,13 @@ html { scroll-padding-top: 84px; }
   font-size: 12.5px;
   color: var(--muted);
 }
+.lb-leave-btn, .lb-note-do {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* The mark sits a size under the words rather than level with them. */
+.lb-btn-mark { width: 1.05em; height: 1.05em; flex: none; }
 .lb-leave-btn {
   font: inherit;
   font-size: 12.5px;

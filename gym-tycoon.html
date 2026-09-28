@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=90" />
+<link rel="stylesheet" href="assets/css/style.css?v=91" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=14" />
 <link rel="stylesheet" href="assets/css/gym-tycoon.css?v=118" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
@@ -59,7 +59,7 @@
   <!-- Buy, wallet and the menu button travel together: one group at the
        end of the bar, so the wallet is in the same place on every page. -->
   <div class="nav-actions">
-    <a class="btn btn-small btn-primary nav-cta" href="index.html#buy">Buy $BOOZEBAG</a>
+    <a class="btn btn-small btn-primary nav-cta" href="index.html#buy">Buy $BOOZEBAG <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.4" y="9.2" width="9.8" height="12" rx="1.9"/><path d="M14.2 11.2h2.4a3 3 0 0 1 0 6h-2.4V15h2.4a.8.8 0 0 0 0-1.6h-2.4v-2.2Z"/><rect x="3.7" y="6.2" width="11.2" height="4.2" rx="2.1"/><circle cx="6.5" cy="5.7" r="2"/><circle cx="10" cy="5" r="2.4"/><circle cx="13.2" cy="5.9" r="1.9"/></svg></a>
     <div class="nav-wallet" id="nav-wallet">
       <button class="btn btn-outline btn-small wallet-toggle" id="btn-connect" type="button" aria-label="Connect wallet">
         <svg class="wallet-glyph" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H17a2 2 0 0 1 2 2v1H5.5A2.5 2.5 0 0 1 3 7.5Zm0 1.9c.7.4 1.6.6 2.5.6H19a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9.4ZM16.5 13a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" fill="currentColor"/></svg>
@@ -383,12 +383,12 @@
           <p class="tycoon-savebox-note">Your gym lives in this browser only. Copy this code somewhere safe. Paste it back here, on any device, to get the gym back.</p>
           <textarea class="tycoon-savebox-code" id="save-code" readonly rows="3" spellcheck="false" aria-label="Your save code"></textarea>
           <div class="tycoon-savebox-row">
-            <button class="tycoon-savebox-btn" id="btn-save-copy" type="button">Copy code</button>
+            <button class="tycoon-savebox-btn" id="btn-save-copy" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8.4" y="3.2" width="12.4" height="14.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.6 20.8H5.8a2.6 2.6 0 0 1-2.6-2.6V7.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="btn-label">Copy code</span></button>
             <span class="tycoon-savebox-when" id="save-when"></span>
           </div>
           <textarea class="tycoon-savebox-code is-paste" id="load-code" rows="3" spellcheck="false" placeholder="Paste a save code here" aria-label="A save code to load"></textarea>
           <div class="tycoon-savebox-row">
-            <button class="tycoon-savebox-btn is-load" id="btn-save-load" type="button">Load code</button>
+            <button class="tycoon-savebox-btn is-load" id="btn-save-load" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6v11.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M7.6 10.6 12 15l4.4-4.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.4 17.4v1.4a1.8 1.8 0 0 0 1.8 1.8h11.6a1.8 1.8 0 0 0 1.8-1.8v-1.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>Load code</button>
             <span class="tycoon-savebox-when" id="load-say"></span>
           </div>
         </div>
@@ -438,7 +438,7 @@
 
 <script src="assets/js/main.js?v=62"></script>
 <script src="assets/js/wallet.js?v=7"></script>
-<script src="assets/js/leaderboard.js?v=10"></script>
-<script src="assets/js/gym-tycoon.js?v=258"></script>
+<script src="assets/js/leaderboard.js?v=12"></script>
+<script src="assets/js/gym-tycoon.js?v=259"></script>
 </body>
 </html>

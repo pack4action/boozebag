@@ -198,6 +198,42 @@
     }).catch(() => null);
   }
 
+  // The marks these buttons wear. Drawn here because the game pages carry
+  // no sprite to pull them from, and a button with nothing on it looks
+  // like something nobody finished.
+  const RING = 'M12 3.8a8.2 8.2 0 1 0 0 16.4 8.2 8.2 0 0 0 0-16.4Z';
+  const MARKS = {
+    off: RING + 'M8.2 12h7.6',
+    back: RING + 'M8.2 12h7.6M12 8.2v7.6',
+    yes: 'M5 12.5l4.5 4.5L19 7.5',
+    no: 'M6 6l12 12M18 6L6 18',
+    pen: 'M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3Z',
+  };
+  function mark(which) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'icon lb-btn-mark');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', MARKS[which]);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'currentColor');
+    path.setAttribute('stroke-width', '2.4');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(path);
+    return svg;
+  }
+  function dress(btn, which, text) {
+    btn.textContent = '';
+    btn.appendChild(mark(which));
+    const label = document.createElement('span');
+    label.className = 'btn-label';
+    label.textContent = text;
+    btn.appendChild(label);
+    return label;
+  }
+
   function makeLeaderboard(gameId, storageKey) {
     const key = storageKey || ('bbLb:' + gameId);
     // Who has taken themselves off this board, in this browser. Kept here
@@ -458,7 +494,7 @@
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'lb-note-do';
-        btn.textContent = action.label;
+        dress(btn, 'pen', action.label);
         btn.addEventListener('click', () => {
           btn.disabled = true;
           Promise.resolve(action.run()).then(() => { btn.disabled = false; });
@@ -510,7 +546,8 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'lb-leave-btn';
-      btn.textContent = off ? 'Put me back on the board' : 'Remove me from the board';
+      if (off) dress(btn, 'back', 'Put me back on the board');
+      else dress(btn, 'off', 'Remove me from the board');
       btn.addEventListener('click', () => {
         if (off) {
           rejoin();
@@ -530,11 +567,11 @@
       const yes = document.createElement('button');
       yes.type = 'button';
       yes.className = 'lb-leave-btn is-go';
-      yes.textContent = 'Confirm';
+      dress(yes, 'yes', 'Confirm');
       const no = document.createElement('button');
       no.type = 'button';
       no.className = 'lb-leave-btn is-no';
-      no.textContent = 'Cancel';
+      dress(no, 'no', 'Cancel');
       no.addEventListener('click', () => {
         leaveBox.dataset.asking = '';
         drawLeave();

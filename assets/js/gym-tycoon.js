@@ -17742,9 +17742,11 @@
     copyBtn.addEventListener('click', () => {
       refreshSaveCode();
       const text = saveCodeEl.value;
+      // Only the words change, so the mark beside them stays put.
+      const label = copyBtn.querySelector('.btn-label') || copyBtn;
       const done = () => {
-        setText(copyBtn, 'Copied');
-        setTimeout(() => setText(copyBtn, 'Copy code'), 1600);
+        setText(label, 'Copied');
+        setTimeout(() => setText(label, 'Copy code'), 1600);
       };
       const byHand = () => {
         saveCodeEl.focus();
