@@ -41,7 +41,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=91" />
+<link rel="stylesheet" href="assets/css/style.css?v=92" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -135,6 +135,12 @@
   </symbol>
   <symbol id="i-discord" viewBox="0 0 24 24">
     <path d="M19.3 5.6A16.3 16.3 0 0 0 15.2 4.3l-.25.5a12.3 12.3 0 0 1 3.6 1.85 17.2 17.2 0 0 0-13.1 0A12.3 12.3 0 0 1 9.05 4.8L8.8 4.3A16.3 16.3 0 0 0 4.7 5.6C2.15 9.35 1.45 13 1.85 16.55a16.5 16.5 0 0 0 5.05 2.55l1.1-1.5a10.7 10.7 0 0 1-1.7-.82l.42-.32a11.8 11.8 0 0 0 10.56 0l.42.32a10.7 10.7 0 0 1-1.7.82l1.1 1.5a16.5 16.5 0 0 0 5.05-2.55c.47-4.13-.72-7.75-2.85-10.95ZM8.6 14.3c-1 0-1.82-.9-1.82-2s.8-2 1.82-2 1.83.9 1.81 2c0 1.1-.8 2-1.81 2Zm6.8 0c-1 0-1.82-.9-1.82-2s.8-2 1.82-2 1.83.9 1.81 2c0 1.1-.8 2-1.81 2Z"/>
+  </symbol>
+  <symbol id="i-meme" viewBox="0 0 24 24">
+    <rect x="2.6" y="4" width="15.4" height="14" rx="2.6" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M4.6 16l4-4.6 3.2 3.2 1.8-1.8 2.4 3.2Z"/>
+    <circle cx="13.2" cy="8.4" r="1.6"/>
+    <path d="M19.6 10.4l2.2 2.2-6.4 6.4-2.8.6.6-2.8Z"/>
   </symbol>
   <symbol id="i-pong" viewBox="0 0 24 24">
     <rect x="2.2" y="4.4" width="3.4" height="11.2" rx="1.7"/>
@@ -578,6 +584,19 @@
       <a href="gains-stacker.html" class="btn btn-outline btn-lg">Play Now <svg class="icon" aria-hidden="true"><use href="#i-stack"></use></svg></a>
     </div>
   </div>
+
+  <!-- Not a game, so it sits under them rather than among them. -->
+  <a class="meme-promo" href="meme.html">
+    <span class="meme-promo-art" aria-hidden="true">
+      <img src="assets/img/hero-art.png" alt="" width="680" height="454" loading="lazy" decoding="async" />
+      <span class="meme-promo-top">ME AFTER ONE DRINK</span>
+    </span>
+    <span class="meme-promo-text">
+      <b>Meme Maker</b>
+      <span>His pictures, his stickers, your words. Ten seconds, straight to X.</span>
+    </span>
+    <span class="btn btn-primary meme-promo-go">Make one <svg class="icon" aria-hidden="true"><use href="#i-meme"></use></svg></span>
+  </a>
 </section>
 
 <!-- TOKENOMICS -->
@@ -743,6 +762,7 @@
     <a class="btn btn-outline btn-small" id="share-x" href="#" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>Post it on X</a>
     <a class="btn btn-outline btn-small" id="share-tg" href="#" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-telegram"></use></svg>Send on Telegram</a>
     <button class="btn btn-outline btn-small" id="share-copy" type="button"><svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="btn-label">Copy the link</span></button>
+    <a class="btn btn-outline btn-small" href="meme.html"><svg class="icon" aria-hidden="true"><use href="#i-meme"></use></svg>Make a meme</a>
   </div>
 
   <div class="community-grid">

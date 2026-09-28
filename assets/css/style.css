@@ -885,6 +885,60 @@ body.nav-open { overflow: hidden; }
   box-shadow: var(--shadow-hard);
 }
 .game-featured h3 { font-size: 24px; margin: 0 0 10px; }
+
+/* ---- The way in to the meme maker ----
+   Under the games rather than among them: a wide card with a meme already
+   half made on the left, so it is clear what is on the other side. */
+.meme-promo {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  max-width: 900px;
+  margin: 30px auto 0;
+  padding: 14px 20px 14px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.meme-promo:hover { transform: translateY(-3px); border-color: var(--amber); }
+.meme-promo-art {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 70%, rgba(255, 170, 30, 0.4), transparent 70%), #0d0b10;
+}
+.meme-promo-art img { position: absolute; left: 4%; right: 4%; bottom: 8%; width: 92%; height: auto; }
+.meme-promo-top {
+  position: absolute;
+  top: 7%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: 'Anton', Impact, sans-serif;
+  font-size: 15px;
+  line-height: 1;
+  color: #fff;
+  -webkit-text-stroke: 3px #000;
+  paint-order: stroke fill;
+  letter-spacing: 0.2px;
+}
+.meme-promo-text { display: grid; gap: 4px; text-align: left; }
+.meme-promo-text b { font-family: 'Anton', sans-serif; font-size: 22px; font-weight: 400; letter-spacing: 0.4px; text-transform: uppercase; }
+.meme-promo-text span { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.meme-promo-go { pointer-events: none; }
+@media (max-width: 640px) {
+  .meme-promo { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; padding: 12px; }
+  .meme-promo-top { font-size: 10px; -webkit-text-stroke-width: 2px; }
+  .meme-promo-text b { font-size: 19px; }
+  .meme-promo-go { grid-column: 1 / -1; justify-self: stretch; }
+}
+@media (prefers-reduced-motion: reduce) { .meme-promo { transition: none; } }
 .game-featured p { color: var(--muted); font-size: 14.5px; line-height: 1.6; max-width: 460px; margin: 0 auto 18px; }
 
 .game-side-label {
