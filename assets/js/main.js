@@ -98,6 +98,7 @@ if (copyBtn && caValue) {
   let stampTimer = 0;
   const copyAddress = async () => {
     const done = await copyText(caValue.textContent.trim());
+    const atRest = '<svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg>Copy';
     if (!done) {
       copyBtn.textContent = 'Follow @BoozebagFitness';
       return;
@@ -114,7 +115,7 @@ if (copyBtn && caValue) {
     popBubbles(copyBtn);
     clearTimeout(stampTimer);
     stampTimer = setTimeout(() => {
-      copyBtn.textContent = 'Copy';
+      copyBtn.innerHTML = atRest;
       copyBtn.classList.remove('is-done');
       if (caBox) caBox.classList.remove('is-copied');
     }, 1700);
@@ -1024,14 +1025,20 @@ if (swapOpen) {
   const fellOver = () => {
     say('The swap would not load. Use the buttons below instead.');
     swapOpen.disabled = false;
-    swapOpen.textContent = 'Try the swap again';
+    saySwap('Try the swap again');
+  };
+  // Only the words change, so Jupiter's mark stays where it is.
+  const swapLabel = swapOpen.querySelector('.btn-label');
+  const saySwap = (text) => {
+    if (swapLabel) swapLabel.textContent = text;
+    else swapOpen.textContent = text;
   };
   let asked = false;
   swapOpen.addEventListener('click', () => {
     if (asked) return;
     asked = true;
     swapOpen.disabled = true;
-    swapOpen.textContent = 'Opening\u2026';
+    saySwap('Opening\u2026');
     say('');
     const start = () => {
       try {
@@ -1089,11 +1096,12 @@ if (shareRow) {
       + '&text=' + encodeURIComponent(line);
   }
   if (copy) {
+    const label = copy.querySelector('.btn-label') || copy;
     copy.addEventListener('click', async () => {
       if (!(await copyText(here))) return;
       buzz(14);
-      copy.textContent = 'Copied';
-      setTimeout(() => { copy.textContent = 'Copy the link'; }, 1600);
+      label.textContent = 'Copied';
+      setTimeout(() => { label.textContent = 'Copy the link'; }, 1600);
     });
   }
   shareRow.hidden = false;
@@ -1113,11 +1121,13 @@ if (buybar && heroEl && window.IntersectionObserver) {
   io.observe(heroEl);
   const copyBar = document.getElementById('buybar-copy');
   if (copyBar) {
+    // Only the words change, so the mark beside them stays put.
+    const label = copyBar.querySelector('.btn-label') || copyBar;
     copyBar.addEventListener('click', async () => {
       if (!(await copyText(CA))) return;
       buzz(14);
-      copyBar.textContent = 'Copied';
-      setTimeout(() => { copyBar.textContent = 'Copy CA'; }, 1600);
+      label.textContent = 'Copied';
+      setTimeout(() => { label.textContent = 'Copy CA'; }, 1600);
     });
   }
 }

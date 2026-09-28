@@ -41,7 +41,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=89" />
+<link rel="stylesheet" href="assets/css/style.css?v=90" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -136,6 +136,10 @@
   <symbol id="i-discord" viewBox="0 0 24 24">
     <path d="M19.3 5.6A16.3 16.3 0 0 0 15.2 4.3l-.25.5a12.3 12.3 0 0 1 3.6 1.85 17.2 17.2 0 0 0-13.1 0A12.3 12.3 0 0 1 9.05 4.8L8.8 4.3A16.3 16.3 0 0 0 4.7 5.6C2.15 9.35 1.45 13 1.85 16.55a16.5 16.5 0 0 0 5.05 2.55l1.1-1.5a10.7 10.7 0 0 1-1.7-.82l.42-.32a11.8 11.8 0 0 0 10.56 0l.42.32a10.7 10.7 0 0 1-1.7.82l1.1 1.5a16.5 16.5 0 0 0 5.05-2.55c.47-4.13-.72-7.75-2.85-10.95ZM8.6 14.3c-1 0-1.82-.9-1.82-2s.8-2 1.82-2 1.83.9 1.81 2c0 1.1-.8 2-1.81 2Zm6.8 0c-1 0-1.82-.9-1.82-2s.8-2 1.82-2 1.83.9 1.81 2c0 1.1-.8 2-1.81 2Z"/>
   </symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24">
+    <rect x="8.4" y="3.2" width="12.4" height="14.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M15.6 20.8H5.8a2.6 2.6 0 0 1-2.6-2.6V7.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </symbol>
   <symbol id="i-instagram" viewBox="0 0 24 24">
     <rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2" fill="none" stroke="currentColor" stroke-width="2"/>
     <circle cx="12" cy="12" r="4.1" fill="none" stroke="currentColor" stroke-width="2"/>
@@ -180,7 +184,7 @@
   <!-- Buy, wallet and the menu button travel together: one group at the
        end of the bar, so the wallet is in the same place on every page. -->
   <div class="nav-actions">
-    <a class="btn btn-small btn-primary nav-cta" href="#buy">Buy $BOOZEBAG</a>
+    <a class="btn btn-small btn-primary nav-cta" href="#buy">Buy $BOOZEBAG <svg class="icon" aria-hidden="true"><use href="#i-beer"></use></svg></a>
     <div class="nav-wallet" id="nav-wallet">
       <button class="btn btn-outline btn-small wallet-toggle" id="btn-connect" type="button" aria-label="Connect wallet">
         <svg class="wallet-glyph" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H17a2 2 0 0 1 2 2v1H5.5A2.5 2.5 0 0 1 3 7.5Zm0 1.9c.7.4 1.6.6 2.5.6H19a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9.4ZM16.5 13a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" fill="currentColor"/></svg>
@@ -257,7 +261,7 @@
            this one already goes there, and there is a swap on the page
            now that nobody would see if the first button took them off it. -->
       <a href="#buy" class="btn btn-primary btn-lg">Buy $BOOZEBAG <svg class="icon" aria-hidden="true"><use href="#i-beer"></use></svg></a>
-      <a href="https://t.me/degenhorde" target="_blank" rel="noopener" class="btn btn-outline btn-lg">Join the Telegram</a>
+      <a href="https://t.me/degenhorde" target="_blank" rel="noopener" class="btn btn-outline btn-lg">Join the Telegram <svg class="icon" aria-hidden="true"><use href="#i-telegram"></use></svg></a>
     </div>
 
     <!-- The coin, in one card: the address with its copy button, the two
@@ -267,7 +271,7 @@
         <span class="ca-label">Contract address on Solana</span>
         <div class="ca-row">
           <span class="ca-value ca-address" id="ca-value">3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump</span>
-          <button class="btn btn-tiny" id="ca-copy" type="button">Copy</button>
+          <button class="btn btn-tiny" id="ca-copy" type="button"><svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg>Copy</button>
         </div>
       </div>
       <p class="ca-warning"><svg class="icon icon-warn" aria-hidden="true"><use href="#i-warning"></use></svg> Only the CA I post on <a href="https://x.com/BoozebagFitness" target="_blank" rel="noopener">@BoozebagFitness</a> or in the <a href="https://t.me/degenhorde" target="_blank" rel="noopener">Telegram</a> is real. Match every character.</p>
@@ -372,8 +376,8 @@
         </li>
       </ol>
       <div class="proof-links">
-        <a href="https://x.com/boozebagfitness/status/2096077150990348347" target="_blank" rel="noopener" class="btn btn-outline btn-small">Watch the post <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
-        <a href="https://x.com/boozebagfitness/status/2096028740287418669" target="_blank" rel="noopener" class="btn btn-outline btn-small">Watch another <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg></a>
+        <a href="https://x.com/boozebagfitness/status/2096077150990348347" target="_blank" rel="noopener" class="btn btn-outline btn-small"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>Watch the post</a>
+        <a href="https://x.com/boozebagfitness/status/2096028740287418669" target="_blank" rel="noopener" class="btn btn-outline btn-small"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>Watch another</a>
       </div>
     </div>
   </div>
@@ -664,7 +668,7 @@
       <h3>Swap it right here</h3>
       <p>Jupiter's swap, running on this page. Your wallet, your keys. Nothing goes through me.</p>
     </div>
-    <button class="btn btn-primary btn-lg" id="swap-open" type="button">Open the swap</button>
+    <button class="btn btn-primary btn-lg" id="swap-open" type="button"><img class="btn-mark" src="assets/img/logos/jupiter.png?v=2" width="22" height="22" alt="" loading="lazy" decoding="async" /><span class="btn-label">Open the swap</span></button>
     <div class="swap-box" id="swap-box" hidden></div>
     <p class="swap-note" id="swap-note" hidden></p>
   </div>
@@ -675,7 +679,7 @@
       <img src="assets/img/another-one.png" alt="" aria-hidden="true" class="sticker sticker-another" width="220" height="112" />
     </picture>
     <div class="buy-btns">
-      <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" class="btn btn-outline btn-lg">Or buy on pump.fun</a>
+      <a href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" class="btn btn-outline btn-lg"><img class="btn-mark" src="assets/img/logos/pumpfun.png?v=2" width="22" height="22" alt="" loading="lazy" decoding="async" />Or buy on pump.fun</a>
     </div>
   </div>
 </section>
@@ -727,9 +731,9 @@
        on any address it ends up on. -->
   <div class="share-row" id="share-row" hidden>
     <span class="share-lead">Send it to somebody</span>
-    <a class="btn btn-outline btn-small" id="share-x" href="#" target="_blank" rel="noopener">Post it on X</a>
-    <a class="btn btn-outline btn-small" id="share-tg" href="#" target="_blank" rel="noopener">Send on Telegram</a>
-    <button class="btn btn-outline btn-small" id="share-copy" type="button">Copy the link</button>
+    <a class="btn btn-outline btn-small" id="share-x" href="#" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>Post it on X</a>
+    <a class="btn btn-outline btn-small" id="share-tg" href="#" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-telegram"></use></svg>Send on Telegram</a>
+    <button class="btn btn-outline btn-small" id="share-copy" type="button"><svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="btn-label">Copy the link</span></button>
   </div>
 
   <div class="community-grid">
@@ -796,13 +800,13 @@
 <!-- On a phone, once the hero has scrolled away: the two things the page
      is for, within a thumb's reach the whole way down. -->
 <div class="buybar" id="buybar" aria-hidden="true">
-  <button class="btn btn-outline btn-small buybar-copy" id="buybar-copy" type="button">Copy CA</button>
-  <a class="btn btn-primary btn-small buybar-buy" href="#buy">Buy $BOOZEBAG</a>
+  <button class="btn btn-outline btn-small buybar-copy" id="buybar-copy" type="button"><svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="btn-label">Copy CA</span></button>
+  <a class="btn btn-primary btn-small buybar-buy" href="#buy">Buy $BOOZEBAG <svg class="icon" aria-hidden="true"><use href="#i-beer"></use></svg></a>
 </div>
 
 <script src="assets/js/wallet.js?v=7"></script>
 <script src="assets/js/leaderboard.js?v=10"></script>
-<script src="assets/js/main.js?v=61"></script>
+<script src="assets/js/main.js?v=62"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>

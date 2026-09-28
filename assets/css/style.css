@@ -2180,6 +2180,14 @@ html { scroll-padding-top: 84px; }
   margin: 0 0 26px;
 }
 .share-row[hidden] { display: none; }
+/* A brand's own mark on a button that goes to it, at the size of the
+   drawn icons beside it. */
+.btn-mark {
+  width: 1.15em;
+  height: 1.15em;
+  object-fit: contain;
+  flex: none;
+}
 .share-lead {
   font-family: 'Anton', sans-serif;
   letter-spacing: 0.6px;
