@@ -30,6 +30,9 @@
   margin: 0 auto 24px;
 }
 .game-switch-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-weight: 800;
   font-size: 13px;
   padding: 8px 18px;
@@ -40,7 +43,12 @@
   text-decoration: none;
   transition: transform 0.15s ease, box-shadow 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
+/* Each game's own shape, a size under the words so the row still reads
+   as names first. */
+.tab-mark { width: 1.15em; height: 1.15em; flex: none; opacity: 0.85; }
 .game-switch-tab:hover { color: var(--text); border-color: var(--amber); }
+.game-switch-tab:hover .tab-mark { opacity: 1; }
+.game-switch-tab.is-active .tab-mark { opacity: 1; }
 .game-switch-tab.is-active {
   background: var(--amber);
   color: #1a1200;
