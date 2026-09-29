@@ -87,7 +87,6 @@
     // the stickers in meme.css (#meme-stickers, --rows) may need to go up.
     { id: 'head-shocked', src: 'assets/img/meme/stickers/head-shocked.webp', size: 0.34 },
     { id: 'head-grin', src: 'assets/img/meme/stickers/head-grin.webp', size: 0.34 },
-    { id: 'flex', src: 'assets/img/meme/stickers/flex.webp', size: 0.4 },
     { id: 'thumbs', src: 'assets/img/meme/stickers/thumbs.webp', size: 0.5 },
     { id: 'can', src: 'assets/img/can.png', size: 0.36 },
     { id: 'syringe', src: 'assets/img/syringe.png', size: 0.26 },
