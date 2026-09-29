@@ -17,6 +17,15 @@
     // shape while the picture is still on its way rather than square.
     { id: 'poster', label: 'The poster', src: 'assets/img/share.jpg', kind: 'photo', w: 1200, h: 630 },
     { id: 'him', label: 'Him', src: 'assets/img/hero-art.png', kind: 'art' },
+    // Him, in the moments people make memes of. The picker shows the small
+    // copy in thumbs/ and the full one is only fetched when it is picked.
+    ...[
+      ['shocked', 'Shocked'], ['smug', 'Smug sip'], ['laughing', 'Laughing'],
+      ['stare', '4am stare'], ['pointing', 'Pointing'],
+    ].map(([id, label]) => ({
+      id, label, kind: 'photo', w: 1254, h: 1254,
+      src: 'assets/img/meme/' + id + '.webp', thumb: 'assets/img/meme/thumbs/' + id + '.webp',
+    })),
     { id: 'blank', label: 'Blank', kind: 'blank' },
   ];
   // Sizes are a share of the picture's short side, so a sticker is the same
@@ -978,7 +987,7 @@
         + '<path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span>';
     } else if (tpl.src) {
       b.innerHTML = '<span class="meme-pick-art' + (tpl.kind === 'art' ? ' is-dark' : '') + '"><img src="'
-        + tpl.src + '" alt="" loading="lazy" decoding="async" /></span>';
+        + (tpl.thumb || tpl.src) + '" alt="" loading="lazy" decoding="async" /></span>';
     } else {
       b.innerHTML = '<span class="meme-pick-art is-dark is-blank"></span>';
     }

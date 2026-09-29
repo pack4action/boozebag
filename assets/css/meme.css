@@ -234,6 +234,8 @@
 
 /* Pictures to start from: little frames, the picked one lit. */
 .meme-picks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+/* The pictures are the long list; five across where the column is wide. */
+@media (min-width: 901px) { #meme-templates { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 .meme-panels + .meme-picks { margin-top: 12px; }
 .meme-pick {
   display: grid;
