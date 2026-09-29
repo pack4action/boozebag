@@ -1165,7 +1165,6 @@ body.nav-open { overflow: hidden; }
 .hs .community-mark { width: 24px; height: 24px; }
 .hs-x { --tilt: -8deg; }
 .hs-ig { --tilt: 6deg; }
-.hs-tg { --tilt: -4deg; }
 .hs-kick { --tilt: 9deg; }
 .hs-dc { --tilt: -7deg; }
 @media (min-width: 1000px) {
@@ -1185,7 +1184,6 @@ body.nav-open { overflow: hidden; }
   .hero-social { --gap: calc((100vw - 760px) / 2); }
   .hs-x { left: calc(var(--gap) * 0.42 - 33px); top: 31%; --drift: 0.18; }
   .hs-ig { left: calc(var(--gap) * 0.66 - 33px); top: 50%; --drift: -0.1; }
-  .hs-tg { left: calc(var(--gap) * 0.4 - 33px); top: 79%; --drift: 0.08; }
   .hs-kick { right: calc(var(--gap) * 0.42 - 33px); top: 25%; --drift: -0.14; }
   .hs-dc { right: calc(var(--gap) * 0.64 - 33px); top: 46%; --drift: 0.2; }
 }
