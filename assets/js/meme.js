@@ -100,22 +100,57 @@
   const FACE = "Anton, Impact, 'Arial Narrow', sans-serif";
   const PLAIN = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
   const EMOJI_FACE = "'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif";
-  const MARKER = "Caveat, 'Comic Sans MS', cursive";
   const SERIF = "Georgia, 'Times New Roman', Times, serif";
-  // How the words look. The first three are meme lettering; Fire is the
-  // same with flames in it, Box is the white box a phone video puts its
-  // captions in, and Marker is written by hand, as typed.
+  // The colour of the words. Classic, Beer and Neon are meme lettering;
+  // Fire has flames in it, and Box is the white box a phone video puts its
+  // captions in. Any of them goes with any font.
   const STYLES = {
-    classic: { fill: '#ffffff', stroke: '#000000' },
-    amber: { fill: '#ffc632', stroke: '#000000' },
+    classic: { fill: '#ffffff', stroke: '#000000', shade: true },
+    amber: { fill: '#ffc632', stroke: '#000000', shade: true },
     neon: { fill: '#ffffff', stroke: '#0a0a0d', glow: '#51fb18' },
     fire: { fire: true, stroke: '#2b0600', glow: '#ff5a00' },
-    box: { box: true, face: PLAIN, weight: '800 ', upper: false, lh: 1.3, cap: 0.72 },
-    marker: { fill: '#ffffff', stroke: '#111111', face: MARKER, weight: '700 ', upper: false, thin: true, lh: 0.98, cap: 0.6 },
+    box: { box: true },
+  };
+  // The fonts, each with what suits it: capitals or as typed, how far apart
+  // its lines sit, and how heavy an outline it can carry before the
+  // outline starts filling its letters in. All are in assets/fonts (the
+  // meme ones in assets/fonts/meme), each under its own open licence, and
+  // only fetched once somebody picks it.
+  const FONTS = {
+    impact: { family: 'Anton', caps: true, lh: 1.04, stroke: 0.15 },
+    bebas: { family: 'Bebas Neue', caps: true, lh: 0.98, stroke: 0.16 },
+    bangers: { family: 'Bangers', caps: true, lh: 1.02, stroke: 0.13 },
+    bubble: { family: 'Luckiest Guy', caps: true, lh: 1.08, stroke: 0.12 },
+    marker: { family: 'Permanent Marker', caps: false, lh: 1.16, stroke: 0.1 },
+    goofy: { family: 'Comic Neue', weight: '700', caps: false, lh: 1.12, stroke: 0.12 },
+    pixel: { family: 'Press Start 2P', caps: true, lh: 1.32, stroke: 0.1 },
+    script: { family: 'Lobster', caps: false, lh: 1.14, stroke: 0.1 },
+    typewriter: { family: 'Special Elite', caps: false, lh: 1.16, stroke: 0.08 },
+    serif: { family: 'DM Serif Display', caps: false, lh: 1.1, stroke: 0.1 },
+    spooky: { family: 'Creepster', caps: true, lh: 1.08, stroke: 0.09 },
+    clean: { family: 'Inter', weight: '900', caps: false, lh: 1.12, stroke: 0.12 },
   };
   const look = () => STYLES[S.style] || STYLES.classic;
-  const letterFont = (size) => (look().weight || '') + size + 'px ' + (look().face || FACE);
-  const cased = (t) => (look().upper === false ? t : t.toUpperCase());
+  const font = () => FONTS[S.font] || FONTS.impact;
+  const fontFace = () => '"' + font().family + '", ' + FACE;
+  const fontWeight = () => (font().weight || '400') + ' ';
+  const letterFont = (size) => fontWeight() + size + 'px ' + fontFace();
+  const cased = (t) => (S.caps === false ? t : t.toUpperCase());
+  // How tall a capital is in the font in use, measured rather than
+  // guessed, which is what puts the top line the same distance from the
+  // edge in every font.
+  const capOf = new Map();
+  function capHeight() {
+    const key = S.font + (document.fonts && document.fonts.check && document.fonts.check(letterFont(100)) ? '' : '?');
+    if (!capOf.has(key)) {
+      ctx.save();
+      ctx.font = letterFont(100);
+      const m = ctx.measureText('H');
+      ctx.restore();
+      capOf.set(key, m.actualBoundingBoxAscent ? m.actualBoundingBoxAscent / 100 : 0.72);
+    }
+    return capOf.get(key);
+  }
   // The layouts with two pictures in them.
   const TWO = new Set(['split', 'side']);
   const twoUp = () => TWO.has(S.layout);
@@ -260,6 +295,8 @@
     layout: 'classic',
     shape: 'auto',
     style: 'classic',
+    font: 'impact',
+    caps: true,
     filter: 'none',
     tsize: 1,    // how big the top and bottom words are, against their usual
     fxk: 1,      // how strong the finish is
@@ -481,12 +518,21 @@
       return;
     }
     ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.miterLimit = 2;
     if (l.glow) { ctx.shadowColor = l.glow; ctx.shadowBlur = size * 0.35; }
-    ctx.lineWidth = size * (l.thin ? 0.11 : 0.17);
+    else if (l.shade) {
+      // A soft shadow under the outline lifts the words off a busy
+      // picture without making the outline any heavier.
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+      ctx.shadowBlur = size * 0.12;
+      ctx.shadowOffsetY = size * 0.05;
+    }
+    ctx.lineWidth = size * (font().stroke || 0.15);
     ctx.strokeStyle = l.stroke;
     ctx.strokeText(line, x, y);
     ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
     if (l.fire) {
       const g = ctx.createLinearGradient(0, mid - size * 0.5, 0, mid + size * 0.5);
       g.addColorStop(0, '#fff6a8');
@@ -502,14 +548,14 @@
   function drawBlock(text, r, where, reserve) {
     const clean = cased(text.trim());
     if (!clean) return;
-    const l = look();
+    const f = font();
     const k = S.tsize || 1;
     const sh = Math.min(r.w, r.h);
     const pad = sh * 0.05;
     const { size, lines } = fitWords(clean, r.w - pad * 2,
-      Math.round(Math.min(sh * 0.14, r.w * 0.11) * k), Math.round(sh * 0.05 * Math.min(1, k)), l.face || FACE, l.weight || '');
-    const lh = size * (l.lh || 1.04);
-    const cap = size * (l.cap || 0.74);
+      Math.round(Math.min(sh * 0.14, r.w * 0.11) * k), Math.round(sh * 0.05 * Math.min(1, k)), fontFace(), fontWeight());
+    const lh = size * (look().box ? Math.max(1.3, f.lh) : f.lh);
+    const cap = size * capHeight();
     ctx.save();
     ctx.font = letterFont(size);
     ctx.textAlign = 'center';
@@ -1192,7 +1238,10 @@
       saved.items = saved.items.filter((it) => it.kind !== 'art' || artById(it.art));
       S = Object.assign(fresh(), saved);
       last = JSON.stringify(S);
-      wantMarker();
+      // Marker used to be a colour; it is a font now.
+      if (S.style === 'marker') { S.style = 'classic'; S.font = 'marker'; S.caps = false; }
+      if (!FONTS[S.font]) S.font = 'impact';
+      wantFont();
       return true;
     });
   }
@@ -1226,6 +1275,8 @@
     chips('meme-layouts', 'layout', S.layout);
     chips('meme-shapes', 'shape', S.shape);
     chips('meme-styles', 'style', S.style);
+    chips('meme-fonts', 'font', S.font);
+    $('meme-caps').setAttribute('aria-pressed', S.caps === false ? 'false' : 'true');
     chips('meme-filters', 'filter', S.filter);
     $('meme-panels').hidden = !twoUp();
     chips('meme-panels', 'panel', panel);
@@ -1266,12 +1317,20 @@
     hint();
   });
   onChip('meme-shapes', 'shape', (v) => { S.shape = v; S.panels.forEach((p) => { p.ox = 0; p.oy = 0; }); });
-  onChip('meme-styles', 'style', (v) => { S.style = v; wantMarker(); });
-  // The handwriting is only fetched once somebody picks it, and the
-  // picture drawn again when it arrives.
-  function wantMarker() {
-    if (S.style !== 'marker' || !document.fonts || !document.fonts.load) return;
-    document.fonts.load('700 64px Caveat').then(redraw, () => {});
+  onChip('meme-styles', 'style', (v) => { S.style = v; });
+  // A font takes the case that suits it; the caps switch changes that.
+  onChip('meme-fonts', 'font', (v) => { S.font = v; S.caps = font().caps; wantFont(); });
+  $('meme-caps').addEventListener('click', () => {
+    S.caps = S.caps === false;
+    syncControls();
+    redraw();
+    commit();
+  });
+  // A font is only fetched once somebody picks it, and the picture drawn
+  // again when it has arrived.
+  function wantFont() {
+    if (!document.fonts || !document.fonts.load) return;
+    document.fonts.load(letterFont(64)).then(() => { capOf.clear(); redraw(); }, () => {});
   }
   onChip('meme-filters', 'filter', (v) => { S.filter = v; });
   onChip('meme-panels', 'panel', (v) => { panel = Number(v); });

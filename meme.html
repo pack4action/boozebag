@@ -33,7 +33,7 @@
 <link rel="preload" href="assets/fonts/inter-800.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/css/style.css?v=96" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=16" />
-<link rel="stylesheet" href="assets/css/meme.css?v=12" />
+<link rel="stylesheet" href="assets/css/meme.css?v=13" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -176,9 +176,24 @@
             <button class="meme-chip" type="button" data-style="neon" role="radio" aria-checked="false"><span class="meme-swatch sw-neon">Aa</span>Neon</button>
             <button class="meme-chip" type="button" data-style="fire" role="radio" aria-checked="false"><span class="meme-swatch sw-fire">Aa</span>Fire</button>
             <button class="meme-chip" type="button" data-style="box" role="radio" aria-checked="false"><span class="meme-swatch sw-box">Aa</span>Box</button>
-            <button class="meme-chip" type="button" data-style="marker" role="radio" aria-checked="false"><span class="meme-swatch sw-marker">Aa</span>Marker</button>
           </div>
+          <button class="meme-mini" id="meme-caps" type="button" aria-pressed="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 18.4 7 5.6h1.4l4.4 12.8M4.1 14h7.2M14.2 18.4l3.3-8.4h1.2l3.3 8.4M15.3 15.6h5.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Caps</button>
           <button class="meme-mini" id="meme-addtext" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 6.4V4.2h11v2.2M9.1 4.2v15.4M6.6 19.6h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.4 12.2v7.6M14.6 16h7.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Add text</button>
+        </div>
+        <h3 class="meme-sub">Font</h3>
+        <div class="meme-fonts" id="meme-fonts" role="radiogroup" aria-label="Font">
+          <button class="meme-font is-on" type="button" data-font="impact" role="radio" aria-checked="true">Meme</button>
+          <button class="meme-font" type="button" data-font="bebas" role="radio" aria-checked="false">Tall</button>
+          <button class="meme-font" type="button" data-font="bangers" role="radio" aria-checked="false">Comic</button>
+          <button class="meme-font" type="button" data-font="bubble" role="radio" aria-checked="false">Bubble</button>
+          <button class="meme-font" type="button" data-font="marker" role="radio" aria-checked="false">Marker</button>
+          <button class="meme-font" type="button" data-font="goofy" role="radio" aria-checked="false">Goofy</button>
+          <button class="meme-font" type="button" data-font="pixel" role="radio" aria-checked="false">Pixel</button>
+          <button class="meme-font" type="button" data-font="script" role="radio" aria-checked="false">Script</button>
+          <button class="meme-font" type="button" data-font="typewriter" role="radio" aria-checked="false">Typewriter</button>
+          <button class="meme-font" type="button" data-font="serif" role="radio" aria-checked="false">Serif</button>
+          <button class="meme-font" type="button" data-font="spooky" role="radio" aria-checked="false">Spooky</button>
+          <button class="meme-font" type="button" data-font="clean" role="radio" aria-checked="false">Clean</button>
         </div>
         <div class="meme-zoom meme-slide">
           <label for="meme-tsize">Size</label>
@@ -254,6 +269,6 @@
 
 <script src="assets/js/main.js?v=64"></script>
 <script src="assets/js/wallet.js?v=7"></script>
-<script src="assets/js/meme.js?v=19"></script>
+<script src="assets/js/meme.js?v=20"></script>
 </body>
 </html>
