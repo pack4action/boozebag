@@ -11,6 +11,7 @@
   const $ = (id) => document.getElementById(id);
 
   // ---- What there is to work with ----
+  const PAIRS = [['nah', 'yeah'], ['day1', 'stageday'], ['drink1', 'drink24']];
   const TEMPLATES = [
     { id: 'upload', label: 'Your own', upload: true },
     // Him, in the moments people make memes of. The picker shows the small
@@ -22,11 +23,21 @@
     // meme.css (#meme-templates, --rows) may need to go up with it.
     ...[
       ['shocked', 'Shocked'], ['smug', 'Smug sip'], ['laughing', 'Laughing'],
-      ['stare', '4am stare'], ['pointing', 'Pointing'], ['fine', 'This is fine'],
+      ['stare', '4am stare'], ['pointing', 'Pointing'], ['cheers', 'Cheers', 1536, 1024],
+      ['flexing', 'Flexing', 1024, 1536], ['facepalm', 'Facepalm'], ['hyped', 'Hyped'],
+      ['stage', 'On stage', 1024, 1536], ['fine', 'This is fine'],
       ['bigbrain', 'Big brain'], ['warstare', 'War stare', 1086, 1448],
+      ['nah', 'Nah'], ['yeah', 'Yeah'], ['day1', 'Day 1'], ['stageday', 'Stage day'],
+      ['drink1', 'Drink 1'], ['drink24', 'Drink 24'],
     ].map(([id, label, w = 1254, h = 1254]) => ({
       id, label, kind: 'photo', w, h,
+      // Where down the picture his face is. A frame that cuts the picture
+      // shorter keeps that part in rather than the middle.
+      focus: 0.35,
       src: 'assets/img/meme/' + id + '.webp', thumb: 'assets/img/meme/thumbs/' + id + '.webp',
+      // Two halves of one meme: in Before / after, picking either puts
+      // both in, in this order.
+      pair: PAIRS.find((pr) => pr.includes(id)),
     })),
     { id: 'blank', label: 'Blank', kind: 'blank' },
   ];
@@ -34,6 +45,12 @@
   // size whatever shape the picture is.
   const STICKERS = [
     { id: 'him', src: 'assets/img/hero-art.png', size: 0.7 },
+    // Him, cut out. When one is added here, the row count held open for
+    // the stickers in meme.css (#meme-stickers, --rows) may need to go up.
+    { id: 'head-shocked', src: 'assets/img/meme/stickers/head-shocked.webp', size: 0.34 },
+    { id: 'head-grin', src: 'assets/img/meme/stickers/head-grin.webp', size: 0.34 },
+    { id: 'flex', src: 'assets/img/meme/stickers/flex.webp', size: 0.4 },
+    { id: 'thumbs', src: 'assets/img/meme/stickers/thumbs.webp', size: 0.5 },
     { id: 'can', src: 'assets/img/can.png', size: 0.36 },
     { id: 'syringe', src: 'assets/img/syringe.png', size: 0.26 },
     { id: 'degen', src: 'assets/img/degen-sign.png', size: 0.36 },
@@ -152,8 +169,8 @@
     if (!tpl || tpl.upload) return null;
     if (tpl.kind === 'blank') return { kind: 'blank' };
     const img = images.get(tpl.src);
-    if (!img) { load(tpl.src).then(redraw, () => {}); return { kind: tpl.kind, img: null, w: tpl.w, h: tpl.h }; }
-    return { kind: tpl.kind, img, w: tpl.w, h: tpl.h };
+    if (!img) { load(tpl.src).then(redraw, () => {}); return { kind: tpl.kind, img: null, w: tpl.w, h: tpl.h, focus: tpl.focus }; }
+    return { kind: tpl.kind, img, w: tpl.w, h: tpl.h, focus: tpl.focus };
   }
   const artById = (id) => STICKERS.find((s) => s.id === id);
   function artImage(id) {
@@ -268,9 +285,16 @@
     const h = ih * s;
     const cx = r.x + r.w / 2 + p.ox * r.w;
     const cy = pic.kind === 'photo'
-      ? r.y + r.h / 2 + p.oy * r.h
+      ? r.y + r.h / 2 + lean(pic, h, r) + p.oy * r.h
       : r.y + r.h - h / 2 - r.h * 0.05 + p.oy * r.h;
     return { pic, w, h, cx, cy };
+  }
+  // How far a photo taller than its frame sits off centre so that its
+  // focus, rather than its middle, is what shows; never so far an edge does.
+  function lean(pic, h, r) {
+    const slack = Math.max(0, (h - r.h) / 2);
+    const want = (0.5 - (pic.focus == null ? 0.5 : pic.focus)) * h;
+    return Math.max(-slack, Math.min(slack, want));
   }
   // A photo is never dragged so far that the edge of it shows, and the art
   // never so far that it leaves.
@@ -284,8 +308,9 @@
     }
     const mx = Math.max(0, (g.w - r.w) / 2) / r.w;
     const my = Math.max(0, (g.h - r.h) / 2) / r.h;
+    const off = lean(g.pic, g.h, r) / r.h;
     p.ox = Math.max(-mx, Math.min(mx, p.ox));
-    p.oy = Math.max(-my, Math.min(my, p.oy));
+    p.oy = Math.max(-my - off, Math.min(my - off, p.oy));
   }
   function drawPicture(p, r) {
     ctx.save();
@@ -903,6 +928,12 @@
   onChip('meme-layouts', 'layout', (v) => {
     S.layout = v;
     if (v !== 'split') panel = 0;
+    // Before / after opened on pictures nobody has touched starts on a
+    // real pair rather than two that were never meant to go together.
+    const starts = fresh().panels;
+    if (v === 'split' && S.panels.every((p, i) => p.pic === starts[i].pic && p.zoom === 1 && !p.ox && !p.oy)) {
+      PAIRS[1].forEach((k, i) => { S.panels[i].pic = k; });
+    }
     hint();
   });
   onChip('meme-shapes', 'shape', (v) => { S.shape = v; S.panels.forEach((p) => { p.ox = 0; p.oy = 0; }); });
@@ -938,11 +969,14 @@
     });
   }
   function usePicture(key) {
-    const p = S.panels[panel];
-    p.pic = key;
-    p.zoom = 1;
-    p.ox = 0;
-    p.oy = 0;
+    const tpl = TEMPLATES.find((t) => t.id === key);
+    const both = S.layout === 'split' && tpl && tpl.pair;
+    (both ? S.panels : [S.panels[panel]]).forEach((p, i) => {
+      p.pic = both ? tpl.pair[i] : key;
+      p.zoom = 1;
+      p.ox = 0;
+      p.oy = 0;
+    });
     syncControls();
     redraw();
     commit();
@@ -1086,6 +1120,7 @@
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'meme-stick';
+    b.dataset.id = art.id;
     b.setAttribute('aria-label', 'Add sticker');
     b.innerHTML = '<img src="' + art.src + '" alt="" loading="lazy" decoding="async"'
       + (art.round ? ' class="is-round"' : '') + ' />';
