@@ -1131,34 +1131,66 @@ body.nav-open { overflow: hidden; }
 }
 /* Everywhere he is, in a row under the name: each one in its own colour
    where it has one, the rest in the page's amber. */
-.footer-social {
+/* ---- Where he is, in the hero ----
+   Round badges in the empty space either side of the hero on a wide
+   screen, tilted like the can and the sign and drifting with them as
+   the page scrolls; a row across the bottom of the hero on a narrow one.
+   Tilt, drift and the hover lift are separate properties, so the lift
+   can ease while the drift follows the page straight away. */
+.hero-social {
+  position: relative;
+  z-index: 1;
   display: flex;
   justify-content: center;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 14px;
-  margin: 0 0 22px;
+  gap: 16px;
+  margin-top: 34px;
 }
-.footer-social a {
-  width: 44px;
-  height: 44px;
+.hs {
+  width: 54px;
+  height: 54px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  border: 1px solid var(--panel-border);
-  background: var(--panel);
+  border: 2px solid rgba(255, 183, 3, 0.45);
+  background: linear-gradient(165deg, #241f2c 0%, #15131b 60%);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.07);
   color: var(--amber);
-  font-size: 20px;
-  transition: transform 0.18s cubic-bezier(0.2, 1.4, 0.4, 1), border-color 0.18s ease;
+  font-size: 24px;
+  rotate: var(--tilt, 0deg);
+  transition: scale 0.18s cubic-bezier(0.2, 1.4, 0.4, 1), rotate 0.18s ease, border-color 0.18s ease;
 }
-.footer-social a:hover, .footer-social a:focus-visible {
-  transform: translateY(-3px);
-  border-color: var(--amber);
+.hs:hover, .hs:focus-visible { scale: 1.1; rotate: 0deg; border-color: var(--amber); }
+.hs .community-mark { width: 24px; height: 24px; }
+.hs-x { --tilt: -8deg; }
+.hs-ig { --tilt: 6deg; }
+.hs-tg { --tilt: -4deg; }
+.hs-kick { --tilt: 9deg; }
+.hs-dc { --tilt: -7deg; }
+@media (min-width: 1000px) {
+  .hero-social { position: absolute; inset: 0; margin: 0; display: block; pointer-events: none; }
+  .hs {
+    position: absolute;
+    width: 66px;
+    height: 66px;
+    font-size: 28px;
+    pointer-events: auto;
+    translate: 0 calc(var(--py) * var(--drift, 0.12));
+  }
+  .hs .community-mark { width: 28px; height: 28px; }
+  /* Across the free space beside the headline, whose widest line is about
+     760px: a share of that gap each, so they stay clear of the words at
+     any width and spread further out on a wider screen. */
+  .hero-social { --gap: calc((100vw - 760px) / 2); }
+  .hs-x { left: calc(var(--gap) * 0.42 - 33px); top: 31%; --drift: 0.18; }
+  .hs-ig { left: calc(var(--gap) * 0.66 - 33px); top: 50%; --drift: -0.1; }
+  .hs-tg { left: calc(var(--gap) * 0.4 - 33px); top: 79%; --drift: 0.08; }
+  .hs-kick { right: calc(var(--gap) * 0.42 - 33px); top: 25%; --drift: -0.14; }
+  .hs-dc { right: calc(var(--gap) * 0.64 - 33px); top: 46%; --drift: 0.2; }
 }
-.footer-social .community-mark { width: 20px; height: 20px; }
 @media (prefers-reduced-motion: reduce) {
-  .footer-social a { transition: none; }
+  .hs { transition: none; translate: none; }
 }
 
 .footer-disclaimer {
