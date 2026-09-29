@@ -33,7 +33,7 @@
 <link rel="preload" href="assets/fonts/inter-800.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/css/style.css?v=93" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=16" />
-<link rel="stylesheet" href="assets/css/meme.css?v=4" />
+<link rel="stylesheet" href="assets/css/meme.css?v=5" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -104,11 +104,11 @@
         <button class="meme-mini" id="meme-reset" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 3.6V8h-4.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Start over</button>
       </div>
       <div class="meme-canvas-wrap" id="meme-wrap">
-        <canvas id="meme-canvas" width="1200" height="630" aria-label="Your meme"></canvas>
+        <canvas id="meme-canvas" width="1254" height="1254" aria-label="Your meme"></canvas>
         <!-- The frame at the shape the meme will be, before meme.js has
-             drawn it: the last one made on this browser, or on a phone the
-             square picture a phone starts on. Otherwise it would open at
-             the wrong height and jump when the picture landed. -->
+             drawn it: the last one made on this browser, or else the square
+             picture it starts on (the size above). Otherwise it would open
+             at the wrong height and jump when the picture landed. -->
         <script>
           (function () {
             var c = document.getElementById('meme-canvas');
@@ -116,7 +116,6 @@
             try { if (localStorage.getItem('boozebagMeme')) size = localStorage.getItem('boozebagMemeSize') || ''; } catch (e) { /* no storage */ }
             var m = /^(\d+)x(\d+)$/.exec(size);
             if (m) { c.width = +m[1]; c.height = +m[2]; }
-            else if (window.matchMedia && window.matchMedia('(max-width: 600px)').matches) { c.width = 1080; c.height = 1080; }
           })();
         </script>
         <div class="meme-drop" aria-hidden="true">Drop it here</div>
@@ -236,6 +235,6 @@
 
 <script src="assets/js/main.js?v=63"></script>
 <script src="assets/js/wallet.js?v=7"></script>
-<script src="assets/js/meme.js?v=4"></script>
+<script src="assets/js/meme.js?v=6"></script>
 </body>
 </html>

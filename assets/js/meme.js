@@ -13,17 +13,19 @@
   // ---- What there is to work with ----
   const TEMPLATES = [
     { id: 'upload', label: 'Your own', upload: true },
-    // A photo's size is written down as well, so the frame is the right
-    // shape while the picture is still on its way rather than square.
-    { id: 'poster', label: 'The poster', src: 'assets/img/share.jpg', kind: 'photo', w: 1200, h: 630 },
-    { id: 'him', label: 'Him', src: 'assets/img/hero-art.png', kind: 'art' },
     // Him, in the moments people make memes of. The picker shows the small
     // copy in thumbs/ and the full one is only fetched when it is picked.
+    // Each one's size is written down so the frame is the right shape while
+    // the picture is still on its way. The poster art is a sticker rather
+    // than a picture here: it is the logo, and belongs on top of a meme.
+    // When one is added here, the row count held open for the list in
+    // meme.css (#meme-templates, --rows) may need to go up with it.
     ...[
       ['shocked', 'Shocked'], ['smug', 'Smug sip'], ['laughing', 'Laughing'],
-      ['stare', '4am stare'], ['pointing', 'Pointing'],
-    ].map(([id, label]) => ({
-      id, label, kind: 'photo', w: 1254, h: 1254,
+      ['stare', '4am stare'], ['pointing', 'Pointing'], ['fine', 'This is fine'],
+      ['bigbrain', 'Big brain'], ['warstare', 'War stare', 1086, 1448],
+    ].map(([id, label, w = 1254, h = 1254]) => ({
+      id, label, kind: 'photo', w, h,
       src: 'assets/img/meme/' + id + '.webp', thumb: 'assets/img/meme/thumbs/' + id + '.webp',
     })),
     { id: 'blank', label: 'Blank', kind: 'blank' },
@@ -31,14 +33,13 @@
   // Sizes are a share of the picture's short side, so a sticker is the same
   // size whatever shape the picture is.
   const STICKERS = [
+    { id: 'him', src: 'assets/img/hero-art.png', size: 0.7 },
     { id: 'can', src: 'assets/img/can.png', size: 0.36 },
     { id: 'syringe', src: 'assets/img/syringe.png', size: 0.26 },
     { id: 'degen', src: 'assets/img/degen-sign.png', size: 0.36 },
     { id: 'legend', src: 'assets/img/east-coast-legend.png', size: 0.32 },
     { id: 'shades', src: 'assets/img/work-harder.png', size: 0.5 },
     { id: 'another', src: 'assets/img/another-one.png', size: 0.44 },
-    { id: 'face', src: 'assets/img/avatar.png', size: 0.26, round: true },
-    { id: 'him', src: 'assets/img/hero-art.png', size: 0.7 },
   ];
   const EMOJI = ['\u{1F37A}', '\u{1F37B}', '\u{1F4AA}', '\u{1F525}', '\u{1F480}', '\u{1F4C8}',
     '\u{1F680}', '\u{1F602}', '\u{1F974}', '\u{1F921}', '\u{1F451}', '\u{1F48E}'];
@@ -174,8 +175,8 @@
     top: '',
     bottom: '',
     panels: [
-      { pic: 'poster', zoom: 1, ox: 0, oy: 0 },
-      { pic: 'him', zoom: 1, ox: 0, oy: 0 },
+      { pic: 'shocked', zoom: 1, ox: 0, oy: 0 },
+      { pic: 'stare', zoom: 1, ox: 0, oy: 0 },
     ],
     items: [],   // { kind: 'art'|'text'|'emoji', art|text|ch, nx, ny, nw, rot, flip }
   });
@@ -836,11 +837,16 @@
       img.src = pics[k];
     }));
     return Promise.all(waits).then(() => {
-      // A picture of your own that did not fit in the store is gone; its
-      // place falls back to the poster rather than to nothing.
+      // A picture of your own that did not fit in the store is gone, and a
+      // picture the maker no longer has is too; either place falls back to
+      // the one it starts with rather than to nothing.
+      const starts = fresh().panels;
       saved.panels.forEach((p, i) => {
-        if (p.pic.startsWith('own:') && !own.has(p.pic)) p.pic = i ? 'him' : 'poster';
+        const gone = p.pic.startsWith('own:') ? !own.has(p.pic) : !TEMPLATES.some((t) => t.id === p.pic);
+        if (gone) p.pic = starts[i] ? starts[i].pic : starts[0].pic;
       });
+      // Likewise a sticker the maker no longer has.
+      saved.items = saved.items.filter((it) => it.kind !== 'art' || artById(it.art));
       S = Object.assign(fresh(), saved);
       last = JSON.stringify(S);
       return true;
@@ -1387,7 +1393,6 @@
   // ---- Starting over ----
   function startFresh() {
     S = fresh();
-    if (window.matchMedia && window.matchMedia('(max-width: 600px)').matches) S.panels[0].pic = 'him';
     panel = 0;
     sel = -1;
   }
@@ -1402,8 +1407,7 @@
   });
 
   // ---- First picture ----
-  // Whatever was being made last time, or a fresh one. A phone starts on
-  // the square picture, since a wide poster on a narrow screen is a strip.
+  // Whatever was being made last time, or a fresh one.
   startFresh();
   last = JSON.stringify(S);
   recall().then(() => {

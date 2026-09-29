@@ -234,8 +234,17 @@
 
 /* Pictures to start from: little frames, the picked one lit. */
 .meme-picks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-/* The pictures are the long list; five across where the column is wide. */
-@media (min-width: 901px) { #meme-templates { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+/* The pictures are the long list; five across where the column is wide.
+   The list is built by meme.js, so until it runs its height is held open
+   here, worked out from the width the way the grid will lay it out: a
+   square picture plus its label per row. --rows is how many rows the
+   pictures in meme.js make at that width. */
+.meme-block-pic { container-type: inline-size; }
+#meme-templates { --cols: 4; --rows: 3; }
+@media (min-width: 901px) { #meme-templates { --cols: 5; --rows: 2; grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+#meme-templates:empty {
+  min-height: calc(var(--rows) * ((100cqw - (var(--cols) - 1) * 10px) / var(--cols) + 21px) + (var(--rows) - 1) * 10px);
+}
 .meme-panels + .meme-picks { margin-top: 12px; }
 .meme-pick {
   display: grid;
