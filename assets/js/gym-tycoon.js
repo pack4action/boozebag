@@ -6142,13 +6142,68 @@
       if (soundOn) {
         audioReady();
         sfx.coin();
-      } else if (audio) {
-        audio.ctx.suspend();
+        startMusic();
+      } else {
+        if (audio) audio.ctx.suspend();
+        stopMusic();
       }
     });
     refreshSoundBtn();
   }
+
+  // ---- The soundtrack ----
+  // "Space Jazz" by Kevin MacLeod, under all the rest, the same on every
+  // map, looping. It comes and goes with the sound switch and stops while
+  // the tab is out of sight. It starts on the first tap or key, the only
+  // moment a browser lets a page begin playing. It goes through the same
+  // audio as everything else where it can, because a phone ignores the
+  // volume of a plain audio element and would play it flat out.
+  const MUSIC_SRC = 'assets/audio/space-jazz.mp3';
+  // Quiet: background, well under the chimes and the crowd.
+  const MUSIC_LEVEL = 0.12;
+  let music = null;
+  let musicWanted = false;
+  function startMusic() {
+    if (!soundOn) return;
+    musicWanted = true;
+    if (document.hidden) return;
+    if (!music) {
+      music = new Audio(MUSIC_SRC);
+      music.loop = true;
+      music.preload = 'auto';
+      const a = audioReady();
+      if (a && a.ctx.createMediaElementSource) {
+        try {
+          const g = a.ctx.createGain();
+          g.gain.value = MUSIC_LEVEL;
+          a.ctx.createMediaElementSource(music).connect(g);
+          g.connect(a.ctx.destination);
+        } catch (e) { music.volume = MUSIC_LEVEL; }
+      } else {
+        music.volume = MUSIC_LEVEL;
+      }
+    }
+    const played = music.play();
+    if (played && played.catch) played.catch(() => {});
+  }
+  function stopMusic() {
+    musicWanted = false;
+    if (music) music.pause();
+  }
+  const firstTouch = () => {
+    document.removeEventListener('pointerdown', firstTouch, true);
+    document.removeEventListener('keydown', firstTouch, true);
+    startMusic();
+  };
+  document.addEventListener('pointerdown', firstTouch, true);
+  document.addEventListener('keydown', firstTouch, true);
+
   document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (music) music.pause(); }
+    else if (musicWanted && soundOn && music) {
+      const played = music.play();
+      if (played && played.catch) played.catch(() => {});
+    }
     if (!audio) return;
     if (document.hidden) { if (audio.murmur) audio.murmur.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.2); }
     else tickMurmur();
