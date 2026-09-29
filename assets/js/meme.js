@@ -17,8 +17,7 @@
     // Him, in the moments people make memes of. The picker shows the small
     // copy in thumbs/ and the full one is only fetched when it is picked.
     // Each one's size is written down so the frame is the right shape while
-    // the picture is still on its way. The poster art is a sticker rather
-    // than a picture here: it is the logo, and belongs on top of a meme.
+    // the picture is still on its way.
     // When one is added here, the row count held open for the list in
     // meme.css (#meme-templates, --rows) may need to go up with it.
     ...[
@@ -87,7 +86,6 @@
   }
   const LASER = laserEye();
   const STICKERS = [
-    { id: 'him', src: 'assets/img/hero-art.png', size: 0.7 },
     ...(LASER ? [{ id: 'laser', src: LASER, size: 0.55 }] : []),
     // Him, cut out. When one is added here, the row count held open for
     // the stickers in meme.css (#meme-stickers, --rows) may need to go up.
