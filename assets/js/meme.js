@@ -11,7 +11,7 @@
   const $ = (id) => document.getElementById(id);
 
   // ---- What there is to work with ----
-  const PAIRS = [['nah', 'yeah'], ['day1', 'stageday'], ['drink1', 'drink24']];
+  const PAIRS = [['nah', 'yeah']];
   const TEMPLATES = [
     { id: 'upload', label: 'Your own', upload: true },
     // Him, in the moments people make memes of. The picker shows the small
@@ -21,13 +21,9 @@
     // When one is added here, the row count held open for the list in
     // meme.css (#meme-templates, --rows) may need to go up with it.
     ...[
-      ['shocked', 'Shocked'], ['smug', 'Smug sip'], ['laughing', 'Laughing'],
-      ['stare', '4am stare'], ['pointing', 'Pointing'], ['cheers', 'Cheers', 1536, 1024],
-      ['flexing', 'Flexing', 1024, 1536], ['facepalm', 'Facepalm'], ['hyped', 'Hyped'],
-      ['stage', 'On stage', 1024, 1536], ['fine', 'This is fine'],
-      ['bigbrain', 'Big brain'], ['warstare', 'War stare', 1086, 1448],
-      ['nah', 'Nah'], ['yeah', 'Yeah'], ['day1', 'Day 1'], ['stageday', 'Stage day'],
-      ['drink1', 'Drink 1'], ['drink24', 'Drink 24'],
+      ['fine', 'This is fine'], ['warstare', 'War stare', 1086, 1448],
+      ['pointing', 'Pointing'], ['cheers', 'Cheers', 1536, 1024],
+      ['nah', 'Nah'], ['yeah', 'Yeah'],
     ].map(([id, label, w = 1254, h = 1254]) => ({
       id, label, kind: 'photo', w, h,
       // Where down the picture his face is. A frame that cuts the picture
@@ -271,8 +267,8 @@
     top: '',
     bottom: '',
     panels: [
-      { pic: 'shocked', zoom: 1, ox: 0, oy: 0 },
-      { pic: 'stare', zoom: 1, ox: 0, oy: 0 },
+      { pic: 'fine', zoom: 1, ox: 0, oy: 0 },
+      { pic: 'pointing', zoom: 1, ox: 0, oy: 0 },
     ],
     items: [],   // { kind: 'art'|'text'|'emoji', art|text|ch, nx, ny, nw, rot, flip }
   });
@@ -1260,14 +1256,13 @@
     const fromPair = PAIRS.some((pr) => pr[0] === S.panels[0].pic && pr[1] === S.panels[1].pic);
     S.layout = v;
     if (!twoUp()) panel = 0;
-    // A two picture layout opened on pictures nobody has touched, or on
-    // the pair the other one started on, starts on a real pair of its own:
-    // Nah and Yeah beside their words, Day 1 over Stage day.
+    // A two picture layout opened on pictures nobody has touched starts on
+    // a real pair: Nah and Yeah.
     const starts = fresh().panels;
     const untouched = S.panels.every((p) => p.zoom === 1 && !p.ox && !p.oy)
       && (fromPair || S.panels.every((p, i) => p.pic === starts[i].pic));
     if (twoUp() && untouched) {
-      PAIRS[v === 'side' ? 0 : 1].forEach((k, i) => { S.panels[i].pic = k; });
+      PAIRS[0].forEach((k, i) => { S.panels[i].pic = k; });
     }
     hint();
   });
