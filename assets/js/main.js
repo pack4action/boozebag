@@ -432,7 +432,7 @@ function playCrack(loud) {
   src.start(audio.currentTime, crackFrom, run);
 }
 function crackSound() {
-  try { if (localStorage.getItem('boozebagGameSound') === 'off') return; } catch (e) { /* fine */ }
+  try { if (localStorage.getItem('boozebagGameSound2') === 'off') return; } catch (e) { /* fine */ }
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
   const since = performance.now() - lastSound;

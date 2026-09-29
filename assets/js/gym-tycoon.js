@@ -5968,7 +5968,9 @@
   // the choice is remembered. Three kinds of sound: a chime when you take
   // money, a thunk when you spend it, and under it all a crowd murmur that
   // thickens with the busy hours and thins to nothing at night.
-  const SOUND_KEY = 'gymTycoonSound';
+  // A new name for the setting, so a choice made back when the game began
+  // muted does not keep it muted now that it begins with sound.
+  const SOUND_KEY = 'gymTycoonSound2';
   const soundBtn = document.getElementById('btn-sound');
   // On unless it has been switched off. A browser will not let a page make
   // a sound before the first click anyway, so nothing is heard until

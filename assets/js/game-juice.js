@@ -11,7 +11,9 @@
 // A browser will not let a page make a sound before the first tap anyway,
 // so nothing plays until something is done.
 (function () {
-  const SOUND_KEY = 'boozebagGameSound';
+  // Renamed once so every player starts with sound, whatever was chosen
+  // before; main.js reads the same name for the homepage.
+  const SOUND_KEY = 'boozebagGameSound2';
   const stillness = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
   const calm = () => !!(stillness && stillness.matches);
 
