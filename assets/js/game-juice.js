@@ -412,11 +412,18 @@
   // ---- The switch ----
   let soundBtn = null;
   function mountSoundButton(hud) {
-    soundBtn = document.createElement('button');
-    soundBtn.type = 'button';
-    soundBtn.className = 'hud-stat hud-sound';
-    soundBtn.id = 'btn-sound';
-    soundBtn.innerHTML = '<span class="hud-label">Sound</span><span class="hud-value"></span>';
+    // The pages carry the button in their markup, so the row of stats is
+    // already its full width before this script arrives; it is only made
+    // here for a page that does not.
+    soundBtn = hud.querySelector('#btn-sound');
+    const made = !soundBtn;
+    if (made) {
+      soundBtn = document.createElement('button');
+      soundBtn.type = 'button';
+      soundBtn.className = 'hud-stat hud-sound';
+      soundBtn.id = 'btn-sound';
+      soundBtn.innerHTML = '<span class="hud-label">Sound</span><span class="hud-value"></span>';
+    }
     soundBtn.addEventListener('click', () => {
       soundOn = !soundOn;
       try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch (e) { /* fine */ }
@@ -425,7 +432,7 @@
       if (soundOn) { ready(); sfx.coin(); }
       refreshSoundButton();
     });
-    hud.appendChild(soundBtn);
+    if (made) hud.appendChild(soundBtn);
     refreshSoundButton();
   }
   function refreshSoundButton() {

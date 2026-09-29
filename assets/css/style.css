@@ -1,3 +1,26 @@
+/* ---- Fonts ----
+   Served from the site itself rather than from Google, so they come down
+   the same connection as the page and the three most used are preloaded
+   in the head. Each has a stand-in made from Arial (or whatever the
+   phone has that is closest), scaled to the real font's width and given
+   its line height, so the page is laid out the same before and after the
+   real font lands and nothing jumps when it does. The numbers were
+   measured against the font files, then checked against every line of
+   text on the pages at the weights they are set in. Licences are in
+   assets/fonts. */
+@font-face { font-family: 'Anton'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/anton-400.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/inter-400.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/inter-600.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 800; font-display: swap; src: url('../fonts/inter-800.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 900; font-display: swap; src: url('../fonts/inter-900.woff2') format('woff2'); }
+@font-face { font-family: 'Caveat'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/caveat-600.woff2') format('woff2'); }
+@font-face { font-family: 'Caveat'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/caveat-700.woff2') format('woff2'); }
+@font-face { font-family: 'Anton Fallback'; font-weight: 100 900; src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Helvetica-Bold'), local('Liberation Sans Bold'), local('LiberationSans-Bold'), local('Roboto Bold'), local('Roboto-Bold'); size-adjust: 71.79%; ascent-override: 164.37%; descent-override: 45.97%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; font-weight: 100 500; src: local('Arial'), local('ArialMT'), local('Helvetica'), local('Liberation Sans'), local('Roboto'); size-adjust: 106.8%; ascent-override: 90.82%; descent-override: 22.47%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; font-weight: 600 700; src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Helvetica-Bold'), local('Liberation Sans Bold'), local('LiberationSans-Bold'), local('Roboto Bold'), local('Roboto-Bold'); size-adjust: 102.42%; ascent-override: 94.71%; descent-override: 23.43%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; font-weight: 800 900; src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Helvetica-Bold'), local('Liberation Sans Bold'), local('LiberationSans-Bold'), local('Roboto Bold'), local('Roboto-Bold'); size-adjust: 104.28%; ascent-override: 93.02%; descent-override: 23.01%; line-gap-override: 0%; }
+@font-face { font-family: 'Caveat Fallback'; font-weight: 100 900; src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Helvetica-Bold'), local('Liberation Sans Bold'), local('LiberationSans-Bold'), local('Roboto Bold'), local('Roboto-Bold'); size-adjust: 71.67%; ascent-override: 133.95%; descent-override: 41.86%; line-gap-override: 0%; }
+
 :root {
   --bg: #0a0a0d;
   --bg-alt: #100e14;
@@ -33,12 +56,12 @@ body {
   margin: 0;
   background: transparent;
   color: var(--text);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'Inter Fallback', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
 }
 
 h1, h2, h3 {
-  font-family: 'Anton', 'Inter', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', 'Inter', 'Inter Fallback', sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   line-height: 1.05;
@@ -130,7 +153,7 @@ img { max-width: 100%; height: auto; display: block; }
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 20px;
   letter-spacing: 0.5px;
 }
@@ -332,7 +355,7 @@ img { max-width: 100%; height: auto; display: block; }
     gap: 12px;
     padding: 15px 6vw;
     border-top: 1px solid var(--panel-border);
-    font-family: 'Anton', sans-serif;
+    font-family: 'Anton', 'Anton Fallback', sans-serif;
     font-weight: 400;
     font-size: 21px;
     letter-spacing: 0.8px;
@@ -489,6 +512,11 @@ body.nav-open { overflow: hidden; }
 .badge-row .stat-tag:nth-child(1) { --tilt: -2.2deg; }
 .badge-row .stat-tag:nth-child(2) { --tilt: 1.6deg; }
 .badge-row .stat-tag:nth-child(3) { --tilt: -1deg; }
+/* Wide enough already for "live now, 1,234 watching", so when he goes on
+   air the tag does not grow and shove the row sideways. */
+@media (min-width: 561px) {
+  .badge-row .stat-tag-live { min-width: 290px; justify-content: center; }
+}
 /* On a phone the three will not sit on one line, and left to wrap the live
    tag drops underneath on its own looking like it fell off. So put them on
    a grid instead: the two facts share the top line, and the live tag takes
@@ -509,7 +537,7 @@ body.nav-open { overflow: hidden; }
 .stat-tag .icon-live { color: var(--red); }
 
 .stat-tag-num {
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   text-transform: uppercase;
   font-size: 25px;
   line-height: 0.9;
@@ -605,7 +633,7 @@ body.nav-open { overflow: hidden; }
 }
 
 .scribble {
-  font-family: 'Caveat', cursive;
+  font-family: 'Caveat', 'Caveat Fallback', cursive;
   font-size: 22px;
   line-height: 1.15;
   color: var(--amber);
@@ -623,7 +651,7 @@ body.nav-open { overflow: hidden; }
 }
 
 .ca-label {
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 12px;
   color: var(--amber);
   letter-spacing: 1px;
@@ -765,7 +793,7 @@ body.nav-open { overflow: hidden; }
 }
 .stat-num {
   display: block;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 28px;
   color: var(--amber);
 }
@@ -797,7 +825,7 @@ body.nav-open { overflow: hidden; }
 .ledger-row:last-child { border-bottom: 0; }
 .ledger-num {
   display: block;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: clamp(52px, 6vw, 84px);
   line-height: 0.95;
   color: var(--amber);
@@ -810,7 +838,7 @@ body.nav-open { overflow: hidden; }
 .ledger-num .stat-num { display: inline; font: inherit; color: inherit; }
 .ledger-text { display: grid; gap: 4px; }
 .ledger-text b {
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 22px;
   letter-spacing: 1.2px;
   text-transform: uppercase;
@@ -825,7 +853,7 @@ body.nav-open { overflow: hidden; }
   top: -12px;
   right: -34px;
   z-index: 3;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 15px;
   line-height: 1.1;
   letter-spacing: 2px;
@@ -920,7 +948,7 @@ body.nav-open { overflow: hidden; }
   left: 0;
   right: 0;
   text-align: center;
-  font-family: 'Anton', Impact, sans-serif;
+  font-family: 'Anton', 'Anton Fallback', Impact, sans-serif;
   font-size: 15px;
   line-height: 1;
   color: #fff;
@@ -929,7 +957,7 @@ body.nav-open { overflow: hidden; }
   letter-spacing: 0.2px;
 }
 .meme-promo-text { display: grid; gap: 4px; text-align: left; }
-.meme-promo-text b { font-family: 'Anton', sans-serif; font-size: 22px; font-weight: 400; letter-spacing: 0.4px; text-transform: uppercase; }
+.meme-promo-text b { font-family: 'Anton', 'Anton Fallback', sans-serif; font-size: 22px; font-weight: 400; letter-spacing: 0.4px; text-transform: uppercase; }
 .meme-promo-text span { color: var(--muted); font-size: 14px; line-height: 1.5; }
 .meme-promo-go { pointer-events: none; }
 @media (max-width: 640px) {
@@ -1009,7 +1037,7 @@ body.nav-open { overflow: hidden; }
   border-radius: 50%;
   background: var(--amber);
   color: #1a1200;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 18px;
   display: flex;
   align-items: center;
@@ -1097,7 +1125,7 @@ body.nav-open { overflow: hidden; }
   align-items: center;
   justify-content: center;
   gap: 10px;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 20px;
   margin-bottom: 20px;
 }
@@ -1141,7 +1169,7 @@ body.nav-open { overflow: hidden; }
   margin: 0 auto 18px;
 }
 .footer-signoff {
-  font-family: 'Caveat', cursive;
+  font-family: 'Caveat', 'Caveat Fallback', cursive;
   font-size: 19px;
   color: var(--amber);
   margin: 0 0 18px;
@@ -1348,7 +1376,7 @@ html { scroll-padding-top: 84px; }
 .wave-head-hole { fill: rgba(150, 110, 40, 0.2); }
 .wave-fleck { fill: #fff3d2; stroke: #000; stroke-width: 1.2; }
 .wave-text {
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 19px;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -1463,7 +1491,7 @@ html { scroll-padding-top: 84px; }
     padding: 0 14px 0 12px;
     border: 2px solid var(--amber);
     border-radius: 999px;
-    font-family: 'Anton', sans-serif;
+    font-family: 'Anton', 'Anton Fallback', sans-serif;
     font-weight: 400;
     font-size: 13px;
     letter-spacing: 1px;
@@ -1631,7 +1659,7 @@ html { scroll-padding-top: 84px; }
   100% { box-shadow: 0 0 0 9px rgba(230, 57, 70, 0); }
 }
 .regimen-mood {
-  font-family: 'Caveat', 'Comic Sans MS', cursive;
+  font-family: 'Caveat', 'Caveat Fallback', 'Comic Sans MS', cursive;
   font-size: 20px;
   line-height: 1;
   color: var(--text);
@@ -1711,7 +1739,7 @@ html { scroll-padding-top: 84px; }
    height of it so nothing below moves either. */
 .regimen-say {
   flex: 1 0 100%;
-  font-family: 'Caveat', 'Comic Sans MS', cursive;
+  font-family: 'Caveat', 'Caveat Fallback', 'Comic Sans MS', cursive;
   font-size: 19px;
   line-height: 1.15;
   color: var(--amber);
@@ -1801,7 +1829,7 @@ html { scroll-padding-top: 84px; }
 }
 .topbags-list li::before {
   content: counter(bag);
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 16px;
   color: var(--muted);
 }
@@ -1901,9 +1929,13 @@ html { scroll-padding-top: 84px; }
   font-weight: 700;
   letter-spacing: 0.6px;
   text-transform: uppercase;
+  line-height: 1.4;
   color: var(--amber);
 }
-.community-count:empty { display: none; }
+/* A card whose count is fetched keeps the line for it while it is on its
+   way, so the cards do not grow and push the page down when it lands. */
+.community-card[data-live] .community-count { min-height: 1.4em; }
+.community-card:not([data-live]) .community-count:empty { display: none; }
 
 /* ---- The coin card ----
    Everything about the coin in one card under the buttons: the address
@@ -1974,19 +2006,22 @@ html { scroll-padding-top: 84px; }
   color: var(--muted);
 }
 .market-tile b {
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 22px;
   letter-spacing: 0.3px;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 .market-tile b.is-fresh { animation: market-fresh 0.6s ease; }
+.market-tile b.is-waiting { color: var(--muted); }
 @keyframes market-fresh {
   0% { color: var(--amber); }
   100% { }
 }
-.coin-src { margin: -4px 0 0; font-size: 11px; color: var(--muted); }
-.coin-src:empty { display: none; }
+/* Keeps its line while it is empty, so the note arriving with the market
+   cap does not push the links under it down. */
+.coin-src { margin: -4px 0 0; min-height: 1.5em; font-size: 11px; line-height: 1.5; color: var(--muted); }
+.market[hidden] + .coin-src { display: none; }
 .coin-links {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -2071,7 +2106,7 @@ html { scroll-padding-top: 84px; }
 .supply-holders { align-items: flex-end; text-align: right; }
 .supply-holders[hidden] { display: none; }
 .supply-total b, .supply-holders b {
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   line-height: 1;
   color: var(--amber);
   text-shadow: 3px 3px 0 #000;
@@ -2143,7 +2178,7 @@ html { scroll-padding-top: 84px; }
 .supply-key b { color: var(--text); font-weight: 800; }
 .supply-key em {
   font-style: normal;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 13px;
   letter-spacing: 0.5px;
   color: var(--amber);
@@ -2243,7 +2278,7 @@ html { scroll-padding-top: 84px; }
   flex: none;
 }
 .share-lead {
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   letter-spacing: 0.6px;
   text-transform: uppercase;
   font-size: 13px;
@@ -2281,7 +2316,7 @@ html { scroll-padding-top: 84px; }
   border-radius: 50%;
   border: 2px solid var(--amber);
   color: var(--amber);
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 18px;
   line-height: 22px;
   text-align: center;
@@ -2305,7 +2340,7 @@ html { scroll-padding-top: 84px; }
 }
 .lost-num {
   margin: 0;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: clamp(96px, 22vw, 200px);
   line-height: 0.9;
   color: var(--amber);
@@ -2332,7 +2367,7 @@ html { scroll-padding-top: 84px; }
 .cracked[hidden] { display: none; }
 .cracked-n {
   position: relative;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: clamp(30px, 5vw, 44px);
   line-height: 1;
   letter-spacing: 1px;
@@ -2356,7 +2391,7 @@ html { scroll-padding-top: 84px; }
   left: 50%;
   top: -4px;
   transform: translate(-50%, 0);
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 15px;
   color: #8be0a4;
   text-shadow: 2px 2px 0 #000;

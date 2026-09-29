@@ -5820,7 +5820,16 @@
   function measureControls() {
     if (!toolbarEl) return;
     const root = document.documentElement;
-    const h = Math.round(toolbarEl.getBoundingClientRect().height);
+    // Measured to the bottom of what is in the bar rather than the bar's own
+    // box, which the stylesheet holds open at the usual height so the plan
+    // is already in its place before this script has filled the bar.
+    const top = toolbarEl.getBoundingClientRect().top;
+    let bottom = top;
+    for (const kid of toolbarEl.children) {
+      const r = kid.getBoundingClientRect();
+      if (r.height > 0) bottom = Math.max(bottom, r.bottom);
+    }
+    const h = Math.round(bottom - top);
     if (h > 0) root.style.setProperty('--tycoon-bar-h', h + 'px');
     if (hudBarEl) {
       const cs = getComputedStyle(hudBarEl);
@@ -5832,6 +5841,7 @@
   if (toolbarEl && typeof ResizeObserver === 'function') {
     const ro = new ResizeObserver(() => measureControls());
     ro.observe(toolbarEl);
+    for (const kid of toolbarEl.children) ro.observe(kid);
     if (hudBarEl) ro.observe(hudBarEl);
   }
   window.addEventListener('resize', measureControls);
@@ -8934,6 +8944,9 @@
       + ((groundCover.y0 + sitePad) * zoomLevel) + 'px)';
     groundCanvas.style.width = ((groundCover.x1 - groundCover.x0) * zoomLevel) + 'px';
     groundCanvas.style.height = ((groundCover.y1 - groundCover.y0) * zoomLevel) + 'px';
+    // Until now the canvases were at the browser's default size; the
+    // stylesheet keeps them out of sight till they are where they belong.
+    if (zoomWrapEl) zoomWrapEl.classList.add('is-laid-out');
   }
   function paintStageGround(force) {
     if (!groundCtx || !stageScrollEl || !BASE_W || !BASE_H) return;

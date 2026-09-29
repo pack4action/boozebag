@@ -13,7 +13,9 @@
   // ---- What there is to work with ----
   const TEMPLATES = [
     { id: 'upload', label: 'Your own', upload: true },
-    { id: 'poster', label: 'The poster', src: 'assets/img/share.jpg', kind: 'photo' },
+    // A photo's size is written down as well, so the frame is the right
+    // shape while the picture is still on its way rather than square.
+    { id: 'poster', label: 'The poster', src: 'assets/img/share.jpg', kind: 'photo', w: 1200, h: 630 },
     { id: 'him', label: 'Him', src: 'assets/img/hero-art.png', kind: 'art' },
     { id: 'blank', label: 'Blank', kind: 'blank' },
   ];
@@ -140,8 +142,8 @@
     if (!tpl || tpl.upload) return null;
     if (tpl.kind === 'blank') return { kind: 'blank' };
     const img = images.get(tpl.src);
-    if (!img) { load(tpl.src).then(redraw, () => {}); return { kind: tpl.kind, img: null }; }
-    return { kind: tpl.kind, img };
+    if (!img) { load(tpl.src).then(redraw, () => {}); return { kind: tpl.kind, img: null, w: tpl.w, h: tpl.h }; }
+    return { kind: tpl.kind, img, w: tpl.w, h: tpl.h };
   }
   const artById = (id) => STICKERS.find((s) => s.id === id);
   function artImage(id) {
@@ -180,6 +182,7 @@
   function ownAspect(p) {
     const pic = picFor(p.pic);
     if (pic && pic.kind === 'photo' && pic.img) return pic.img.width / pic.img.height;
+    if (pic && pic.kind === 'photo' && pic.w && pic.h) return pic.w / pic.h;
     return 1;
   }
   // How big the caption bar is, which depends on its words.
@@ -211,7 +214,7 @@
     const aspect = shaped || ownAspect(first);
     let W;
     if (shaped) W = aspect >= 1.2 ? 1200 : 1080;
-    else if (pic && pic.kind === 'photo' && pic.img) W = Math.min(LONGEST, Math.max(720, pic.img.width));
+    else if (pic && pic.kind === 'photo' && (pic.img || pic.w)) W = Math.min(LONGEST, Math.max(720, pic.img ? pic.img.width : pic.w));
     else W = 1080;
     if (aspect > 1 && !shaped) W = Math.min(W, LONGEST);
     let picH = Math.round(W / aspect);
@@ -774,6 +777,9 @@
     const write = () => {
       try {
         localStorage.setItem(KEEP, JSON.stringify(S));
+        // The shape it was, for the page to lay itself out with next time
+        // before this script has loaded (see the script under the canvas).
+        localStorage.setItem(KEEP + 'Size', canvas.width + 'x' + canvas.height);
         const used = new Set(S.panels.map((p) => p.pic).filter((k) => k.startsWith('own:')));
         const out = {};
         used.forEach((k) => {

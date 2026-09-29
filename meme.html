@@ -26,12 +26,14 @@
 <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png" />
 <link rel="manifest" href="site.webmanifest" />
 <meta name="theme-color" content="#0a0a0d" />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=92" />
-<link rel="stylesheet" href="assets/css/game-common.css?v=15" />
-<link rel="stylesheet" href="assets/css/meme.css?v=2" />
+<!-- Fonts come from the site itself; the three the first screen needs
+     are fetched straight away, before the stylesheet asks for them. -->
+<link rel="preload" href="assets/fonts/anton-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/inter-800.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/style.css?v=93" />
+<link rel="stylesheet" href="assets/css/game-common.css?v=16" />
+<link rel="stylesheet" href="assets/css/meme.css?v=3" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -103,6 +105,20 @@
       </div>
       <div class="meme-canvas-wrap" id="meme-wrap">
         <canvas id="meme-canvas" width="1200" height="630" aria-label="Your meme"></canvas>
+        <!-- The frame at the shape the meme will be, before meme.js has
+             drawn it: the last one made on this browser, or on a phone the
+             square picture a phone starts on. Otherwise it would open at
+             the wrong height and jump when the picture landed. -->
+        <script>
+          (function () {
+            var c = document.getElementById('meme-canvas');
+            var size = '';
+            try { if (localStorage.getItem('boozebagMeme')) size = localStorage.getItem('boozebagMemeSize') || ''; } catch (e) { /* no storage */ }
+            var m = /^(\d+)x(\d+)$/.exec(size);
+            if (m) { c.width = +m[1]; c.height = +m[2]; }
+            else if (window.matchMedia && window.matchMedia('(max-width: 600px)').matches) { c.width = 1080; c.height = 1080; }
+          })();
+        </script>
         <div class="meme-drop" aria-hidden="true">Drop it here</div>
       </div>
       <!-- Only there while something on the picture is picked. -->
@@ -121,6 +137,22 @@
         <button class="btn btn-outline btn-lg" id="meme-copy" type="button" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8.4" y="3.2" width="12.4" height="14.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.6 20.8H5.8a2.6 2.6 0 0 1-2.6-2.6V7.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="btn-label">Copy image</span></button>
         <a class="btn btn-outline btn-lg" id="meme-post" href="https://x.com/intent/post" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.8 3h3.1l-6.8 7.8 8 10.6h-6.3l-4.9-6.4-5.6 6.4H2.2l7.3-8.3L1.8 3h6.4l4.4 5.9L17.8 3Zm-1.1 16.5h1.7L7.4 4.8H5.6l11.1 14.7Z"/></svg>Post on X</a>
       </div>
+      <!-- Which of Share and Copy this browser can do, settled here before
+           the first paint rather than when meme.js arrives, so the row does
+           not rearrange itself a moment after it appears. Same test as in
+           meme.js. -->
+      <script>
+        (function () {
+          var share = document.getElementById('meme-share');
+          try {
+            var probe = new File([new Blob(['x'], { type: 'image/png' })], 'boozebag-meme.png', { type: 'image/png' });
+            if (navigator.canShare && navigator.canShare({ files: [probe] })) share.hidden = false;
+          } catch (e) { /* no sharing here */ }
+          if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write && share.hidden) {
+            document.getElementById('meme-copy').hidden = false;
+          }
+        })();
+      </script>
       <p class="meme-note" id="meme-note" aria-live="polite"></p>
     </div>
 
@@ -202,8 +234,8 @@
   </div>
 </main>
 
-<script src="assets/js/main.js?v=62"></script>
+<script src="assets/js/main.js?v=63"></script>
 <script src="assets/js/wallet.js?v=7"></script>
-<script src="assets/js/meme.js?v=2"></script>
+<script src="assets/js/meme.js?v=3"></script>
 </body>
 </html>

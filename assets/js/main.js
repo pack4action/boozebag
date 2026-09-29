@@ -694,8 +694,28 @@ function price(n) {
   const m = s.match(/^0\.(0*)(\d{1,4})/);
   return m ? '$0.' + m[1] + m[2] : '$' + v.toPrecision(3);
 }
+// The market row is on the page from the start with a dot in each tile.
+// Each figure has places it can come from; once every one of them has
+// answered, a tile still showing its dot has nothing coming and goes.
+const marketAsks = { cap: new Set(), holders: new Set() };
+function answered(figure, from) {
+  marketAsks[figure].add(from);
+  settleMarket(false);
+}
+function settleMarket(givingUp) {
+  if (!marketEl) return;
+  const need = { cap: siteApi ? 2 : 1, holders: siteApi ? 2 : 1 };
+  [['cap', 'mk-mc'], ['holders', 'mk-holders']].forEach(([figure, id]) => {
+    const b = document.getElementById(id);
+    if (!b || !b.classList.contains('is-waiting')) return;
+    if (givingUp || marketAsks[figure].size >= need[figure]) b.closest('.market-tile').hidden = true;
+  });
+  noteSource();
+  marketEl.hidden = !marketEl.querySelector('.market-tile:not([hidden])');
+}
 function setFresh(el, text) {
   if (!el || el.textContent === text) return;
+  el.classList.remove('is-waiting');
   el.textContent = text;
   el.classList.remove('is-fresh');
   void el.offsetWidth;
@@ -813,8 +833,11 @@ function pullGecko() {
     .catch(() => false);
 }
 if (marketEl) {
-  const pull = () => { pullDex().then((got) => { if (!got) return pullGecko(); return true; }); };
-  pull();
+  // A figure nobody has answered for in this long is not coming; its tile
+  // goes, and the row with it if both do.
+  setTimeout(() => settleMarket(true), 20000);
+  const pull = () => pullDex().then((got) => { if (!got) return pullGecko(); return true; });
+  pull().then(() => answered('cap', 'charts'), () => answered('cap', 'charts'));
   setInterval(() => { if (!document.hidden) pull(); }, 60000);
 }
 
@@ -970,6 +993,7 @@ if (!siteApi) askDiscordDirect();
 // here: it is already answering this page for the market cap.
 function askToken() {
   if (!siteApi) return;
+  const done = () => { answered('cap', 'token'); answered('holders', 'token'); };
   fetch(siteApi + '/token')
     .then((r) => (r.ok ? r.json() : null))
     .then((t) => {
@@ -981,10 +1005,12 @@ function askToken() {
       if (sup && supply > 0) sup.textContent = Math.round(supply).toLocaleString('en-US');
       paintSupply(supply, t.heldBack);
     })
-    .catch(() => {});
+    .catch(() => {})
+    .then(done);
 }
 function askGeckoHolders() {
   if (holdersFrom) return;
+  const done = () => answered('holders', 'gecko');
   fetch('https://api.geckoterminal.com/api/v2/networks/solana/tokens/' + CA + '/info', {
     headers: { Accept: 'application/json;version=20230302' },
   })
@@ -994,7 +1020,8 @@ function askGeckoHolders() {
       const h = a && a.holders;
       showHolders(h && typeof h === 'object' ? h.count : h, 'GeckoTerminal');
     })
-    .catch(() => {});
+    .catch(() => {})
+    .then(done);
 }
 function askNumbers() { askToken(); askGeckoHolders(); }
 askNumbers();

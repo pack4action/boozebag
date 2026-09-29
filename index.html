@@ -38,10 +38,12 @@
 <link rel="manifest" href="site.webmanifest" />
 <meta name="theme-color" content="#0a0a0d" />
 <link rel="canonical" href="https://boozebag.us/" />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=92" />
+<!-- Fonts come from the site itself; the three the first screen needs
+     are fetched straight away, before the stylesheet asks for them. -->
+<link rel="preload" href="assets/fonts/anton-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/inter-800.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/style.css?v=93" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -290,9 +292,13 @@
         </div>
       </div>
       <p class="ca-warning"><svg class="icon icon-warn" aria-hidden="true"><use href="#i-warning"></use></svg> Only the CA I post on <a href="https://x.com/BoozebagFitness" target="_blank" rel="noopener">@BoozebagFitness</a> or in the <a href="https://t.me/degenhorde" target="_blank" rel="noopener">Telegram</a> is real. Match every character. I never DM anyone first, and nobody needs your seed phrase. Ever.</p>
-      <a class="market" id="market" href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener" hidden>
-        <span class="market-tile" id="mk-mc-tile" hidden><span class="market-label">Market cap</span><b id="mk-mc"></b></span>
-        <span class="market-tile" id="mk-holders-tile" hidden><span class="market-label">Beer holders</span><b id="mk-holders"></b></span>
+      <!-- On the page from the start with a dot for each figure, so the row
+           has its place before the numbers come and nothing under it is
+           pushed down when they do. A figure that never comes is taken
+           away after a while (main.js). -->
+      <a class="market" id="market" href="https://pump.fun/coin/3kxChnv5tabrhuuNUyMLPNYAF4XXodRFfDAmKjvcpump" target="_blank" rel="noopener">
+        <span class="market-tile" id="mk-mc-tile"><span class="market-label">Market cap</span><b id="mk-mc" class="is-waiting">…</b></span>
+        <span class="market-tile" id="mk-holders-tile"><span class="market-label">Beer holders</span><b id="mk-holders" class="is-waiting">…</b></span>
       </a>
       <p class="coin-src" id="mk-src"></p>
       <div class="coin-links">
@@ -839,7 +845,7 @@
 
 <script src="assets/js/wallet.js?v=7"></script>
 <script src="assets/js/leaderboard.js?v=12"></script>
-<script src="assets/js/main.js?v=62"></script>
+<script src="assets/js/main.js?v=63"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>

@@ -172,6 +172,9 @@
   position: relative;
   flex: none;
 }
+/* A canvas is 300 by 150 until the script sizes it. Shown at that size on
+   a slow first load, it would jump to its real one a moment later. */
+.tycoon-room-zoom-wrap:not(.is-laid-out) canvas { visibility: hidden; }
 #tycoon-floor {
   display: block;
   position: absolute;
@@ -1676,13 +1679,13 @@
 .tycoon-tray { margin-top: 12px; }
 .tycoon-panel-title {
   margin: 0 0 6px;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 17px;
   letter-spacing: 0.4px;
   color: var(--text);
 }
 .tycoon-panel-sub {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', 'Inter Fallback', sans-serif;
   font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0;
@@ -1710,7 +1713,7 @@
   position: relative;
   flex: 1 1 0;
   padding: 9px 6px;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 14px;
   letter-spacing: 0.6px;
   color: var(--muted);
@@ -1770,7 +1773,7 @@
 .ov-meta { font-size: 11.5px; color: var(--muted); }
 .ov-meta.is-shut { color: var(--amber); }
 .ov-rate {
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 15px;
   color: var(--amber);
   font-variant-numeric: tabular-nums;
@@ -1855,7 +1858,7 @@
 .tycoon-pop-name { font-size: 15px; font-weight: 800; line-height: 1.15; }
 .tycoon-pop-cash {
   margin-left: auto;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 18px;
   color: #ffd166;
   white-space: nowrap;
@@ -2490,6 +2493,15 @@
 /* The cards these open hang below their chip, over the plan. */
 .tycoon-designer .tycoon-rush-pop { z-index: 6; }
 
+/* How tall the bar is once it is filled, at each width. The script
+   measures it and keeps this up to date, but these are right to start
+   with, and the bar is held open to that height while it is still empty,
+   so the first paint already has the plan where it will stay. */
+:root { --tycoon-bar-h: 27px; }
+@media (min-width: 561px) { :root { --tycoon-bar-h: 36px; } }
+@media (min-width: 1080px) { :root { --tycoon-bar-h: 39px; } }
+.tycoon-designer .tycoon-toolbar { min-height: var(--tycoon-bar-h); }
+
 /* The plan needs headroom so the controls are not standing on the gym. */
 .tycoon-room-stage { padding-top: calc(var(--tycoon-bar-h, 66px) + 10px); }
 @media (max-width: 560px) {
@@ -2718,7 +2730,7 @@
   margin: 6px 0 -2px;
   padding: 0 0 7px;
   border-bottom: 1px solid var(--panel-border, #2a2732);
-  font-family: 'Anton', 'Inter', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', 'Inter', 'Inter Fallback', sans-serif;
   font-size: 17px;
   font-weight: 400;
   letter-spacing: 0.3px;
@@ -2728,7 +2740,7 @@
 .tycoon-shop-head:first-child { margin-top: 0; }
 .tycoon-shop-head[hidden] { display: none !important; }
 .tycoon-shop-head-note {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', 'Inter Fallback', system-ui, sans-serif;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0;
@@ -2779,7 +2791,7 @@
   white-space: nowrap;
 }
 .tycoon-status .hud-value {
-  font-family: 'Anton', 'Inter', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', 'Inter', 'Inter Fallback', sans-serif;
   font-size: 17px;
   line-height: 1.05;
   color: var(--amber, #ffb703);
@@ -3123,7 +3135,7 @@
 .tycoon-stage-wrap.is-editing .tycoon-shut { display: none; }
 .tycoon-shut-title {
   display: block;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 15px;
   letter-spacing: 0.4px;
   color: #ffd166;
@@ -3181,7 +3193,7 @@
   gap: 10px;
 }
 .tycoon-level-pop-now {
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 15px;
   letter-spacing: 0.4px;
   color: #ffd166;
@@ -3567,7 +3579,7 @@
 .tycoon-namer-cancel:hover, .tycoon-namer-edit:hover { color: #fff; border-color: rgba(255, 255, 255, 0.4); }
 .tycoon-namer-set { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
 .tycoon-namer-plate {
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 22px;
   letter-spacing: 1px;
   text-transform: uppercase;

@@ -73,7 +73,7 @@
   border-radius: 12px;
   background: rgba(10, 10, 13, 0.72);
   color: var(--amber);
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 22px;
   letter-spacing: 0.6px;
   text-transform: uppercase;
@@ -162,7 +162,7 @@
   background: var(--panel);
 }
 .meme-h {
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 15px;
   font-weight: 400;
   letter-spacing: 0.6px;
@@ -215,7 +215,7 @@
   width: 30px;
   height: 24px;
   border-radius: 999px;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 14px;
   background: #2a2733;
   -webkit-text-stroke: 1.2px #000;

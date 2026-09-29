@@ -5,7 +5,14 @@
   background: #1b1430;
   cursor: pointer;
   touch-action: manipulation;
+  /* The shape beer-mile.js makes the board at each width (its zoom: 1,
+     1.3 under 760px, 1.6 under 480px), set here as well so the board is
+     already that tall before the script has loaded and the controls under
+     it do not jump when it does. */
+  aspect-ratio: 720 / 420;
 }
+@media (max-width: 759px) { #mile-canvas { aspect-ratio: 720 / 546; } }
+@media (max-width: 479px) { #mile-canvas { aspect-ratio: 720 / 672; } }
 
 /* On a phone the board takes the whole width of the screen rather than
    sitting inside the page's padding. It is a wide picture, so every bit of
@@ -54,7 +61,7 @@
   border: 3px solid #000;
   background: rgba(255, 183, 3, 0.92);
   color: #1a1200;
-  font-family: 'Anton', sans-serif;
+  font-family: 'Anton', 'Anton Fallback', sans-serif;
   font-size: 12px;
   letter-spacing: 1px;
   text-transform: uppercase;
