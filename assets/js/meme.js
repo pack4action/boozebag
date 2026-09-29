@@ -107,7 +107,7 @@
   const STYLES = {
     classic: { fill: '#ffffff', stroke: '#000000', shade: true },
     amber: { fill: '#ffc632', stroke: '#000000', shade: true },
-    neon: { fill: '#ffffff', stroke: '#0a0a0d', glow: '#51fb18' },
+    neon: { neon: '#51fb18', tube: '#b8ff94' },
     fire: { fire: true, stroke: '#2b0600', glow: '#ff5a00' },
     box: { box: true },
   };
@@ -297,6 +297,8 @@
     style: 'classic',
     font: 'impact',
     caps: true,
+    ink: null,   // the words' colour, when one is picked
+    edge: null,  // their outline, glow or box, when one is picked
     filter: 'none',
     tsize: 1,    // how big the top and bottom words are, against their usual
     fxk: 1,      // how strong the finish is
@@ -505,15 +507,52 @@
     const l = look();
     // Where the middle of the letters is, whichever baseline is in use.
     const mid = ctx.textBaseline === 'middle' ? y : y - size * 0.36;
+    // The colours picked under the words, if any, over the style's own.
+    const ink = S.ink || null;
+    const edge = S.edge || null;
+    if (l.neon) {
+      // A lit sign: a dark haze round the letters so the light shows on any
+      // picture, the glow in two layers, the coloured glass of the tube,
+      // and a solid white-hot middle that carries the reading.
+      const glow = edge || l.neon;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+      ctx.shadowBlur = size * 0.3;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.lineWidth = size * 0.26;
+      ctx.strokeText(line, x, y);
+      ctx.restore();
+      ctx.save();
+      ctx.shadowColor = glow;
+      ctx.strokeStyle = glow;
+      [[0.5, 0.6, 0.1], [0.2, 0.95, 0.075]].forEach(([blur, alpha, width]) => {
+        ctx.shadowBlur = size * blur;
+        ctx.globalAlpha = alpha;
+        ctx.lineWidth = size * width;
+        ctx.strokeText(line, x, y);
+      });
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = size * 0.05;
+      ctx.lineWidth = size * 0.05;
+      ctx.strokeStyle = mixHex(glow, '#ffffff', 0.35);
+      ctx.strokeText(line, x, y);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = ink || '#ffffff';
+      ctx.fillText(line, x, y);
+      ctx.restore();
+      return;
+    }
     if (l.box) {
       const w = ctx.measureText(line).width + size * 0.56;
       const h = size * 1.2;
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = edge || '#ffffff';
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(x - w / 2, mid - h / 2, w, h, size * 0.24);
       else ctx.rect(x - w / 2, mid - h / 2, w, h);
       ctx.fill();
-      ctx.fillStyle = '#0b0b0b';
+      ctx.fillStyle = ink || '#0b0b0b';
       ctx.fillText(line, x, y);
       return;
     }
@@ -529,20 +568,26 @@
       ctx.shadowOffsetY = size * 0.05;
     }
     ctx.lineWidth = size * (font().stroke || 0.15);
-    ctx.strokeStyle = l.stroke;
+    ctx.strokeStyle = edge || l.stroke;
     ctx.strokeText(line, x, y);
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
-    if (l.fire) {
+    if (l.fire && !ink) {
       const g = ctx.createLinearGradient(0, mid - size * 0.5, 0, mid + size * 0.5);
       g.addColorStop(0, '#fff6a8');
       g.addColorStop(0.45, '#ffb300');
       g.addColorStop(1, '#ff2d00');
       ctx.fillStyle = g;
     } else {
-      ctx.fillStyle = l.fill;
+      ctx.fillStyle = ink || l.fill;
     }
     ctx.fillText(line, x, y);
+  }
+  // A colour part of the way to another, for the glass of a neon tube.
+  function mixHex(a, b, t) {
+    const n = (h) => { const v = h.replace('#', ''); return [0, 2, 4].map((i) => parseInt(v.length === 3 ? v[i / 2] + v[i / 2] : v.substr(i, 2), 16)); };
+    const [p, q] = [n(a), n(b)];
+    return '#' + p.map((c, i) => Math.round(c + (q[i] - c) * t).toString(16).padStart(2, '0')).join('');
   }
   // The meme lettering in a place: at its top or its bottom.
   function drawBlock(text, r, where, reserve) {
@@ -1276,6 +1321,22 @@
     chips('meme-shapes', 'shape', S.shape);
     chips('meme-styles', 'style', S.style);
     chips('meme-fonts', 'font', S.font);
+    [['meme-ink', 'ink'], ['meme-edge', 'edge']].forEach(([rowId, key]) => {
+      const row = $(rowId);
+      const v = (S[key] || '').toLowerCase();
+      let known = false;
+      row.querySelectorAll('[data-c]').forEach((b) => {
+        const on = b.dataset.c.toLowerCase() === v;
+        if (on) known = true;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
+      });
+      const custom = row.querySelector('.meme-sw-custom');
+      custom.classList.toggle('is-on', !known);
+      custom.style.setProperty('--c', known ? 'transparent' : v);
+      if (!known) custom.querySelector('input').value = v;
+    });
+    $('lab-edge').textContent = look().neon ? 'Glow' : look().box ? 'Box' : 'Outline';
     $('meme-caps').setAttribute('aria-pressed', S.caps === false ? 'false' : 'true');
     chips('meme-filters', 'filter', S.filter);
     $('meme-panels').hidden = !twoUp();
@@ -1317,7 +1378,21 @@
     hint();
   });
   onChip('meme-shapes', 'shape', (v) => { S.shape = v; S.panels.forEach((p) => { p.ox = 0; p.oy = 0; }); });
-  onChip('meme-styles', 'style', (v) => { S.style = v; });
+  // A style is a starting point: picking one puts its own colours back.
+  onChip('meme-styles', 'style', (v) => { S.style = v; S.ink = null; S.edge = null; });
+  // The two colour rows. A swatch sets a colour, Auto hands it back to the
+  // style, and the rainbow one opens the browser's own picker.
+  [['meme-ink', 'ink'], ['meme-edge', 'edge']].forEach(([rowId, key]) => {
+    const row = $(rowId);
+    row.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click', () => {
+      S[key] = b.dataset.c || null;
+      syncControls();
+      redraw();
+      commit();
+    }));
+    const pick = row.querySelector('input[type="color"]');
+    pick.addEventListener('input', () => { S[key] = pick.value; syncControls(); redraw(); typed(); });
+  });
   // A font takes the case that suits it; the caps switch changes that.
   onChip('meme-fonts', 'font', (v) => { S.font = v; S.caps = font().caps; wantFont(); });
   $('meme-caps').addEventListener('click', () => {

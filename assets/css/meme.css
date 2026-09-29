@@ -434,3 +434,39 @@
 @media (prefers-reduced-motion: reduce) {
   .meme-pick-art, .meme-stick, .meme-mini, .meme-emo, .meme-chip, .meme-drop { transition: none; }
 }
+
+/* ---- The words' colours ----
+   Two rows: the words, then their outline, glow or box. Auto gives the
+   colour back to the style; the rainbow one is any colour at all. */
+.meme-colors { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; margin-top: 12px; }
+.meme-colors + .meme-colors { margin-top: 8px; }
+.meme-color-label { font-size: 11.5px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); }
+.meme-swatches { display: flex; flex-wrap: wrap; gap: 7px; }
+.meme-sw {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  background: var(--c, #15131a);
+  color: var(--muted);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.meme-sw:hover { transform: scale(1.08); border-color: rgba(255, 198, 50, 0.6); }
+.meme-sw.is-on { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(255, 198, 50, 0.22); }
+.meme-sw-auto { background: #15131a; }
+.meme-sw-auto svg { width: 15px; height: 15px; }
+.meme-sw-auto.is-on { color: var(--amber); }
+.meme-sw-custom { background: conic-gradient(#ff3b3b, #ffc632, #51fb18, #3ddcff, #a66bff, #ff3fa4, #ff3b3b); overflow: hidden; }
+.meme-sw-custom::after { content: ''; width: 14px; height: 14px; border-radius: 50%; background: var(--c, transparent); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35); }
+.meme-sw-custom:not(.is-on)::after { box-shadow: none; }
+.meme-sw-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+@media (prefers-reduced-motion: reduce) { .meme-sw { transition: none; } }
+@media (max-width: 560px) {
+  .meme-colors { grid-template-columns: 1fr; gap: 6px; }
+}
