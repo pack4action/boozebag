@@ -33,7 +33,7 @@
 <link rel="preload" href="assets/fonts/inter-800.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/css/style.css?v=93" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=16" />
-<link rel="stylesheet" href="assets/css/meme.css?v=9" />
+<link rel="stylesheet" href="assets/css/meme.css?v=10" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -174,8 +174,15 @@
             <button class="meme-chip is-on" type="button" data-style="classic" role="radio" aria-checked="true"><span class="meme-swatch sw-classic">Aa</span>Classic</button>
             <button class="meme-chip" type="button" data-style="amber" role="radio" aria-checked="false"><span class="meme-swatch sw-amber">Aa</span>Beer</button>
             <button class="meme-chip" type="button" data-style="neon" role="radio" aria-checked="false"><span class="meme-swatch sw-neon">Aa</span>Neon</button>
+            <button class="meme-chip" type="button" data-style="fire" role="radio" aria-checked="false"><span class="meme-swatch sw-fire">Aa</span>Fire</button>
+            <button class="meme-chip" type="button" data-style="box" role="radio" aria-checked="false"><span class="meme-swatch sw-box">Aa</span>Box</button>
+            <button class="meme-chip" type="button" data-style="marker" role="radio" aria-checked="false"><span class="meme-swatch sw-marker">Aa</span>Marker</button>
           </div>
           <button class="meme-mini" id="meme-addtext" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 6.4V4.2h11v2.2M9.1 4.2v15.4M6.6 19.6h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.4 12.2v7.6M14.6 16h7.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Add text</button>
+        </div>
+        <div class="meme-zoom meme-slide">
+          <label for="meme-tsize">Size</label>
+          <input type="range" id="meme-tsize" min="0.6" max="1.5" step="0.01" value="1" />
         </div>
       </section>
 
@@ -186,6 +193,8 @@
           <button class="meme-chip" type="button" data-layout="caption" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="6.4" rx="2" fill="#fff"/><rect x="5.6" y="5.2" width="12.8" height="2" rx="1" fill="#111"/><rect x="3" y="10.2" width="18" height="10.8" rx="2" opacity=".28"/></svg>Caption</button>
           <button class="meme-chip" type="button" data-layout="news" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3" opacity=".28"/><rect x="3" y="13.4" width="6.6" height="3" fill="#e5202e"/><rect x="3" y="16.4" width="18" height="3" fill="#fff"/><rect x="3" y="19.4" width="18" height="1.6"/></svg>News</button>
           <button class="meme-chip" type="button" data-layout="split" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="8.4" rx="2" opacity=".28"/><rect x="3" y="12.6" width="18" height="8.4" rx="2" opacity=".5"/><rect x="6" y="8.4" width="12" height="1.8" rx=".9"/><rect x="6" y="18" width="12" height="1.8" rx=".9"/></svg>Before / after</button>
+          <button class="meme-chip" type="button" data-layout="side" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8.4" height="8.4" rx="1.6" opacity=".28"/><rect x="12.6" y="3" width="8.4" height="8.4" rx="1.6" fill="#fff"/><rect x="3" y="12.6" width="8.4" height="8.4" rx="1.6" opacity=".28"/><rect x="12.6" y="12.6" width="8.4" height="8.4" rx="1.6" fill="#fff"/></svg>Side by side</button>
+          <button class="meme-chip" type="button" data-layout="poster" role="radio" aria-checked="false"><svg class="icon lay-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="2" width="18" height="20" rx="2"/><rect x="6" y="4.6" width="12" height="9.4" fill="none" stroke="#fff" stroke-width="1.1"/><rect x="7" y="16" width="10" height="1.8" rx=".9" fill="#fff"/><rect x="8.6" y="19" width="6.8" height="1" rx=".5" fill="#fff" opacity=".7"/></svg>Poster</button>
         </div>
         <h3 class="meme-sub">Shape</h3>
         <div class="meme-chips" id="meme-shapes" role="radiogroup" aria-label="Shape">
@@ -227,6 +236,16 @@
           <button class="meme-chip" type="button" data-filter="fried" role="radio" aria-checked="false"><span class="meme-fx fx-fried"></span>Deep fried</button>
           <button class="meme-chip" type="button" data-filter="noir" role="radio" aria-checked="false"><span class="meme-fx fx-noir"></span>Noir</button>
           <button class="meme-chip" type="button" data-filter="gold" role="radio" aria-checked="false"><span class="meme-fx fx-gold"></span>Golden</button>
+          <button class="meme-chip" type="button" data-filter="film" role="radio" aria-checked="false"><span class="meme-fx fx-film"></span>Film</button>
+          <button class="meme-chip" type="button" data-filter="vhs" role="radio" aria-checked="false"><span class="meme-fx fx-vhs"></span>VHS</button>
+          <button class="meme-chip" type="button" data-filter="glitch" role="radio" aria-checked="false"><span class="meme-fx fx-glitch"></span>Glitch</button>
+          <button class="meme-chip" type="button" data-filter="pixel" role="radio" aria-checked="false"><span class="meme-fx fx-pixel"></span>8-bit</button>
+          <button class="meme-chip" type="button" data-filter="pump" role="radio" aria-checked="false"><span class="meme-fx fx-pump"></span>Green candle</button>
+          <button class="meme-chip" type="button" data-filter="dump" role="radio" aria-checked="false"><span class="meme-fx fx-dump"></span>Red candle</button>
+        </div>
+        <div class="meme-zoom meme-slide" id="meme-fxk-row" hidden>
+          <label for="meme-fxk">Strength</label>
+          <input type="range" id="meme-fxk" min="0.15" max="1" step="0.01" value="1" />
         </div>
       </section>
     </div>
@@ -235,6 +254,6 @@
 
 <script src="assets/js/main.js?v=63"></script>
 <script src="assets/js/wallet.js?v=7"></script>
-<script src="assets/js/meme.js?v=12"></script>
+<script src="assets/js/meme.js?v=15"></script>
 </body>
 </html>

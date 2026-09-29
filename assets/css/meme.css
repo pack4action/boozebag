@@ -224,6 +224,9 @@
 .sw-classic { color: #fff; }
 .sw-amber { color: #ffc632; }
 .sw-neon { color: #fff; text-shadow: 0 0 6px #51fb18, 0 0 12px rgba(81, 251, 24, 0.6); }
+.sw-fire { color: #ffb300; text-shadow: 0 0 6px rgba(255, 90, 0, 0.8); -webkit-text-stroke-color: #2b0600; }
+.sw-box { color: #0b0b0b; background: #fff; font-family: 'Inter', 'Inter Fallback', sans-serif; font-weight: 800; font-size: 12px; -webkit-text-stroke: 0; }
+.sw-marker { color: #fff; font-family: 'Caveat', 'Caveat Fallback', cursive; font-weight: 700; font-size: 17px; -webkit-text-stroke: 0.8px #111; }
 
 /* A little picture of each finish. */
 .meme-fx { width: 24px; height: 24px; border-radius: 50%; flex: none; border: 1px solid rgba(255, 255, 255, 0.18); }
@@ -231,6 +234,15 @@
 .fx-fried { background: radial-gradient(circle at 35% 35%, #fff36b, #ff5a00 55%, #b30000); box-shadow: 0 0 8px rgba(255, 90, 0, 0.6); }
 .fx-noir { background: linear-gradient(135deg, #f2f2f2, #6a6a6a 55%, #111); }
 .fx-gold { background: radial-gradient(circle at 40% 40%, #ffe7a1, #d98b1f 60%, #5a3208); }
+.fx-film { background: radial-gradient(circle at 40% 40%, #f3dcb2, #a8845a 60%, #3d2a18); }
+.fx-vhs { background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.35) 0 2px, transparent 2px 4px), linear-gradient(90deg, #ff3b6b, #7a5cff 50%, #2de2e6); }
+.fx-glitch { background: linear-gradient(180deg, #2de2e6 0 30%, #ff2bd6 30% 45%, #111 45% 62%, #f6f000 62% 72%, #2de2e6 72%); }
+.fx-pixel { background: conic-gradient(#ffc632 0 25%, #ff5a2a 0 50%, #7a5cff 0 75%, #35e08a 0); background-size: 12px 12px; }
+.fx-pump { background: radial-gradient(circle at 40% 40%, #b6ff8a, #35c21a 60%, #03170a); box-shadow: 0 0 8px rgba(80, 255, 60, 0.45); }
+.fx-dump { background: radial-gradient(circle at 40% 40%, #ffb3b3, #e0282f 60%, #1a0206); box-shadow: 0 0 8px rgba(255, 50, 50, 0.45); }
+/* A slider under a row of chips. */
+.meme-slide { margin-top: 12px; }
+.meme-slide[hidden] { display: none; }
 
 /* Pictures to start from: little frames, the picked one lit. */
 .meme-picks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
