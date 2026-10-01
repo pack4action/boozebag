@@ -2372,7 +2372,7 @@
   const post = $('meme-post');
   post.href = 'https://x.com/intent/post?text='
     + encodeURIComponent('Made this on boozebag.us $BOOZEBAG')
-    + '&url=' + encodeURIComponent('https://boozebag.us/meme.html');
+    + '&url=' + encodeURIComponent('https://pack4action.github.io/boozebag/meme.html');
   post.addEventListener('click', () => say('Save it first, then add the picture to the post.'));
 
   // ---- Starting over ----
