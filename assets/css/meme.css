@@ -337,7 +337,7 @@
 .meme-pick-art img { width: 100%; height: 100%; object-fit: cover; }
 .meme-pick-art.is-dark { background: radial-gradient(circle at 50% 65%, rgba(255, 170, 30, 0.35), transparent 70%), #0d0b10; }
 .meme-pick-art.is-dark img { object-fit: contain; }
-.meme-pick-plus { flex-direction: column; gap: 4px; color: var(--amber); border-style: dashed; border-color: rgba(255, 198, 50, 0.45); background: #121016; }
+.meme-pick-plus { flex-direction: column; gap: 4px; padding: 8px; color: var(--amber); border-width: 1px; border-style: dashed; border-color: rgba(255, 198, 50, 0.45); background: #121016; }
 .meme-pick-plus svg { width: 34%; height: 34%; flex: none; }
 .meme-pick-plus span { font-size: 12px; font-weight: 800; line-height: 1; white-space: nowrap; }
 /* Your own says so inside its tile, like the sticker one; the name under
@@ -399,7 +399,7 @@
 #meme-stickers-more { --rows: 8; }
 #meme-stickers:empty, #meme-stickers-more:empty { min-height: calc(var(--rows) * (100cqw - 30px) / 4 + (var(--rows) - 1) * 10px); }
 #meme-emoji:empty { min-height: calc(2 * (100cqw - 40px) / 6 + 8px); }
-.meme-stick-add { flex-direction: column; gap: 4px; border-style: dashed; border-color: rgba(255, 198, 50, 0.45); color: var(--amber); }
+.meme-stick-add { font: inherit; flex-direction: column; gap: 4px; border-style: dashed; border-color: rgba(255, 198, 50, 0.45); color: var(--amber); }
 .meme-stick-add svg { width: 34%; height: 34%; flex: none; }
 .meme-stick-add span { font-size: 12px; font-weight: 800; line-height: 1; white-space: nowrap; }
 .meme-stick img.is-round { border-radius: 50%; box-shadow: 0 0 0 2px #ffc632; }
