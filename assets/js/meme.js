@@ -1735,25 +1735,77 @@
   function typed() { clearTimeout(typing); typing = setTimeout(commit, 600); }
   topIn.addEventListener('input', () => { S.top = topIn.value; redraw(); typed(); });
   bottomIn.addEventListener('input', () => { S.bottom = bottomIn.value; redraw(); typed(); });
-  // A handpicked line now and then, a made up one the rest of the time,
-  // and never one of the last few again.
+  // A written line most of the time, a made up one the rest, and never one
+  // of the last few again.
   const recent = [];
-  $('meme-roll').addEventListener('click', () => {
-    const list = JOKES[S.layout] || JOKES.classic;
+  function nextLine(layout) {
+    const list = JOKES[layout] || JOKES.classic;
     let line = null;
     for (let tries = 0; tries < 12; tries++) {
-      const cand = Math.random() < 0.7 ? pickOne(list) : makeLine(S.layout);
+      const cand = Math.random() < 0.7 ? pickOne(list) : makeLine(layout);
       const key = cand.join('|');
       if (!recent.includes(key) && cand[0] !== S.top) { line = cand; break; }
     }
-    if (!line) line = makeLine(S.layout);
+    if (!line) line = makeLine(layout);
     recent.push(line.join('|'));
     if (recent.length > 60) recent.shift();
+    return line;
+  }
+  $('meme-roll').addEventListener('click', () => {
+    const line = nextLine(S.layout);
     S.top = line[0];
     S.bottom = line[1];
     syncControls();
     redraw();
     commit();
+  });
+  // Random: a whole meme in one tap. One of his pictures (a pair goes in
+  // as a pair), a layout that suits it, a line for that layout, and a font
+  // and colour that read well. One step to undo, like anything else.
+  const RANDOM_FONTS = {
+    classic: ['impact', 'impact', 'impact', 'tall', 'bangers', 'bubble', 'thumb', 'slab'],
+    split: ['impact', 'tall', 'bangers', 'thumb'],
+    side: ['impact', 'tall', 'reels', 'clean'],
+    caption: ['impact'],
+    news: ['impact'],
+    poster: ['impact'],
+  };
+  $('meme-random').addEventListener('click', () => {
+    const photos = TEMPLATES.filter((t) => t.kind === 'photo' && t.id !== S.panels[0].pic);
+    const tpl = pickOne(photos);
+    let layout;
+    if (tpl.pair && Math.random() < 0.7) layout = Math.random() < 0.5 ? 'split' : 'side';
+    else {
+      const r = Math.random();
+      layout = r < 0.55 ? 'classic' : r < 0.75 ? 'caption' : r < 0.9 ? 'news' : 'poster';
+    }
+    const pics = TWO.has(layout) ? (tpl.pair || [tpl.id, pickOne(photos).id]) : [tpl.id, S.panels[1].pic];
+    const srcs = pics.map((k) => (TEMPLATES.find((t) => t.id === k) || {}).src).filter(Boolean);
+    Promise.all(srcs.map((src) => load(src).catch(() => null))).then(() => {
+      S.layout = layout;
+      panel = 0;
+      S.panels.forEach((p, i) => { p.pic = pics[i]; p.zoom = 1; p.ox = 0; p.oy = 0; });
+      S.font = pickOne(RANDOM_FONTS[layout] || RANDOM_FONTS.classic);
+      S.caps = font().caps;
+      const st = Math.random();
+      S.style = layout === 'classic' ? (st < 0.7 ? 'classic' : st < 0.9 ? 'amber' : 'fire') : 'classic';
+      S.ink = null;
+      S.edge = null;
+      S.tsize = 1;
+      S.items = [];
+      sel = -1;
+      showSel();
+      const fx = Math.random();
+      S.filter = fx < 0.85 ? 'none' : fx < 0.9 ? 'noir' : fx < 0.95 ? 'film' : 'fried';
+      const line = nextLine(layout);
+      S.top = line[0];
+      S.bottom = line[1];
+      wantFont();
+      hint();
+      syncControls();
+      redraw();
+      commit();
+    });
   });
 
   // ---- Pictures ----

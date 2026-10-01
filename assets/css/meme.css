@@ -441,6 +441,8 @@
 @media (max-width: 560px) {
   .meme-page { padding-top: 30px; }
   .meme-bar-hint { display: none; }
+  /* Undo and Redo go down to their arrows so Random and Start over fit. */
+  #meme-undo .bar-label, #meme-redo .bar-label { display: none; }
   .meme-bar { justify-content: space-between; }
   #meme-reset { margin-left: auto; }
   /* Download the width of the screen, the other two side by side under it. */
