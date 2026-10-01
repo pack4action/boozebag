@@ -95,14 +95,16 @@
     // When one is added here, the row count held open for the stickers in
     // meme.css (#meme-stickers, --rows) may need to go up.
     ...[
-      ['dwi', 0.45], ['flare', 0.5],
+      ['dwi', 0.45], ['chrome-shades', 0.38], ['flare', 0.5],
       // Him, cut out.
       ['head-shocked', 0.34], ['head-grin', 0.34], ['thumbs', 0.5],
-      // Glowing ones to put on him, the anime lines to put round him, and
-      // the circle, arrow and charts that point at something.
+      // Things to put on him.
+      ['chain', 0.5], ['fries-crown', 0.42], ['foil-hat', 0.4], ['tears', 0.3], ['nose', 0.16],
+      // Glowing ones, the anime lines to put round him, and the circle,
+      // arrow and charts that point at something.
       ['halo', 0.4], ['horns', 0.42], ['lightning', 0.4], ['speedlines', 1],
       ['circle', 0.5], ['arrow', 0.45], ['stonks', 0.45], ['crash', 0.45],
-      ['bubble', 0.6], ['vein', 0.2], ['sweat', 0.14], ['nose', 0.12],
+      ['bubble', 0.6], ['vein', 0.2], ['sweat', 0.14],
     ].map(([id, size]) => ({ id, src: 'assets/img/meme/stickers/' + id + '.webp', size })),
     { id: 'can', src: 'assets/img/can.png', size: 0.36 },
     { id: 'syringe', src: 'assets/img/syringe.png', size: 0.26 },

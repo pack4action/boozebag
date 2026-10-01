@@ -380,7 +380,7 @@
 /* Built by meme.js as well, so held open the same way: square buttons,
    four across, --rows of them. */
 .meme-block-stick { container-type: inline-size; }
-#meme-stickers { --rows: 7; }
+#meme-stickers { --rows: 8; }
 #meme-stickers:empty { min-height: calc(var(--rows) * (100cqw - 30px) / 4 + (var(--rows) - 1) * 10px); }
 #meme-emoji:empty { min-height: calc(2 * (100cqw - 40px) / 6 + 8px); }
 .meme-stick img.is-round { border-radius: 50%; box-shadow: 0 0 0 2px #ffc632; }
