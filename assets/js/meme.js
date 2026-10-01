@@ -192,6 +192,7 @@
     split: ['Top picture', 'Bottom picture', 'Sober', '24 drinks in'],
     side: ['Next to the top picture', 'Next to the bottom one', 'Going to the gym', 'Going to the bar'],
     poster: ['Title', 'Line under it', 'Dedication', 'Some men lift. Some men drink 24 a day and walk the stage anyway.'],
+    pfp: ['Top', 'Bottom', '', ''],
   };
 
   // A joke to start from, for anybody staring at an empty box. Written for
@@ -605,6 +606,7 @@
     filter: 'none',
     tsize: 1,    // how big the top and bottom words are, against their usual
     fxk: 1,      // how strong the finish is
+    ring: true,  // the gold ring round a profile picture
     top: '',
     bottom: '',
     panels: [
@@ -673,6 +675,11 @@
       const pw = W - m * 2;
       const ph = Math.round(Math.max(pw * 0.55, Math.min(pw * 1.3, pw / ownAspect(S.panels[0]))));
       return { W, H: m + ph + Math.round(W * 0.3), regions: [{ x: m, y: m, w: pw, h: ph }] };
+    }
+    if (S.layout === 'pfp') {
+      // A profile picture: square, the size the apps keep, cut to a circle
+      // by them, so nothing that matters goes in the corners.
+      return { W: 1080, H: 1080, regions: [{ x: 0, y: 0, w: 1080, h: 1080 }] };
     }
     if (S.layout === 'split') {
       const W = 1080;
@@ -1388,6 +1395,70 @@
     });
   }
 
+  // The gold ring a holder's profile picture wears: a band just inside the
+  // circle the apps cut to, with the coin's name round the bottom of it.
+  function drawRing(W) {
+    const c = W / 2;
+    const r = W / 2 - W * 0.035;
+    const band = W * 0.052;
+    ctx.save();
+    const g = ctx.createLinearGradient(0, 0, W, W);
+    g.addColorStop(0, '#fff1b0');
+    g.addColorStop(0.35, '#ffc632');
+    g.addColorStop(0.7, '#d98a00');
+    g.addColorStop(1, '#ffe27a');
+    ctx.lineWidth = band;
+    ctx.strokeStyle = g;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = W * 0.02;
+    ctx.beginPath();
+    ctx.arc(c, c, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = W * 0.004;
+    ctx.strokeStyle = 'rgba(80, 45, 0, 0.55)';
+    [r - band / 2, r + band / 2].forEach((rr) => { ctx.beginPath(); ctx.arc(c, c, rr, 0, Math.PI * 2); ctx.stroke(); });
+    // The name, letter by letter round the bottom of the band.
+    const text = '$BOOZEBAG';
+    const size = band * 0.74;
+    ctx.font = size + 'px ' + FACE;
+    ctx.fillStyle = '#2a1600';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const widths = [...text].map((ch) => ctx.measureText(ch).width + size * 0.12);
+    const total = widths.reduce((a, b) => a + b, 0);
+    let a = Math.PI / 2 + total / 2 / r;
+    [...text].forEach((ch, i) => {
+      const step = widths[i] / r;
+      ctx.save();
+      ctx.translate(c + Math.cos(a - step / 2) * r, c + Math.sin(a - step / 2) * r);
+      ctx.rotate(a - step / 2 - Math.PI / 2);
+      ctx.fillText(ch, 0, size * 0.04);
+      ctx.restore();
+      a -= step;
+    });
+    ctx.restore();
+  }
+  // While making a profile picture, the corners the apps cut away are dimmed
+  // so you can see what will show. Not on the saved picture.
+  function drawPfpGuide() {
+    if (S.layout !== 'pfp') return;
+    const W = canvas.width;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.beginPath();
+    ctx.rect(0, 0, W, W);
+    ctx.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2, true);
+    ctx.fill('evenodd');
+    ctx.setLineDash([W * 0.012, W * 0.012]);
+    ctx.lineWidth = W * 0.003;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.beginPath();
+    ctx.arc(W / 2, W / 2, W / 2 - 1, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // ---- The whole picture ----
   function compose() {
     F = frame();
@@ -1411,6 +1482,11 @@
     // words go on and the words stay readable. The rest go over everything.
     const under = S.filter === 'glitch' || S.filter === 'pixel';
     if (under) filterPixels(S.filter);
+    if (S.layout === 'pfp') {
+      if (S.ring) drawRing(F.W);
+      if (!under) filterPixels(S.filter);
+      return;
+    }
     const reserve = drawStamp(F.W, F.H);
     const r0 = F.regions[0];
     if (S.layout === 'classic') {
@@ -1450,6 +1526,7 @@
         }, 160);
       }
     }
+    drawPfpGuide();
     drawPanelMark();
     drawPicked();
   }
@@ -1633,6 +1710,12 @@
     topIn.value = S.top;
     bottomIn.value = S.bottom;
     const f = FIELDS[S.layout];
+    const pfp = S.layout === 'pfp';
+    topIn.closest('.meme-field').hidden = pfp;
+    bottomIn.closest('.meme-field').hidden = pfp;
+    $('meme-roll').hidden = pfp;
+    $('meme-pfp-row').hidden = !pfp;
+    $('meme-ring').setAttribute('aria-pressed', S.ring === false ? 'false' : 'true');
     $('lab-top').textContent = f[0];
     $('lab-bottom').textContent = f[1];
     topIn.placeholder = f[2];
@@ -1672,6 +1755,12 @@
   $('meme-tsize').addEventListener('input', (e) => { S.tsize = Number(e.target.value); redraw(); typed(); });
   $('meme-fxk').addEventListener('input', (e) => { S.fxk = Number(e.target.value); redraw(); typed(); });
 
+  $('meme-ring').addEventListener('click', () => {
+    S.ring = S.ring === false;
+    syncControls();
+    redraw();
+    commit();
+  });
   // Layout, shape, lettering, finish.
   function onChip(rowId, attr, apply) {
     $(rowId).querySelectorAll('[data-' + attr + ']').forEach((b) => {
@@ -1695,6 +1784,7 @@
     if (twoUp() && untouched) {
       PAIRS[0].forEach((k, i) => { S.panels[i].pic = k; });
     }
+    if (v === 'pfp') say('Pick Your own for your photo, then put the laser eyes or the chain on it.');
     hint();
   });
   onChip('meme-shapes', 'shape', (v) => { S.shape = v; S.panels.forEach((p) => { p.ox = 0; p.oy = 0; }); });
