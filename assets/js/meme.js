@@ -23,7 +23,7 @@
     ...[
       ['fine', 'This is fine'], ['warstare', 'War stare', 1086, 1448],
       ['pointing', 'Pointing'], ['cheers', 'Cheers', 1536, 1024],
-      ['saltbae', 'Salt Bae'],
+      ['saltbae', 'Salt Bae'], ['cat', 'Dinner cat'],
       ['nah', 'Nah'], ['yeah', 'Yeah'],
     ].map(([id, label, w = 1254, h = 1254]) => ({
       id, label, kind: 'photo', w, h,
