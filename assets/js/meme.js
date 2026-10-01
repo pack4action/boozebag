@@ -1240,6 +1240,7 @@
   // refresh. Pictures of your own go in too while they are small enough.
   const KEEP = 'boozebagMeme';
   const KEEP_OWN = 'boozebagMemeOwn';
+  const KEEP_MINE = 'boozebagMemeMine';
   let rememberTimer = 0;
   function remember(now) {
     clearTimeout(rememberTimer);
@@ -1258,6 +1259,15 @@
         const text = JSON.stringify(out);
         if (text.length < 2500000) localStorage.setItem(KEEP_OWN, text);
         else localStorage.removeItem(KEEP_OWN);
+        // Stickers of your own that are on the meme, likewise.
+        const mineOut = {};
+        S.items.forEach((it) => {
+          const a = it.kind === 'art' && it.art.startsWith('mine:') ? artById(it.art) : null;
+          if (a) mineOut[a.id] = a.src;
+        });
+        const mineText = JSON.stringify(mineOut);
+        if (mineText.length < 1500000) localStorage.setItem(KEEP_MINE, mineText);
+        else localStorage.removeItem(KEEP_MINE);
       } catch (e) { /* a full or blocked store just means no memory */ }
     };
     // Written straight away when asked, otherwise once things go still, so
@@ -1304,7 +1314,12 @@
         const gone = p.pic.startsWith('own:') ? !own.has(p.pic) : !TEMPLATES.some((t) => t.id === p.pic);
         if (gone) p.pic = starts[i] ? starts[i].pic : starts[0].pic;
       });
-      // Likewise a sticker the maker no longer has.
+      // Stickers of your own come back as tiles, then any sticker the maker
+      // no longer has is dropped.
+      try {
+        const mine = JSON.parse(localStorage.getItem(KEEP_MINE)) || {};
+        Object.keys(mine).forEach((id) => addMine(id, mine[id]));
+      } catch (e) { /* none kept */ }
       saved.items = saved.items.filter((it) => it.kind !== 'art' || artById(it.art));
       S = Object.assign(fresh(), saved);
       last = JSON.stringify(S);
@@ -1613,8 +1628,114 @@
   }
   const stickRow = $('meme-stickers');
   const stickMore = $('meme-stickers-more');
-  const SHOWN = 8;
+  const SHOWN = 7;
+  // Your own sticker: the first tile opens the photos, and what comes back
+  // is cut out if it sits on a plain background, then added like any other.
+  const stickFile = document.createElement('input');
+  stickFile.type = 'file';
+  stickFile.accept = 'image/*';
+  stickFile.hidden = true;
+  document.body.appendChild(stickFile);
+  const addTile = document.createElement('button');
+  addTile.type = 'button';
+  addTile.className = 'meme-stick meme-stick-add';
+  addTile.dataset.id = 'mine-add';
+  addTile.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor"'
+    + ' stroke-width="2.6" stroke-linecap="round"/></svg><span>Your own</span>';
+  addTile.addEventListener('click', () => stickFile.click());
+  stickRow.appendChild(addTile);
+  let mineCount = 0;
+  function addMine(id, src) {
+    if (artById(id)) return;
+    const n = Number(id.split(':')[1]);
+    if (n > mineCount) mineCount = n;
+    STICKERS.push({ id, src, size: 0.4, mine: true });
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'meme-stick';
+    b.dataset.id = id;
+    b.setAttribute('aria-label', 'Add your sticker');
+    b.innerHTML = '<img src="' + src + '" alt="" decoding="async" />';
+    b.addEventListener('click', () => {
+      load(src).then(() => add({ kind: 'art', art: id, nw: 0.4 }), () => say('That sticker would not load.'));
+    });
+    addTile.after(b);
+  }
+  // A plain background, taken off: if most of the edge is one colour, every
+  // pixel of that colour joined to the edge goes, with a soft rim.
+  function cutOut(c) {
+    const x = c.getContext('2d');
+    const w = c.width;
+    const h = c.height;
+    const d = x.getImageData(0, 0, w, h);
+    const px = d.data;
+    const edge = [];
+    for (let i = 0; i < w; i++) edge.push(i, (h - 1) * w + i);
+    for (let j = 0; j < h; j++) edge.push(j * w, j * w + w - 1);
+    // Already see-through at the edge: it is cut out already.
+    if (edge.filter((k) => px[k * 4 + 3] < 200).length > edge.length * 0.3) return false;
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    edge.forEach((k) => { r += px[k * 4]; g += px[k * 4 + 1]; b += px[k * 4 + 2]; });
+    r /= edge.length; g /= edge.length; b /= edge.length;
+    const dist = (k) => Math.abs(px[k * 4] - r) + Math.abs(px[k * 4 + 1] - g) + Math.abs(px[k * 4 + 2] - b);
+    const near = 60;
+    const soft = 110;
+    if (edge.filter((k) => dist(k) < near).length < edge.length * 0.7) return false;
+    const seen = new Uint8Array(w * h);
+    const stack = edge.filter((k) => dist(k) < near);
+    stack.forEach((k) => { seen[k] = 1; });
+    let gone = 0;
+    while (stack.length) {
+      const k = stack.pop();
+      const dk = dist(k);
+      if (dk < near) { px[k * 4 + 3] = 0; gone += 1; }
+      else { px[k * 4 + 3] = Math.round(px[k * 4 + 3] * (dk - near) / (soft - near)); continue; }
+      const i = k % w;
+      const next = [i > 0 ? k - 1 : -1, i < w - 1 ? k + 1 : -1, k - w, k + w];
+      next.forEach((m) => {
+        if (m < 0 || m >= w * h || seen[m]) return;
+        seen[m] = 1;
+        if (dist(m) < soft) stack.push(m);
+      });
+    }
+    // Next to nothing left, or next to nothing taken: leave it as it was.
+    if (gone > w * h * 0.97 || gone < w * h * 0.02) return false;
+    x.putImageData(d, 0, 0);
+    return true;
+  }
+  stickFile.addEventListener('change', () => {
+    const file = stickFile.files && stickFile.files[0];
+    stickFile.value = '';
+    if (!file) return;
+    if (!/^image\//.test(file.type || 'image/')) { say('That is not a picture this browser can open.'); return; }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 700 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.width * k));
+      c.height = Math.max(1, Math.round(img.height * k));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      const cut = cutOut(c);
+      let src = '';
+      try { src = c.toDataURL('image/png'); } catch (e) { src = ''; }
+      if (!src) { say('That picture would not load.'); return; }
+      mineCount += 1;
+      const id = 'mine:' + mineCount;
+      addMine(id, src);
+      load(src).then(() => {
+        add({ kind: 'art', art: id, nw: 0.4 });
+        say(cut ? 'Background taken off. Drag it into place.' : 'Added. Drag it into place.');
+      });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); say('That file is not a picture this browser can open.'); };
+    img.src = url;
+  });
   $('meme-stickmore-n').textContent = (STICKERS.length - SHOWN) + ' more and emoji';
+  // (Your own ones, added later, sit next to the Your own tile.)
   STICKERS.forEach((art, i) => {
     const b = document.createElement('button');
     b.type = 'button';

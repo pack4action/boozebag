@@ -395,6 +395,9 @@
 #meme-stickers-more { --rows: 8; }
 #meme-stickers:empty, #meme-stickers-more:empty { min-height: calc(var(--rows) * (100cqw - 30px) / 4 + (var(--rows) - 1) * 10px); }
 #meme-emoji:empty { min-height: calc(2 * (100cqw - 40px) / 6 + 8px); }
+.meme-stick-add { flex-direction: column; gap: 4px; border-style: dashed; border-color: rgba(255, 198, 50, 0.45); color: var(--amber); }
+.meme-stick-add svg { width: 34%; height: 34%; flex: none; }
+.meme-stick-add span { font-size: 12px; font-weight: 800; line-height: 1; white-space: nowrap; }
 .meme-stick img.is-round { border-radius: 50%; box-shadow: 0 0 0 2px #ffc632; }
 .meme-stick:hover { border-color: var(--amber); transform: translateY(-2px) rotate(-2deg); }
 .meme-stick:active { transform: scale(0.94); }
