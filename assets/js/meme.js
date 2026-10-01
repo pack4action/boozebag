@@ -203,33 +203,75 @@
       ['I don’t have a drinking problem', 'I have a drinking schedule'],
       ['Rest day?', 'Never heard of her'],
       ['Nobody sells', 'Nobody sobers up'],
-      ['Sober Steve', 'Could never'],
       ['My macros', 'Beer, beer and beer'],
       ['Cardio?', 'I walk to the fridge'],
       ['Gym is closed', 'Bar is open'],
       ['Doctor said cut back', 'So I cut the lime'],
-      ['24 hours', '24 drinks'],
-      ['Not financial advice', 'Not fitness advice either'],
       ['Holding $BOOZEBAG', 'Like I hold my beer'],
-      ['Winning my ex wife back', 'One drink at a time'],
-      ['Degen mode', 'Permanently on'],
       ['Didn’t lift', 'Still shredded'],
       ['Bulking season', 'Every season'],
-      ['When somebody says they’re selling', 'Another one?'],
+      ['Doctor: you need to cut down', 'Me: cut down to 23'],
+      ['Trainer asked for my macros', 'I showed him the receipt'],
+      ['They said no pain no gain', 'So I drank till nothing hurt'],
+      ['Chart is red', 'Beer is cold. Balance.'],
+      ['I don’t need a spotter', 'I need a bottle opener'],
+      ['Some people lift weights', 'I lift spirits'],
+      ['Portfolio down 40%', 'Bar tab up 400%'],
+      ['Six pack', 'Two meanings. Both achieved.'],
+      ['Day 1 of no drinking', 'Ended at 11:04am'],
+      ['Never skip leg day', 'Walking to the bar counts'],
+      ['What’s your PR?', '31 in one sitting'],
+      ['They call it a beer belly', 'I call it a fuel tank'],
+      ['Not drunk', 'Just bullish'],
+      ['Liquidated at 3am', 'Still ordered a kebab'],
+      ['Why diamond hands?', 'Because they’re always holding a can'],
+      ['The chart and me', 'Both up all night'],
+      ['Pre workout', 'Pre drinks. Same thing.'],
+      ['Who needs a gym', 'When the bar has stairs'],
+      ['Sold at the bottom', 'Bought a round at the top'],
+      ['Nobody sells', 'Nobody’s sober enough to find the button'],
+      ['Personal best', 'Opened a can with one hand mid flex'],
+      ['Haters said I’d never make the stage', 'Haters were drink 3 ago'],
+      ['I’m not hungover', 'I’m in recovery mode, like the chart'],
+      ['Gains', 'Unrealised. Like my portfolio.'],
+      ['Whales buying', 'Me drinking like one'],
+      ['They told me to diversify', 'So I tried a new lager'],
+      ['My trainer quit', 'Undefeated'],
+      ['Beer before liquor', 'Never been sicker. Never sold.'],
+      ['When someone says they’re selling', 'Another one?'],
+      ['Sober Steve', 'Could never'],
     ],
     caption: [
+      ['me at the gym after drink 6 telling strangers they have potential', ''],
+      ['when the bartender starts pouring before you even sit down', ''],
+      ['my liver reading my calendar for this week', ''],
+      ['pov: you said you’d have one and it turned into a podcast', ''],
+      ['me holding through a 60% dip because i forgot my password on drink 12', ''],
+      ['when your trainer asks what you ate today and the honest answer is liquid', ''],
+      ['the gym mirror watching me walk past it to the vending machine', ''],
+      ['me explaining to my doctor that it was light beer so it basically doesn’t count', ''],
+      ['when the chart goes up you celebrate. when it goes down you cope. either way: beer', ''],
+      ['my bank app watching me tap “one more round” for the fourth time', ''],
+      ['pov: you hired a personal trainer and he quit before you did', ''],
+      ['me when the 24 pack only has 23 in it', ''],
+      ['when someone says “just one” and you both know the truth', ''],
+      ['sober steve watching me win the beer mile with a hangover', ''],
+      ['me checking the chart at the bar like it’s the football score', ''],
+      ['my six pack is in the fridge where it belongs', ''],
+      ['when the bouncer asks how many you’ve had and you round to the nearest ten', ''],
+      ['pov: you fell asleep holding and woke up rich on paper', ''],
       ['me at 9am telling everyone i’m cutting back', ''],
       ['pov: you asked him what his macros are', ''],
       ['my liver and my bag have one thing in common. neither of them sells', ''],
-      ['pov: you bought $BOOZEBAG and he’s still only on drink 19', ''],
       ['when the doctor asks how many drinks a week and you have to do maths', ''],
       ['day 40 of no lifting and the arms are somehow bigger', ''],
       ['me explaining to my trainer that the can counts as a dumbbell', ''],
       ['when your pre workout is a 30 rack', ''],
-      ['sober steve watching me win the beer mile again', ''],
-      ['me checking the chart between drinks 14 and 15', ''],
-      ['when somebody in the telegram asks if you’re selling', ''],
-      ['nobody:  me at the gym: *opens a cold one*', ''],
+      ['when somebody in the chat asks if you’re selling', ''],
+      ['nobody:  me at the gym: *opens a cold one*', ''],
+      ['the bartender when i walk in wearing gym clothes', ''],
+      ['my portfolio and my liver having a quiet talk about my choices', ''],
+      ['pov: it’s 2am and you’re explaining market caps to the kebab guy', ''],
     ],
     news: [
       ['Local man walks bodybuilding stage on 24 drinks a day', ''],
@@ -237,10 +279,27 @@
       ['Sober Steve loses the beer mile for the 400th time', ''],
       ['Breaking: nobody sells', ''],
       ['Holders report feeling roughly 24 drinks in', ''],
-      ['Man adds one nicotine pouch a day, science has questions', ''],
       ['Gym shuts down after man turns up with a cooler', ''],
       ['Experts confirm beer is technically carbs', ''],
       ['Liver files for overtime', ''],
+      ['Local gym reports record attendance after adding happy hour', ''],
+      ['Scientists confirm hops are technically a vegetable', ''],
+      ['Liver files formal complaint, demands weekends off', ''],
+      ['Holder sleeps through 80% dip, wakes up in profit', ''],
+      ['Sober Steve announces comeback, nobody shows up', ''],
+      ['Bartender names firstborn after loyal customer', ''],
+      ['Study: people who never sell also never close their tab', ''],
+      ['Personal trainer leaves industry after one session', ''],
+      ['Breaking: dev spotted buying a round instead of selling', ''],
+      ['Fridge reaches all time low', ''],
+      ['Man calls beer “liquid creatine”, experts unable to disprove', ''],
+      ['Local man’s six pack found in fridge, not stomach', ''],
+      ['Crypto Twitter stunned as holder simply does not sell', ''],
+      ['Weather update: 100% chance of another round', ''],
+      ['Gym equipment reported lonely', ''],
+      ['Beer mile record broken, along with several promises', ''],
+      ['Doctor shown blood test, asks for a second opinion from a brewer', ''],
+      ['Bodybuilding judges ask for a lie down after seeing his diet', ''],
     ],
     split: [
       ['Sober', '24 drinks in'],
@@ -249,29 +308,119 @@
       ['Before $BOOZEBAG', 'After $BOOZEBAG'],
       ['How it started', 'How it’s going'],
       ['Paper hands', 'Beer hands'],
-      ['Sober Steve', 'Me'],
       ['Weekday me', 'Weekend me'],
+      ['January 1st', 'January 2nd'],
+      ['What I told my doctor', 'What I actually drink'],
+      ['My portfolio', 'My bar tab'],
+      ['When I bought', 'When I checked'],
+      ['The meal plan', 'The meal'],
+      ['Expectation', 'Reality'],
+      ['First beer of the night', 'Last beer of the night'],
+      ['Me telling the story', 'The story'],
+      ['Chart at 9am', 'Me at 9pm'],
     ],
     side: [
       ['Going to the gym', 'Going to the bar'],
-      ['Selling the dip', 'Buying another beer'],
+      ['Selling the dip', 'Drinking through the dip'],
       ['Rest days', '24 drinks a day'],
-      ['Protein shake', 'A cold one'],
-      ['Paper hands', 'Nobody sells'],
+      ['Protein shakes', 'Beer shakes'],
+      ['Personal trainer', 'Personal bartender'],
+      ['Taking profit', 'Taking shots'],
+      ['Meal prep', 'Beer prep'],
+      ['Counting reps', 'Counting cans'],
+      ['Reading the whitepaper', 'Reading the drinks menu'],
+      ['Waking up early for the gym', 'Staying up late for the chart'],
+      ['Water', 'Water, but brewed'],
       ['Lifting weights', 'Lifting cans'],
-      ['Counting calories', 'Counting cans'],
-      ['Taking profit', 'Taking another sip'],
+      ['Stop losses', 'Stop sobering up'],
+      ['Going outside', 'Going to the beer garden'],
+      ['Paper hands', 'Nobody sells'],
     ],
     poster: [
-      ['Dedication', 'Some men lift. Some men drink 24 a day and walk the stage anyway.'],
-      ['Discipline', 'Doing the same thing every day. Even when the thing is beer.'],
-      ['Hydration', 'Technically, beer is mostly water.'],
+      ['Dedication', 'Twenty four a day. Zero rest days. Walked the stage anyway.'],
+      ['Hydration', 'Beer is ninety five percent water. The other five is character.'],
+      ['Patience', 'The chart will come back. So will the hangover.'],
+      ['Leadership', 'He never lifted, never sold, never stopped. We follow.'],
+      ['Discipline', 'Same order, same stool, every single day.'],
+      ['Ambition', 'Shoot for the moon. If you miss, there is a bar on the way back.'],
+      ['Balance', 'One hand on the bag. One hand on the can.'],
+      ['Recovery', 'Is a word for people who stopped.'],
+      ['Vision', 'Seeing double is still seeing.'],
+      ['Teamwork', 'Nobody sells, so nobody drinks alone.'],
+      ['Strength', 'Lifting the mood of every room since drink one.'],
+      ['Wisdom', 'Never trust a man who orders water at the bar.'],
+      ['Consistency', 'Drink 24 hits the same as drink 1. Every day.'],
+      ['Courage', 'Checking the chart after a long weekend.'],
+      ['Focus', 'Ignore the haters. Ignore the doctor. Ignore the chart.'],
+      ['Excellence', 'Not one weight lifted. One trophy won.'],
       ['Diamond hands', 'It is not a strategy if you forgot your password.'],
-      ['Leadership', 'He never lifted, and yet here we all are.'],
-      ['Patience', 'The chart will be fine. The liver, we will see.'],
-      ['Recovery', 'Is a word for people who stop.'],
     ],
   };
+  // On top of those, a few patterns that read right whatever fills them,
+  // for when the written ones have all been seen. {n} is a drink count;
+  // a capital in the name ({Person}) capitalises the word.
+  const WORDS = {
+    bev: ['beer', 'cold one', 'tall can', 'pint', 'light beer', 'lager'],
+    bevs: ['beers', 'cold ones', 'tall cans', 'pints', 'light beers', 'lagers'],
+    bevA: ['a cold one', 'a tall can', 'a 30 rack', 'another round', 'a pint', 'a sixer'],
+    gym: ['leg day', 'cardio', 'a rest day', 'meal prep', 'stretching', 'arm day', 'the treadmill'],
+    person: ['Sober Steve', 'my trainer', 'my doctor', 'my liver', 'my mum', 'my therapist', 'my bank',
+      'the bartender', 'my nutritionist', 'my accountant'],
+    time: ['9am', 'Monday morning', 'drink 14', '2am', 'lunch', 'the weigh in', 'New Year'],
+    excuse: ['beer is technically carbs', 'it was a hydration day', 'it was for the bulk', 'the dip was too good',
+      'someone said cheers', 'it was happy hour somewhere', 'the green candle needed company'],
+    small: ['lime', 'straw', 'ice', 'salt'],
+    word: ['Dedication', 'Discipline', 'Hydration', 'Patience', 'Ambition', 'Focus', 'Commitment', 'Consistency'],
+    big: ['100', '150', '365', '400', '1000'],
+  };
+  const MAKE = {
+    classic: [
+      ['{Person} said cut back', 'So I cut the {small}'],
+      ['Me after one {bev}', 'Me after {n}'],
+      ['{Gym}?', 'Never heard of her'],
+      ['{Person} asked if I’m selling', 'I asked for {bevA}'],
+      ['{N} {bevs} deep', 'Still not selling'],
+    ],
+    caption: [
+      ['me at {time} telling {person} i’m cutting back', ''],
+      ['me pretending to listen to {person} on drink {n}', ''],
+      ['pov: you skipped {gym} for {bev} number {n}', ''],
+      ['{person} when i say {excuse}', ''],
+      ['me explaining to {person} that {excuse}', ''],
+    ],
+    news: [
+      ['Man walks bodybuilding stage on {n} drinks, judges speechless', ''],
+      ['{Person} files formal complaint after drink {n}', ''],
+      ['Sober Steve loses the beer mile for the {big}th time', ''],
+    ],
+    split: [
+      ['Drink 1', 'Drink {n}'],
+      ['{Person}’s plan', 'What I did'],
+      ['Me at {time}', 'Me at drink {n}'],
+    ],
+    side: [
+      ['{Gym}', '{BevA}'],
+      ['Listening to {person}', 'Listening to the bartender'],
+    ],
+    poster: [
+      ['{Word}', 'Never skip drink {n}.'],
+      ['{Word}', 'If {person} says stop, order {bevA}.'],
+    ],
+  };
+  const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
+  const capFirst = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  function makeLine(layout) {
+    const pat = pickOne(MAKE[layout] || MAKE.classic);
+    const n = 6 + Math.floor(Math.random() * 25);
+    const fill = (t) => t.replace(/\{(\w+)\}/g, (all, key) => {
+      if (key === 'n' || key === 'N') return String(n);
+      const list = WORDS[key.charAt(0).toLowerCase() + key.slice(1)];
+      if (!list) return all;
+      const w = pickOne(list);
+      return key.charAt(0) === key.charAt(0).toUpperCase() ? capFirst(w) : w;
+    });
+    return [fill(pat[0]), fill(pat[1])];
+  }
 
   // ---- Pictures, fetched once each ----
   const loading = new Map();
@@ -1457,14 +1606,22 @@
   function typed() { clearTimeout(typing); typing = setTimeout(commit, 600); }
   topIn.addEventListener('input', () => { S.top = topIn.value; redraw(); typed(); });
   bottomIn.addEventListener('input', () => { S.bottom = bottomIn.value; redraw(); typed(); });
-  let lastJoke = -1;
+  // A handpicked line now and then, a made up one the rest of the time,
+  // and never one of the last few again.
+  const recent = [];
   $('meme-roll').addEventListener('click', () => {
-    const list = JOKES[S.layout];
-    let i = Math.floor(Math.random() * list.length);
-    if (i === lastJoke && list.length > 1) i = (i + 1) % list.length;
-    lastJoke = i;
-    S.top = list[i][0];
-    S.bottom = list[i][1];
+    const list = JOKES[S.layout] || JOKES.classic;
+    let line = null;
+    for (let tries = 0; tries < 12; tries++) {
+      const cand = Math.random() < 0.7 ? pickOne(list) : makeLine(S.layout);
+      const key = cand.join('|');
+      if (!recent.includes(key) && cand[0] !== S.top) { line = cand; break; }
+    }
+    if (!line) line = makeLine(S.layout);
+    recent.push(line.join('|'));
+    if (recent.length > 60) recent.shift();
+    S.top = line[0];
+    S.bottom = line[1];
     syncControls();
     redraw();
     commit();
