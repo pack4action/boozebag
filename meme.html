@@ -147,6 +147,9 @@
             var probe = new File([new Blob(['x'], { type: 'image/png' })], 'boozebag-meme.png', { type: 'image/png' });
             if (navigator.canShare && navigator.canShare({ files: [probe] })) share.hidden = false;
           } catch (e) { /* no sharing here */ }
+          // On an iPhone the main button saves to Photos (see meme.js).
+          var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+          if (ios && !share.hidden) document.querySelector('#meme-download .btn-label').textContent = 'Save to Photos';
           if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write && share.hidden) {
             document.getElementById('meme-copy').hidden = false;
           }
@@ -312,6 +315,6 @@
 
 <script src="assets/js/main.js?v=64"></script>
 <script src="assets/js/wallet.js?v=7"></script>
-<script src="assets/js/meme.js?v=43"></script>
+<script src="assets/js/meme.js?v=44"></script>
 </body>
 </html>

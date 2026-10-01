@@ -1997,7 +1997,60 @@
   // ---- Out ----
   const NAME = 'boozebag-meme.png';
   const dl = $('meme-download');
+  const shareBtn = $('meme-share');
+  let canShareFiles = false;
+  try {
+    const probe = new File([new Blob(['x'], { type: 'image/png' })], NAME, { type: 'image/png' });
+    canShareFiles = !!(navigator.canShare && navigator.canShare({ files: [probe] }));
+  } catch (e) { /* no sharing here */ }
+  // An iPhone saves a download to Files, not to Photos. What puts it in
+  // Photos is the share sheet's Save Image, so there the button opens that
+  // (with only the picture in it, or Save Image is not offered).
+  const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const toPhotos = IOS && canShareFiles;
+  // The share sheet only opens straight from a tap, so the picture is made
+  // there and then rather than after a wait. The deep fried one takes a
+  // wait to make; it is kept, and a second tap shares it at once.
+  let readyKey = '';
+  let readyBlob = null;
+  const stateKey = () => JSON.stringify(S) + canvas.width + 'x' + canvas.height;
+  function blobNow() {
+    const key = stateKey();
+    if (readyBlob && readyKey === key) return readyBlob;
+    if (S.filter === 'fried') return null;
+    compose();
+    let url = '';
+    try { url = canvas.toDataURL('image/png'); } catch (e) { url = ''; }
+    draw();
+    if (!url) return null;
+    const bin = atob(url.slice(url.indexOf(',') + 1));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    readyKey = key;
+    readyBlob = new Blob([bytes], { type: 'image/png' });
+    return readyBlob;
+  }
+  function shareOut(withWords, again) {
+    const send = (blob) => {
+      const file = new File([blob], NAME, { type: 'image/png' });
+      const data = withWords ? { files: [file], text: '$BOOZEBAG boozebag.us' } : { files: [file] };
+      return navigator.share(data).catch((e) => {
+        if (e && e.name === 'NotAllowedError') say('Ready. Tap ' + again + ' again.');
+      });
+    };
+    const blob = blobNow();
+    if (blob) { send(blob); return; }
+    const key = stateKey();
+    finished().then((b) => {
+      if (!b) { say('That did not save. Try again.'); return; }
+      readyKey = key;
+      readyBlob = b;
+      send(b);
+    });
+  }
   dl.addEventListener('click', () => {
+    if (toPhotos) { shareOut(false, 'Save to Photos'); return; }
     finished().then((blob) => {
       if (!blob) { say('That did not save. Try again.'); return; }
       const url = URL.createObjectURL(blob);
@@ -2013,18 +2066,8 @@
   });
   // Handing a picture to another app is a phone thing, and only some of
   // them. The button is only there where it works.
-  const shareBtn = $('meme-share');
-  try {
-    const probe = new File([new Blob(['x'], { type: 'image/png' })], NAME, { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [probe] })) shareBtn.hidden = false;
-  } catch (e) { /* no sharing here */ }
-  shareBtn.addEventListener('click', () => {
-    finished().then((blob) => {
-      if (!blob) return;
-      const file = new File([blob], NAME, { type: 'image/png' });
-      navigator.share({ files: [file], text: '$BOOZEBAG boozebag.us' }).catch(() => { /* closed */ });
-    });
-  });
+  if (canShareFiles) shareBtn.hidden = false;
+  shareBtn.addEventListener('click', () => shareOut(true, 'Share'));
   const copyBtn = $('meme-copy');
   if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write && shareBtn.hidden) {
     copyBtn.hidden = false;
