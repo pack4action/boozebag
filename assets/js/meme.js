@@ -11,7 +11,7 @@
   const $ = (id) => document.getElementById(id);
 
   // ---- What there is to work with ----
-  const PAIRS = [['nah', 'yeah']];
+  const PAIRS = [['nah', 'yeah'], ['yelling', 'cat']];
   const TEMPLATES = [
     { id: 'upload', label: 'Your own', upload: true },
     // Him, in the moments people make memes of. The picker shows the small
@@ -23,7 +23,7 @@
     ...[
       ['fine', 'This is fine'], ['warstare', 'War stare', 1086, 1448],
       ['pointing', 'Pointing'], ['cheers', 'Cheers', 1536, 1024],
-      ['saltbae', 'Salt Bae'], ['cat', 'Dinner cat'],
+      ['saltbae', 'Salt Bae'], ['yelling', 'Yelling'], ['cat', 'Dinner cat'],
       ['nah', 'Nah'], ['yeah', 'Yeah'],
     ].map(([id, label, w = 1254, h = 1254]) => ({
       id, label, kind: 'photo', w, h,

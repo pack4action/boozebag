@@ -301,7 +301,7 @@
    pictures in meme.js make at that width. */
 .meme-block-pic { container-type: inline-size; }
 #meme-templates { --cols: 4; --rows: 3; }
-@media (min-width: 901px) { #meme-templates { --cols: 5; --rows: 2; grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (min-width: 901px) { #meme-templates { --cols: 5; --rows: 3; grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 #meme-templates:empty {
   min-height: calc(var(--rows) * ((100cqw - (var(--cols) - 1) * 10px) / var(--cols) + 21px) + (var(--rows) - 1) * 10px);
 }
