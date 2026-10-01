@@ -43,9 +43,11 @@
   ];
   // Sizes are a share of the picture's short side, so a sticker is the same
   // size whatever shape the picture is.
-  // Laser eyes, drawn here rather than fetched: a red glow with a white hot
+  // Laser eyes, drawn here rather than fetched: a glow with a white hot
   // middle and a beam out to the right. One per eye; Copy makes the second.
-  function laserEye() {
+  // Red is the classic; green is the bullish one.
+  function laserEye(rgb, tint) {
+    const c0 = 'rgba(' + rgb + ', ';
     const c = document.createElement('canvas');
     c.width = 1024;
     c.height = 440;
@@ -53,9 +55,9 @@
     const cy = 220;
     const ex = 220;
     const beam = x.createLinearGradient(ex, 0, 1024, 0);
-    beam.addColorStop(0, 'rgba(255, 40, 30, 0.95)');
-    beam.addColorStop(0.55, 'rgba(255, 40, 30, 0.5)');
-    beam.addColorStop(1, 'rgba(255, 40, 30, 0)');
+    beam.addColorStop(0, c0 + '0.95)');
+    beam.addColorStop(0.55, c0 + '0.5)');
+    beam.addColorStop(1, c0 + '0)');
     x.fillStyle = beam;
     x.beginPath();
     x.moveTo(ex, cy - 44);
@@ -77,28 +79,30 @@
     x.fill();
     const glow = x.createRadialGradient(ex, cy, 0, ex, cy, 215);
     glow.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    glow.addColorStop(0.17, 'rgba(255, 236, 226, 1)');
-    glow.addColorStop(0.34, 'rgba(255, 46, 36, 1)');
-    glow.addColorStop(0.65, 'rgba(255, 20, 20, 0.42)');
-    glow.addColorStop(1, 'rgba(255, 0, 0, 0)');
+    glow.addColorStop(0.17, 'rgba(' + tint + ', 1)');
+    glow.addColorStop(0.34, c0 + '1)');
+    glow.addColorStop(0.65, c0 + '0.42)');
+    glow.addColorStop(1, c0 + '0)');
     x.fillStyle = glow;
     x.fillRect(0, 0, 440, 440);
     try { return c.toDataURL('image/png'); } catch (e) { return ''; }
   }
-  const LASER = laserEye();
+  const LASER = laserEye('255, 40, 30', '255, 236, 226');
+  const LASER_GREEN = laserEye('40, 255, 90', '226, 255, 232');
   const STICKERS = [
     ...(LASER ? [{ id: 'laser', src: LASER, size: 0.55 }] : []),
+    ...(LASER_GREEN ? [{ id: 'laser-green', src: LASER_GREEN, size: 0.55 }] : []),
     // When one is added here, the row count held open for the stickers in
     // meme.css (#meme-stickers, --rows) may need to go up.
     ...[
-      ['dwi', 0.45],
+      ['dwi', 0.45], ['flare', 0.5],
       // Him, cut out.
       ['head-shocked', 0.34], ['head-grin', 0.34], ['thumbs', 0.5],
-      // The usual meme marks: the circle and arrow that point at something,
-      // the chart going up or down, rubber stamps, and the anime ones.
+      // Glowing ones to put on him, the anime lines to put round him, and
+      // the circle, arrow and charts that point at something.
+      ['halo', 0.4], ['horns', 0.42], ['lightning', 0.4], ['speedlines', 1],
       ['circle', 0.5], ['arrow', 0.45], ['stonks', 0.45], ['crash', 0.45],
-      ['stamp-wagmi', 0.45], ['stamp-ngmi', 0.4], ['stamp-rekt', 0.4], ['stamp-send', 0.45],
-      ['bubble', 0.6], ['sparkle', 0.25], ['vein', 0.2], ['sweat', 0.14], ['nose', 0.12],
+      ['bubble', 0.6], ['vein', 0.2], ['sweat', 0.14], ['nose', 0.12],
     ].map(([id, size]) => ({ id, src: 'assets/img/meme/stickers/' + id + '.webp', size })),
     { id: 'can', src: 'assets/img/can.png', size: 0.36 },
     { id: 'syringe', src: 'assets/img/syringe.png', size: 0.26 },
