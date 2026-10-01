@@ -26,3 +26,10 @@ CREATE TABLE IF NOT EXISTS cracks (
   day TEXT PRIMARY KEY,
   n   INTEGER NOT NULL
 );
+
+-- Every meme saved, shared or copied from the meme maker, a row per day.
+-- Made by the Worker on first use too.
+CREATE TABLE IF NOT EXISTS memes (
+  day TEXT PRIMARY KEY,
+  n   INTEGER NOT NULL
+);

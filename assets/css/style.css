@@ -959,6 +959,7 @@ body.nav-open { overflow: hidden; }
 .meme-promo-text { display: grid; gap: 4px; text-align: left; }
 .meme-promo-text b { font-family: 'Anton', 'Anton Fallback', sans-serif; font-size: 22px; font-weight: 400; letter-spacing: 0.4px; text-transform: uppercase; }
 .meme-promo-text span { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.meme-promo-text .meme-promo-count { color: var(--amber); font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .meme-promo-go { pointer-events: none; }
 @media (max-width: 640px) {
   .meme-promo { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; padding: 12px; }

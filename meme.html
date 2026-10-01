@@ -22,6 +22,8 @@
 <meta name="twitter:description" content="Make a $BOOZEBAG meme in ten seconds. His pictures, his stickers, your words. Download it or send it straight to X." />
 <meta name="twitter:image" content="https://pack4action.github.io/boozebag/assets/img/share-meme.jpg" />
 <link rel="canonical" href="https://pack4action.github.io/boozebag/meme.html" />
+<!-- The Worker that counts the memes made (workers/leaderboard). -->
+<meta name="boozebag-api" content="https://boozebag-leaderboard.oliskills790.workers.dev/api" />
 <link rel="icon" type="image/png" href="assets/img/favicon.png" />
 <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png" />
 <link rel="manifest" href="site.webmanifest" />
@@ -31,9 +33,9 @@
 <link rel="preload" href="assets/fonts/anton-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/inter-800.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/css/style.css?v=96" />
+<link rel="stylesheet" href="assets/css/style.css?v=97" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=16" />
-<link rel="stylesheet" href="assets/css/meme.css?v=36" />
+<link rel="stylesheet" href="assets/css/meme.css?v=37" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -91,6 +93,7 @@
   <div class="game-head">
     <h1 class="game-title">MEME <span class="hl">MAKER</span></h1>
     <p class="game-sub">Pick a picture, put words on it, throw a sticker at it. Ten seconds, and it goes out with the coin's name on it.</p>
+    <p class="meme-count" id="meme-count">Free. No sign up. Nothing leaves your phone.</p>
   </div>
 
   <div class="meme-layout">
@@ -319,8 +322,8 @@
   </div>
 </main>
 
-<script src="assets/js/main.js?v=64"></script>
+<script src="assets/js/main.js?v=65"></script>
 <script src="assets/js/wallet.js?v=7"></script>
-<script src="assets/js/meme.js?v=51"></script>
+<script src="assets/js/meme.js?v=52"></script>
 </body>
 </html>

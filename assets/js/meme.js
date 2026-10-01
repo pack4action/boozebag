@@ -2443,6 +2443,28 @@
   let readyKey = '';
   let readyBlob = null;
   const stateKey = () => JSON.stringify(S) + canvas.width + 'x' + canvas.height;
+  // Memes made, counted by the Worker: once for each meme that leaves the
+  // page, however many ways it leaves. The total goes under the title once
+  // there are enough of them to be worth saying.
+  const apiTag = document.querySelector('meta[name="boozebag-api"]');
+  const API = apiTag && apiTag.content ? apiTag.content.trim().replace(/\/+$/, '') : '';
+  const countEl = $('meme-count');
+  function showCount(c) {
+    const n = c && Number(c.total);
+    if (!countEl || !isFinite(n) || n < 25) return;
+    countEl.textContent = n.toLocaleString('en-US') + ' memes made so far. Free, no sign up.';
+  }
+  if (API && window.fetch) {
+    fetch(API + '/memes').then((r) => (r.ok ? r.json() : null)).then(showCount).catch(() => {});
+  }
+  const countedKeys = new Set();
+  function counted() {
+    const key = stateKey();
+    if (!API || countedKeys.has(key)) return;
+    countedKeys.add(key);
+    fetch(API + '/memes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', keepalive: true })
+      .then((r) => r.json()).then(showCount).catch(() => {});
+  }
   function blobNow() {
     const key = stateKey();
     if (readyBlob && readyKey === key) return readyBlob;
@@ -2463,7 +2485,7 @@
     const send = (blob) => {
       const file = new File([blob], NAME, { type: 'image/png' });
       const data = withWords ? { files: [file], text: '$BOOZEBAG boozebag.us' } : { files: [file] };
-      return navigator.share(data).catch((e) => {
+      return navigator.share(data).then(counted, (e) => {
         if (e && e.name === 'NotAllowedError') say('Ready. Tap ' + again + ' again.');
       });
     };
@@ -2490,6 +2512,7 @@
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
       flash(dl, 'Saved', 'Download');
+      counted();
     });
   });
   // Handing a picture to another app is a phone thing, and only some of
@@ -2505,7 +2528,7 @@
     // Safari needs to keep treating it as a press.
     const item = new window.ClipboardItem({ 'image/png': finished() });
     navigator.clipboard.write([item]).then(
-      () => flash(copyBtn, 'Copied', 'Copy image'),
+      () => { flash(copyBtn, 'Copied', 'Copy image'); counted(); },
       () => say('This browser would not copy a picture. Download it instead.'),
     );
   });

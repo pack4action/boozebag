@@ -264,3 +264,13 @@ deploy:
 ```sh
 BASE=https://boozebag.us node test.mjs
 ```
+
+## Memes made
+
+`/api/memes` counts the memes that leave the meme maker: saved, shared or
+copied, once each however many of those happen to the same meme. `GET`
+gives `{ today, total }`; `POST` adds one, at most one every three seconds
+and three hundred an hour from one place. The `memes` table is made on
+first use, like `cracks`, so nothing has to be run by hand: deploy the
+Worker and it starts counting. The meme page and the box on the front page
+show the total once it reaches 25, and say the maker is free until then.

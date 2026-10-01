@@ -1023,7 +1023,12 @@ function askGeckoHolders() {
     .catch(() => {})
     .then(done);
 }
-function askNumbers() { askToken(); askGeckoHolders(); }
+// Only where the numbers are shown: the front page.
+function askNumbers() {
+  if (!marketEl && !document.getElementById('tk-supply')) return;
+  askToken();
+  askGeckoHolders();
+}
 askNumbers();
 setInterval(() => { if (!document.hidden) askNumbers(); }, 60000);
 
@@ -1909,4 +1914,20 @@ if (buybar && heroEl && window.IntersectionObserver) {
   }, { passive: true });
   window.addEventListener('resize', pour);
   pour();
+})();
+
+// ---- Memes made ----
+// The meme maker counts every meme that leaves it; the box that leads to it
+// says how many once there are enough to be worth saying. Until then, and
+// without the Worker, it says what the meme maker costs.
+(function () {
+  const el = document.getElementById('meme-promo-count');
+  if (!el || !siteApi || !window.fetch) return;
+  fetch(siteApi + '/memes')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((c) => {
+      const n = c && Number(c.total);
+      if (isFinite(n) && n >= 25) el.textContent = n.toLocaleString('en-US') + ' made so far. Free, no sign up.';
+    })
+    .catch(() => {});
 })();

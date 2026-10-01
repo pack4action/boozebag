@@ -635,6 +635,36 @@ async function crackCounts(env, fresh) {
   return body;
 }
 
+// ---- Memes made ----
+// Every meme saved, shared or copied from the meme maker counts once here,
+// so the site can say how many have been made. Like the cracks, the table
+// is made on first use. One place can add one every few seconds and a few
+// hundred an hour, which no person making memes gets near.
+const MEME_EVERY = 3;
+const MEME_PER_HOUR = 300;
+const MEME_HOLD_MS = 15000;
+let memeTableReady = false;
+let memeHeld = null;
+
+async function memeTable(env) {
+  if (memeTableReady) return;
+  await env.DB.prepare(
+    'CREATE TABLE IF NOT EXISTS memes (day TEXT PRIMARY KEY, n INTEGER NOT NULL)',
+  ).run();
+  memeTableReady = true;
+}
+
+async function memeCounts(env, fresh) {
+  const now = Date.now();
+  if (!fresh && memeHeld && now - memeHeld.at < MEME_HOLD_MS) return memeHeld.body;
+  await memeTable(env);
+  const day = await env.DB.prepare('SELECT n FROM memes WHERE day = ?1').bind(crackDay()).first();
+  const all = await env.DB.prepare('SELECT SUM(n) AS n FROM memes').first();
+  const body = { today: (day && day.n) || 0, total: (all && all.n) || 0, at: now };
+  memeHeld = { at: now, body };
+  return body;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -671,6 +701,28 @@ export default {
         + ' ON CONFLICT (day) DO UPDATE SET n = cracks.n + excluded.n',
       ).bind(crackDay(), n).run();
       return json(request, await crackCounts(env, true));
+    }
+    if (url.pathname === '/api/memes') {
+      if (request.method === 'GET') {
+        return new Response(JSON.stringify(await memeCounts(env)), {
+          status: 200,
+          headers: Object.assign({
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=15',
+          }, corsFor(request)),
+        });
+      }
+      if (request.method !== 'POST') return json(request, { error: 'GET or POST' }, 405);
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      if (await tooSoon(env, 'meme:' + ip, MEME_EVERY, MEME_PER_HOUR)) {
+        return json(request, Object.assign({ error: 'slow down' }, await memeCounts(env)), 429);
+      }
+      await memeTable(env);
+      await env.DB.prepare(
+        'INSERT INTO memes (day, n) VALUES (?1, 1)'
+        + ' ON CONFLICT (day) DO UPDATE SET n = memes.n + 1',
+      ).bind(crackDay()).run();
+      return json(request, await memeCounts(env, true));
     }
     if (url.pathname === '/api/token') {
       if (request.method !== 'GET') return json(request, { error: 'GET' }, 405);
