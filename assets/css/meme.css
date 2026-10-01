@@ -522,10 +522,6 @@
 .meme-block-stick .meme-more-body { padding: 10px; }
 @media (prefers-reduced-motion: reduce) { .meme-more > summary .meme-more-chev { transition: none; } }
 
-/* ---- Profile pic ---- */
-.meme-pfp-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-.meme-pfp-row .meme-small { margin: 0; }
-#meme-ring[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
 
 /* How many have been made, or what it costs (nothing) until that is known.
    One line either way, so the page does not move when it changes. */

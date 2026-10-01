@@ -606,7 +606,6 @@
     filter: 'none',
     tsize: 1,    // how big the top and bottom words are, against their usual
     fxk: 1,      // how strong the finish is
-    ring: true,  // the gold ring round a profile picture
     top: '',
     bottom: '',
     panels: [
@@ -1395,67 +1394,15 @@
     });
   }
 
-  // The gold ring a holder's profile picture wears: a band just inside the
-  // circle the apps cut to, with the coin's name round the bottom of it.
-  function drawRing(W) {
-    const c = W / 2;
-    const r = W / 2 - W * 0.035;
-    const band = W * 0.052;
-    ctx.save();
-    const g = ctx.createLinearGradient(0, 0, W, W);
-    g.addColorStop(0, '#fff1b0');
-    g.addColorStop(0.35, '#ffc632');
-    g.addColorStop(0.7, '#d98a00');
-    g.addColorStop(1, '#ffe27a');
-    ctx.lineWidth = band;
-    ctx.strokeStyle = g;
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = W * 0.02;
-    ctx.beginPath();
-    ctx.arc(c, c, r, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.lineWidth = W * 0.004;
-    ctx.strokeStyle = 'rgba(80, 45, 0, 0.55)';
-    [r - band / 2, r + band / 2].forEach((rr) => { ctx.beginPath(); ctx.arc(c, c, rr, 0, Math.PI * 2); ctx.stroke(); });
-    // The name, letter by letter round the bottom of the band.
-    const text = '$BOOZEBAG';
-    const size = band * 0.74;
-    ctx.font = size + 'px ' + FACE;
-    ctx.fillStyle = '#2a1600';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const widths = [...text].map((ch) => ctx.measureText(ch).width + size * 0.12);
-    const total = widths.reduce((a, b) => a + b, 0);
-    let a = Math.PI / 2 + total / 2 / r;
-    [...text].forEach((ch, i) => {
-      const step = widths[i] / r;
-      ctx.save();
-      ctx.translate(c + Math.cos(a - step / 2) * r, c + Math.sin(a - step / 2) * r);
-      ctx.rotate(a - step / 2 - Math.PI / 2);
-      ctx.fillText(ch, 0, size * 0.04);
-      ctx.restore();
-      a -= step;
-    });
-    ctx.restore();
-  }
-  // While making a profile picture, the corners the apps cut away are dimmed
-  // so you can see what will show. Not on the saved picture.
-  function drawPfpGuide() {
+  // A profile picture is saved already cut to a circle, clear outside it.
+  function cutCircle() {
     if (S.layout !== 'pfp') return;
     const W = canvas.width;
     ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.globalCompositeOperation = 'destination-in';
     ctx.beginPath();
-    ctx.rect(0, 0, W, W);
-    ctx.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2, true);
-    ctx.fill('evenodd');
-    ctx.setLineDash([W * 0.012, W * 0.012]);
-    ctx.lineWidth = W * 0.003;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.beginPath();
-    ctx.arc(W / 2, W / 2, W / 2 - 1, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 
@@ -1483,8 +1430,8 @@
     const under = S.filter === 'glitch' || S.filter === 'pixel';
     if (under) filterPixels(S.filter);
     if (S.layout === 'pfp') {
-      if (S.ring) drawRing(F.W);
       if (!under) filterPixels(S.filter);
+      cutCircle();
       return;
     }
     const reserve = drawStamp(F.W, F.H);
@@ -1517,7 +1464,7 @@
     compose();
     if (S.filter === 'fried') {
       const now = stamp();
-      if (crunched && crunchKey === now) ctx.drawImage(crunched, 0, 0, canvas.width, canvas.height);
+      if (crunched && crunchKey === now) { ctx.drawImage(crunched, 0, 0, canvas.width, canvas.height); cutCircle(); }
       else if (crunchFailed !== now) {
         clearTimeout(crunchTimer);
         crunchTimer = setTimeout(() => {
@@ -1526,7 +1473,6 @@
         }, 160);
       }
     }
-    drawPfpGuide();
     drawPanelMark();
     drawPicked();
   }
@@ -1541,7 +1487,7 @@
     compose();
     if (S.filter === 'fried') {
       const img = await crunch();
-      if (img) ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      if (img) { ctx.drawImage(img, 0, 0, canvas.width, canvas.height); cutCircle(); }
     }
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
     draw();
@@ -1714,8 +1660,6 @@
     topIn.closest('.meme-field').hidden = pfp;
     bottomIn.closest('.meme-field').hidden = pfp;
     $('meme-roll').hidden = pfp;
-    $('meme-pfp-row').hidden = !pfp;
-    $('meme-ring').setAttribute('aria-pressed', S.ring === false ? 'false' : 'true');
     $('lab-top').textContent = f[0];
     $('lab-bottom').textContent = f[1];
     topIn.placeholder = f[2];
@@ -1755,12 +1699,6 @@
   $('meme-tsize').addEventListener('input', (e) => { S.tsize = Number(e.target.value); redraw(); typed(); });
   $('meme-fxk').addEventListener('input', (e) => { S.fxk = Number(e.target.value); redraw(); typed(); });
 
-  $('meme-ring').addEventListener('click', () => {
-    S.ring = S.ring === false;
-    syncControls();
-    redraw();
-    commit();
-  });
   // Layout, shape, lettering, finish.
   function onChip(rowId, attr, apply) {
     $(rowId).querySelectorAll('[data-' + attr + ']').forEach((b) => {
@@ -1784,7 +1722,7 @@
     if (twoUp() && untouched) {
       PAIRS[0].forEach((k, i) => { S.panels[i].pic = k; });
     }
-    if (v === 'pfp') say('Pick Your own for your photo, then put the laser eyes or the chain on it.');
+    if (v === 'pfp') say('Saved as a circle. Pick Your own for your photo, then add the laser eyes or the chain.');
     hint();
   });
   onChip('meme-shapes', 'shape', (v) => { S.shape = v; S.panels.forEach((p) => { p.ox = 0; p.oy = 0; }); });
