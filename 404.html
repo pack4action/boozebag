@@ -5,13 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Nothing here | $BOOZEBAG</title>
 <meta name="robots" content="noindex" />
-<link rel="icon" type="image/png" href="/boozebag/assets/img/favicon.png" />
+<!-- This page is shown for any missing address, at any depth, so its
+     links are worked out from the site's root: /boozebag/ on GitHub's
+     address, / on boozebag.us. Written before anything below asks for a
+     file, so they all use it. -->
+<script>document.write('<base href="' + (location.pathname.indexOf('/boozebag/') === 0 || location.pathname === '/boozebag' ? '/boozebag/' : '/') + '">');</script>
+<link rel="icon" type="image/png" href="assets/img/favicon.png" />
 <!-- Fonts come from the site itself; the three the first screen needs
      are fetched straight away, before the stylesheet asks for them. -->
-<link rel="preload" href="/boozebag/assets/fonts/anton-400.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/boozebag/assets/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/boozebag/assets/fonts/inter-800.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/boozebag/assets/css/style.css?v=97" />
+<link rel="preload" href="assets/fonts/anton-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/inter-800.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/style.css?v=97" />
 <!-- Counted too, so a broken link somebody is following shows up. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
 </head>
@@ -21,7 +26,7 @@
   <p class="lost-num">404</p>
   <h1 class="lost-title">Nothing here.</h1>
   <p class="lost-sub">Wrong door. The bag is back on the homepage.</p>
-  <a href="/boozebag/" class="btn btn-primary btn-lg">Back to $BOOZEBAG</a>
+  <a href="./" class="btn btn-primary btn-lg">Back to $BOOZEBAG</a>
 </main>
 </body>
 </html>
