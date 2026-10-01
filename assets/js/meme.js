@@ -83,11 +83,18 @@
   const LASER = laserEye();
   const STICKERS = [
     ...(LASER ? [{ id: 'laser', src: LASER, size: 0.55 }] : []),
-    // Him, cut out. When one is added here, the row count held open for
-    // the stickers in meme.css (#meme-stickers, --rows) may need to go up.
-    { id: 'head-shocked', src: 'assets/img/meme/stickers/head-shocked.webp', size: 0.34 },
-    { id: 'head-grin', src: 'assets/img/meme/stickers/head-grin.webp', size: 0.34 },
-    { id: 'thumbs', src: 'assets/img/meme/stickers/thumbs.webp', size: 0.5 },
+    // When one is added here, the row count held open for the stickers in
+    // meme.css (#meme-stickers, --rows) may need to go up.
+    ...[
+      ['dwi', 0.45],
+      // Him, cut out.
+      ['head-shocked', 0.34], ['head-grin', 0.34], ['thumbs', 0.5],
+      // The usual meme marks: the circle and arrow that point at something,
+      // the chart going up or down, rubber stamps, and the anime ones.
+      ['circle', 0.5], ['arrow', 0.45], ['stonks', 0.45], ['crash', 0.45],
+      ['stamp-wagmi', 0.45], ['stamp-ngmi', 0.4], ['stamp-rekt', 0.4], ['stamp-send', 0.45],
+      ['bubble', 0.6], ['sparkle', 0.25], ['vein', 0.2], ['sweat', 0.14], ['nose', 0.12],
+    ].map(([id, size]) => ({ id, src: 'assets/img/meme/stickers/' + id + '.webp', size })),
     { id: 'can', src: 'assets/img/can.png', size: 0.36 },
     { id: 'syringe', src: 'assets/img/syringe.png', size: 0.26 },
     { id: 'degen', src: 'assets/img/degen-sign.png', size: 0.36 },
