@@ -11,11 +11,11 @@ Static site, no build step. Open `index.html` directly or serve the folder with 
 - `assets/js/main.js` — small CA copy-to-clipboard interaction
 - `assets/img/` — avatar and proof screenshot assets
 
-## Moving to boozebag.us
+## The domain
 
-Until the domain is live, the share cards, canonical links, sitemap and the
-meme maker's Post on X link all point at `https://pack4action.github.io/boozebag/`,
-so a posted link shows its picture and goes somewhere. On the day of the
-move, replace that address with `https://boozebag.us/` everywhere it
-appears: the heads of the six pages, `sitemap.xml`, `robots.txt` and
-`assets/js/meme.js`.
+The site is served by GitHub Pages at https://boozebag.us. Cloudflare
+holds the DNS (two CNAMEs, `@` and `www`, both to `pack4action.github.io`,
+DNS only), and the custom domain is set in the repo's Settings, Pages.
+The old `pack4action.github.io/boozebag/` address forwards here by itself.
+The share cards, canonical links, sitemap and the meme maker's Post on X
+link all use `https://boozebag.us/`.
