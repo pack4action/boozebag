@@ -92,16 +92,18 @@
   const STICKERS = [
     ...(LASER ? [{ id: 'laser', src: LASER, size: 0.55 }] : []),
     ...(LASER_GREEN ? [{ id: 'laser-green', src: LASER_GREEN, size: 0.55 }] : []),
-    // When one is added here, the row count held open for the stickers in
-    // meme.css (#meme-stickers, --rows) may need to go up.
+    // The first eight are shown; the rest wait under More stickers. When
+    // one is added, the row count held open for that list in meme.css
+    // (#meme-stickers-more, --rows) may need to go up.
     ...[
-      ['dwi', 0.45], ['chrome-shades', 0.38], ['flare', 0.5],
+      ['dwi', 0.45], ['chain', 0.5],
       // Him, cut out.
-      ['head-shocked', 0.34], ['head-grin', 0.34], ['thumbs', 0.5],
+      ['head-shocked', 0.34], ['head-grin', 0.34],
+      ['mustache', 0.3], ['clown-wig', 0.6],
+      ['thumbs', 0.5], ['chrome-shades', 0.38], ['flare', 0.5],
       // Things to put on him.
-      ['chain', 0.5], ['fries-crown', 0.42], ['foil-hat', 0.4], ['top-hat', 0.42], ['cowboy-hat', 0.5],
-      ['mustache', 0.3], ['unibrow', 0.3], ['monocle', 0.16], ['pipe', 0.26], ['tears', 0.3],
-      ['nose', 0.16], ['clown-wig', 0.6],
+      ['fries-crown', 0.42], ['foil-hat', 0.4], ['top-hat', 0.42], ['cowboy-hat', 0.5],
+      ['unibrow', 0.3], ['monocle', 0.16], ['pipe', 0.26], ['tears', 0.3], ['nose', 0.16],
       // Glowing ones, the anime lines to put round him, and the circle,
       // arrow and charts that point at something.
       ['halo', 0.4], ['horns', 0.42], ['lightning', 0.4], ['speedlines', 1],
@@ -137,18 +139,21 @@
   // meme ones in assets/fonts/meme), each under its own open licence, and
   // only fetched once somebody picks it.
   const FONTS = {
-    impact: { family: 'Anton', caps: true, lh: 1.04, stroke: 0.15 },
-    bebas: { family: 'Bebas Neue', caps: true, lh: 0.98, stroke: 0.16 },
-    bangers: { family: 'Bangers', caps: true, lh: 1.02, stroke: 0.13 },
-    bubble: { family: 'Luckiest Guy', caps: true, lh: 1.08, stroke: 0.12 },
-    marker: { family: 'Permanent Marker', caps: false, lh: 1.16, stroke: 0.1 },
-    goofy: { family: 'Comic Neue', weight: '700', caps: false, lh: 1.12, stroke: 0.12 },
-    pixel: { family: 'Press Start 2P', caps: true, lh: 1.32, stroke: 0.1 },
-    script: { family: 'Lobster', caps: false, lh: 1.14, stroke: 0.1 },
-    typewriter: { family: 'Special Elite', caps: false, lh: 1.16, stroke: 0.08 },
-    serif: { family: 'DM Serif Display', caps: false, lh: 1.1, stroke: 0.1 },
-    spooky: { family: 'Creepster', caps: true, lh: 1.08, stroke: 0.09 },
-    clean: { family: 'Inter', weight: '900', caps: false, lh: 1.12, stroke: 0.12 },
+    impact: { family: 'Anton', caps: true, lh: 1.04, stroke: 0.2 },
+    tall: { family: 'Oswald', weight: '700', caps: true, lh: 1.06, stroke: 0.19 },
+    bangers: { family: 'Bangers', caps: true, lh: 1.02, stroke: 0.17 },
+    bubble: { family: 'Luckiest Guy', caps: true, lh: 1.08, stroke: 0.16 },
+    thumb: { family: 'Lilita One', caps: true, lh: 1.04, stroke: 0.17 },
+    reels: { family: 'Montserrat', weight: '900', caps: false, lh: 1.08, stroke: 0.17 },
+    clean: { family: 'Inter', weight: '900', caps: false, lh: 1.1, stroke: 0.16 },
+    slab: { family: 'Alfa Slab One', caps: true, lh: 1.06, stroke: 0.16 },
+    serif: { family: 'Libre Baskerville', weight: '700', caps: false, lh: 1.14, stroke: 0.15 },
+    elegant: { family: 'Playfair Display', weight: '900', caps: false, lh: 1.08, stroke: 0.15 },
+    marker: { family: 'Permanent Marker', caps: false, lh: 1.16, stroke: 0.14 },
+    script: { family: 'Lobster', caps: false, lh: 1.14, stroke: 0.14 },
+    rounded: { family: 'Nunito', weight: '900', caps: false, lh: 1.1, stroke: 0.17 },
+    typewriter: { family: 'Courier Prime', weight: '700', caps: false, lh: 1.12, stroke: 0.16 },
+    goofy: { family: 'Comic Neue', weight: '700', caps: false, lh: 1.12, stroke: 0.16 },
   };
   const look = () => STYLES[S.style] || STYLES.classic;
   const font = () => FONTS[S.font] || FONTS.impact;
@@ -1305,6 +1310,8 @@
       last = JSON.stringify(S);
       // Marker used to be a colour; it is a font now.
       if (S.style === 'marker') { S.style = 'classic'; S.font = 'marker'; S.caps = false; }
+      // Tall used to be another, thinner face.
+      if (S.font === 'bebas') S.font = 'tall';
       if (!FONTS[S.font]) S.font = 'impact';
       wantFont();
       return true;
@@ -1605,7 +1612,10 @@
     commit();
   }
   const stickRow = $('meme-stickers');
-  STICKERS.forEach((art) => {
+  const stickMore = $('meme-stickers-more');
+  const SHOWN = 8;
+  $('meme-stickmore-n').textContent = (STICKERS.length - SHOWN) + ' more and emoji';
+  STICKERS.forEach((art, i) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'meme-stick';
@@ -1616,7 +1626,7 @@
     b.addEventListener('click', () => {
       load(art.src).then(() => add({ kind: 'art', art: art.id, nw: art.size }), () => say('That sticker would not load.'));
     });
-    stickRow.appendChild(b);
+    (i < SHOWN ? stickRow : stickMore).appendChild(b);
   });
   const emojiRow = $('meme-emoji');
   EMOJI.forEach((ch) => {

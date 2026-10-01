@@ -33,7 +33,7 @@
 <link rel="preload" href="assets/fonts/inter-800.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/css/style.css?v=96" />
 <link rel="stylesheet" href="assets/css/game-common.css?v=16" />
-<link rel="stylesheet" href="assets/css/meme.css?v=25" />
+<link rel="stylesheet" href="assets/css/meme.css?v=29" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -159,7 +159,10 @@
       <section class="meme-block meme-block-words">
         <div class="meme-h-row">
           <h2 class="meme-h">The words</h2>
-          <button class="meme-mini is-lit" id="meme-roll" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.4" cy="8.4" r="1.6"/><circle cx="15.6" cy="8.4" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="8.4" cy="15.6" r="1.6"/><circle cx="15.6" cy="15.6" r="1.6"/></svg>Give me one</button>
+          <div class="meme-h-btns">
+            <button class="meme-mini is-lit" id="meme-roll" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.4" cy="8.4" r="1.6"/><circle cx="15.6" cy="8.4" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="8.4" cy="15.6" r="1.6"/><circle cx="15.6" cy="15.6" r="1.6"/></svg>Give me one</button>
+            <button class="meme-mini" id="meme-addtext" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 6.4V4.2h11v2.2M9.1 4.2v15.4M6.6 19.6h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.4 12.2v7.6M14.6 16h7.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Add text</button>
+          </div>
         </div>
         <label class="meme-field">
           <span id="lab-top">Top</span>
@@ -169,62 +172,69 @@
           <span id="lab-bottom">Bottom</span>
           <input type="text" id="meme-bottom" maxlength="90" placeholder="Me after 24" autocomplete="off" />
         </label>
-        <div class="meme-row">
-          <div class="meme-chips" id="meme-styles" role="radiogroup" aria-label="Lettering">
-            <button class="meme-chip is-on" type="button" data-style="classic" role="radio" aria-checked="true"><span class="meme-swatch sw-classic">Aa</span>Classic</button>
-            <button class="meme-chip" type="button" data-style="amber" role="radio" aria-checked="false"><span class="meme-swatch sw-amber">Aa</span>Beer</button>
-            <button class="meme-chip" type="button" data-style="neon" role="radio" aria-checked="false"><span class="meme-swatch sw-neon">Aa</span>Neon</button>
-            <button class="meme-chip" type="button" data-style="fire" role="radio" aria-checked="false"><span class="meme-swatch sw-fire">Aa</span>Fire</button>
-            <button class="meme-chip" type="button" data-style="box" role="radio" aria-checked="false"><span class="meme-swatch sw-box">Aa</span>Box</button>
+        <details class="meme-more" id="meme-textopts">
+          <summary><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h9M17 6.5h3M4 12h3M11 12h9M4 17.5h11M19 17.5h1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="15" cy="6.5" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17" cy="17.5" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></svg><span class="meme-more-title">Text options</span><span class="meme-more-hint">Font, colour, size</span><svg class="icon meme-more-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+          <div class="meme-more-body">
+          <div class="meme-row">
+            <div class="meme-chips" id="meme-styles" role="radiogroup" aria-label="Lettering">
+              <button class="meme-chip is-on" type="button" data-style="classic" role="radio" aria-checked="true"><span class="meme-swatch sw-classic">Aa</span>Classic</button>
+              <button class="meme-chip" type="button" data-style="amber" role="radio" aria-checked="false"><span class="meme-swatch sw-amber">Aa</span>Beer</button>
+              <button class="meme-chip" type="button" data-style="neon" role="radio" aria-checked="false"><span class="meme-swatch sw-neon">Aa</span>Neon</button>
+              <button class="meme-chip" type="button" data-style="fire" role="radio" aria-checked="false"><span class="meme-swatch sw-fire">Aa</span>Fire</button>
+              <button class="meme-chip" type="button" data-style="box" role="radio" aria-checked="false"><span class="meme-swatch sw-box">Aa</span>Box</button>
+            </div>
+            <button class="meme-mini" id="meme-caps" type="button" aria-pressed="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 18.4 7 5.6h1.4l4.4 12.8M4.1 14h7.2M14.2 18.4l3.3-8.4h1.2l3.3 8.4M15.3 15.6h5.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Caps</button>
           </div>
-          <button class="meme-mini" id="meme-caps" type="button" aria-pressed="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 18.4 7 5.6h1.4l4.4 12.8M4.1 14h7.2M14.2 18.4l3.3-8.4h1.2l3.3 8.4M15.3 15.6h5.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Caps</button>
-          <button class="meme-mini" id="meme-addtext" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 6.4V4.2h11v2.2M9.1 4.2v15.4M6.6 19.6h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.4 12.2v7.6M14.6 16h7.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Add text</button>
-        </div>
-        <div class="meme-colors">
-          <span class="meme-color-label" id="lab-ink">Text</span>
-          <div class="meme-swatches" id="meme-ink" role="radiogroup" aria-label="Text colour">
-            <button class="meme-sw meme-sw-auto" type="button" data-c="" role="radio" aria-checked="true" aria-label="The style's own colour" title="Auto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M5 3.6V7.4h3.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-            <button class="meme-sw" type="button" data-c="#ffffff" role="radio" aria-checked="false" aria-label="White" title="White" style="--c: #ffffff"></button>
-            <button class="meme-sw" type="button" data-c="#111111" role="radio" aria-checked="false" aria-label="Black" title="Black" style="--c: #111111"></button>
-            <button class="meme-sw" type="button" data-c="#ffc632" role="radio" aria-checked="false" aria-label="Beer" title="Beer" style="--c: #ffc632"></button>
-            <button class="meme-sw" type="button" data-c="#51fb18" role="radio" aria-checked="false" aria-label="Green" title="Green" style="--c: #51fb18"></button>
-            <button class="meme-sw" type="button" data-c="#ff3fa4" role="radio" aria-checked="false" aria-label="Pink" title="Pink" style="--c: #ff3fa4"></button>
-            <button class="meme-sw" type="button" data-c="#3ddcff" role="radio" aria-checked="false" aria-label="Blue" title="Blue" style="--c: #3ddcff"></button>
-            <label class="meme-sw meme-sw-custom" title="Any colour"><input type="color" value="#ff3fa4" aria-label="Any colour" /></label>
+          <div class="meme-colors">
+            <span class="meme-color-label" id="lab-ink">Text</span>
+            <div class="meme-swatches" id="meme-ink" role="radiogroup" aria-label="Text colour">
+              <button class="meme-sw meme-sw-auto" type="button" data-c="" role="radio" aria-checked="true" aria-label="The style's own colour" title="Auto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M5 3.6V7.4h3.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button class="meme-sw" type="button" data-c="#ffffff" role="radio" aria-checked="false" aria-label="White" title="White" style="--c: #ffffff"></button>
+              <button class="meme-sw" type="button" data-c="#111111" role="radio" aria-checked="false" aria-label="Black" title="Black" style="--c: #111111"></button>
+              <button class="meme-sw" type="button" data-c="#ffc632" role="radio" aria-checked="false" aria-label="Beer" title="Beer" style="--c: #ffc632"></button>
+              <button class="meme-sw" type="button" data-c="#51fb18" role="radio" aria-checked="false" aria-label="Green" title="Green" style="--c: #51fb18"></button>
+              <button class="meme-sw" type="button" data-c="#ff3fa4" role="radio" aria-checked="false" aria-label="Pink" title="Pink" style="--c: #ff3fa4"></button>
+              <button class="meme-sw" type="button" data-c="#3ddcff" role="radio" aria-checked="false" aria-label="Blue" title="Blue" style="--c: #3ddcff"></button>
+              <label class="meme-sw meme-sw-custom" title="Any colour"><input type="color" value="#ff3fa4" aria-label="Any colour" /></label>
+            </div>
           </div>
-        </div>
-        <div class="meme-colors">
-          <span class="meme-color-label" id="lab-edge">Outline</span>
-          <div class="meme-swatches" id="meme-edge" role="radiogroup" aria-label="Outline colour">
-            <button class="meme-sw meme-sw-auto" type="button" data-c="" role="radio" aria-checked="true" aria-label="The style's own colour" title="Auto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M5 3.6V7.4h3.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-            <button class="meme-sw" type="button" data-c="#000000" role="radio" aria-checked="false" aria-label="Black" title="Black" style="--c: #000000"></button>
-            <button class="meme-sw" type="button" data-c="#ffffff" role="radio" aria-checked="false" aria-label="White" title="White" style="--c: #ffffff"></button>
-            <button class="meme-sw" type="button" data-c="#ffc632" role="radio" aria-checked="false" aria-label="Beer" title="Beer" style="--c: #ffc632"></button>
-            <button class="meme-sw" type="button" data-c="#51fb18" role="radio" aria-checked="false" aria-label="Green" title="Green" style="--c: #51fb18"></button>
-            <button class="meme-sw" type="button" data-c="#ff3fa4" role="radio" aria-checked="false" aria-label="Pink" title="Pink" style="--c: #ff3fa4"></button>
-            <button class="meme-sw" type="button" data-c="#3ddcff" role="radio" aria-checked="false" aria-label="Blue" title="Blue" style="--c: #3ddcff"></button>
-            <label class="meme-sw meme-sw-custom" title="Any colour"><input type="color" value="#ff3fa4" aria-label="Any colour" /></label>
+          <div class="meme-colors">
+            <span class="meme-color-label" id="lab-edge">Outline</span>
+            <div class="meme-swatches" id="meme-edge" role="radiogroup" aria-label="Outline colour">
+              <button class="meme-sw meme-sw-auto" type="button" data-c="" role="radio" aria-checked="true" aria-label="The style's own colour" title="Auto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M5 3.6V7.4h3.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button class="meme-sw" type="button" data-c="#000000" role="radio" aria-checked="false" aria-label="Black" title="Black" style="--c: #000000"></button>
+              <button class="meme-sw" type="button" data-c="#ffffff" role="radio" aria-checked="false" aria-label="White" title="White" style="--c: #ffffff"></button>
+              <button class="meme-sw" type="button" data-c="#ffc632" role="radio" aria-checked="false" aria-label="Beer" title="Beer" style="--c: #ffc632"></button>
+              <button class="meme-sw" type="button" data-c="#51fb18" role="radio" aria-checked="false" aria-label="Green" title="Green" style="--c: #51fb18"></button>
+              <button class="meme-sw" type="button" data-c="#ff3fa4" role="radio" aria-checked="false" aria-label="Pink" title="Pink" style="--c: #ff3fa4"></button>
+              <button class="meme-sw" type="button" data-c="#3ddcff" role="radio" aria-checked="false" aria-label="Blue" title="Blue" style="--c: #3ddcff"></button>
+              <label class="meme-sw meme-sw-custom" title="Any colour"><input type="color" value="#ff3fa4" aria-label="Any colour" /></label>
+            </div>
           </div>
-        </div>
-        <h3 class="meme-sub">Font</h3>
-        <div class="meme-fonts" id="meme-fonts" role="radiogroup" aria-label="Font">
-          <button class="meme-font is-on" type="button" data-font="impact" role="radio" aria-checked="true">Meme</button>
-          <button class="meme-font" type="button" data-font="bebas" role="radio" aria-checked="false">Tall</button>
-          <button class="meme-font" type="button" data-font="bangers" role="radio" aria-checked="false">Comic</button>
-          <button class="meme-font" type="button" data-font="bubble" role="radio" aria-checked="false">Bubble</button>
-          <button class="meme-font" type="button" data-font="marker" role="radio" aria-checked="false">Marker</button>
-          <button class="meme-font" type="button" data-font="goofy" role="radio" aria-checked="false">Goofy</button>
-          <button class="meme-font" type="button" data-font="pixel" role="radio" aria-checked="false">Pixel</button>
-          <button class="meme-font" type="button" data-font="script" role="radio" aria-checked="false">Script</button>
-          <button class="meme-font" type="button" data-font="typewriter" role="radio" aria-checked="false">Typewriter</button>
-          <button class="meme-font" type="button" data-font="serif" role="radio" aria-checked="false">Serif</button>
-          <button class="meme-font" type="button" data-font="spooky" role="radio" aria-checked="false">Spooky</button>
-          <button class="meme-font" type="button" data-font="clean" role="radio" aria-checked="false">Clean</button>
-        </div>
-        <div class="meme-zoom meme-slide">
-          <label for="meme-tsize">Size</label>
-          <input type="range" id="meme-tsize" min="0.6" max="1.5" step="0.01" value="1" />
-        </div>
+          <h3 class="meme-sub">Font</h3>
+          <div class="meme-fonts" id="meme-fonts" role="radiogroup" aria-label="Font">
+            <button class="meme-font is-on" type="button" data-font="impact" role="radio" aria-checked="true">Meme</button>
+            <button class="meme-font" type="button" data-font="tall" role="radio" aria-checked="false">Tall</button>
+            <button class="meme-font" type="button" data-font="bangers" role="radio" aria-checked="false">Comic</button>
+            <button class="meme-font" type="button" data-font="bubble" role="radio" aria-checked="false">Bubble</button>
+            <button class="meme-font" type="button" data-font="thumb" role="radio" aria-checked="false">Thumbnail</button>
+            <button class="meme-font" type="button" data-font="reels" role="radio" aria-checked="false">Reels</button>
+            <button class="meme-font" type="button" data-font="clean" role="radio" aria-checked="false">Clean</button>
+            <button class="meme-font" type="button" data-font="slab" role="radio" aria-checked="false">Slab</button>
+            <button class="meme-font" type="button" data-font="serif" role="radio" aria-checked="false">Serif</button>
+            <button class="meme-font" type="button" data-font="elegant" role="radio" aria-checked="false">Elegant</button>
+            <button class="meme-font" type="button" data-font="marker" role="radio" aria-checked="false">Marker</button>
+            <button class="meme-font" type="button" data-font="script" role="radio" aria-checked="false">Script</button>
+            <button class="meme-font" type="button" data-font="rounded" role="radio" aria-checked="false">Rounded</button>
+            <button class="meme-font" type="button" data-font="typewriter" role="radio" aria-checked="false">Typewriter</button>
+            <button class="meme-font" type="button" data-font="goofy" role="radio" aria-checked="false">Goofy</button>
+          </div>
+          <div class="meme-zoom meme-slide">
+            <label for="meme-tsize">Size</label>
+            <input type="range" id="meme-tsize" min="0.6" max="1.5" step="0.01" value="1" />
+          </div>
+          </div>
+        </details>
       </section>
 
       <section class="meme-block meme-block-format">
@@ -266,7 +276,13 @@
       <section class="meme-block meme-block-stick">
         <h2 class="meme-h">Stickers</h2>
         <div class="meme-picks meme-stickers" id="meme-stickers" aria-label="Stickers"></div>
-        <div class="meme-emoji" id="meme-emoji" aria-label="Emoji"></div>
+        <details class="meme-more" id="meme-stickmore">
+          <summary><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M17 13.5v7M13.5 17h7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span class="meme-more-title">More stickers</span><span class="meme-more-hint" id="meme-stickmore-n"></span><svg class="icon meme-more-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+          <div class="meme-more-body">
+            <div class="meme-picks meme-stickers" id="meme-stickers-more" aria-label="More stickers"></div>
+            <div class="meme-emoji" id="meme-emoji" aria-label="Emoji"></div>
+          </div>
+        </details>
         <p class="meme-small">Tap one to drop it in. Drag it, pull the corner to size and turn it, or pinch.</p>
       </section>
 
@@ -295,6 +311,6 @@
 
 <script src="assets/js/main.js?v=64"></script>
 <script src="assets/js/wallet.js?v=7"></script>
-<script src="assets/js/meme.js?v=36"></script>
+<script src="assets/js/meme.js?v=40"></script>
 </body>
 </html>

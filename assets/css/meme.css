@@ -231,17 +231,20 @@
    Only fetched when something uses them: a font button showing its own
    name, or the picture once the font is picked. The buttons are a fixed
    size, so a font arriving late changes nothing around them. */
-@font-face { font-family: 'Bebas Neue'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/meme/bebas-neue.woff2') format('woff2'); }
+@font-face { font-family: 'Oswald'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/meme/oswald.woff2') format('woff2'); }
 @font-face { font-family: 'Bangers'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/meme/bangers.woff2') format('woff2'); }
 @font-face { font-family: 'Luckiest Guy'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/meme/luckiest-guy.woff2') format('woff2'); }
+@font-face { font-family: 'Lilita One'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/meme/lilita-one.woff2') format('woff2'); }
+@font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 900; font-display: swap; src: url('../fonts/meme/montserrat.woff2') format('woff2'); }
+@font-face { font-family: 'Alfa Slab One'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/meme/alfa-slab-one.woff2') format('woff2'); }
+@font-face { font-family: 'Libre Baskerville'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/meme/libre-baskerville.woff2') format('woff2'); }
+@font-face { font-family: 'Playfair Display'; font-style: normal; font-weight: 900; font-display: swap; src: url('../fonts/meme/playfair-display.woff2') format('woff2'); }
 @font-face { font-family: 'Permanent Marker'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/meme/permanent-marker.woff2') format('woff2'); }
-@font-face { font-family: 'Comic Neue'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/meme/comic-neue.woff2') format('woff2'); }
-@font-face { font-family: 'Press Start 2P'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/meme/press-start-2p.woff2') format('woff2'); }
 @font-face { font-family: 'Lobster'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/meme/lobster.woff2') format('woff2'); }
-@font-face { font-family: 'Special Elite'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/meme/special-elite.woff2') format('woff2'); }
-@font-face { font-family: 'DM Serif Display'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/meme/dm-serif-display.woff2') format('woff2'); }
-@font-face { font-family: 'Creepster'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/meme/creepster.woff2') format('woff2'); }
-.meme-fonts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@font-face { font-family: 'Nunito'; font-style: normal; font-weight: 900; font-display: swap; src: url('../fonts/meme/nunito.woff2') format('woff2'); }
+@font-face { font-family: 'Courier Prime'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/meme/courier-prime.woff2') format('woff2'); }
+@font-face { font-family: 'Comic Neue'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/meme/comic-neue.woff2') format('woff2'); }
+.meme-fonts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .meme-font {
   height: 46px;
   display: grid;
@@ -262,17 +265,20 @@
 .meme-font:active { transform: scale(0.96); }
 .meme-font.is-on { border-color: var(--amber); background: rgba(255, 198, 50, 0.1); box-shadow: 0 0 0 3px rgba(255, 198, 50, 0.14); }
 .meme-font[data-font="impact"] { font-family: 'Anton', 'Anton Fallback', sans-serif; font-size: 21px; letter-spacing: 0.3px; }
-.meme-font[data-font="bebas"] { font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 0.5px; }
+.meme-font[data-font="tall"] { font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 19px; text-transform: uppercase; }
 .meme-font[data-font="bangers"] { font-family: 'Bangers', sans-serif; font-size: 22px; letter-spacing: 0.8px; }
 .meme-font[data-font="bubble"] { font-family: 'Luckiest Guy', sans-serif; font-size: 18px; }
-.meme-font[data-font="marker"] { font-family: 'Permanent Marker', cursive; font-size: 16px; }
-.meme-font[data-font="goofy"] { font-family: 'Comic Neue', 'Comic Sans MS', cursive; font-weight: 700; font-size: 19px; }
-.meme-font[data-font="pixel"] { font-family: 'Press Start 2P', monospace; font-size: 10px; }
-.meme-font[data-font="script"] { font-family: 'Lobster', cursive; font-size: 21px; }
-.meme-font[data-font="typewriter"] { font-family: 'Special Elite', monospace; font-size: 14px; }
-.meme-font[data-font="serif"] { font-family: 'DM Serif Display', Georgia, serif; font-size: 20px; }
-.meme-font[data-font="spooky"] { font-family: 'Creepster', cursive; font-size: 22px; letter-spacing: 0.6px; color: #b6ff8a; }
+.meme-font[data-font="thumb"] { font-family: 'Lilita One', sans-serif; font-size: 14px; text-transform: uppercase; color: #ffe14d; }
+.meme-font[data-font="reels"] { font-family: 'Montserrat', sans-serif; font-weight: 900; font-size: 17px; }
 .meme-font[data-font="clean"] { font-family: 'Inter', 'Inter Fallback', sans-serif; font-weight: 900; font-size: 17px; }
+.meme-font[data-font="slab"] { font-family: 'Alfa Slab One', serif; font-size: 17px; text-transform: uppercase; }
+.meme-font[data-font="serif"] { font-family: 'Libre Baskerville', Georgia, serif; font-weight: 700; font-size: 16px; }
+.meme-font[data-font="elegant"] { font-family: 'Playfair Display', Georgia, serif; font-weight: 900; font-size: 18px; }
+.meme-font[data-font="marker"] { font-family: 'Permanent Marker', cursive; font-size: 16px; }
+.meme-font[data-font="script"] { font-family: 'Lobster', cursive; font-size: 21px; }
+.meme-font[data-font="rounded"] { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 17px; }
+.meme-font[data-font="typewriter"] { font-family: 'Courier Prime', monospace; font-weight: 700; font-size: 14px; }
+.meme-font[data-font="goofy"] { font-family: 'Comic Neue', 'Comic Sans MS', cursive; font-weight: 700; font-size: 19px; }
 #meme-caps[aria-pressed="false"] { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .meme-font { transition: none; } }
 
@@ -369,6 +375,11 @@
   align-items: center;
   justify-content: center;
   aspect-ratio: 1;
+  /* Square whatever shape the sticker is: without these a tall one
+     stretches its tile. */
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   padding: 8px;
   border-radius: 10px;
   cursor: pointer;
@@ -376,12 +387,13 @@
   background: #121016;
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
-.meme-stick img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.meme-stick img { display: block; width: 100%; height: 100%; object-fit: contain; }
 /* Built by meme.js as well, so held open the same way: square buttons,
    four across, --rows of them. */
 .meme-block-stick { container-type: inline-size; }
-#meme-stickers { --rows: 10; }
-#meme-stickers:empty { min-height: calc(var(--rows) * (100cqw - 30px) / 4 + (var(--rows) - 1) * 10px); }
+#meme-stickers { --rows: 2; }
+#meme-stickers-more { --rows: 8; }
+#meme-stickers:empty, #meme-stickers-more:empty { min-height: calc(var(--rows) * (100cqw - 30px) / 4 + (var(--rows) - 1) * 10px); }
 #meme-emoji:empty { min-height: calc(2 * (100cqw - 40px) / 6 + 8px); }
 .meme-stick img.is-round { border-radius: 50%; box-shadow: 0 0 0 2px #ffc632; }
 .meme-stick:hover { border-color: var(--amber); transform: translateY(-2px) rotate(-2deg); }
@@ -470,3 +482,33 @@
 @media (max-width: 560px) {
   .meme-colors { grid-template-columns: 1fr; gap: 6px; }
 }
+
+/* ---- Dropdowns: Text options and More stickers ---- */
+.meme-h-btns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.meme-more { margin-top: 12px; border: 1px solid var(--panel-border); border-radius: 12px; background: rgba(0, 0, 0, 0.22); }
+.meme-more > summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  min-height: 48px;
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 12px;
+  user-select: none;
+}
+.meme-more > summary::-webkit-details-marker { display: none; }
+.meme-more > summary .icon { width: 20px; height: 20px; flex: none; color: var(--amber); }
+.meme-more > summary:hover { background: rgba(255, 198, 50, 0.06); }
+.meme-more > summary:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.meme-more-title { white-space: nowrap; }
+.meme-more-hint { margin-left: auto; min-width: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meme-more > summary .meme-more-chev { width: 18px; height: 18px; color: var(--muted); transition: transform 0.18s ease; }
+.meme-more[open] > summary .meme-more-chev { transform: rotate(180deg); }
+.meme-more[open] > summary { border-bottom: 1px solid var(--panel-border); border-radius: 12px 12px 0 0; }
+.meme-more-body { padding: 12px 12px 14px; }
+.meme-more-body > :first-child { margin-top: 0; }
+.meme-block-stick .meme-more-body { padding: 10px; }
+@media (prefers-reduced-motion: reduce) { .meme-more > summary .meme-more-chev { transition: none; } }
