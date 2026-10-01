@@ -337,8 +337,12 @@
 .meme-pick-art img { width: 100%; height: 100%; object-fit: cover; }
 .meme-pick-art.is-dark { background: radial-gradient(circle at 50% 65%, rgba(255, 170, 30, 0.35), transparent 70%), #0d0b10; }
 .meme-pick-art.is-dark img { object-fit: contain; }
-.meme-pick-plus { color: var(--amber); }
-.meme-pick-plus svg { width: 42%; height: 42%; }
+.meme-pick-plus { flex-direction: column; gap: 4px; color: var(--amber); border-style: dashed; border-color: rgba(255, 198, 50, 0.45); background: #121016; }
+.meme-pick-plus svg { width: 34%; height: 34%; flex: none; }
+.meme-pick-plus span { font-size: 12px; font-weight: 800; line-height: 1; white-space: nowrap; }
+/* Your own says so inside its tile, like the sticker one; the name under
+   it keeps its room so the rows still line up. */
+.meme-pick[data-id="upload"] .meme-pick-label { visibility: hidden; }
 .meme-pick-label { font-size: 12px; font-weight: 700; }
 .meme-pick:hover .meme-pick-art { border-color: rgba(255, 198, 50, 0.5); transform: translateY(-2px); }
 .meme-pick.is-on .meme-pick-art { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(255, 198, 50, 0.18); }

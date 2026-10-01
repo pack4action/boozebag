@@ -1535,7 +1535,8 @@
     b.dataset.id = tpl.id;
     if (tpl.upload) {
       b.innerHTML = '<span class="meme-pick-art meme-pick-plus"><svg viewBox="0 0 24 24" aria-hidden="true">'
-        + '<path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span>';
+        + '<path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>'
+        + '<span>Your own</span></span>';
     } else if (tpl.src) {
       b.innerHTML = '<span class="meme-pick-art' + (tpl.kind === 'art' ? ' is-dark' : '') + '"><img src="'
         + (tpl.thumb || tpl.src) + '" alt="" loading="lazy" decoding="async" /></span>';
