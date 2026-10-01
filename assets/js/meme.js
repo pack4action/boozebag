@@ -99,8 +99,9 @@
       // Him, cut out.
       ['head-shocked', 0.34], ['head-grin', 0.34], ['thumbs', 0.5],
       // Things to put on him.
-      ['chain', 0.5], ['fries-crown', 0.42], ['foil-hat', 0.4], ['top-hat', 0.42],
-      ['mustache', 0.3], ['monocle', 0.16], ['pipe', 0.26], ['tears', 0.3], ['nose', 0.16],
+      ['chain', 0.5], ['fries-crown', 0.42], ['foil-hat', 0.4], ['top-hat', 0.42], ['cowboy-hat', 0.5],
+      ['mustache', 0.3], ['unibrow', 0.3], ['monocle', 0.16], ['pipe', 0.26], ['tears', 0.3],
+      ['nose', 0.16], ['clown-wig', 0.6],
       // Glowing ones, the anime lines to put round him, and the circle,
       // arrow and charts that point at something.
       ['halo', 0.4], ['horns', 0.42], ['lightning', 0.4], ['speedlines', 1],
