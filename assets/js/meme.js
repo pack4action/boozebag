@@ -25,6 +25,7 @@
       ['pointing', 'Pointing'], ['cheers', 'Cheers', 1536, 1024],
       ['saltbae', 'Salt Bae'], ['gigachad', 'Gigachad', 1168, 1347],
       ['rollsafe', 'Roll Safe', 1675, 939], ['aliens', 'Aliens', 1448, 1086],
+      ['blinking', 'Blinking', 1713, 918],
       ['yelling', 'Yelling'], ['cat', 'Dinner cat'],
       ['nah', 'Nah'], ['yeah', 'Yeah'],
     ].map(([id, label, w = 1254, h = 1254]) => ({
