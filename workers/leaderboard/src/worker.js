@@ -445,6 +445,36 @@ async function unbought(env, mint, coin, decimals) {
   return null;
 }
 
+// The same, without asking pump.fun, which often turns away requests from
+// Cloudflare: the curve (or pool) is nearly always one of the coin's
+// biggest holders, so the largest few token accounts are looked at, and
+// the one whose owner belongs to pump.fun's curve program (or its swap
+// program) is the one.
+const PUMP_CURVE_PROGRAM = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+const PUMP_SWAP_PROGRAM = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
+async function unboughtOnChain(env, mint) {
+  const url = rpcUrl(env);
+  const big = await rpcAt(url, 'getTokenLargestAccounts', [mint]);
+  const top = big && Array.isArray(big.value) ? big.value.slice(0, 5) : [];
+  if (!top.length) return null;
+  const accs = await rpcAt(url, 'getMultipleAccounts', [top.map((a) => a.address), { encoding: 'jsonParsed' }]);
+  const owners = (accs && Array.isArray(accs.value) ? accs.value : []).map((a) =>
+    (a && a.data && a.data.parsed && a.data.parsed.info && a.data.parsed.info.owner) || null);
+  const known = owners.filter(Boolean);
+  if (!known.length) return null;
+  const progs = await rpcAt(url, 'getMultipleAccounts', [known, { encoding: 'base64', dataSlice: { offset: 0, length: 0 } }]);
+  const progOf = new Map();
+  (progs && Array.isArray(progs.value) ? progs.value : []).forEach((a, i) => { if (a) progOf.set(known[i], a.owner); });
+  for (let i = 0; i < top.length; i++) {
+    const prog = owners[i] && progOf.get(owners[i]);
+    const ui = Number(top[i].uiAmount);
+    if (!isFinite(ui)) continue;
+    if (prog === PUMP_CURVE_PROGRAM) return { n: ui, where: 'curve' };
+    if (prog === PUMP_SWAP_PROGRAM) return { n: ui, where: 'pool' };
+  }
+  return null;
+}
+
 async function tokenSupply(env, mint) {
   const res = await rpcAt(rpcUrl(env), 'getTokenSupply', [mint]);
   const v = res && res.value;
@@ -608,7 +638,8 @@ async function tokenAnswer(env) {
   if (!tokenHeld || now - tokenHeld.at >= TOKEN_HOLD_MS) {
     const [supply, counted, waiting, coinNow] = await Promise.all([tokenSupply(env, mint),
       tokenHolders(env, mint), heldBack(env, mint), pumpCoin(mint)]);
-    const left = await unbought(env, mint, coinNow, supply ? supply.decimals : null).catch(() => null);
+    let left = await unbought(env, mint, coinNow, supply ? supply.decimals : null).catch(() => null);
+    if (!left) left = await unboughtOnChain(env, mint).catch(() => null);
     let holders = counted.holders;
     let holdersFrom = counted.from;
     if (holders !== null) lastHolders = { at: now, holders, from: holdersFrom };

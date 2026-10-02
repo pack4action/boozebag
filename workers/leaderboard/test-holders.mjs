@@ -24,6 +24,16 @@ function stubFetch(plan) {
       return J({ result: { value: plan.wallet.map((ui) => ({
         account: { data: { parsed: { info: { tokenAmount: { uiAmount: ui } } } } } })) } });
     }
+    if (body.method === 'getTokenLargestAccounts' && plan.largest) {
+      return J({ result: { value: plan.largest.map(([address, ui]) => ({ address, uiAmount: ui })) } });
+    }
+    if (body.method === 'getMultipleAccounts' && plan.largest) {
+      const keys = body.params[0];
+      if (body.params[1].encoding === 'jsonParsed') {
+        return J({ result: { value: keys.map((k) => ({ data: { parsed: { info: { owner: 'OWNER_' + k } } } })) } });
+      }
+      return J({ result: { value: keys.map((k) => ({ owner: plan.programs[k] || '11111111111111111111111111111111' })) } });
+    }
     if (body.method === 'getTokenAccounts') {
       // The indexed way, which only some RPCs answer. This one wants its
       // arguments as a bare object, the way Helius does, and says so in
@@ -153,5 +163,15 @@ r = await run('unbought from the reserves', { pump: Object.assign({ real_token_r
 ok('unbought: from the reserve figure', r.body.unbought === 300000000 && r.body.unboughtIn === 'curve', r.body);
 r = await run('unbought unknown', { pump: PUMP }, 654, 'pump.fun');
 ok('unbought: null when nothing says', r.body.unbought === null, r.body);
+
+// Straight off the chain when pump.fun will not answer.
+r = await run('unbought on chain', { largest: [['WHALE', 90000000], ['CURVEACC', 380000000], ['X', 5]],
+  programs: { OWNER_CURVEACC: '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P' } }, null, null);
+ok('unbought on chain: found the curve', r.body.unbought === 380000000 && r.body.unboughtIn === 'curve', r.body);
+r = await run('unbought on chain, graduated', { largest: [['POOLACC', 200000000]],
+  programs: { OWNER_POOLACC: 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA' } }, null, null);
+ok('unbought on chain: the pool', r.body.unbought === 200000000 && r.body.unboughtIn === 'pool', r.body);
+r = await run('unbought on chain, none', { largest: [['A', 9]], programs: {} }, null, null);
+ok('unbought on chain: nothing claimed', r.body.unbought === null, r.body);
 
 console.log(fails.length ? 'FAIL\n' + fails.join('\n') : 'PASS');
