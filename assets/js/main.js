@@ -662,12 +662,12 @@ function paintSupply(supply, waiting, unsold, unsoldIn) {
   put('sk-market-say', known ? 'held by buyers' : 'on the market');
   put('sk-curve', shortNum(curve));
   put('sk-curve-pc', say(curve));
-  put('sk-curve-say', unsoldIn === 'pool' ? 'in the trading pool, not bought yet' : 'on pump.fun, not bought yet');
+  put('sk-curve-say', 'in the trading pool');
   const bar = document.getElementById('tk-bar');
   if (bar) {
     bar.setAttribute('aria-label', 'Of the supply, ' + say(given) + ' has been airdropped, '
       + say(left) + ' is still to go out, '
-      + (known ? say(bought) + ' is held by buyers and ' + say(curve) + ' has not been bought yet.'
+      + (known ? say(bought) + ' is held by buyers and ' + say(curve) + ' is in the trading pool.'
         : 'and ' + say(bought) + ' is on the market.'));
   }
 }
