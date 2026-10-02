@@ -274,3 +274,13 @@ and three hundred an hour from one place. The `memes` table is made on
 first use, like `cracks`, so nothing has to be run by hand: deploy the
 Worker and it starts counting. The meme page and the box on the front page
 show the total once it reaches 25, and say the maker is free until then.
+
+## Not bought yet
+
+`/api/token` also gives `unbought`: the coin still waiting for a buyer,
+read as the balance of pump.fun's bonding curve for it (or, once the coin
+graduates, the pool it moved to), with pump.fun's own reserve figure as
+the fallback. `unboughtIn` says which, `curve` or `pool`. The supply bar on
+the front page splits what is not airdrop into held by buyers and not
+bought yet with it, and calls the two together "on the market" when it is
+not known.

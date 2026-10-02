@@ -2191,6 +2191,19 @@ html { scroll-padding-top: 84px; }
   border-right: 3px solid #000;
   transition: width 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s;
 }
+/* Not bought yet: the end of the glass still waiting to be poured, so
+   darker and see-through, against the far side. */
+.supply-curve {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: var(--curve, 0%);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 198, 50, 0.16) 0 6px, rgba(255, 198, 50, 0.06) 6px 12px),
+    #1a140a;
+  border-left: 2px solid rgba(8, 6, 11, 0.8);
+  transition: width 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.5s;
+}
+.js .supply:not(.in) .supply-curve { width: 0; }
 .js .supply:not(.in) .supply-drop { width: 0; }
 .js .supply:not(.in) .supply-next { width: 0; }
 .supply-legend {
@@ -2206,6 +2219,7 @@ html { scroll-padding-top: 84px; }
 .supply-key-drop i { background: #fff3d2; }
 .supply-key-next i { background: repeating-linear-gradient(135deg, #fff3d2 0 3px, rgba(255, 243, 210, 0.35) 3px 6px); }
 .supply-key-market i { background: linear-gradient(180deg, #ffc632, #ff9a12); }
+.supply-key-curve i { background: repeating-linear-gradient(135deg, rgba(255, 198, 50, 0.4) 0 3px, #1a140a 3px 6px); }
 .supply-key b { color: var(--text); font-weight: 800; }
 .supply-key em {
   font-style: normal;

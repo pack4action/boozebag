@@ -43,7 +43,7 @@
 <link rel="preload" href="assets/fonts/anton-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/inter-800.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/css/style.css?v=97" />
+<link rel="stylesheet" href="assets/css/style.css?v=98" />
 <!-- Visits, counted without cookies, at Cloudflare Web Analytics.
      Numbers in the Cloudflare dashboard under Web Analytics. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "c8d8b5fd6eee4cd3bafa930eb2a67f41"}'></script>
@@ -638,14 +638,16 @@
       <span class="supply-total"><b id="tk-supply">953,882,392</b><span>total supply</span></span>
       <span class="supply-holders" id="tk-holders-stat" hidden><b id="tk-holders"></b><span>beer holders</span></span>
     </div>
-    <div class="supply-bar" id="tk-bar" role="img" aria-label="Of the supply, 7% has been airdropped, 2% is still to go out, and the rest was bought on the open market.">
+    <div class="supply-bar" id="tk-bar" role="img" aria-label="Of the supply, 7% has been airdropped, 2% is still to go out, and the rest is on the market.">
       <span class="supply-drop"><i></i></span>
       <span class="supply-next"></span>
+      <span class="supply-curve"></span>
     </div>
     <div class="supply-legend">
       <span class="supply-key supply-key-drop"><i></i><b id="sk-drop">70M</b> airdropped so far <em id="sk-drop-pc">7%</em></span>
       <span class="supply-key supply-key-next"><i></i><b id="sk-next">20M</b> still to go out <em id="sk-next-pc">2%</em></span>
-      <span class="supply-key supply-key-market"><i></i><b id="sk-market">864M</b> bought and traded <em id="sk-market-pc">91%</em></span>
+      <span class="supply-key supply-key-market"><i></i><b id="sk-market">864M</b> <span id="sk-market-say">on the market</span> <em id="sk-market-pc">91%</em></span>
+      <span class="supply-key supply-key-curve" id="sk-curve-key" hidden><i></i><b id="sk-curve"></b> <span id="sk-curve-say">not bought yet</span> <em id="sk-curve-pc"></em></span>
     </div>
   </div>
 
@@ -847,7 +849,7 @@
 
 <script src="assets/js/wallet.js?v=7"></script>
 <script src="assets/js/leaderboard.js?v=12"></script>
-<script src="assets/js/main.js?v=65"></script>
+<script src="assets/js/main.js?v=66"></script>
 <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>

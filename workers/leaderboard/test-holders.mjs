@@ -17,6 +17,9 @@ function stubFetch(plan) {
     const body = JSON.parse(opts.body);
     if (body.method === 'getTokenSupply') return J({ result: { value: { uiAmount: 1e9, decimals: 6 } } });
     if (body.method === 'getTokenAccountsByOwner') {
+      if (plan.curveOwner && body.params[0] === plan.curveOwner) {
+        return J({ result: { value: [{ account: { data: { parsed: { info: { tokenAmount: { uiAmount: plan.curveHolds } } } } } }] } });
+      }
       if (!plan.wallet) return J({ result: { value: [] } });
       return J({ result: { value: plan.wallet.map((ui) => ({
         account: { data: { parsed: { info: { tokenAmount: { uiAmount: ui } } } } } })) } });
@@ -142,5 +145,13 @@ await run('zero ignored', { solscan: { data: { holder: 0 } }, gecko: GECKO, pump
   r3 = await run('no wallet named, nothing said', { solscan: SOLSCAN }, 1234, 'solscan');
   ok('no wallet named, nothing said', r3.body.heldBack === null, r3.body.heldBack);
 }
+
+// What is still unbought, from the curve's own balance, then from pump.fun's figure.
+r = await run('unbought from the curve', { pump: Object.assign({ bonding_curve: 'CURVE' }, PUMP), curveOwner: 'CURVE', curveHolds: 412000000 }, 654, 'pump.fun');
+ok('unbought: read off the curve', r.body.unbought === 412000000 && r.body.unboughtIn === 'curve', r.body);
+r = await run('unbought from the reserves', { pump: Object.assign({ real_token_reserves: 300000000000000 }, PUMP) }, 654, 'pump.fun');
+ok('unbought: from the reserve figure', r.body.unbought === 300000000 && r.body.unboughtIn === 'curve', r.body);
+r = await run('unbought unknown', { pump: PUMP }, 654, 'pump.fun');
+ok('unbought: null when nothing says', r.body.unbought === null, r.body);
 
 console.log(fails.length ? 'FAIL\n' + fails.join('\n') : 'PASS');

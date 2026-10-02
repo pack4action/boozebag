@@ -416,6 +416,35 @@ async function heldBack(env, mint) {
   return n;
 }
 
+// What nobody has bought yet: the coin still sitting where pump.fun sells
+// it from. Before the coin graduates that is its bonding curve; after, the
+// trading pool it moved to. Read as the balance that account holds, with
+// the curve's own reserve figure from pump.fun as the fallback.
+async function unbought(env, mint, coin, decimals) {
+  if (!coin || typeof coin !== 'object') return null;
+  const owner = coin.complete ? (coin.pump_swap_pool || coin.raydium_pool) : coin.bonding_curve;
+  if (owner) {
+    const r = await rpcAsk(rpcUrl(env), 'getTokenAccountsByOwner',
+      [owner, { mint }, { encoding: 'jsonParsed' }]);
+    const list = r.result && r.result.value;
+    if (Array.isArray(list) && list.length) {
+      let n = 0;
+      for (const acc of list) {
+        const info = acc && acc.account && acc.account.data && acc.account.data.parsed
+          && acc.account.data.parsed.info;
+        const ui = info && info.tokenAmount && Number(info.tokenAmount.uiAmount);
+        if (ui > 0) n += ui;
+      }
+      return { n, where: coin.complete ? 'pool' : 'curve' };
+    }
+  }
+  const raw = Number(coin.real_token_reserves);
+  if (!coin.complete && isFinite(raw) && raw >= 0 && decimals != null) {
+    return { n: raw / Math.pow(10, decimals), where: 'curve' };
+  }
+  return null;
+}
+
 async function tokenSupply(env, mint) {
   const res = await rpcAt(rpcUrl(env), 'getTokenSupply', [mint]);
   const v = res && res.value;
@@ -577,8 +606,9 @@ async function tokenAnswer(env) {
   const now = Date.now();
   const mint = env.TOKEN_MINT || TOKEN_MINT;
   if (!tokenHeld || now - tokenHeld.at >= TOKEN_HOLD_MS) {
-    const [supply, counted, waiting] = await Promise.all([tokenSupply(env, mint),
-      tokenHolders(env, mint), heldBack(env, mint)]);
+    const [supply, counted, waiting, coinNow] = await Promise.all([tokenSupply(env, mint),
+      tokenHolders(env, mint), heldBack(env, mint), pumpCoin(mint)]);
+    const left = await unbought(env, mint, coinNow, supply ? supply.decimals : null).catch(() => null);
     let holders = counted.holders;
     let holdersFrom = counted.from;
     if (holders !== null) lastHolders = { at: now, holders, from: holdersFrom };
@@ -592,6 +622,8 @@ async function tokenAnswer(env) {
         supply: supply ? supply.supply : null,
         decimals: supply ? supply.decimals : null,
         heldBack: waiting,
+        unbought: left ? left.n : null,
+        unboughtIn: left ? left.where : null,
         holders,
         holdersFrom,
         tried: counted.tried,

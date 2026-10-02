@@ -619,7 +619,7 @@ function shortNum(n) {
 // from the wallet it waits in when the Worker can see it, and taken from
 // the markup when it cannot.
 const supplyEl = document.querySelector('.supply');
-function paintSupply(supply, waiting) {
+function paintSupply(supply, waiting, unsold, unsoldIn) {
   if (!supplyEl || !(supply > 0)) return;
   // What was set aside for holders in total. What has gone out is that
   // less what is left, so the two only ever move together.
@@ -636,11 +636,22 @@ function paintSupply(supply, waiting) {
   const left = Math.max(0, Math.min(pool,
     told ? said : Number(supplyEl.dataset.left) || 0));
   const given = Math.max(0, pool - left);
-  const bought = Math.max(0, supply - given - left);
+  // What is not airdrop is on the market: some of it bought and held,
+  // some still sitting in pump.fun's curve (or, once the coin graduates,
+  // its pool) waiting for a buyer. The Worker reads that second part off
+  // the chain; without it the two stay together as "on the market".
+  const rest = Math.max(0, supply - given - left);
+  const u = Number(unsold);
+  const known = unsold != null && isFinite(u) && u >= 0 && u <= rest;
+  const curve = known ? u : 0;
+  const bought = rest - curve;
   const pc = (n) => (n / supply) * 100;
   const say = (n) => Math.round(pc(n)) + '%';
   supplyEl.style.setProperty('--drop', pc(given).toFixed(2) + '%');
   supplyEl.style.setProperty('--next', pc(left).toFixed(2) + '%');
+  supplyEl.style.setProperty('--curve', pc(curve).toFixed(2) + '%');
+  const curveKey = document.getElementById('sk-curve-key');
+  if (curveKey) curveKey.hidden = !known;
   const put = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
   put('sk-drop', shortNum(given));
   put('sk-drop-pc', say(given));
@@ -648,10 +659,16 @@ function paintSupply(supply, waiting) {
   put('sk-next-pc', say(left));
   put('sk-market', shortNum(bought));
   put('sk-market-pc', say(bought));
+  put('sk-market-say', known ? 'held by buyers' : 'on the market');
+  put('sk-curve', shortNum(curve));
+  put('sk-curve-pc', say(curve));
+  put('sk-curve-say', unsoldIn === 'pool' ? 'in the trading pool, not bought yet' : 'on pump.fun, not bought yet');
   const bar = document.getElementById('tk-bar');
   if (bar) {
     bar.setAttribute('aria-label', 'Of the supply, ' + say(given) + ' has been airdropped, '
-      + say(left) + ' is still to go out, and ' + say(bought) + ' was bought on the open market.');
+      + say(left) + ' is still to go out, '
+      + (known ? say(bought) + ' is held by buyers and ' + say(curve) + ' has not been bought yet.'
+        : 'and ' + say(bought) + ' is on the market.'));
   }
 }
 
@@ -1003,7 +1020,7 @@ function askToken() {
       const supply = Number(t.supply);
       const sup = document.getElementById('tk-supply');
       if (sup && supply > 0) sup.textContent = Math.round(supply).toLocaleString('en-US');
-      paintSupply(supply, t.heldBack);
+      paintSupply(supply, t.heldBack, t.unbought, t.unboughtIn);
     })
     .catch(() => {})
     .then(done);
